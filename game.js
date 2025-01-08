@@ -132,17 +132,34 @@ function couldFormValidWord(letters) {
 
 // Create letter elements
 function createLetters() {
+function createLetters() {
     lettersContainer.innerHTML = '';
     letterElements = [];
     
-    const uniqueLetters = [...new Set(words[currentLevel])];
-    uniqueLetters.forEach(letter => {
+    const word = words[currentLevel].toUpperCase(); // Force uppercase
+    const distinctColors = generateDistinctColors(word.length);
+
+
+    
+[...word].forEach((letter, index) => {
         const element = document.createElement('div');
         element.className = 'letter';
         element.textContent = letter;
-        element.style.backgroundColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
-        element.style.animationDelay = `${Math.random() * 2}s`;
+        element.style.backgroundColor = distinctColors[index];
+        element.style.textTransform = 'uppercase'; // Force uppercase
+        element.style.fontWeight = 'bold';
+        element.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+        element.style.border = '2px solid rgba(255, 255, 255, 0.3)';
         
+        // Add hover effect
+        element.addEventListener('mouseover', () => {
+            element.style.transform = 'scale(1.1)';
+            element.style.transition = 'transform 0.2s ease';
+        });
+        
+        element.addEventListener('mouseout', () => {
+            element.style.transform = 'scale(1)';
+        });
         // Add touch/click handlers
         element.addEventListener('mousedown', () => handleLetterClick(letter));
         element.addEventListener('touchstart', (e) => {
@@ -156,9 +173,18 @@ function createLetters() {
             x: Math.random() * (window.innerWidth - 60),
             y: Math.random() * (window.innerHeight - 60),
             dx: (Math.random() - 0.5) * currentSpeed,
-            dy: (Math.random() - 0.5) * currentSpeed
+            dy: (Math.random() - 0.5) * currentSpeed,
+            mass: 1
         });
     });
+}
+
+function generateDistinctColors(count) {
+    const colors = [];
+    for (let i = 0; i < count; i++) {
+        colors.push(`hsl(${(360 / count) * i}, 70%, 50%)`);
+    }
+    return colors;
 }
 
 // Game loop
@@ -170,7 +196,8 @@ function gameLoop() {
 
 // Update letter positions
 function updateLetters() {
-    letterElements.forEach(letter => {
+    // First update positions
+    letterElements.forEach((letter, i) => {
         // Update position
         letter.x += letter.dx * currentSpeed;
         letter.y += letter.dy * currentSpeed;
@@ -183,6 +210,47 @@ function updateLetters() {
         if (letter.y <= 60 || letter.y >= window.innerHeight - 60) {
             letter.dy *= -1;
             letter.y = Math.max(60, Math.min(letter.y, window.innerHeight - 60));
+        }
+
+        // Check collisions with other letters
+        for (let j = i + 1; j < letterElements.length; j++) {
+            const other = letterElements[j];
+            
+            // Calculate distance between letters
+            const dx = other.x - letter.x;
+            const dy = other.y - letter.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // If letters are colliding (assuming letters are 60px wide)
+            const minDistance = 60;
+            if (distance < minDistance) {
+                // Calculate collision response
+                const angle = Math.atan2(dy, dx);
+                const sin = Math.sin(angle);
+                const cos = Math.cos(angle);
+
+                // Rotate velocities
+                const vx1 = letter.dx * cos + letter.dy * sin;
+                const vy1 = letter.dy * cos - letter.dx * sin;
+                const vx2 = other.dx * cos + other.dy * sin;
+                const vy2 = other.dy * cos - other.dx * sin;
+
+                // Swap the velocities
+                letter.dx = vx2 * cos - vy1 * sin;
+                letter.dy = vy1 * cos + vx2 * sin;
+                other.dx = vx1 * cos - vy2 * sin;
+                other.dy = vy2 * cos + vx1 * sin;
+
+                // Move letters apart to prevent sticking
+                const overlap = minDistance - distance;
+                const moveX = (overlap * cos) / 2;
+                const moveY = (overlap * sin) / 2;
+
+                letter.x -= moveX;
+                letter.y -= moveY;
+                other.x += moveX;
+                other.y += moveY;
+            }
         }
 
         // Apply position
