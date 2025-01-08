@@ -1,3 +1,111 @@
+import { loadDictionary, isValidWordStart, isValidWord, DICTIONARY } from './dictionary.js';
+
+
+// Add loading screen handling
+const loadingScreen = document.createElement('div');
+loadingScreen.className = 'loading-screen';
+loadingScreen.innerHTML = `
+    <div class="loading-content">
+        <h2>Loading Dictionary...</h2>
+        <div class="loading-spinner"></div>
+    </div>
+`;
+document.body.appendChild(loadingScreen);
+
+
+
+// Update dictionary initialization
+async function initializeDictionary() {
+    if (DICTIONARY.size === 0) {
+        loadingScreen.style.display = 'flex';
+        await loadDictionary();
+        loadingScreen.style.display = 'none';
+    }
+}
+
+
+
+// Update word validation function
+function couldFormValidWord(letters) {
+    // First check if it's already a complete valid word
+    if (isValidWord(letters)) return true;
+    // Then check if it could start a valid word
+    return isValidWordStart(letters);
+}
+
+
+
+// Update startLevel to handle async dictionary
+async function startLevel() {
+    collectedLetters = '';
+    currentSpeed = baseSpeed;
+    levelNumber.textContent = currentLevel + 1;
+    backgroundImage.style.backgroundImage = `url(${backgroundImages[currentLevel]})`;
+    await initializeDictionary();
+    createLetters();
+    updateWordProgress();
+}
+
+
+
+// Update initGame to handle async initialization
+async function initGame() {
+    loadingScreen.style.display = 'flex';
+    currentLevel = 0;
+    lives = initialLives;
+    isGameActive = true;
+    gameOverScreen.classList.add('hidden');
+    victoryScreen.classList.add('hidden');
+    updateLives();
+    await startLevel();
+    loadingScreen.style.display = 'none';
+    gameLoop();
+}
+
+
+
+// Add loading screen styles to the CSS file
+const styles = `
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+}
+
+.loading-content {
+    text-align: center;
+    color: white;
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+`;
+
+// Add styles to document
+const styleSheet = document.createElement("style");
+styleSheet.textContent = styles;
+document.head.appendChild(styleSheet);
+
+
 // Game configuration from URL parameters
 const urlParams = new URLSearchParams(window.location.search);
 const words = [
@@ -159,7 +267,7 @@ function updateWordProgress() {
 }
 
 function updateLives() {
-    livesDisplay.innerHTML = '❤️'.repeat(lives);
+    livesDisplay.innerHTML = 'â¤ï¸'.repeat(lives);
 }
 
 function showMessage(text, type) {
@@ -207,7 +315,7 @@ function victory() {
     document.getElementById('final-image').style.backgroundImage = 
         `url(${backgroundImages[2]})`;
     const completionWords = document.getElementById('completion-words');
-    completionWords.textContent = words.join(' → ');
+    completionWords.textContent = words.join(' â ');
     
     // Victory fireworks
     const duration = 15 * 1000;
