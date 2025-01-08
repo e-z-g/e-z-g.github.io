@@ -192,35 +192,50 @@ function gameLoop() {
 
 // Update letter positions
 function updateLetters() {
-    // First update positions
+    const overlayHeight = 80;
+    
     letterElements.forEach((letter, i) => {
         // Update position
-        letter.x += letter.dx * currentSpeed;
-        letter.y += letter.dy * currentSpeed;
+        letter.x += letter.dx;
+        letter.y += letter.dy;
+
+        // Add rotation based on movement
+        const rotation = Math.atan2(letter.dy, letter.dx) * (180 / Math.PI);
+        letter.element.style.transform = `translate(${letter.x}px, ${letter.y}px) rotate(${rotation}deg)`;
 
         // Bounce off walls with padding
         if (letter.x <= 0 || letter.x >= window.innerWidth - 60) {
-            letter.dx *= -1;
+            letter.dx *= -0.9;
             letter.x = Math.max(0, Math.min(letter.x, window.innerWidth - 60));
         }
-        if (letter.y <= 60 || letter.y >= window.innerHeight - 60) {
-            letter.dy *= -1;
-            letter.y = Math.max(60, Math.min(letter.y, window.innerHeight - 60));
+        
+        // Prevent going under overlay
+        if (letter.y <= overlayHeight) {
+            letter.dy *= -0.9;
+            letter.y = overlayHeight;
         }
+        
+        if (letter.y >= window.innerHeight - 60) {
+            letter.dy *= -0.9;
+            letter.y = window.innerHeight - 60;
+        }
+
+        // Add gravity
+        letter.dy += 0.2;
+        
+        // Add friction
+        letter.dx *= 0.995;
+        letter.dy *= 0.995;
 
         // Check collisions with other letters
         for (let j = i + 1; j < letterElements.length; j++) {
             const other = letterElements[j];
-            
-            // Calculate distance between letters
             const dx = other.x - letter.x;
             const dy = other.y - letter.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            // If letters are colliding (assuming letters are 60px wide)
-            const minDistance = 60;
-            if (distance < minDistance) {
-                // Calculate collision response
+            if (distance < 60) {
+                // Elastic collision
                 const angle = Math.atan2(dy, dx);
                 const sin = Math.sin(angle);
                 const cos = Math.cos(angle);
@@ -231,27 +246,22 @@ function updateLetters() {
                 const vx2 = other.dx * cos + other.dy * sin;
                 const vy2 = other.dy * cos - other.dx * sin;
 
-                // Swap the velocities
+                // Swap velocities
                 letter.dx = vx2 * cos - vy1 * sin;
-                letter.dy = vy1 * cos + vx2 * sin;
+                letter.dy = vy2 * cos + vx1 * sin;
                 other.dx = vx1 * cos - vy2 * sin;
-                other.dy = vy2 * cos + vx1 * sin;
+                other.dy = vy1 * cos + vx2 * sin;
 
-                // Move letters apart to prevent sticking
-                const overlap = minDistance - distance;
+                // Move letters apart
+                const overlap = 60 - distance;
                 const moveX = (overlap * cos) / 2;
                 const moveY = (overlap * sin) / 2;
-
                 letter.x -= moveX;
                 letter.y -= moveY;
                 other.x += moveX;
                 other.y += moveY;
             }
         }
-
-        // Apply position
-        letter.element.style.left = `${letter.x}px`;
-        letter.element.style.top = `${letter.y}px`;
     });
 }
 
@@ -298,7 +308,9 @@ function updateWordProgress() {
 }
 
 function updateLives() {
-    livesDisplay.innerHTML = '❤️'.repeat(lives);
+    livesDisplay.innerHTML = Array(lives).fill(
+        `<img src="${heartImageUrl || '/heart.png'}" class="life-icon" alt="❤️">`
+    ).join('');
 }
 
 function showMessage(text, type) {
@@ -349,16 +361,18 @@ function victory() {
     const completionWords = document.getElementById('completion-words');
     completionWords.textContent = words.join(' ➔ ');
     
-// Victory celebration
     const celebrateVictory = () => {
         createConfetti({
-            particleCount: 30,
-            spread: 90,
-            origin: { y: Math.random() * 0.8 }
+            particleCount: 100,
+            spread: 360,
+            origin: { y: 0.5 },
+            gravity: 0.8,
+            ticks: 300,
+            colors: ['#FFD700', '#FFA500', '#FF6347', '#FF69B4', '#4169E1']
         });
         
         if (document.visibilityState !== 'hidden') {
-            setTimeout(celebrateVictory, 500);
+            setTimeout(celebrateVictory, 1000);
         }
     };
     
@@ -378,6 +392,8 @@ function handleMouseMove(e) {
 
 function updatePlayerPosition(x, y) {
     if (!isGameActive) return;
+    const cursorImage = cursorImageUrl || '👆';
+    player.innerHTML = cursorImage;
     player.style.left = (x - player.offsetWidth / 2) + 'px';
     player.style.top = (y - player.offsetHeight / 2) + 'px';
 }
