@@ -28,12 +28,22 @@ body {
 }
 
 #letters-container {
-    position: relative;
-    z-index: 1;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    z-index: 5;
+    pointer-events: none; /* This allows clicks to pass through the container */
+}
+
+.letter {
+    position: absolute;
+    pointer-events: auto; /* Re-enable pointer events for letters */
 }
 
 #background-image {
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     width: 100%;
@@ -41,9 +51,9 @@ body {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    opacity: 1; /* Changed from 0.3 to 1 for full visibility */
+    opacity: 1;
     transition: opacity 1s ease;
-    z-index: 0; /* Add this to ensure proper layering */
+    z-index: 1;
 }
 
 #overlay {
@@ -65,9 +75,10 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    z-index: 100;
-    background: rgba(255, 255, 255, 0.9);
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(5px);
+    height: 80px; /* Match overlay height */
 }
 
 #level {
