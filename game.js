@@ -114,26 +114,6 @@ styleSheet.textContent = styles;
 document.head.appendChild(styleSheet);
 
 
-// Game configuration from URL parameters
-const urlParams = new URLSearchParams(window.location.search);
-const cursorImageUrl = urlParams.get('cursorImage') || '👆'; // Default to emoji if no URL provided
-const heartImageUrl = urlParams.get('heartImage') || '❤️'; // Default to emoji if no URL provided
-const backgroundImages = [
-    urlParams.get('image1') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362938/glif-run-outputs/rslj5lewzhbubu3qnown.png',
-    urlParams.get('image2') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362948/glif-run-outputs/ifbyint6paewvxmqarum.png',
-    urlParams.get('image3') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362978/glif-run-outputs/xtvo5gcsajn8opnakxgp.png'
-];
-
-const finalImageUrl = urlParams.get('finalImage') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736363059/glif-run-outputs/dqdxeass01vxyrxbchfp.png'; 
-
-const words = [
-    urlParams.get('word1') || 'PUZZLE',
-    urlParams.get('word2') || 'CODING',
-    urlParams.get('word3') || 'MASTER'
-];
-
-const initialLives = parseInt(urlParams.get('lives')) || 3;
-
 // Game state
 let currentLevel = 0;
 let currentWord = '';
