@@ -193,8 +193,8 @@ function createLetters() {
             element,
             x: Math.random() * (window.innerWidth - 60),
             y: Math.random() * (window.innerHeight - 60),
-            dx: (Math.random() - 0.5) * currentSpeed,
-            dy: (Math.random() - 0.5) * currentSpeed,
+            dx: (Math.random() - 0.5) * currentSpeed * 2,
+            dy: (Math.random() - 0.5) * currentSpeed * 2,
             mass: 1
         });
     });
@@ -218,8 +218,11 @@ function gameLoop() {
 // Update letter positions
 function updateLetters() {
     const overlayHeight = 80;
+    const minSpeed = 2; // Minimum speed to maintain motion
     
     letterElements.forEach((letter, i) => {
+        if (!letter.element.parentNode) return; // Skip if letter was removed
+        
         // Update position
         letter.x += letter.dx;
         letter.y += letter.dy;
@@ -230,39 +233,42 @@ function updateLetters() {
         letter.element.style.top = `${letter.y}px`;
         letter.element.style.transform = `rotate(${rotation}deg)`;
 
-        // Bounce off walls with padding
+        // Bounce off walls with perfect elasticity
         if (letter.x <= 0 || letter.x >= window.innerWidth - 60) {
-            letter.dx *= -0.9;
+            letter.dx *= -1;
             letter.x = Math.max(0, Math.min(letter.x, window.innerWidth - 60));
         }
         
-        // Prevent going under overlay
+        // Bounce off ceiling and floor with perfect elasticity
         if (letter.y <= overlayHeight) {
-            letter.dy *= -0.9;
+            letter.dy *= -1;
             letter.y = overlayHeight;
         }
         
         if (letter.y >= window.innerHeight - 60) {
-            letter.dy *= -0.9;
+            letter.dy *= -1;
             letter.y = window.innerHeight - 60;
         }
 
-        // Add gravity
-        letter.dy += 0.2;
-        
-        // Add friction
-        letter.dx *= 0.995;
-        letter.dy *= 0.995;
+        // Ensure minimum speed
+        const speed = Math.sqrt(letter.dx * letter.dx + letter.dy * letter.dy);
+        if (speed < minSpeed) {
+            const scale = minSpeed / speed;
+            letter.dx *= scale;
+            letter.dy *= scale;
+        }
 
         // Check collisions with other letters
         for (let j = i + 1; j < letterElements.length; j++) {
             const other = letterElements[j];
+            if (!other.element.parentNode) continue; // Skip if other letter was removed
+            
             const dx = other.x - letter.x;
             const dy = other.y - letter.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance < 60) {
-                // Elastic collision
+                // Perfect elastic collision
                 const angle = Math.atan2(dy, dx);
                 const sin = Math.sin(angle);
                 const cos = Math.cos(angle);
@@ -298,16 +304,37 @@ function handleLetterClick(letter) {
     
     const expectedLetter = words[currentLevel][collectedLetters.length].toUpperCase();
     
-    if (letter.toUpperCase() === expectedLetter) {
-        collectedLetters += letter.toUpperCase();  // Add this line
-        const letterElement = letterElements.find(l => l.element.textContent === letter).element;
-        letterElement.style.transform = 'scale(1.5)';
-        letterElement.style.opacity = '0';
-        setTimeout(() => letterElement.style.display = 'none', 300);
+    collectedLetters += letter.toUpperCase();
+        const letterObj = letterElements.find(l => l.element.textContent === letter);
+        if (letterObj) {
+            const letterElement = letterObj.element;
+            letterElement.style.transform = `${letterElement.style.transform} scale(1.5)`;
+            letterElement.style.opacity = '0';
+            setTimeout(() => {
+                if (letterElement.parentNode) {
+                    letterElement.parentNode.removeChild(letterElement);
+                }
+            }, 300);
+            
+            // Remove from letterElements array
+            const index = letterElements.indexOf(letterObj);
+            if (index > -1) {
+                letterElements.splice(index, 1);
+            }
+        }
         
         // Check if word is complete
-        if (collectedLetters === words[currentLevel]) {  // Add this block
-            setTimeout(() => nextLevel(), 500);
+        if (collectedLetters === words[currentLevel]) {
+            setTimeout(() => {
+                // Clear any remaining letters
+                letterElements.forEach(letter => {
+                    if (letter.element.parentNode) {
+                        letter.element.parentNode.removeChild(letter.element);
+                    }
+                });
+                letterElements = [];
+                nextLevel();
+            }, 500);
         }
     } else {
         if (couldFormValidWord(collectedLetters + letter)) {
