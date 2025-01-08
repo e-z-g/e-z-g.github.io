@@ -6,17 +6,38 @@ async function loadDictionary() {
         // Check if dictionary is cached in localStorage
         const cachedDictionary = localStorage.getItem('wordGameDictionary');
         if (cachedDictionary) {
+            window.loadingProgress?.(50, 'Loading cached dictionary...');
             DICTIONARY = new Set(JSON.parse(cachedDictionary));
-            console.log('Dictionary loaded from cache');
+            window.loadingProgress?.(100, 'Dictionary loaded from cache');
             return;
         }
 
         // If not cached, fetch from GitHub
-        console.log('Fetching dictionary...');
+        window.loadingProgress?.(10, 'Fetching dictionary...');
         const response = await fetch(DICTIONARY_URL);
-        const text = await response.text();
+        const reader = response.body.getReader();
+        const contentLength = +response.headers.get('Content-Length');
+
+        let receivedLength = 0;
+        let chunks = [];
         
-        // Convert to uppercase and filter out any empty lines or non-word characters
+        while(true) {
+            const {done, value} = await reader.read();
+            
+            if (done) break;
+            
+            chunks.push(value);
+            receivedLength += value.length;
+            
+            // Calculate progress
+            const progress = (receivedLength / contentLength) * 80;
+            window.loadingProgress?.(progress, 'Loading dictionary...');
+        }
+
+        const text = new TextDecoder().decode(new Uint8Array(chunks.flat()));
+        
+        window.loadingProgress?.(90, 'Processing dictionary...');
+        
         const words = text
             .split('\n')
             .map(word => word.trim().toUpperCase())
@@ -24,41 +45,34 @@ async function loadDictionary() {
         
         DICTIONARY = new Set(words);
         
-        // Cache in localStorage for future use
         try {
+            window.loadingProgress?.(95, 'Caching dictionary...');
             localStorage.setItem('wordGameDictionary', JSON.stringify([...DICTIONARY]));
             console.log('Dictionary cached successfully');
         } catch (e) {
             console.warn('Failed to cache dictionary (storage limit exceeded)');
         }
         
-        console.log(`Dictionary loaded with ${DICTIONARY.size} words`);
+        window.loadingProgress?.(100, 'Dictionary loaded!');
     } catch (error) {
         console.error('Failed to load dictionary:', error);
-        // Fallback to basic validation if dictionary fails to load
+        window.loadingProgress?.(100, 'Using fallback dictionary');
         DICTIONARY = new Set(words.flatMap(word => word.split('')));
     }
 }
 
-// Helper function to check if a string could start a valid word
 function isValidWordStart(prefix) {
     prefix = prefix.toUpperCase();
-    // Use Array.from() with early return for better performance
     return Array.from(DICTIONARY).some(word => word.startsWith(prefix));
 }
 
-// Helper function to check if a string is a complete valid word
 function isValidWord(word) {
     return DICTIONARY.has(word.toUpperCase());
 }
 
-// Export the necessary functions and start loading the dictionary immediately
 export {
     loadDictionary,
     isValidWordStart,
     isValidWord,
     DICTIONARY
 };
-
-// Start loading the dictionary as soon as this file is loaded
-loadDictionary();
