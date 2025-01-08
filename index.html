@@ -3,22 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catch the Star - Custom Images</title>
+    <title>Word Builder</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.6.0/confetti.browser.min.js">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="game-container">
-        <div id="score">Score: <span id="scoreValue">0</span></div>
-        <div id="timer">Time: <span id="timeValue">30</span>s</div>
-        <div id="obstacles"></div>
-        <img id="star" alt="Star">
-        <img id="player" alt="Player">
+    <div id="game-container">
+        <div id="background-image"></div>
+        <div id="overlay"></div>
+        
+        <header>
+            <div id="level">Level <span id="level-number">1</span>/3</div>
+            <div id="lives"></div>
+            <div id="word-progress"></div>
+        </header>
+
+        <div id="letters-container"></div>
+
+        <div id="player">👆</div>
+
+        <div id="message" class="hidden"></div>
+        
+        <div id="game-over" class="screen hidden">
+            <h2>Game Over</h2>
+            <p>You spelled:</p>
+            <div id="final-words"></div>
+            <button id="restart-button">Play Again</button>
+        </div>
+
+        <div id="victory" class="screen hidden">
+            <h2>Congratulations!</h2>
+            <div id="final-image"></div>
+            <p>You completed all words!</p>
+            <div id="completion-words"></div>
+            <button id="play-again-button">Play Again</button>
+        </div>
     </div>
-    <div class="game-over hidden" id="gameOver">
-        <h2>Game Over!</h2>
-        <p>Final Score: <span id="finalScore">0</span></p>
-        <button onclick="resetGame()">Play Again</button>
-    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.6.0/confetti.browser.min.js"></script>
+    <script src="dictionary.js"></script>
     <script src="game.js"></script>
 </body>
 </html>
