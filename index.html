@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catch the Star</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <div id="score">Score: <span id="scoreValue">0</span></div>
+        <div id="timer">Time: <span id="timeValue">30</span>s</div>
+        <div id="star">⭐</div>
+        <div id="player">🤚</div>
+    </div>
+    <div class="game-over hidden" id="gameOver">
+        <h2>Game Over!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button onclick="resetGame()">Play Again</button>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
