@@ -15,37 +15,9 @@ document.body.appendChild(loadingScreen);
 
 
 
-// Update dictionary initialization
-async function initializeDictionary() {
-    if (DICTIONARY.size === 0) {
-        loadingScreen.style.display = 'flex';
-        await loadDictionary();
-        loadingScreen.style.display = 'none';
-    }
-}
 
 
 
-// Update word validation function
-function couldFormValidWord(letters) {
-    // First check if it's already a complete valid word
-    if (isValidWord(letters)) return true;
-    // Then check if it could start a valid word
-    return isValidWordStart(letters);
-}
-
-
-
-// Update startLevel to handle async dictionary
-async function startLevel() {
-    collectedLetters = '';
-    currentSpeed = baseSpeed;
-    levelNumber.textContent = currentLevel + 1;
-    backgroundImage.style.backgroundImage = `url(${backgroundImages[currentLevel]})`;
-    await initializeDictionary();
-    createLetters();
-    updateWordProgress();
-}
 
 // Add progress tracking
 window.loadingProgress = (progress, status) => {
@@ -57,24 +29,7 @@ window.loadingProgress = (progress, status) => {
 
 
 
-// Update initGame to handle async initialization
-async function initGame() {
-    const loadingScreen = document.getElementById('loading-screen');
-    loadingScreen.style.display = 'flex';
-    
-    currentLevel = 0;
-    lives = initialLives;
-    isGameActive = true;
-    gameOverScreen.classList.add('hidden');
-    victoryScreen.classList.add('hidden');
-    
-    await loadDictionary();
-    updateLives();
-    await startLevel();
-    
-    loadingScreen.style.display = 'none';
-    gameLoop();
-}
+
 
 
 
@@ -159,17 +114,20 @@ const gameOverScreen = document.getElementById('game-over');
 const victoryScreen = document.getElementById('victory');
 
 // Initialize dictionary
-function initializeDictionary() {
-    const wordLength = words[currentLevel].length;
-    activeDictionary = new Set(
-        DICTIONARY.filter(word => word.length <= wordLength)
-    );
+async function initializeDictionary() {
+    if (DICTIONARY.size === 0) {
+        loadingScreen.style.display = 'flex';
+        await loadDictionary();
+        loadingScreen.style.display = 'none';
+    }
 }
 
 // Check if letters could form a valid word
 function couldFormValidWord(letters) {
-    const pattern = new RegExp(`^${letters}`);
-    return Array.from(activeDictionary).some(word => pattern.test(word));
+    // First check if it's already a complete valid word
+    if (isValidWord(letters)) return true;
+    // Then check if it could start a valid word
+    return isValidWordStart(letters);
 }
 
 // Create letter elements
@@ -302,15 +260,16 @@ function nextLevel() {
     }
 }
 
-function startLevel() {
+async function startLevel() {
     collectedLetters = '';
     currentSpeed = baseSpeed;
     levelNumber.textContent = currentLevel + 1;
     backgroundImage.style.backgroundImage = `url(${backgroundImages[currentLevel]})`;
+    await initializeDictionary();
     createLetters();
-    initializeDictionary();
     updateWordProgress();
 }
+
 
 // Game state changes
 function gameOver() {
@@ -378,14 +337,21 @@ window.addEventListener('resize', () => {
 });
 
 // Initialize game
-function initGame() {
+async function initGame() {
+    const loadingScreen = document.getElementById('loading-screen');
+    loadingScreen.style.display = 'flex';
+    
     currentLevel = 0;
     lives = initialLives;
     isGameActive = true;
     gameOverScreen.classList.add('hidden');
     victoryScreen.classList.add('hidden');
+    
+    await loadDictionary();
     updateLives();
-    startLevel();
+    await startLevel();
+    
+    loadingScreen.style.display = 'none';
     gameLoop();
 }
 
