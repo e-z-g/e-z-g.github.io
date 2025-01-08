@@ -1,5 +1,4 @@
 import { loadDictionary, isValidWordStart, isValidWord, DICTIONARY } from './dictionary.js';
-import { createConfetti } from './confetti.js';
 
 
 // Add loading screen handling
@@ -15,9 +14,37 @@ document.body.appendChild(loadingScreen);
 
 
 
+// Update dictionary initialization
+async function initializeDictionary() {
+    if (DICTIONARY.size === 0) {
+        loadingScreen.style.display = 'flex';
+        await loadDictionary();
+        loadingScreen.style.display = 'none';
+    }
+}
 
 
 
+// Update word validation function
+function couldFormValidWord(letters) {
+    // First check if it's already a complete valid word
+    if (isValidWord(letters)) return true;
+    // Then check if it could start a valid word
+    return isValidWordStart(letters);
+}
+
+
+
+// Update startLevel to handle async dictionary
+async function startLevel() {
+    collectedLetters = '';
+    currentSpeed = baseSpeed;
+    levelNumber.textContent = currentLevel + 1;
+    backgroundImage.style.backgroundImage = `url(${backgroundImages[currentLevel]})`;
+    await initializeDictionary();
+    createLetters();
+    updateWordProgress();
+}
 
 // Add progress tracking
 window.loadingProgress = (progress, status) => {
@@ -29,7 +56,24 @@ window.loadingProgress = (progress, status) => {
 
 
 
-
+// Update initGame to handle async initialization
+async function initGame() {
+    const loadingScreen = document.getElementById('loading-screen');
+    loadingScreen.style.display = 'flex';
+    
+    currentLevel = 0;
+    lives = initialLives;
+    isGameActive = true;
+    gameOverScreen.classList.add('hidden');
+    victoryScreen.classList.add('hidden');
+    
+    await loadDictionary();
+    updateLives();
+    await startLevel();
+    
+    loadingScreen.style.display = 'none';
+    gameLoop();
+}
 
 
 
@@ -114,20 +158,17 @@ const gameOverScreen = document.getElementById('game-over');
 const victoryScreen = document.getElementById('victory');
 
 // Initialize dictionary
-async function initializeDictionary() {
-    if (DICTIONARY.size === 0) {
-        loadingScreen.style.display = 'flex';
-        await loadDictionary();
-        loadingScreen.style.display = 'none';
-    }
+function initializeDictionary() {
+    const wordLength = words[currentLevel].length;
+    activeDictionary = new Set(
+        DICTIONARY.filter(word => word.length <= wordLength)
+    );
 }
 
 // Check if letters could form a valid word
 function couldFormValidWord(letters) {
-    // First check if it's already a complete valid word
-    if (isValidWord(letters)) return true;
-    // Then check if it could start a valid word
-    return isValidWordStart(letters);
+    const pattern = new RegExp(`^${letters}`);
+    return Array.from(activeDictionary).some(word => pattern.test(word));
 }
 
 // Create letter elements
@@ -204,7 +245,8 @@ function handleLetterClick(letter) {
         currentSpeed = baseSpeed;
         
         if (collectedLetters === words[currentLevel]) {
-            createConfetti({
+            // Word completed
+            confetti({
                 particleCount: 100,
                 spread: 70,
                 origin: { y: 0.6 }
@@ -238,7 +280,7 @@ function updateWordProgress() {
 }
 
 function updateLives() {
-    livesDisplay.innerHTML = '❤️'.repeat(lives);
+    livesDisplay.innerHTML = 'â¤ï¸'.repeat(lives);
 }
 
 function showMessage(text, type) {
@@ -260,16 +302,15 @@ function nextLevel() {
     }
 }
 
-async function startLevel() {
+function startLevel() {
     collectedLetters = '';
     currentSpeed = baseSpeed;
     levelNumber.textContent = currentLevel + 1;
     backgroundImage.style.backgroundImage = `url(${backgroundImages[currentLevel]})`;
-    await initializeDictionary();
     createLetters();
+    initializeDictionary();
     updateWordProgress();
 }
-
 
 // Game state changes
 function gameOver() {
@@ -287,22 +328,40 @@ function victory() {
     document.getElementById('final-image').style.backgroundImage = 
         `url(${backgroundImages[2]})`;
     const completionWords = document.getElementById('completion-words');
-    completionWords.textContent = words.join(' ➔ ');
+    completionWords.textContent = words.join(' â ');
     
-// Victory celebration
-    const celebrateVictory = () => {
-        createConfetti({
-            particleCount: 30,
-            spread: 90,
-            origin: { y: Math.random() * 0.8 }
-        });
+    // Victory fireworks
+    const duration = 15 * 1000;
+    const animationEnd = Date.now() + duration;
+    let skew = 1;
+
+    function randomInRange(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    (function frame() {
+        const timeLeft = animationEnd - Date.now();
+        if (timeLeft <= 0) return;
         
-        if (document.visibilityState !== 'hidden') {
-            setTimeout(celebrateVictory, 500);
-        }
-    };
-    
-    celebrateVictory();
+        skew = Math.max(0.8, skew - 0.001);
+
+        confetti({
+            particleCount: 1,
+            startVelocity: 0,
+            ticks: Math.max(200, 500 * (timeLeft / duration)),
+            origin: {
+                x: Math.random(),
+                y: Math.random() * skew - 0.2
+            },
+            colors: ['#FF0000', '#FFD700', '#00FF00', '#0000FF', '#FF00FF'],
+            shapes: ['circle', 'square'],
+            gravity: randomInRange(0.4, 0.6),
+            scalar: randomInRange(0.8, 1.2),
+            drift: randomInRange(-0.4, 0.4)
+        });
+
+        requestAnimationFrame(frame);
+    }());
 }
 
 // Handle mobile touch events
@@ -337,21 +396,14 @@ window.addEventListener('resize', () => {
 });
 
 // Initialize game
-async function initGame() {
-    const loadingScreen = document.getElementById('loading-screen');
-    loadingScreen.style.display = 'flex';
-    
+function initGame() {
     currentLevel = 0;
     lives = initialLives;
     isGameActive = true;
     gameOverScreen.classList.add('hidden');
     victoryScreen.classList.add('hidden');
-    
-    await loadDictionary();
     updateLives();
-    await startLevel();
-    
-    loadingScreen.style.display = 'none';
+    startLevel();
     gameLoop();
 }
 

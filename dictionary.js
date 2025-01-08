@@ -1,14 +1,7 @@
-export const DICTIONARY_URL = 'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt';
-export let DICTIONARY = new Set();
+const DICTIONARY_URL = 'https://raw.githubusercontent.com/dwyl/english-words/master/words_alpha.txt';
+let DICTIONARY = new Set();
 
-// Add fallback dictionary
-const FALLBACK_DICTIONARY = new Set([
-    'PUZZLE', 'CODING', 'MASTER', 
-    'GAME', 'PLAY', 'WORD', 'BUILD',
-    'LEARN', 'CODE', 'WRITE', 'READ'
-]);
-
-export async function loadDictionary() {
+async function loadDictionary() {
     try {
         // Check if dictionary is cached in localStorage
         const cachedDictionary = localStorage.getItem('wordGameDictionary');
@@ -19,54 +12,67 @@ export async function loadDictionary() {
             return;
         }
 
-        // If not cached, fetch from GitHub with timeout
+        // If not cached, fetch from GitHub
         window.loadingProgress?.(10, 'Fetching dictionary...');
+        const response = await fetch(DICTIONARY_URL);
+        const reader = response.body.getReader();
+        const contentLength = +response.headers.get('Content-Length');
+
+        let receivedLength = 0;
+        let chunks = [];
         
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-        try {
-            const response = await fetch(DICTIONARY_URL, {
-                signal: controller.signal
-            });
+        while(true) {
+            const {done, value} = await reader.read();
             
-            if (!response.ok) throw new Error('Network response was not ok');
+            if (done) break;
             
-            const text = await response.text();
-            clearTimeout(timeout);
-
-            window.loadingProgress?.(90, 'Processing dictionary...');
+            chunks.push(value);
+            receivedLength += value.length;
             
-            const words = text
-                .split('\n')
-                .map(word => word.trim().toUpperCase())
-                .filter(word => word && word.match(/^[A-Z]+$/));
-            
-            DICTIONARY = new Set(words);
-            
-            try {
-                window.loadingProgress?.(95, 'Caching dictionary...');
-                localStorage.setItem('wordGameDictionary', JSON.stringify([...DICTIONARY]));
-            } catch (e) {
-                console.warn('Failed to cache dictionary (storage limit exceeded)');
-            }
-            
-            window.loadingProgress?.(100, 'Dictionary loaded!');
-        } catch (error) {
-            throw new Error('Failed to fetch dictionary');
+            // Calculate progress
+            const progress = (receivedLength / contentLength) * 80;
+            window.loadingProgress?.(progress, 'Loading dictionary...');
         }
+
+        const text = new TextDecoder().decode(new Uint8Array(chunks.flat()));
+        
+        window.loadingProgress?.(90, 'Processing dictionary...');
+        
+        const words = text
+            .split('\n')
+            .map(word => word.trim().toUpperCase())
+            .filter(word => word && word.match(/^[A-Z]+$/));
+        
+        DICTIONARY = new Set(words);
+        
+        try {
+            window.loadingProgress?.(95, 'Caching dictionary...');
+            localStorage.setItem('wordGameDictionary', JSON.stringify([...DICTIONARY]));
+            console.log('Dictionary cached successfully');
+        } catch (e) {
+            console.warn('Failed to cache dictionary (storage limit exceeded)');
+        }
+        
+        window.loadingProgress?.(100, 'Dictionary loaded!');
     } catch (error) {
-        console.warn('Using fallback dictionary:', error);
+        console.error('Failed to load dictionary:', error);
         window.loadingProgress?.(100, 'Using fallback dictionary');
-        DICTIONARY = FALLBACK_DICTIONARY;
+        DICTIONARY = new Set(words.flatMap(word => word.split('')));
     }
 }
 
-export function isValidWordStart(prefix) {
+function isValidWordStart(prefix) {
     prefix = prefix.toUpperCase();
     return Array.from(DICTIONARY).some(word => word.startsWith(prefix));
 }
 
-export function isValidWord(word) {
+function isValidWord(word) {
     return DICTIONARY.has(word.toUpperCase());
 }
+
+export {
+    loadDictionary,
+    isValidWordStart,
+    isValidWord,
+    DICTIONARY
+};
