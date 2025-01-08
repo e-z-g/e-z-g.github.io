@@ -23,7 +23,13 @@ body {
     width: 100vw;
     height: 100vh;
     position: relative;
-    background-color: var(--background-color);
+    overflow: hidden; /* Add this to contain the background */
+    background-color: transparent; /* Changed from var(--background-color) */
+}
+
+#letters-container {
+    position: relative;
+    z-index: 1;
 }
 
 #background-image {
@@ -34,8 +40,10 @@ body {
     height: 100%;
     background-size: cover;
     background-position: center;
-    opacity: 0.3;
+    background-repeat: no-repeat;
+    opacity: 1; /* Changed from 0.3 to 1 for full visibility */
     transition: opacity 1s ease;
+    z-index: 0; /* Add this to ensure proper layering */
 }
 
 #overlay {

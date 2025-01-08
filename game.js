@@ -362,11 +362,15 @@ function nextLevel() {
     }
 }
 
-async function startLevel() {
+function startLevel() {
     collectedLetters = '';
     currentSpeed = baseSpeed;
     levelNumber.textContent = currentLevel + 1;
-    backgroundImage.style.backgroundImage = `url(${backgroundImages[currentLevel]})`;
+    
+    // Update this line to ensure proper URL formatting
+    const backgroundUrl = backgroundImages[currentLevel];
+    backgroundImage.style.backgroundImage = backgroundUrl ? `url('${backgroundUrl}')` : '';
+    
     await initializeDictionary();
     createLetters();
     updateWordProgress();
