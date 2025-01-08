@@ -461,7 +461,6 @@ async function initGame() {
     const loadingScreen = document.getElementById('loading-screen');
     loadingScreen.style.display = 'flex';
     
-    currentLevel = 0;
     lives = initialLives;
     isGameActive = true;
     gameOverScreen.classList.add('hidden');
