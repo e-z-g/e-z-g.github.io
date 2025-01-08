@@ -34,16 +34,49 @@ body {
     cursor: pointer;
     user-select: none;
     transition: transform 0.2s;
-}
-
-#star:hover {
-    transform: scale(1.2);
+    animation: spin 4s linear infinite;
 }
 
 #player {
     position: absolute;
     user-select: none;
-    transform: scaleX(-1);
+    pointer-events: none;
+    z-index: 50;
+}
+
+.obstacle {
+    position: absolute;
+    pointer-events: none;
+    animation: spin 3s linear infinite;
+}
+
+/* Create the spinning animation */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Create floating animation for obstacles */
+@keyframes float {
+    0% {
+        transform: translate(0, 0) rotate(0deg);
+    }
+    25% {
+        transform: translate(10px, 10px) rotate(90deg);
+    }
+    50% {
+        transform: translate(0, 20px) rotate(180deg);
+    }
+    75% {
+        transform: translate(-10px, 10px) rotate(270deg);
+    }
+    100% {
+        transform: translate(0, 0) rotate(360deg);
+    }
 }
 
 .game-over {
@@ -55,6 +88,7 @@ body {
     padding: 20px;
     border-radius: 10px;
     text-align: center;
+    z-index: 1000;
 }
 
 .game-over button {
