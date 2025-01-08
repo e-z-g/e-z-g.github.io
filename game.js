@@ -1,17 +1,38 @@
 import { loadDictionary, isValidWordStart, isValidWord, DICTIONARY } from './dictionary.js';
 import { createConfetti } from './confetti.js';
 
+const urlParams = new URLSearchParams(window.location.search);
+const cursorImageUrl = urlParams.get('cursorImage') || '👆';
+const heartImageUrl = urlParams.get('heartImage') || '❤️';
+const backgroundImages = [
+    urlParams.get('image1') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362938/glif-run-outputs/rslj5lewzhbubu3qnown.png',
+    urlParams.get('image2') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362948/glif-run-outputs/ifbyint6paewvxmqarum.png',
+    urlParams.get('image3') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362978/glif-run-outputs/xtvo5gcsajn8opnakxgp.png'
+];
+const finalImageUrl = urlParams.get('finalImage') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736363059/glif-run-outputs/dqdxeass01vxyrxbchfp.png';
+const words = [
+    urlParams.get('word1') || 'PUZZLE',
+    urlParams.get('word2') || 'CODING',
+    urlParams.get('word3') || 'MASTER'
+];
+const initialLives = parseInt(urlParams.get('lives')) || 3;
+
 
 // Add loading screen handling
-const loadingScreen = document.createElement('div');
-loadingScreen.className = 'loading-screen';
-loadingScreen.innerHTML = `
-    <div class="loading-content">
-        <h2>Loading Dictionary...</h2>
-        <div class="loading-spinner"></div>
-    </div>
-`;
-document.body.appendChild(loadingScreen);
+const loadingScreen = document.getElementById('loading-screen') || document.createElement('div');
+if (!document.getElementById('loading-screen')) {
+    loadingScreen.id = 'loading-screen';
+    loadingScreen.className = 'loading-screen';
+    loadingScreen.innerHTML = `
+        <div class="loading-content">
+            <h2>Loading Dictionary...</h2>
+            <div class="loading-spinner"></div>
+            <div id="loading-status"></div>
+            <div id="progress-fill"></div>
+        </div>
+    `;
+    document.body.appendChild(loadingScreen);
+}
 
 
 
@@ -367,9 +388,13 @@ async function startLevel() {
     currentSpeed = baseSpeed;
     levelNumber.textContent = currentLevel + 1;
     
-    // Update this line to ensure proper URL formatting
+    // Safely handle background image
     const backgroundUrl = backgroundImages[currentLevel];
-    backgroundImage.style.backgroundImage = backgroundUrl ? `url('${backgroundUrl}')` : '';
+    if (backgroundUrl) {
+        backgroundImage.style.backgroundImage = `url('${backgroundUrl}')`;
+    } else {
+        backgroundImage.style.backgroundImage = 'none';
+    }
     
     await initializeDictionary();
     createLetters();
