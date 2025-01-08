@@ -1,4 +1,5 @@
 import { loadDictionary, isValidWordStart, isValidWord, DICTIONARY } from './dictionary.js';
+import { createConfetti } from './confetti.js';
 
 
 // Add loading screen handling
@@ -245,8 +246,7 @@ function handleLetterClick(letter) {
         currentSpeed = baseSpeed;
         
         if (collectedLetters === words[currentLevel]) {
-            // Word completed
-            confetti({
+            createConfetti({
                 particleCount: 100,
                 spread: 70,
                 origin: { y: 0.6 }
@@ -280,7 +280,7 @@ function updateWordProgress() {
 }
 
 function updateLives() {
-    livesDisplay.innerHTML = 'â¤ï¸'.repeat(lives);
+    livesDisplay.innerHTML = '❤️'.repeat(lives);
 }
 
 function showMessage(text, type) {
@@ -328,40 +328,22 @@ function victory() {
     document.getElementById('final-image').style.backgroundImage = 
         `url(${backgroundImages[2]})`;
     const completionWords = document.getElementById('completion-words');
-    completionWords.textContent = words.join(' â ');
+    completionWords.textContent = words.join(' ➔ ');
     
-    // Victory fireworks
-    const duration = 15 * 1000;
-    const animationEnd = Date.now() + duration;
-    let skew = 1;
-
-    function randomInRange(min, max) {
-        return Math.random() * (max - min) + min;
-    }
-
-    (function frame() {
-        const timeLeft = animationEnd - Date.now();
-        if (timeLeft <= 0) return;
-        
-        skew = Math.max(0.8, skew - 0.001);
-
-        confetti({
-            particleCount: 1,
-            startVelocity: 0,
-            ticks: Math.max(200, 500 * (timeLeft / duration)),
-            origin: {
-                x: Math.random(),
-                y: Math.random() * skew - 0.2
-            },
-            colors: ['#FF0000', '#FFD700', '#00FF00', '#0000FF', '#FF00FF'],
-            shapes: ['circle', 'square'],
-            gravity: randomInRange(0.4, 0.6),
-            scalar: randomInRange(0.8, 1.2),
-            drift: randomInRange(-0.4, 0.4)
+// Victory celebration
+    const celebrateVictory = () => {
+        createConfetti({
+            particleCount: 30,
+            spread: 90,
+            origin: { y: Math.random() * 0.8 }
         });
-
-        requestAnimationFrame(frame);
-    }());
+        
+        if (document.visibilityState !== 'hidden') {
+            setTimeout(celebrateVictory, 500);
+        }
+    };
+    
+    celebrateVictory();
 }
 
 // Handle mobile touch events
