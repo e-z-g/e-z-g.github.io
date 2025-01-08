@@ -132,26 +132,22 @@ function couldFormValidWord(letters) {
 
 // Create letter elements
 function createLetters() {
-function createLetters() {
     lettersContainer.innerHTML = '';
     letterElements = [];
     
-    const word = words[currentLevel].toUpperCase(); // Force uppercase
+    const word = words[currentLevel].toUpperCase();
     const distinctColors = generateDistinctColors(word.length);
-
-
     
-[...word].forEach((letter, index) => {
+    [...word].forEach((letter, index) => {
         const element = document.createElement('div');
         element.className = 'letter';
         element.textContent = letter;
         element.style.backgroundColor = distinctColors[index];
-        element.style.textTransform = 'uppercase'; // Force uppercase
+        element.style.textTransform = 'uppercase';
         element.style.fontWeight = 'bold';
         element.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
         element.style.border = '2px solid rgba(255, 255, 255, 0.3)';
         
-        // Add hover effect
         element.addEventListener('mouseover', () => {
             element.style.transform = 'scale(1.1)';
             element.style.transition = 'transform 0.2s ease';
@@ -160,7 +156,7 @@ function createLetters() {
         element.addEventListener('mouseout', () => {
             element.style.transform = 'scale(1)';
         });
-        // Add touch/click handlers
+
         element.addEventListener('mousedown', () => handleLetterClick(letter));
         element.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -266,13 +262,17 @@ function handleLetterClick(letter) {
     const expectedLetter = words[currentLevel][collectedLetters.length].toUpperCase();
     
     if (letter.toUpperCase() === expectedLetter) {
-        // Add collection animation
+        collectedLetters += letter.toUpperCase();  // Add this line
         const letterElement = letterElements.find(l => l.element.textContent === letter).element;
         letterElement.style.transform = 'scale(1.5)';
         letterElement.style.opacity = '0';
         setTimeout(() => letterElement.style.display = 'none', 300);
+        
+        // Check if word is complete
+        if (collectedLetters === words[currentLevel]) {  // Add this block
+            setTimeout(() => nextLevel(), 500);
+        }
     } else {
-        // Check if this could form a valid word
         if (couldFormValidWord(collectedLetters + letter)) {
             showMessage('Not quite!', 'warning');
             currentSpeed *= 1.2;
