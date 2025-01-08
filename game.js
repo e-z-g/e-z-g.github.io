@@ -118,12 +118,6 @@ let currentLevel = 0;
 let currentWord = '';
 let collectedLetters = '';
 let lives = initialLives;
-
-// Game state
-let currentLevel = 0;
-let currentWord = '';
-let collectedLetters = '';
-let lives = initialLives;
 let baseSpeed = 2;
 let currentSpeed = baseSpeed;
 let letterElements = [];
