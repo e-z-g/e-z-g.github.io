@@ -263,22 +263,14 @@ function updateLetters() {
 function handleLetterClick(letter) {
     if (!isGameActive) return;
     
-    const expectedLetter = words[currentLevel][collectedLetters.length];
+    const expectedLetter = words[currentLevel][collectedLetters.length].toUpperCase();
     
-    if (letter === expectedLetter) {
-        // Correct letter
-        showMessage('Correct!', 'success');
-        collectedLetters += letter;
-        currentSpeed = baseSpeed;
-        
-        if (collectedLetters === words[currentLevel]) {
-            createConfetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 }
-            });
-            setTimeout(nextLevel, 1500);
-        }
+    if (letter.toUpperCase() === expectedLetter) {
+        // Add collection animation
+        const letterElement = letterElements.find(l => l.element.textContent === letter).element;
+        letterElement.style.transform = 'scale(1.5)';
+        letterElement.style.opacity = '0';
+        setTimeout(() => letterElement.style.display = 'none', 300);
     } else {
         // Check if this could form a valid word
         if (couldFormValidWord(collectedLetters + letter)) {
@@ -301,8 +293,8 @@ function handleLetterClick(letter) {
 function updateWordProgress() {
     const wordLength = words[currentLevel].length;
     const progress = collectedLetters.split('').map(l => l).join('');
-    const remaining = '_'.repeat(wordLength - progress.length);
-    wordProgress.textContent = progress + remaining;
+    const remaining = '◌'.repeat(wordLength - progress.length); // Using a different symbol for empty spaces
+    wordProgress.textContent = (progress + remaining).toUpperCase();
 }
 
 function updateLives() {
