@@ -1,38 +1,17 @@
 import { loadDictionary, isValidWordStart, isValidWord, DICTIONARY } from './dictionary.js';
 import { createConfetti } from './confetti.js';
 
-const urlParams = new URLSearchParams(window.location.search);
-const cursorImageUrl = urlParams.get('cursorImage') || '👆';
-const heartImageUrl = urlParams.get('heartImage') || '❤️';
-const backgroundImages = [
-    urlParams.get('image1') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362938/glif-run-outputs/rslj5lewzhbubu3qnown.png',
-    urlParams.get('image2') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362948/glif-run-outputs/ifbyint6paewvxmqarum.png',
-    urlParams.get('image3') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736362978/glif-run-outputs/xtvo5gcsajn8opnakxgp.png'
-];
-const finalImageUrl = urlParams.get('finalImage') || 'https://res.cloudinary.com/dzkwltgyd/image/upload/v1736363059/glif-run-outputs/dqdxeass01vxyrxbchfp.png';
-const words = [
-    urlParams.get('word1') || 'PUZZLE',
-    urlParams.get('word2') || 'CODING',
-    urlParams.get('word3') || 'MASTER'
-];
-const initialLives = parseInt(urlParams.get('lives')) || 3;
-
 
 // Add loading screen handling
-const loadingScreen = document.getElementById('loading-screen') || document.createElement('div');
-if (!document.getElementById('loading-screen')) {
-    loadingScreen.id = 'loading-screen';
-    loadingScreen.className = 'loading-screen';
-    loadingScreen.innerHTML = `
-        <div class="loading-content">
-            <h2>Loading Dictionary...</h2>
-            <div class="loading-spinner"></div>
-            <div id="loading-status"></div>
-            <div id="progress-fill"></div>
-        </div>
-    `;
-    document.body.appendChild(loadingScreen);
-}
+const loadingScreen = document.createElement('div');
+loadingScreen.className = 'loading-screen';
+loadingScreen.innerHTML = `
+    <div class="loading-content">
+        <h2>Loading Dictionary...</h2>
+        <div class="loading-spinner"></div>
+    </div>
+`;
+document.body.appendChild(loadingScreen);
 
 
 
@@ -88,24 +67,6 @@ const styles = `
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
-
-.life-icon {
-    width: 20px;
-    height: 20px;
-    vertical-align: middle;
-}
-
-#player img {
-    width: 30px;
-    height: 30px;
-    object-fit: contain;
-}
-
-#final-image {
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-}
 `;
 
 // Add styles to document
@@ -113,6 +74,20 @@ const styleSheet = document.createElement("style");
 styleSheet.textContent = styles;
 document.head.appendChild(styleSheet);
 
+
+// Game configuration from URL parameters
+const urlParams = new URLSearchParams(window.location.search);
+const words = [
+    urlParams.get('word1') || 'PUZZLE',
+    urlParams.get('word2') || 'CODING',
+    urlParams.get('word3') || 'MASTER'
+];
+const backgroundImages = [
+    urlParams.get('image1') || 'https://example.com/bg1.jpg',
+    urlParams.get('image2') || 'https://example.com/bg2.jpg',
+    urlParams.get('image3') || 'https://example.com/bg3.jpg'
+];
+const initialLives = parseInt(urlParams.get('lives')) || 3;
 
 // Game state
 let currentLevel = 0;
@@ -160,28 +135,15 @@ function createLetters() {
     lettersContainer.innerHTML = '';
     letterElements = [];
     
-    const word = words[currentLevel].toUpperCase();
-    const distinctColors = generateDistinctColors(word.length);
-    
-    [...word].forEach((letter, index) => {
+    const uniqueLetters = [...new Set(words[currentLevel])];
+    uniqueLetters.forEach(letter => {
         const element = document.createElement('div');
         element.className = 'letter';
         element.textContent = letter;
-        element.style.backgroundColor = distinctColors[index];
-        element.style.textTransform = 'uppercase';
-        element.style.fontWeight = 'bold';
-        element.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
-        element.style.border = '2px solid rgba(255, 255, 255, 0.3)';
+        element.style.backgroundColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
+        element.style.animationDelay = `${Math.random() * 2}s`;
         
-        element.addEventListener('mouseover', () => {
-            element.style.transform = 'scale(1.1)';
-            element.style.transition = 'transform 0.2s ease';
-        });
-        
-        element.addEventListener('mouseout', () => {
-            element.style.transform = 'scale(1)';
-        });
-
+        // Add touch/click handlers
         element.addEventListener('mousedown', () => handleLetterClick(letter));
         element.addEventListener('touchstart', (e) => {
             e.preventDefault();
@@ -193,19 +155,10 @@ function createLetters() {
             element,
             x: Math.random() * (window.innerWidth - 60),
             y: Math.random() * (window.innerHeight - 60),
-            dx: (Math.random() - 0.5) * currentSpeed * 2,
-            dy: (Math.random() - 0.5) * currentSpeed * 2,
-            mass: 1
+            dx: (Math.random() - 0.5) * currentSpeed,
+            dy: (Math.random() - 0.5) * currentSpeed
         });
     });
-}
-
-function generateDistinctColors(count) {
-    const colors = [];
-    for (let i = 0; i < count; i++) {
-        colors.push(`hsl(${(360 / count) * i}, 70%, 50%)`);
-    }
-    return colors;
 }
 
 // Game loop
@@ -217,84 +170,24 @@ function gameLoop() {
 
 // Update letter positions
 function updateLetters() {
-    const overlayHeight = 80;
-    const minSpeed = 2; // Minimum speed to maintain motion
-    
-    letterElements.forEach((letter, i) => {
-        if (!letter.element.parentNode) return; // Skip if letter was removed
-        
+    letterElements.forEach(letter => {
         // Update position
-        letter.x += letter.dx;
-        letter.y += letter.dy;
+        letter.x += letter.dx * currentSpeed;
+        letter.y += letter.dy * currentSpeed;
 
-        // Add rotation based on movement
-        const rotation = Math.atan2(letter.dy, letter.dx) * (180 / Math.PI);
-        letter.element.style.left = `${letter.x}px`;
-        letter.element.style.top = `${letter.y}px`;
-        letter.element.style.transform = `rotate(${rotation}deg)`;
-
-        // Bounce off walls with perfect elasticity
+        // Bounce off walls with padding
         if (letter.x <= 0 || letter.x >= window.innerWidth - 60) {
             letter.dx *= -1;
             letter.x = Math.max(0, Math.min(letter.x, window.innerWidth - 60));
         }
-        
-        // Bounce off ceiling and floor with perfect elasticity
-        if (letter.y <= overlayHeight) {
+        if (letter.y <= 60 || letter.y >= window.innerHeight - 60) {
             letter.dy *= -1;
-            letter.y = overlayHeight;
-        }
-        
-        if (letter.y >= window.innerHeight - 60) {
-            letter.dy *= -1;
-            letter.y = window.innerHeight - 60;
+            letter.y = Math.max(60, Math.min(letter.y, window.innerHeight - 60));
         }
 
-        // Ensure minimum speed
-        const speed = Math.sqrt(letter.dx * letter.dx + letter.dy * letter.dy);
-        if (speed < minSpeed) {
-            const scale = minSpeed / speed;
-            letter.dx *= scale;
-            letter.dy *= scale;
-        }
-
-        // Check collisions with other letters
-        for (let j = i + 1; j < letterElements.length; j++) {
-            const other = letterElements[j];
-            if (!other.element.parentNode) continue; // Skip if other letter was removed
-            
-            const dx = other.x - letter.x;
-            const dy = other.y - letter.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            
-            if (distance < 60) {
-                // Perfect elastic collision
-                const angle = Math.atan2(dy, dx);
-                const sin = Math.sin(angle);
-                const cos = Math.cos(angle);
-
-                // Rotate velocities
-                const vx1 = letter.dx * cos + letter.dy * sin;
-                const vy1 = letter.dy * cos - letter.dx * sin;
-                const vx2 = other.dx * cos + other.dy * sin;
-                const vy2 = other.dy * cos - other.dx * sin;
-
-                // Swap velocities
-                letter.dx = vx2 * cos - vy1 * sin;
-                letter.dy = vy2 * cos + vx1 * sin;
-                other.dx = vx1 * cos - vy2 * sin;
-                other.dy = vy1 * cos + vx2 * sin;
-
-                // Move letters apart
-                const overlap = 60 - distance;
-                const moveX = (overlap * cos) / 2;
-                const moveY = (overlap * sin) / 2;
-                letter.x -= moveX;
-                letter.y -= moveY;
-                other.x += moveX;
-                other.y += moveY;
-            }
-        }
+        // Apply position
+        letter.element.style.left = `${letter.x}px`;
+        letter.element.style.top = `${letter.y}px`;
     });
 }
 
@@ -302,41 +195,24 @@ function updateLetters() {
 function handleLetterClick(letter) {
     if (!isGameActive) return;
     
-    const expectedLetter = words[currentLevel][collectedLetters.length].toUpperCase();
+    const expectedLetter = words[currentLevel][collectedLetters.length];
     
-    collectedLetters += letter.toUpperCase();
-        const letterObj = letterElements.find(l => l.element.textContent === letter);
-        if (letterObj) {
-            const letterElement = letterObj.element;
-            letterElement.style.transform = `${letterElement.style.transform} scale(1.5)`;
-            letterElement.style.opacity = '0';
-            setTimeout(() => {
-                if (letterElement.parentNode) {
-                    letterElement.parentNode.removeChild(letterElement);
-                }
-            }, 300);
-            
-            // Remove from letterElements array
-            const index = letterElements.indexOf(letterObj);
-            if (index > -1) {
-                letterElements.splice(index, 1);
-            }
-        }
+    if (letter === expectedLetter) {
+        // Correct letter
+        showMessage('Correct!', 'success');
+        collectedLetters += letter;
+        currentSpeed = baseSpeed;
         
-        // Check if word is complete
         if (collectedLetters === words[currentLevel]) {
-            setTimeout(() => {
-                // Clear any remaining letters
-                letterElements.forEach(letter => {
-                    if (letter.element.parentNode) {
-                        letter.element.parentNode.removeChild(letter.element);
-                    }
-                });
-                letterElements = [];
-                nextLevel();
-            }, 500);
+            createConfetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+            setTimeout(nextLevel, 1500);
         }
     } else {
+        // Check if this could form a valid word
         if (couldFormValidWord(collectedLetters + letter)) {
             showMessage('Not quite!', 'warning');
             currentSpeed *= 1.2;
@@ -357,20 +233,12 @@ function handleLetterClick(letter) {
 function updateWordProgress() {
     const wordLength = words[currentLevel].length;
     const progress = collectedLetters.split('').map(l => l).join('');
-    const remaining = '◌'.repeat(wordLength - progress.length); // Using a different symbol for empty spaces
-    wordProgress.textContent = (progress + remaining).toUpperCase();
+    const remaining = '_'.repeat(wordLength - progress.length);
+    wordProgress.textContent = progress + remaining;
 }
 
 function updateLives() {
-    if (heartImageUrl.startsWith('http')) {
-        // If it's a URL, use an image
-        livesDisplay.innerHTML = Array(lives).fill(
-            `<img src="${heartImageUrl}" class="life-icon" alt="❤️">`
-        ).join('');
-    } else {
-        // If it's not a URL, use the emoji/text directly
-        livesDisplay.innerHTML = Array(lives).fill(heartImageUrl).join(' ');
-    }
+    livesDisplay.innerHTML = '❤️'.repeat(lives);
 }
 
 function showMessage(text, type) {
@@ -383,12 +251,12 @@ function showMessage(text, type) {
 }
 
 // Level management
-async function nextLevel() {
+function nextLevel() {
     currentLevel++;
     if (currentLevel >= words.length) {
         victory();
     } else {
-        await startLevel();
+        startLevel();
     }
 }
 
@@ -396,19 +264,12 @@ async function startLevel() {
     collectedLetters = '';
     currentSpeed = baseSpeed;
     levelNumber.textContent = currentLevel + 1;
-    
-    // Safely handle background image
-    const backgroundUrl = backgroundImages[currentLevel];
-    if (backgroundUrl) {
-        backgroundImage.style.backgroundImage = `url('${backgroundUrl}')`;
-    } else {
-        backgroundImage.style.backgroundImage = 'none';
-    }
-    
+    backgroundImage.style.backgroundImage = `url(${backgroundImages[currentLevel]})`;
     await initializeDictionary();
     createLetters();
     updateWordProgress();
 }
+
 
 // Game state changes
 function gameOver() {
@@ -423,30 +284,21 @@ function victory() {
     isGameActive = false;
     cancelAnimationFrame(animationFrameId);
     victoryScreen.classList.remove('hidden');
-    
-    const finalImage = document.getElementById('final-image');
-    if (finalImageUrl.startsWith('http')) {
-        finalImage.style.backgroundImage = `url(${finalImageUrl})`;
-    } else {
-        // If no final image URL is provided, use the last background image
-        finalImage.style.backgroundImage = `url(${backgroundImages[backgroundImages.length - 1]})`;
-    }
-    
+    document.getElementById('final-image').style.backgroundImage = 
+        `url(${backgroundImages[2]})`;
     const completionWords = document.getElementById('completion-words');
     completionWords.textContent = words.join(' ➔ ');
     
+// Victory celebration
     const celebrateVictory = () => {
         createConfetti({
-            particleCount: 100,
-            spread: 360,
-            origin: { y: 0.5 },
-            gravity: 0.8,
-            ticks: 300,
-            colors: ['#FFD700', '#FFA500', '#FF6347', '#FF69B4', '#4169E1']
+            particleCount: 30,
+            spread: 90,
+            origin: { y: Math.random() * 0.8 }
         });
         
         if (document.visibilityState !== 'hidden') {
-            setTimeout(celebrateVictory, 1000);
+            setTimeout(celebrateVictory, 500);
         }
     };
     
@@ -466,15 +318,6 @@ function handleMouseMove(e) {
 
 function updatePlayerPosition(x, y) {
     if (!isGameActive) return;
-    
-    if (cursorImageUrl.startsWith('http')) {
-        // If it's a URL, use an image
-        player.innerHTML = `<img src="${cursorImageUrl}" alt="cursor" style="width: 100%; height: 100%;">`;
-    } else {
-        // If it's not a URL, use the emoji/text directly
-        player.innerHTML = cursorImageUrl;
-    }
-    
     player.style.left = (x - player.offsetWidth / 2) + 'px';
     player.style.top = (y - player.offsetHeight / 2) + 'px';
 }
@@ -498,6 +341,7 @@ async function initGame() {
     const loadingScreen = document.getElementById('loading-screen');
     loadingScreen.style.display = 'flex';
     
+    currentLevel = 0;
     lives = initialLives;
     isGameActive = true;
     gameOverScreen.classList.add('hidden');
