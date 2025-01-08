@@ -255,3 +255,52 @@ button:hover {
         height: 20px;
     }
 }
+
+.letter {
+    font-family: 'Arial Bold', sans-serif;
+    font-size: 24px;
+    border-radius: 12px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+}
+
+#word-progress {
+    font-size: 32px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    text-transform: uppercase;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 15px 30px;
+    border-radius: 10px;
+    backdrop-filter: blur(5px);
+}
+
+#message {
+    font-size: 24px;
+    font-weight: bold;
+    padding: 12px 24px;
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+    transition: opacity 0.3s ease;
+}
+
+.message-success {
+    background: rgba(46, 204, 113, 0.8);
+    color: white;
+}
+
+.message-warning {
+    background: rgba(241, 196, 15, 0.8);
+    color: white;
+}
+
+.message-danger {
+    background: rgba(231, 76, 60, 0.8);
+    color: white;
+}
