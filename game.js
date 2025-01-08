@@ -226,7 +226,9 @@ function updateLetters() {
 
         // Add rotation based on movement
         const rotation = Math.atan2(letter.dy, letter.dx) * (180 / Math.PI);
-        letter.element.style.transform = `translate(${letter.x}px, ${letter.y}px) rotate(${rotation}deg)`;
+        letter.element.style.left = `${letter.x}px`;
+        letter.element.style.top = `${letter.y}px`;
+        letter.element.style.transform = `rotate(${rotation}deg)`;
 
         // Bounce off walls with padding
         if (letter.x <= 0 || letter.x >= window.innerWidth - 60) {
