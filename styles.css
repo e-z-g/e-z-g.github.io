@@ -1,111 +1,220 @@
-body {
-    margin: 0;
-    overflow: hidden;
-    background-color: #1a1a1a;
-    color: white;
-    font-family: Arial, sans-serif;
+:root {
+    --primary-color: #4A90E2;
+    --success-color: #2ECC71;
+    --warning-color: #F1C40F;
+    --danger-color: #E74C3C;
+    --text-color: #2C3E50;
+    --background-color: #ECF0F1;
 }
 
-.game-container {
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    touch-action: none;
+}
+
+#game-container {
     width: 100vw;
     height: 100vh;
     position: relative;
+    background-color: var(--background-color);
 }
 
-#score, #timer {
-    position: fixed;
-    padding: 10px;
-    font-size: 24px;
-    z-index: 100;
-}
-
-#score {
-    top: 10px;
-    left: 10px;
-}
-
-#timer {
-    top: 10px;
-    right: 10px;
-}
-
-#star {
+#background-image {
     position: absolute;
-    cursor: pointer;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.3;
+    transition: opacity 1s ease;
+}
+
+#overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    pointer-events: none;
+}
+
+header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(5px);
+}
+
+#level {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+#lives {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.life {
+    width: 24px;
+    height: 24px;
+    background: var(--danger-color);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+#word-progress {
+    font-size: 1.2rem;
+    letter-spacing: 0.1em;
+    color: var(--text-color);
+}
+
+.letter {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease;
+    animation: float 3s infinite ease-in-out;
     user-select: none;
-    transition: transform 0.2s;
-    animation: spin 4s linear infinite;
+    cursor: pointer;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-20px) rotate(180deg); }
 }
 
 #player {
     position: absolute;
-    user-select: none;
+    font-size: 2rem;
     pointer-events: none;
     z-index: 50;
+    transition: transform 0.2s ease;
 }
 
-.obstacle {
-    position: absolute;
-    pointer-events: none;
-    animation: spin 3s linear infinite;
-}
-
-/* Create the spinning animation */
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* Create floating animation for obstacles */
-@keyframes float {
-    0% {
-        transform: translate(0, 0) rotate(0deg);
-    }
-    25% {
-        transform: translate(10px, 10px) rotate(90deg);
-    }
-    50% {
-        transform: translate(0, 20px) rotate(180deg);
-    }
-    75% {
-        transform: translate(-10px, 10px) rotate(270deg);
-    }
-    100% {
-        transform: translate(0, 0) rotate(360deg);
-    }
-}
-
-.game-over {
+#message {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.9);
-    padding: 20px;
-    border-radius: 10px;
-    text-align: center;
-    z-index: 1000;
-}
-
-.game-over button {
-    padding: 10px 20px;
-    font-size: 18px;
-    background-color: #4CAF50;
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    font-size: 1.5rem;
+    font-weight: 600;
     color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-top: 10px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
 }
 
-.game-over button:hover {
-    background-color: #45a049;
+.message-success {
+    background: var(--success-color);
+}
+
+.message-warning {
+    background: var(--warning-color);
+}
+
+.message-danger {
+    background: var(--danger-color);
+}
+
+.screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.95);
+    z-index: 1000;
+    padding: 2rem;
+    text-align: center;
+}
+
+.screen h2 {
+    font-size: 2.5rem;
+    color: var(--text-color);
+    margin-bottom: 1rem;
+}
+
+#final-image {
+    width: 80%;
+    max-width: 500px;
+    height: 300px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    margin: 2rem 0;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+button {
+    padding: 1rem 2rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: white;
+    background: var(--primary-color);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+button:hover {
+    transform: scale(1.05);
 }
 
 .hidden {
     display: none;
+}
+
+@media (max-width: 768px) {
+    .letter {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+    }
+
+    header {
+        padding: 0.5rem;
+    }
+
+    #level, #word-progress {
+        font-size: 1rem;
+    }
+
+    .life {
+        width: 20px;
+        height: 20px;
+    }
 }
