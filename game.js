@@ -67,6 +67,24 @@ const styles = `
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+.life-icon {
+    width: 20px;
+    height: 20px;
+    vertical-align: middle;
+}
+
+#player img {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+}
+
+#final-image {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
 `;
 
 // Add styles to document
@@ -77,6 +95,10 @@ document.head.appendChild(styleSheet);
 
 // Game configuration from URL parameters
 const urlParams = new URLSearchParams(window.location.search);
+const cursorImageUrl = urlParams.get('cursorImage') || '👆'; // Default to emoji if no URL provided
+const heartImageUrl = urlParams.get('heartImage') || '❤️'; // Default to emoji if no URL provided
+const finalImageUrl = urlParams.get('finalImage') || backgroundImages[2]; // Default to last background image
+
 const words = [
     urlParams.get('word1') || 'PUZZLE',
     urlParams.get('word2') || 'CODING',
@@ -308,9 +330,15 @@ function updateWordProgress() {
 }
 
 function updateLives() {
-    livesDisplay.innerHTML = Array(lives).fill(
-        `<img src="${heartImageUrl || '/heart.png'}" class="life-icon" alt="❤️">`
-    ).join('');
+    if (heartImageUrl.startsWith('http')) {
+        // If it's a URL, use an image
+        livesDisplay.innerHTML = Array(lives).fill(
+            `<img src="${heartImageUrl}" class="life-icon" alt="❤️">`
+        ).join('');
+    } else {
+        // If it's not a URL, use the emoji/text directly
+        livesDisplay.innerHTML = Array(lives).fill(heartImageUrl).join(' ');
+    }
 }
 
 function showMessage(text, type) {
@@ -356,8 +384,15 @@ function victory() {
     isGameActive = false;
     cancelAnimationFrame(animationFrameId);
     victoryScreen.classList.remove('hidden');
-    document.getElementById('final-image').style.backgroundImage = 
-        `url(${backgroundImages[2]})`;
+    
+    const finalImage = document.getElementById('final-image');
+    if (finalImageUrl.startsWith('http')) {
+        finalImage.style.backgroundImage = `url(${finalImageUrl})`;
+    } else {
+        // If no final image URL is provided, use the last background image
+        finalImage.style.backgroundImage = `url(${backgroundImages[backgroundImages.length - 1]})`;
+    }
+    
     const completionWords = document.getElementById('completion-words');
     completionWords.textContent = words.join(' ➔ ');
     
@@ -392,8 +427,15 @@ function handleMouseMove(e) {
 
 function updatePlayerPosition(x, y) {
     if (!isGameActive) return;
-    const cursorImage = cursorImageUrl || '👆';
-    player.innerHTML = cursorImage;
+    
+    if (cursorImageUrl.startsWith('http')) {
+        // If it's a URL, use an image
+        player.innerHTML = `<img src="${cursorImageUrl}" alt="cursor" style="width: 100%; height: 100%;">`;
+    } else {
+        // If it's not a URL, use the emoji/text directly
+        player.innerHTML = cursorImageUrl;
+    }
+    
     player.style.left = (x - player.offsetWidth / 2) + 'px';
     player.style.top = (y - player.offsetHeight / 2) + 'px';
 }
