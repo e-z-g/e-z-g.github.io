@@ -46,18 +46,31 @@ async function startLevel() {
     updateWordProgress();
 }
 
+// Add progress tracking
+window.loadingProgress = (progress, status) => {
+    const progressFill = document.getElementById('progress-fill');
+    const loadingStatus = document.getElementById('loading-status');
+    progressFill.style.width = `${progress}%`;
+    loadingStatus.textContent = status;
+};
+
 
 
 // Update initGame to handle async initialization
 async function initGame() {
+    const loadingScreen = document.getElementById('loading-screen');
     loadingScreen.style.display = 'flex';
+    
     currentLevel = 0;
     lives = initialLives;
     isGameActive = true;
     gameOverScreen.classList.add('hidden');
     victoryScreen.classList.add('hidden');
+    
+    await loadDictionary();
     updateLives();
     await startLevel();
+    
     loadingScreen.style.display = 'none';
     gameLoop();
 }
