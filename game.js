@@ -353,16 +353,16 @@ function showMessage(text, type) {
 }
 
 // Level management
-function nextLevel() {
+async function nextLevel() {
     currentLevel++;
     if (currentLevel >= words.length) {
         victory();
     } else {
-        startLevel();
+        await startLevel();
     }
 }
 
-function startLevel() {
+async function startLevel() {
     collectedLetters = '';
     currentSpeed = baseSpeed;
     levelNumber.textContent = currentLevel + 1;
@@ -375,7 +375,6 @@ function startLevel() {
     createLetters();
     updateWordProgress();
 }
-
 
 // Game state changes
 function gameOver() {
