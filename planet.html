@@ -1,0 +1,123 @@
+<div class="space-background" id="space"> 
+  <img src="latest_1.png" alt="Planet" class="planet" crossorigin="anonymous"> 
+  <button id="saveBtn" class="save-btn"> Save Image </button> 
+</div> 
+
+<style> 
+.space-background { 
+  background-color: black; 
+  width: 100%; 
+  aspect-ratio: 16/9; 
+  position: relative; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  overflow: hidden; 
+} 
+
+.star { 
+  position: absolute; 
+  border-radius: 50%; 
+  opacity: 0.9; 
+  pointer-events: none; 
+} 
+
+.planet { 
+  width: 90px; 
+  height: 90px; 
+  position: relative; 
+  z-index: 1; 
+} 
+
+.save-btn { 
+  position: absolute; 
+  bottom: 12px; 
+  right: 12px; 
+  z-index: 2; 
+  padding: 8px 12px; 
+  background: rgba(255,255,255,0.12); 
+  color: white; 
+  border: 1px solid rgba(255,255,255,0.25); 
+  border-radius: 6px; 
+  backdrop-filter: blur(4px); 
+  cursor: pointer; 
+  font: 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+} 
+
+.save-btn:hover { 
+  background: rgba(255,255,255,0.2); 
+} 
+</style> 
+
+<!-- html2canvas (client-side DOM -> canvas) -->
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"> </script>
+
+<script> 
+(function () { 
+  var container = document.getElementById('space'); 
+  var STAR_COUNT = 200; 
+  var minSize = 1.5; 
+  var maxSize = 3.5; 
+
+  for (var i = 0; i < STAR_COUNT; i++) { 
+    var s = document.createElement('span'); 
+    s.className = 'star'; 
+
+    var size = Math.random() * (maxSize - minSize) + minSize; 
+    s.style.width = size + 'px'; 
+    s.style.height = size + 'px'; 
+
+    s.style.left = (Math.random() * 100) + '%'; 
+    s.style.top = (Math.random() * 100) + '%'; 
+
+    var tint = 220 + Math.floor(Math.random() * 35); 
+    s.style.background = 'radial-gradient(closest-side, rgba(' + tint + ', ' + tint + ', 255, 1) 0%, rgba(' + tint + ', ' + tint + ', 255, 0) 70%)'; 
+
+    container.appendChild(s); 
+  } 
+
+  function downloadBlob(blob, filename) { 
+    var a = document.createElement('a'); 
+    var url = URL.createObjectURL(blob); 
+    a.href = url; 
+    a.download = filename; 
+    document.body.appendChild(a); 
+    a.click(); 
+    a.remove(); 
+    URL.revokeObjectURL(url); 
+  } 
+
+  function timestamp() { 
+    var d = new Date(); 
+    var pad = function (n) { return n.toString().padStart(2, '0'); }; 
+    return d.getFullYear().toString() + 
+           pad(d.getMonth() + 1) + 
+           pad(d.getDate()) + '_' + 
+           pad(d.getHours()) + 
+           pad(d.getMinutes()) + 
+           pad(d.getSeconds()); 
+  } 
+
+  document.getElementById('saveBtn').addEventListener('click', function () { 
+    var btn = this; 
+    btn.style.visibility = 'hidden'; 
+
+    var scale = Math.max(2, Math.floor(window.devicePixelRatio || 1)); 
+    html2canvas(container, { 
+      scale: scale, 
+      backgroundColor: null, 
+      useCORS: true, 
+      allowTaint: false 
+    }).then(function (canvas) { 
+      canvas.toBlob(function (blob) { 
+        downloadBlob(blob, 'space_' + timestamp() + '.png'); 
+        btn.style.visibility = 'visible'; 
+      }, 'image/png'); 
+    }).catch(function (err) { 
+      console.error(err); 
+      btn.style.visibility = 'visible'; 
+      alert('Failed to render image. If your planet.png is on another domain, enable CORS and keep crossorigin="anonymous".'); 
+    }); 
+  }); 
+})(); 
+</script>
