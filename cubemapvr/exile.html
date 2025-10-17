@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cubemap Viewer Demo</title>
+  <style>
+    @import url('https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css');
+    html, body, #viewer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      font-family: sans-serif;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js",
+        "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.module.js",
+        "@photo-sphere-viewer/cubemap-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/cubemap-adapter@5/index.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="viewer"></div>
+  <script type="module">
+    import { Viewer } from '@photo-sphere-viewer/core';
+    import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
+
+    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
+    const suffixUrl = '.jpg';
+
+    new Viewer({
+      container: 'viewer',
+      adapter: CubemapAdapter,
+      panorama: {
+        left: baseUrl + 'LEIS665' + suffixUrl,
+        front: baseUrl + 'LEIS661' + suffixUrl,
+        right: baseUrl + 'LEIS664' + suffixUrl,
+        back: baseUrl + 'LEIS663' + suffixUrl,
+        top: baseUrl + 'LEIS666' + suffixUrl,
+        bottom: baseUrl + 'LEIS662' + suffixUrl,
+      },
+      caption: 'Parc national du Mercantour <b>&copy; Damien Sorel</b>',
+      loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
+      touchmoveTwoFingers: true,
+      mousewheelCtrlKey: true,
+    });
+  </script>
+</body>
+</html>
