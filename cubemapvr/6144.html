@@ -11,6 +11,18 @@
       margin: 0;
       font-family: sans-serif;
     }
+    #sceneButtons {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 9999;
+    }
+    #sceneButtons button {
+      margin: 2px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
   </style>
   <script type="importmap">
     {
@@ -25,108 +37,153 @@
 </head>
 <body>
   <div id="viewer"></div>
+  <div id="sceneButtons">
+    <button data-scene="1">High</button>
+    <button data-scene="2">Medium</button>
+    <button data-scene="3">Low</button>
+  </div>
   <script type="module">
     import { Viewer, utils } from '@photo-sphere-viewer/core';
     import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
 
     const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
-    const suffixUrl = '-6144.webp';
+    // Suffixes for high, medium, and low resolution scenes
+    const suffixes = ['-6144.webp', '-4096.webp', '-2048.webp'];
 
     const animatedValues = {
-        pitch: { start: -Math.PI / 2, end: 0 },
-        yaw: { start: Math.PI / 2, end: 0 },
-        zoom: { start: 0, end: 50 },
-        maxFov: { start: 130, end: 90 },
-        fisheye: { start: 2, end: 0 },
+      pitch: { start: -Math.PI / 2, end: 0 },
+      yaw: { start: Math.PI / 2, end: 0 },
+      zoom: { start: 0, end: 50 },
+      maxFov: { start: 130, end: 90 }, // Wider view at start, less distortion after zoom
+      fisheye: { start: 2, end: 0 },
     };
+
+    let currentScene = 0;
+    let rotationId = null;
 
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
-      // Set initial values directly
       defaultPitch: animatedValues.pitch.start,
       defaultYaw: animatedValues.yaw.start,
       defaultZoomLvl: animatedValues.zoom.start,
       maxFov: animatedValues.maxFov.start,
       fisheye: animatedValues.fisheye.start,
-      panorama: {
-        left:   baseUrl + 'LEIS665' + suffixUrl,
-        front:  baseUrl + 'LEIS661' + suffixUrl,
-        right:  baseUrl + 'LEIS664' + suffixUrl,
-        back:   baseUrl + 'LEIS663' + suffixUrl,
-        top:    baseUrl + 'LEIS666' + suffixUrl,
-        bottom: baseUrl + 'LEIS662' + suffixUrl,
-      },
-      caption: 'This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.',
+      panorama: {}, // Panorama is set dynamically by setScene()
+      caption: 'This product was created using artwork by Cyan. Not official or endorsed by Cyan.',
       loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
       touchmoveTwoFingers: false,
-      mousewheelCtrlKey: false,
-      navbar: [
-        'autorotate', 'zoom',
-        {
-            title: 'Rerun animation',
-            content: '🔄',
-            onClick: reset,
-        },
-        'caption', 'fullscreen',
-      ],
+      mousewheelCtrlKey: true, // Allow zooming with Ctrl/Cmd + scroll
+      navbar: ['autorotate', 'zoom', 'caption', 'fullscreen'],
       plugins: [
-        [AutorotatePlugin, {
-            autostartDelay: null,
-            autostartOnIdle: false,
-            autorotatePitch: 0,
-        }],
+        [AutorotatePlugin, { autostartDelay: null, autostartOnIdle: false, autorotatePitch: 0 }],
       ],
     });
 
     /**
-     * Runs the intro animation.
+     * Loads a new set of cubemap images into the viewer.
+     * @param {number} sceneIndex - The index for the scene to load.
      */
-    function runIntroAnimation() {
-      // Temporarily disable user controls
-      viewer.setOptions({ mousemove: false, mousewheel: false });
-
-      // Animate fisheye and maxFov separately for better performance
-      new utils.Animation({
-        properties: {
-          fisheye: { from: animatedValues.fisheye.start, to: animatedValues.fisheye.end },
-          maxFov:  { from: animatedValues.maxFov.start,  to: animatedValues.maxFov.end },
-        },
-        duration: 2000,
-        easing: 'inOutCubic',
-        onTick: (properties) => {
-          viewer.setOptions({
-            fisheye: properties.fisheye,
-            maxFov: properties.maxFov,
-          });
-        },
-      });
-
-      // Use the built-in, optimized animate method for camera position and zoom
-      viewer.animate({
-        pitch: animatedValues.pitch.end,
-        yaw: animatedValues.yaw.end,
-        zoom: animatedValues.zoom.end,
-        speed: '2000ms', // Use the 'speed' property for duration
+    function setScene(sceneIndex) {
+      currentScene = sceneIndex;
+      const suffix = suffixes[sceneIndex];
+      // The setPanorama method loads the new images
+      viewer.setPanorama({
+        left:   baseUrl + 'LEIS665' + suffix,
+        front:  baseUrl + 'LEIS661' + suffix,
+        right:  baseUrl + 'LEIS664' + suffix,
+        back:   baseUrl + 'LEIS663' + suffix,
+        top:    baseUrl + 'LEIS666' + suffix,
+        bottom: baseUrl + 'LEIS662' + suffix,
+      }, {
+          // Reset the view to the initial zoomed-out and distorted state
+          pitch: animatedValues.pitch.start,
+          yaw: animatedValues.yaw.start,
+          zoom: animatedValues.zoom.start,
+          showLoader: true,
       }).then(() => {
-        // Re-enable user controls after the animation is complete
-        viewer.setOptions({ mousemove: true, mousewheel: true });
-      });
-    }
-
-    /**
-     * Resets the view and reruns the intro animation.
-     */
-    function reset() {
-      // Stop any ongoing animation before starting a new one
-      viewer.stopAnimation().then(() => {
           runIntroAnimation();
       });
     }
 
-    // Run the animation once the viewer is ready
-    viewer.addEventListener('ready', runIntroAnimation, { once: true });
+    /**
+     * Runs the full animation sequence: pause, zoom, and rotate.
+     */
+    async function runIntroAnimation() {
+      // Pause at full zoom-out for 1.5 seconds
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Animate fisheye and FoV to reduce distortion
+      new utils.Animation({
+        properties: {
+          maxFov: { start: animatedValues.maxFov.start, end: animatedValues.maxFov.end },
+          fisheye: { start: animatedValues.fisheye.start, end: animatedValues.fisheye.end },
+        },
+        duration: 2000,
+        easing: 'inOutCubic',
+        onTick: (properties) => {
+          viewer.setOptions({ maxFov: properties.maxFov, fisheye: properties.fisheye });
+        },
+      });
+
+      // Animate zoom and position simultaneously
+      await viewer.animate({
+        zoom: animatedValues.zoom.end,
+        pitch: animatedValues.pitch.end,
+        yaw: animatedValues.yaw.end,
+        speed: '2000ms',
+      });
+
+      // Start a slow, continuous rotation
+      startRotationLoop(0.0005);
+      
+      // Re-enable user controls
+      viewer.setOptions({ mousemove: true, mousewheel: true });
+    }
+    
+    /**
+     * Starts a continuous yaw rotation.
+     * @param {number} speed - The rotation speed.
+     */
+    function startRotationLoop(speed) {
+      let yaw = viewer.getPosition().yaw;
+      if (rotationId) cancelAnimationFrame(rotationId);
+
+      function rotate() {
+        yaw += speed;
+        viewer.rotate({ yaw });
+        rotationId = requestAnimationFrame(rotate);
+      }
+      rotate();
+    }
+    
+    /**
+     * Stops the rotation loop.
+     */
+    function stopRotationLoop() {
+      if (rotationId) {
+        cancelAnimationFrame(rotationId);
+        rotationId = null;
+      }
+    }
+
+    // Event listener for the scene switching buttons
+    document.getElementById('sceneButtons').addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        const sceneIndex = Number(e.target.dataset.scene) - 1;
+        if (sceneIndex !== currentScene) {
+          stopRotationLoop();
+          viewer.stopAnimation();
+          setScene(sceneIndex);
+        }
+      }
+    });
+    
+    // Load the initial scene once the viewer is ready
+    viewer.addEventListener('ready', () => {
+      setScene(0);
+    }, { once: true });
 
   </script>
 </body>
