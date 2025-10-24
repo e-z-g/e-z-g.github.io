@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Cubemap Viewer Demo</title>
   <style>
+    /* You are correctly importing the necessary CSS from the CDN. */
     @import url('https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css');
     html, body, #viewer {
       width: 100%;
@@ -26,7 +27,8 @@
 <body>
   <div id="viewer"></div>
   <script type="module">
-    import { Viewer } from '@photo-sphere-viewer/core';
+    // Import 'Viewer' and 'utils' from the core library
+    import { Viewer, utils } from '@photo-sphere-viewer/core';
     import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
 
@@ -34,27 +36,28 @@
     const suffixUrl = '-6144.webp';
 
     const animatedValues = {
-    pitch: { start: -Math.PI / 2, end: 0 },
-    yaw: { start: Math.PI / 2, end: 0 },
-    zoom: { start: 0, end: 50 },
-    maxFov: { start: 130, end: 90 },
-    fisheye: { start: 2, end: 0 },
-};
+        pitch: { start: -Math.PI / 2, end: 0 },
+        yaw: { start: Math.PI / 2, end: 0 },
+        zoom: { start: 0, end: 50 },
+        maxFov: { start: 130, end: 90 },
+        fisheye: { start: 2, end: 0 },
+    };
 
-    new Viewer({
+    // Assign the Viewer instance to a 'viewer' constant
+    const viewer = new Viewer({
       container: 'viewer',
-          defaultPitch: animatedValues.pitch.start,
-    defaultYaw: animatedValues.yaw.start,
-    defaultZoomLvl: animatedValues.zoom.start,
-    maxFov: animatedValues.maxFov.start,
-    fisheye: animatedValues.fisheye.start,
+      defaultPitch: animatedValues.pitch.start,
+      defaultYaw: animatedValues.yaw.start,
+      defaultZoomLvl: animatedValues.zoom.start,
+      maxFov: animatedValues.maxFov.start,
+      fisheye: animatedValues.fisheye.start,
       adapter: CubemapAdapter,
       panorama: {
-        left: baseUrl + 'LEIS665' + suffixUrl,
-        front: baseUrl + 'LEIS661' + suffixUrl,
-        right: baseUrl + 'LEIS664' + suffixUrl,
-        back: baseUrl + 'LEIS663' + suffixUrl,
-        top: baseUrl + 'LEIS666' + suffixUrl,
+        left:   baseUrl + 'LEIS665' + suffixUrl,
+        front:  baseUrl + 'LEIS661' + suffixUrl,
+        right:  baseUrl + 'LEIS664' + suffixUrl,
+        back:   baseUrl + 'LEIS663' + suffixUrl,
+        top:    baseUrl + 'LEIS666' + suffixUrl,
         bottom: baseUrl + 'LEIS662' + suffixUrl,
       },
       caption: 'This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.',
@@ -67,34 +70,34 @@
         {
             title: 'Rerun animation',
             content: '🔄',
-            onClick: reset,
+            onClick: reset, // The 'reset' function is now defined
         },
         'caption',
         'fullscreen',
-    ],
-    plugins: [
-        AutorotatePlugin.withConfig({
+      ],
+      plugins: [
+        [AutorotatePlugin, {
             autostartDelay: null,
             autostartOnIdle: false,
             autorotatePitch: 0,
-        }),
-    ],
-});
+        }],
+      ],
+    });
 
-const autorotate = viewer.getPlugin(
-
+    // Define the 'reset' function to run the animation
+    function reset() {
       viewer.setOptions({
         mousemove: false,
         mousewheel: false,
-    });
+      });
 
-    new utils.Animation({
+      new utils.Animation({
         properties: {
-            pitch: { start: viewer.getPosition().pitch, end: animatedValues.pitch.start },
-            yaw: { start: viewer.getPosition().yaw, end: animatedValues.yaw.start },
-            zoom: { start: viewer.getZoomLevel(), end: animatedValues.zoom.start },
-            maxFov: { start: animatedValues.maxFov.end, end: animatedValues.maxFov.start },
-            fisheye: { start: animatedValues.fisheye.end, end: animatedValues.fisheye.start },
+            pitch:   { start: animatedValues.pitch.start, end: animatedValues.pitch.end },
+            yaw:     { start: animatedValues.yaw.start,   end: animatedValues.yaw.end },
+            zoom:    { start: animatedValues.zoom.start,  end: animatedValues.zoom.end },
+            maxFov:  { start: animatedValues.maxFov.start,  end: animatedValues.maxFov.end },
+            fisheye: { start: animatedValues.fisheye.start, end: animatedValues.fisheye.end },
         },
         duration: 1500,
         easing: 'inOutQuad',
@@ -106,8 +109,18 @@ const autorotate = viewer.getPlugin(
             viewer.rotate({ yaw: properties.yaw, pitch: properties.pitch });
             viewer.zoom(properties.zoom);
         },
-    });
-}
+      }).then(() => {
+        viewer.setOptions({
+          mousemove: true,
+          mousewheel: true,
+        });
+      });
+    }
+
+    // Run the animation once the viewer is ready
+    viewer.addEventListener('ready', () => {
+        reset();
+    }, { once: true });
 
   </script>
 </body>
