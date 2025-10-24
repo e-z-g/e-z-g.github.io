@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Cubemap Viewer Demo</title>
   <style>
-    /* You are correctly importing the necessary CSS from the CDN. */
     @import url('https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css');
     html, body, #viewer {
       width: 100%;
@@ -27,7 +26,6 @@
 <body>
   <div id="viewer"></div>
   <script type="module">
-    // Import 'Viewer' and 'utils' from the core library
     import { Viewer, utils } from '@photo-sphere-viewer/core';
     import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
@@ -43,15 +41,15 @@
         fisheye: { start: 2, end: 0 },
     };
 
-    // Assign the Viewer instance to a 'viewer' constant
     const viewer = new Viewer({
       container: 'viewer',
+      adapter: CubemapAdapter,
+      // Set initial values directly
       defaultPitch: animatedValues.pitch.start,
       defaultYaw: animatedValues.yaw.start,
       defaultZoomLvl: animatedValues.zoom.start,
       maxFov: animatedValues.maxFov.start,
       fisheye: animatedValues.fisheye.start,
-      adapter: CubemapAdapter,
       panorama: {
         left:   baseUrl + 'LEIS665' + suffixUrl,
         front:  baseUrl + 'LEIS661' + suffixUrl,
@@ -65,15 +63,13 @@
       touchmoveTwoFingers: false,
       mousewheelCtrlKey: false,
       navbar: [
-        'autorotate',
-        'zoom',
+        'autorotate', 'zoom',
         {
             title: 'Rerun animation',
             content: '🔄',
-            onClick: reset, // The 'reset' function is now defined
+            onClick: reset,
         },
-        'caption',
-        'fullscreen',
+        'caption', 'fullscreen',
       ],
       plugins: [
         [AutorotatePlugin, {
@@ -84,43 +80,53 @@
       ],
     });
 
-    // Define the 'reset' function to run the animation
-    function reset() {
-      viewer.setOptions({
-        mousemove: false,
-        mousewheel: false,
-      });
+    /**
+     * Runs the intro animation.
+     */
+    function runIntroAnimation() {
+      // Temporarily disable user controls
+      viewer.setOptions({ mousemove: false, mousewheel: false });
 
+      // Animate fisheye and maxFov separately for better performance
       new utils.Animation({
         properties: {
-            pitch:   { start: animatedValues.pitch.start, end: animatedValues.pitch.end },
-            yaw:     { start: animatedValues.yaw.start,   end: animatedValues.yaw.end },
-            zoom:    { start: animatedValues.zoom.start,  end: animatedValues.zoom.end },
-            maxFov:  { start: animatedValues.maxFov.start,  end: animatedValues.maxFov.end },
-            fisheye: { start: animatedValues.fisheye.start, end: animatedValues.fisheye.end },
+          fisheye: { from: animatedValues.fisheye.start, to: animatedValues.fisheye.end },
+          maxFov:  { from: animatedValues.maxFov.start,  to: animatedValues.maxFov.end },
         },
-        duration: 1500,
-        easing: 'inOutQuad',
+        duration: 2000,
+        easing: 'inOutCubic',
         onTick: (properties) => {
-            viewer.setOptions({
-                fisheye: properties.fisheye,
-                maxFov: properties.maxFov,
-            });
-            viewer.rotate({ yaw: properties.yaw, pitch: properties.pitch });
-            viewer.zoom(properties.zoom);
+          viewer.setOptions({
+            fisheye: properties.fisheye,
+            maxFov: properties.maxFov,
+          });
         },
+      });
+
+      // Use the built-in, optimized animate method for camera position and zoom
+      viewer.animate({
+        pitch: animatedValues.pitch.end,
+        yaw: animatedValues.yaw.end,
+        zoom: animatedValues.zoom.end,
+        speed: '2000ms', // Use the 'speed' property for duration
       }).then(() => {
-        viewer.setOptions({
-          mousemove: true,
-          mousewheel: true,
-        });
+        // Re-enable user controls after the animation is complete
+        viewer.setOptions({ mousemove: true, mousewheel: true });
+      });
+    }
+
+    /**
+     * Resets the view and reruns the intro animation.
+     */
+    function reset() {
+      // Stop any ongoing animation before starting a new one
+      viewer.stopAnimation().then(() => {
+          runIntroAnimation();
       });
     }
 
     // Run the animation once the viewer is ready
-    viewer.addEventListener('ready', () => {
-        reset();
-    }, { once: true });
+    viewer.addEventListener('ready', runIntroAnimation, { once: true });
 
   </script>
 </body>
