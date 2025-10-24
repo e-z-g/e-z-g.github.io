@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cubemap Viewer Demo</title>
+  <style>
+    @import url('https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css');
+    html, body, #viewer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      font-family: sans-serif;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js",
+        "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.module.js",
+        "@photo-sphere-viewer/autorotate-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/autorotate-plugin@5/index.module.js",
+        "@photo-sphere-viewer/cubemap-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/cubemap-adapter@5/index.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="viewer"></div>
+  <script type="module">
+    import { Viewer, utils } from '@photo-sphere-viewer/core';
+    import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
+    import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
+
+    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
+    const suffix = '-orig.jpg';
+
+    const animatedValues = {
+      pitch: { start: -Math.PI / 2, end: 0 },
+      yaw: { start: Math.PI / 2, end: 0 },
+      zoom: { start: 0, end: 50 },
+      maxFov: { start: 130, end: 90 },
+      fisheye: { start: 2, end: 0 },
+    };
+
+    let rotationId = null;
+
+    const viewer = new Viewer({
+      container: 'viewer',
+      adapter: CubemapAdapter,
+      // The panorama is now set directly with the single suffix
+      panorama: {
+        left:   baseUrl + 'LEIS665' + suffix,
+        front:  baseUrl + 'LEIS661' + suffix,
+        right:  baseUrl + 'LEIS664' + suffix,
+        back:   baseUrl + 'LEIS663' + suffix,
+        top:    baseUrl + 'LEIS666' + suffix,
+        bottom: baseUrl + 'LEIS662' + suffix,
+      },
+      // Initial camera settings
+      defaultPitch: animatedValues.pitch.start,
+      defaultYaw: animatedValues.yaw.start,
+      defaultZoomLvl: animatedValues.zoom.start,
+      maxFov: animatedValues.maxFov.start,
+      fisheye: animatedValues.fisheye.start,
+      caption: 'This product was created using artwork by Cyan. Not official or endorsed by Cyan.',
+      loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
+      touchmoveTwoFingers: false,
+      mousewheelCtrlKey: true,
+      navbar: ['autorotate', 'zoom', 'caption', 'fullscreen'],
+      plugins: [
+        [AutorotatePlugin, { autostartDelay: null, autostartOnIdle: false, autorotatePitch: 0 }],
+      ],
+    });
+
+    /**
+     * Runs the full animation sequence: pause, zoom, and rotate.
+     */
+    async function runIntroAnimation() {
+      // Pause at full zoom-out for 1.5 seconds
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Animate fisheye and FoV to reduce distortion
+      new utils.Animation({
+        properties: {
+          maxFov: { from: animatedValues.maxFov.start, to: animatedValues.maxFov.end },
+          fisheye: { from: animatedValues.fisheye.start, to: animatedValues.fisheye.end },
+        },
+        duration: 2000,
+        easing: 'inOutCubic',
+        onTick: (properties) => {
+          viewer.setOptions({ maxFov: properties.maxFov, fisheye: properties.fisheye });
+        },
+      });
+
+      // Animate zoom and position simultaneously
+      await viewer.animate({
+        zoom: animatedValues.zoom.end,
+        pitch: animatedValues.pitch.end,
+        yaw: animatedValues.yaw.end,
+        speed: '2000ms',
+      });
+
+      // Start a slow, continuous rotation
+      startRotationLoop(0.0005);
+      
+      // Re-enable user controls
+      viewer.setOptions({ mousemove: true, mousewheel: true });
+    }
+    
+    /**
+     * Starts a continuous yaw rotation.
+     * @param {number} speed - The rotation speed.
+     */
+    function startRotationLoop(speed) {
+      let yaw = viewer.getPosition().yaw;
+      if (rotationId) cancelAnimationFrame(rotationId);
+
+      function rotate() {
+        yaw += speed;
+        viewer.rotate({ yaw });
+        rotationId = requestAnimationFrame(rotate);
+      }
+      rotate();
+    }
+    
+    // The 'ready' event now directly triggers the animation
+    viewer.addEventListener('ready', runIntroAnimation, { once: true });
+
+  </script>
+</body>
+</html>
