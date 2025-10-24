@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Cubemap Viewer Demo</title>
+  <meta charset="UTF-8" />
+  <title>Cubemap Viewer Demo (Fixed)</title>
   <style>
     @import url('https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css');
     html, body, #viewer {
@@ -12,6 +12,7 @@
       font-family: sans-serif;
     }
   </style>
+
   <script type="importmap">
     {
       "imports": {
@@ -25,6 +26,7 @@
 </head>
 <body>
   <div id="viewer"></div>
+
   <script type="module">
     import { Viewer, utils } from '@photo-sphere-viewer/core';
     import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
@@ -41,12 +43,9 @@
       fisheye: { start: 2, end: 0 },
     };
 
-    let rotationId = null;
-
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
-      // The panorama is now set directly with the single suffix
       panorama: {
         left:   baseUrl + 'LEIS665' + suffix,
         front:  baseUrl + 'LEIS661' + suffix,
@@ -55,7 +54,6 @@
         top:    baseUrl + 'LEIS666' + suffix,
         bottom: baseUrl + 'LEIS662' + suffix,
       },
-      // Initial camera settings
       defaultPitch: animatedValues.pitch.start,
       defaultYaw: animatedValues.yaw.start,
       defaultZoomLvl: animatedValues.zoom.start,
@@ -72,26 +70,12 @@
     });
 
     /**
-     * Runs the full animation sequence: pause, zoom, and rotate.
+     * Performs the intro animation after panorama fully loads.
      */
     async function runIntroAnimation() {
-      // Pause at full zoom-out for 1.5 seconds
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Animate fisheye and FoV to reduce distortion
-      new utils.Animation({
-        properties: {
-          maxFov: { from: animatedValues.maxFov.start, to: animatedValues.maxFov.end },
-          fisheye: { from: animatedValues.fisheye.start, to: animatedValues.fisheye.end },
-        },
-        duration: 2000,
-        easing: 'inOutCubic',
-        onTick: (properties) => {
-          viewer.setOptions({ maxFov: properties.maxFov, fisheye: properties.fisheye });
-        },
-      });
 
-      // Animate zoom and position simultaneously
+      // Animate zoom, pitch, yaw
       await viewer.animate({
         zoom: animatedValues.zoom.end,
         pitch: animatedValues.pitch.end,
@@ -99,32 +83,28 @@
         speed: '2000ms',
       });
 
-      // Start a slow, continuous rotation
-      startRotationLoop(0.0005);
-      
-      // Re-enable user controls
-      viewer.setOptions({ mousemove: true, mousewheel: true });
-    }
-    
-    /**
-     * Starts a continuous yaw rotation.
-     * @param {number} speed - The rotation speed.
-     */
-    function startRotationLoop(speed) {
-      let yaw = viewer.getPosition().yaw;
-      if (rotationId) cancelAnimationFrame(rotationId);
+      // Smoothly adjust FoV and fisheye AFTER the main animation
+      new utils.Animation({
+        properties: {
+          maxFov: { from: animatedValues.maxFov.start, to: animatedValues.maxFov.end },
+          fisheye: { from: animatedValues.fisheye.start, to: animatedValues.fisheye.end },
+        },
+        duration: 2000,
+        easing: 'inOutCubic',
+        onTick: (props) => viewer.setOptions(props),
+      });
 
-      function rotate() {
-        yaw += speed;
-        viewer.rotate({ yaw });
-        rotationId = requestAnimationFrame(rotate);
-      }
-      rotate();
+      // Start autorotation safely using plugin API
+      const auto = viewer.getPlugin(AutorotatePlugin);
+      auto.setOptions({ autorotateSpeed: '0.05rpm', autorotatePitch: 0 });
+      auto.start();
     }
-    
-    // The 'ready' event now directly triggers the animation
-    viewer.addEventListener('ready', runIntroAnimation, { once: true });
 
+    // Wait until all cube faces are fully loaded before animation
+    viewer.addEventListener('panorama-loaded', runIntroAnimation, { once: true });
+
+    // Log any rendering issues
+    viewer.addEventListener('error', e => console.error('PSV Error:', e));
   </script>
 </body>
 </html>
