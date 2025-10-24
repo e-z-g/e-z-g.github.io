@@ -42,7 +42,7 @@
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
 
     const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
-    const suffixes = ['-orig.jpg', '-seamless.webp'];
+    const suffixes = ['-orig-up.jpg', '-seamless.jpg'];
     const suffixLabels = ['ORIGINAL', '24K UPSCALE'];
     let currentSuffixIndex = 0;
 
@@ -66,6 +66,7 @@
       touchmoveTwoFingers: false,
       mousewheelCtrlKey: false,
       minFov: 10,
+      maxFov: 180,
       navbar: [
         'zoom',
         'move',
