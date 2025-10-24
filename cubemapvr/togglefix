@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cubemap Viewer Demo</title>
+  <style>
+    @import url('https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css');
+    html, body, #viewer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      font-family: sans-serif;
+    }
+    .quality-toggle {
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      font-weight: bold;
+      font-size: 14px;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+    }
+    .quality-toggle:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    #memory-warning {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 150, 0, 0.9);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      z-index: 1000;
+      display: none;
+      font-size: 12px;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js",
+        "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.module.js",
+        "@photo-sphere-viewer/cubemap-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/cubemap-adapter@5/index.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="viewer"></div>
+  <div id="memory-warning">Using reduced quality for device compatibility</div>
+  <script type="module">
+    import { Viewer } from '@photo-sphere-viewer/core';
+    import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
+
+    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
+    
+    // Device detection
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isLowMemoryDevice = isIOS || navigator.deviceMemory < 4;
+    
+    // Progressive quality levels
+    const qualityLevels = [
+      { suffix: '-orig.jpg', label: 'ORIGINAL', maxTextureSize: 4096 },
+      { suffix: '-seamless.webp', label: '24K UPSCALE', maxTextureSize: 6144 },
+      { suffix: '-mod.webp', label: 'HD UPSCALE', maxTextureSize: 6144 }
+    ];
+
+    // Start with appropriate quality for device
+    let currentQualityIndex = isLowMemoryDevice ? 0 : 1;
+    
+    if (isLowMemoryDevice) {
+      document.getElementById('memory-warning').style.display = 'block';
+      setTimeout(() => {
+        document.getElementById('memory-warning').style.display = 'none';
+      }, 3000);
+    }
+
+    function getPanoramaConfig(quality) {
+      return {
+        left: baseUrl + 'LEIS665' + quality.suffix,
+        front: baseUrl + 'LEIS661' + quality.suffix,
+        right: baseUrl + 'LEIS664' + quality.suffix,
+        back: baseUrl + 'LEIS663' + quality.suffix,
+        top: baseUrl + 'LEIS666' + quality.suffix,
+        bottom: baseUrl + 'LEIS662' + quality.suffix,
+      };
+    }
+
+    // Create viewer with conservative settings for mobile
+    const viewer = new Viewer({
+      container: 'viewer',
+      adapter: [CubemapAdapter, {
+        blur: isIOS, // Enable blur on iOS to reduce memory
+      }],
+      panorama: getPanoramaConfig(qualityLevels[currentQualityIndex]),
+      caption: 'This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.',
+      loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
+      touchmoveTwoFingers: false,
+      mousewheelCtrlKey: false,
+      minFov: 10,
+      maxFov: 180,
+      // Mobile optimizations
+      moveSpeed: isIOS ? 0.5 : 1,
+      zoomSpeed: isIOS ? 0.5 : 1,
+      requestHeaders: isIOS ? { 'Cache-Control': 'no-cache' } : {},
+      navbar: [
+        'zoom',
+        'move',
+        {
+          id: 'quality-toggle',
+          content: `<span class="quality-toggle">${qualityLevels[currentQualityIndex].label}</span>`,
+          title: 'Toggle image quality',
+          onClick: async (viewer) => {
+            const previousIndex = currentQualityIndex;
+            currentQualityIndex = (currentQualityIndex + 1) % qualityLevels.length;
+            
+            const button = viewer.navbar.getButton('quality-toggle');
+            button.container.querySelector('.quality-toggle').textContent = qualityLevels[currentQualityIndex].label;
+            
+            try {
+              await viewer.setPanorama(getPanoramaConfig(qualityLevels[currentQualityIndex]), {
+                transition: true,
+                showLoader: true
+              });
+            } catch (error) {
+              console.error('Failed to load panorama:', error);
+              // Fallback to previous quality
+              currentQualityIndex = previousIndex;
+              button.container.querySelector('.quality-toggle').textContent = qualityLevels[currentQualityIndex].label;
+              alert('Unable to load high-resolution images. Your device may not have enough memory.');
+            }
+          }
+        },
+        'download',
+        'fullscreen',
+      ]
+    });
+
+    // Memory monitoring for iOS
+    if (isIOS && 'memory' in performance) {
+      setInterval(() => {
+        const memInfo = performance.memory;
+        const usagePercent = (memInfo.usedJSHeapSize / memInfo.jsHeapSizeLimit) * 100;
+        if (usagePercent > 80) {
+          console.warn('High memory usage:', usagePercent.toFixed(2) + '%');
+        }
+      }, 5000);
+    }
+
+    // Handle WebGL context loss
+    viewer.renderer.renderer.domElement.addEventListener('webglcontextlost', (event) => {
+      event.preventDefault();
+      console.error('WebGL context lost');
+      alert('Graphics context lost. Please reload the page.');
+    });
+
+  </script>
+</body>
+</html>
