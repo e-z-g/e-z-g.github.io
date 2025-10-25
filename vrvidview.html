@@ -43,32 +43,27 @@
 
         // Get video URL from URL parameter
         const urlParams = new URLSearchParams(window.location.search);
-        const videoUrl = urlParams.get('video') || 'https://media.glif.app/v:r/fl_attachment:glif-chat-1761367150140/vk5vylc1x8mwqyxyem6i.mp4';
+        const videoUrl = urlParams.get('video') || 'https://media.glif.app/v:r/fl_attachment:glif-chat-1761365820070/x18lgo3m5ulhlsqhtmyq.mp4';
 
         const viewer = new Viewer({
             container: document.querySelector('#viewer'),
             adapter: EquirectangularVideoAdapter,
             panorama: {
                 source: videoUrl,
+                muted: true,
+                loop: true,
             },
-            defaultZoomLvl: 30,
+            navbar: [
+                'zoom',
+                'fullscreen',
+            ],
+            defaultZoomLvl: 100,
             minFov: 30,
-            maxFov: 130,
+            maxFov: 180,
             mousewheelCtrlKey: false,
             touchmoveTwoFingers: false,
             plugins: [
-                [VideoPlugin, {
-                    keypoints: [
-                        { time: 0, position: { yaw: 0, pitch: 0 } },
-                        { time: 5, position: { yaw: -Math.PI / 4, pitch: Math.PI / 8 } },
-                        { time: 10, position: { yaw: -Math.PI / 2, pitch: 0 } },
-                        { time: 15, position: { yaw: (-3 * Math.PI) / 4, pitch: -Math.PI / 8 } },
-                        { time: 20, position: { yaw: -Math.PI, pitch: 0 } },
-                        { time: 25, position: { yaw: (-5 * Math.PI) / 4, pitch: Math.PI / 8 } },
-                        { time: 30, position: { yaw: (-3 * Math.PI) / 2, pitch: 0 } },
-                        { time: 35, position: { yaw: (-7 * Math.PI) / 4, pitch: -Math.PI / 8 } },
-                    ],
-                }],
+                VideoPlugin,
                 AutorotatePlugin,
                 SettingsPlugin,
                 GyroscopePlugin,
