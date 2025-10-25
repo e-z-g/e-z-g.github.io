@@ -26,7 +26,6 @@
                 "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.module.js",
                 "@photo-sphere-viewer/equirectangular-video-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/equirectangular-video-adapter@5/index.module.js",
                 "@photo-sphere-viewer/video-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/video-plugin@5/index.module.js",
-                "@photo-sphere-viewer/autorotate-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/autorotate-plugin@5/index.module.js",
                 "@photo-sphere-viewer/settings-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/settings-plugin@5/index.module.js",
                 "@photo-sphere-viewer/gyroscope-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/gyroscope-plugin@5/index.module.js"
             }
@@ -37,7 +36,6 @@
         import { Viewer } from '@photo-sphere-viewer/core';
         import { EquirectangularVideoAdapter } from '@photo-sphere-viewer/equirectangular-video-adapter';
         import { VideoPlugin } from '@photo-sphere-viewer/video-plugin';
-        import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
         import { SettingsPlugin } from '@photo-sphere-viewer/settings-plugin';
         import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
 
@@ -53,19 +51,19 @@
                 source: videoUrl,
                 muted: true,
                 loop: true,
+                autoplay: true,
             },
             navbar: [
                 'zoom',
                 'fullscreen',
             ],
-            defaultFov: 100,
-            minFov: 30,
+            defaultFov: 110,
+            minFov: 50,
             maxFov: 150,
             mousewheelCtrlKey: false,
             touchmoveTwoFingers: false,
             plugins: [
                 VideoPlugin,
-                AutorotatePlugin,
                 SettingsPlugin,
                 GyroscopePlugin,
             ],
