@@ -27,7 +27,8 @@
                 "@photo-sphere-viewer/equirectangular-video-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/equirectangular-video-adapter@5/index.module.js",
                 "@photo-sphere-viewer/video-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/video-plugin@5/index.module.js",
                 "@photo-sphere-viewer/autorotate-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/autorotate-plugin@5/index.module.js",
-                "@photo-sphere-viewer/settings-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/settings-plugin@5/index.module.js"
+                "@photo-sphere-viewer/settings-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/settings-plugin@5/index.module.js",
+                "@photo-sphere-viewer/gyroscope-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/gyroscope-plugin@5/index.module.js"
             }
         }
     </script>
@@ -38,10 +39,11 @@
         import { VideoPlugin } from '@photo-sphere-viewer/video-plugin';
         import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
         import { SettingsPlugin } from '@photo-sphere-viewer/settings-plugin';
+        import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
 
         // Get video URL from URL parameter
         const urlParams = new URLSearchParams(window.location.search);
-        const videoUrl = urlParams.get('video') || 'https://media.glif.app/v:r/fl_attachment:glif-chat-1761365820070/x18lgo3m5ulhlsqhtmyq.mp4';
+        const videoUrl = urlParams.get('video') || 'https://media.glif.app/v:r/fl_attachment:glif-chat-1761367150140/vk5vylc1x8mwqyxyem6i.mp4';
 
         const viewer = new Viewer({
             container: document.querySelector('#viewer'),
@@ -49,6 +51,11 @@
             panorama: {
                 source: videoUrl,
             },
+            defaultZoomLvl: 30,
+            minFov: 30,
+            maxFov: 130,
+            mousewheelCtrlKey: false,
+            touchmoveTwoFingers: false,
             plugins: [
                 [VideoPlugin, {
                     keypoints: [
@@ -64,6 +71,7 @@
                 }],
                 AutorotatePlugin,
                 SettingsPlugin,
+                GyroscopePlugin,
             ],
         });
     </script>
