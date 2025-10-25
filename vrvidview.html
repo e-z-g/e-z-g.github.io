@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Sphere Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/video-plugin@5/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/settings-plugin@5/index.css">
+    <style>
+        html, body, #viewer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            font-family: sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewer"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js",
+                "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.module.js",
+                "@photo-sphere-viewer/equirectangular-video-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/equirectangular-video-adapter@5/index.module.js",
+                "@photo-sphere-viewer/video-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/video-plugin@5/index.module.js",
+                "@photo-sphere-viewer/autorotate-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/autorotate-plugin@5/index.module.js",
+                "@photo-sphere-viewer/settings-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/settings-plugin@5/index.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import { Viewer } from '@photo-sphere-viewer/core';
+        import { EquirectangularVideoAdapter } from '@photo-sphere-viewer/equirectangular-video-adapter';
+        import { VideoPlugin } from '@photo-sphere-viewer/video-plugin';
+        import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
+        import { SettingsPlugin } from '@photo-sphere-viewer/settings-plugin';
+
+        // Get video URL from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const videoUrl = urlParams.get('video') || 'https://media.glif.app/v:r/fl_attachment:glif-chat-1761365820070/x18lgo3m5ulhlsqhtmyq.mp4';
+
+        const viewer = new Viewer({
+            container: document.querySelector('#viewer'),
+            adapter: EquirectangularVideoAdapter,
+            panorama: {
+                source: videoUrl,
+            },
+            plugins: [
+                [VideoPlugin, {
+                    keypoints: [
+                        { time: 0, position: { yaw: 0, pitch: 0 } },
+                        { time: 5, position: { yaw: -Math.PI / 4, pitch: Math.PI / 8 } },
+                        { time: 10, position: { yaw: -Math.PI / 2, pitch: 0 } },
+                        { time: 15, position: { yaw: (-3 * Math.PI) / 4, pitch: -Math.PI / 8 } },
+                        { time: 20, position: { yaw: -Math.PI, pitch: 0 } },
+                        { time: 25, position: { yaw: (-5 * Math.PI) / 4, pitch: Math.PI / 8 } },
+                        { time: 30, position: { yaw: (-3 * Math.PI) / 2, pitch: 0 } },
+                        { time: 35, position: { yaw: (-7 * Math.PI) / 4, pitch: -Math.PI / 8 } },
+                    ],
+                }],
+                AutorotatePlugin,
+                SettingsPlugin,
+            ],
+        });
+    </script>
+</body>
+</html>
