@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Cubemap Viewer Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     @import url('https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css');
     html, body, #viewer {
@@ -11,18 +12,71 @@
       margin: 0;
       font-family: sans-serif;
     }
-    .quality-toggle {
+    .quality-buttons-bar {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
-      align-items: center;
-      padding: 0 8px;
-      font-weight: bold;
-      font-size: 14px;
-      color: white;
-      cursor: pointer;
+      gap: 16px;
+      z-index: 200;
+      background: rgba(40,40,40,0.7);
+      border-radius: 8px;
+      padding: 6px 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
       user-select: none;
+      pointer-events: auto;
     }
-    .quality-toggle:hover {
-      background: rgba(255, 255, 255, 0.1);
+    .quality-btn {
+      background: #558CFE;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 15px;
+      font-weight: bold;
+      padding: 10px 20px;
+      margin: 0;
+      cursor: pointer;
+      min-width: 72px;
+      outline: none;
+      transition: background .2s;
+      touch-action: manipulation;
+    }
+    .quality-btn.active {
+      background: #224DBF;
+    }
+    .quality-btn:focus {
+      box-shadow: 0 0 0 2px #8FD7FE;
+    }
+    @media (max-width: 700px) {
+      .quality-btn {
+        font-size: 16px;
+        padding: 12px 12px;
+        min-width: 72px;
+      }
+      .quality-buttons-bar {
+        padding: 4px 2px;
+        gap: 8px;
+        top: 8px;
+      }
+    }
+    .psv-caption {
+      position: absolute !important;
+      top: auto !important;
+      bottom: 55px !important; /* above navbar */
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      border-radius: 5px;
+      padding: 9px 18px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #fff;
+      z-index: 150;
+      pointer-events: none;
+      width: max-content;
+      max-width: 90vw;
+      text-align: center;
     }
   </style>
   <script type="importmap">
@@ -37,14 +91,26 @@
 </head>
 <body>
   <div id="viewer"></div>
+  <div id="quality-buttons" class="quality-buttons-bar"></div>
   <script type="module">
     import { Viewer } from '@photo-sphere-viewer/core';
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
 
     const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
-    const suffixes = ['-seamless.jpg'];
-    const suffixLabels = ['24K UPSCALE'];
-    let currentSuffixIndex = 0;
+    // The label, the suffix for file, desktopOnly, mobileOnly
+    const versions = [
+      { label: 'Original', suffix: '-orig.jpg', },
+      { label: '6x4K JPEG', suffix: '-4096.jpg', mobileOnly: true },
+      { label: '6x24K WebP', suffix: '-seamless.webp', desktopOnly: true }
+    ];
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // Pick default version: 4K for mobile, 24K for desktop
+    let defaultIndex = versions.findIndex(v => isMobile ? v.mobileOnly : v.desktopOnly);
+    if (defaultIndex === -1) defaultIndex = 0;
+
+    let currentIndex = defaultIndex;
 
     function getPanoramaConfig(suffix) {
       return {
@@ -57,10 +123,50 @@
       };
     }
 
+    function updateActiveButton(idx) {
+      Array.from(document.querySelectorAll('.quality-btn')).forEach((btn, i) => {
+        btn.classList.toggle('active', i === idx);
+      });
+    }
+
+    // Build visible buttons for the platform.
+    function buildQualityButtons() {
+      const bar = document.getElementById('quality-buttons');
+      bar.innerHTML = '';
+      versions.forEach((v, idx) => {
+        if ((v.desktopOnly && isMobile) || (v.mobileOnly && !isMobile)) return;
+        const btn = document.createElement('button');
+        btn.textContent = v.label;
+        btn.className = 'quality-btn' + (idx === currentIndex ? ' active' : '');
+        btn.onclick = () => {
+          if (currentIndex !== idx) {
+            currentIndex = idx;
+            updateActiveButton(idx);
+            viewer.setPanorama(getPanoramaConfig(versions[idx].suffix), {
+              transition: true,
+              showLoader: true
+            });
+            updateCaption();
+          }
+        };
+        bar.appendChild(btn);
+      });
+    }
+
+    function updateCaption() {
+      // Wait until viewer has created the caption element
+      setTimeout(() => {
+        const captionEl = document.querySelector('.psv-caption');
+        if (captionEl) {
+          captionEl.style.display = 'block';
+        }
+      }, 100);
+    }
+
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
-      panorama: getPanoramaConfig(suffixes[currentSuffixIndex]),
+      panorama: getPanoramaConfig(versions[currentIndex].suffix),
       caption: 'This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.',
       loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
       touchmoveTwoFingers: false,
@@ -70,24 +176,17 @@
       navbar: [
         'zoom',
         'move',
-        {
-          id: 'quality-toggle',
-          content: `<span class="quality-toggle">${suffixLabels[currentSuffixIndex]}</span>`,
-          title: 'Toggle image quality',
-          onClick: (viewer) => {
-            currentSuffixIndex = (currentSuffixIndex + 1) % suffixes.length;
-            const button = viewer.navbar.getButton('quality-toggle');
-            button.container.querySelector('.quality-toggle').textContent = suffixLabels[currentSuffixIndex];
-            viewer.setPanorama(getPanoramaConfig(suffixes[currentSuffixIndex]), {
-              transition: true,
-              showLoader: true
-            });
-          }
-        },
         'download',
         'fullscreen',
       ]
     });
+
+    // Reposition caption after loading each panorama, and after first load
+    viewer.on('panorama-loaded', updateCaption);
+    updateCaption();
+
+    // Build buttons bar
+    buildQualityButtons();
   </script>
 </body>
 </html>
