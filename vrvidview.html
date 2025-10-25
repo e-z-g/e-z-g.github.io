@@ -43,11 +43,12 @@
 
         // Get video URL from URL parameter
         const urlParams = new URLSearchParams(window.location.search);
-        const videoUrl = urlParams.get('video') || 'https://media.glif.app/v:r/fl_attachment:glif-chat-1761365820070/x18lgo3m5ulhlsqhtmyq.mp4';
+        const videoUrl = urlParams.get('video') || 'https://media.glif.app/v:r/fl_attachment:glif-chat-1761368383756/vk5vylc1x8mwqyxyem6i.mp4';
 
         const viewer = new Viewer({
             container: document.querySelector('#viewer'),
             adapter: EquirectangularVideoAdapter,
+            fisheye: true,
             panorama: {
                 source: videoUrl,
                 muted: true,
