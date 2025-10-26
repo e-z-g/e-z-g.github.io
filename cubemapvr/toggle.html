@@ -1,3 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cubemap Viewer</title>
+  
+  <!-- Photo Sphere Viewer CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core/index.min.css" />
+  
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    #viewer {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  
+  <!-- Import Map -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js",
+      "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core/index.module.js",
+      "@photo-sphere-viewer/cubemap-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/cubemap-adapter/index.module.js"
+    }
+  }
+  </script>
+</head>
 <body>
   <div id="viewer"></div>
   <div id="quality-buttons" style="
@@ -12,6 +47,7 @@
     max-width: 95vw; text-align: center;">
     This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.
   </div>
+  
   <script type="module">
     import { Viewer } from '@photo-sphere-viewer/core';
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
@@ -92,3 +128,4 @@
     });
   </script>
 </body>
+</html>
