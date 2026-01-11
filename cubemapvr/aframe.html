@@ -1,67 +1,100 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
-    <script>
-      AFRAME.registerComponent('basic-3d-cube', {
-        init: function () {
-          const el = this.el;
-          const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
-          
-          // Correct Indexing for BoxGeometry: [+x, -x, +y, -y, +z, -z]
-          const faces = [
-            'MAWW11', // +x (Right)
-            'MAWW12', // -x (Left)
-            'MAWW13', // +y (Top)
-            'MAWW9',  // -y (Bottom)
-            'MAWW8',  // +z (Front)
-            'MAWW10'  // -z (Back)
-          ];
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Upscale Viewer</title>
+  <!-- A-Frame Library for high-performance WebVR/3D -->
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+  
+  <script>
+    AFRAME.registerComponent('spherized-viewer', {
+      schema: {
+        baseUrl: {type: 'string', default: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/'},
+        colorSuffix: {type: 'string', default: '_ud_trimmed.webp'},
+        depthSuffix: {type: 'string', default: '_depth.webp'},
+        // Negative value reverses depth: Black is Near, White is Far
+        depthScale: {type: 'number', default: -1.2} 
+      },
 
-          const geometry = new THREE.BoxGeometry(10, 10, 10, 128, 128, 128);
-          
-          // Spherize: Move vertices to radius 5
-          const pos = geometry.attributes.position;
-          const v = new THREE.Vector3();
-          for (let i = 0; i < pos.count; i++) {
-            v.fromBufferAttribute(pos, i).normalize().multiplyScalar(5);
-            pos.setXYZ(i, v.x, v.y, v.z);
-          }
-          
-          geometry.scale(-1, 1, 1); // Invert for interior view
+      init: function () {
+        const data = this.data;
+        // Standard Three.js Box order: +x, -x, +y, -y, +z, -z
+        const faceIds = ['MAWW11', 'MAWW12', 'MAWW13', 'MAWW9', 'MAWW8', 'MAWW10'];
+        
+        // 1. Create a high-poly subdivided cube (128x128 per face)
+        const geometry = new THREE.BoxGeometry(10, 10, 10, 128, 128, 128);
+        
+        // 2. Spherize: Inflate the cube into a smooth sphere
+        const pos = geometry.attributes.position;
+        const v = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).normalize().multiplyScalar(5);
+          pos.setXYZ(i, v.x, v.y, v.z);
+        }
+        
+        // 3. Invert the sphere to see it from the inside
+        geometry.scale(-1, 1, 1);
 
-          const loader = new THREE.TextureLoader();
-          const materials = faces.map(id => {
-            const tex = loader.load(`${baseUrl}${id}_ud_trimmed.webp`);
-            const depth = loader.load(`${baseUrl}${id}_depth.webp`);
-            
-            // Fix edge seams: clamp textures to the edge
-            tex.wrapS = tex.wrapT = depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping;
-
-            return new THREE.MeshStandardMaterial({
-              map: tex,
-              displacementMap: depth,
-              displacementScale: 1.0,
-              roughness: 0.8
-            });
+        // 4. Load materials asynchronously
+        const loader = new THREE.TextureLoader();
+        const materials = faceIds.map(id => {
+          // MeshStandardMaterial reacts to light/depth
+          const mat = new THREE.MeshStandardMaterial({ 
+            roughness: 0.7, 
+            metalness: 0.1 
           });
 
-          el.setObject3D('mesh', new THREE.Mesh(geometry, materials));
-        }
-      });
-    </script>
-  </head>
-  <body>
-    <a-scene vr-mode-ui="enabled: false">
-      <a-entity basic-3d-cube></a-entity>
-      
-      <!-- Camera with simple gaze-light -->
-      <a-entity position="0 0 0">
-        <a-camera look-controls="reverseMouseDrag: true">
-          <a-light type="point" intensity="1.2" position="0 0 -1"></a-light>
-        </a-camera>
-      </a-entity>
-      <a-light type="ambient" intensity="0.5"></a-light>
-    </a-scene>
-  </body>
+          // Load Color Texture
+          loader.load(`${data.baseUrl}${id}${data.colorSuffix}`, (tex) => {
+            tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+            mat.map = tex;
+            mat.needsUpdate = true;
+          });
+
+          // Attempt to load Depth Texture (Optional)
+          loader.load(
+            `${data.baseUrl}${id}${data.depthSuffix}`, 
+            (depth) => {
+              depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping;
+              mat.displacementMap = depth;
+              mat.displacementScale = data.depthScale;
+              // Bias helps prevent the mesh from shifting too far from center
+              mat.displacementBias = -data.depthScale * 0.5; 
+              mat.needsUpdate = true;
+            },
+            undefined, 
+            () => { /* Silently ignore missing depth maps */ }
+          );
+
+          return mat;
+        });
+
+        this.el.setObject3D('mesh', new THREE.Mesh(geometry, materials));
+      }
+    });
+  </script>
+</head>
+<body style="margin: 0; background: #000; overflow: hidden;">
+  <!-- Renderer: ColorManagement ensures accurate upscale colors -->
+  <!-- Exposure 1.5 boosts the brightness globally -->
+  <a-scene renderer="colorManagement: true; exposure: 1.5; antialias: true;" vr-mode-ui="enabled: false">
+    
+    <!-- The Spherized Cubemap Entity -->
+    <a-entity spherized-viewer></a-entity>
+
+    <!-- Camera Setup: reverseMouseDrag matches standard 360 viewer feel -->
+    <a-entity position="0 0 0">
+      <a-camera look-controls="reverseMouseDrag: true" wasd-controls-enabled="false">
+        <!-- A Point Light attached to camera acts as a flashlight for 3D depth -->
+        <a-light type="point" intensity="2.5" position="0 0 -0.5" color="#fff"></a-light>
+      </a-camera>
+    </a-entity>
+
+    <!-- Global Fill Lighting: Ambient + Hemisphere to brighten dark corners -->
+    <a-light type="ambient" intensity="1.2"></a-light>
+    <a-light type="hemisphere" intensity="0.8" color="#ffffff" groundColor="#444444"></a-light>
+
+  </a-scene>
+</body>
 </html>
