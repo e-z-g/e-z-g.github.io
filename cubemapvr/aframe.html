@@ -2,99 +2,91 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Upscale Viewer</title>
-  <!-- A-Frame Library for high-performance WebVR/3D -->
+  <title>3D Upscale Viewer - Manual Control</title>
   <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
   
   <script>
+    // Component to simulate head movement on a neck pivot
+    AFRAME.registerComponent('neck-pivot', {
+      schema: { radius: {type: 'number', default: 0.15} }, // 15cm head-to-neck offset
+      tick: function () {
+        const cameraEl = this.el.querySelector('a-camera');
+        const rotation = cameraEl.getAttribute('rotation');
+        
+        // Convert degrees to radians
+        const radY = THREE.MathUtils.degToRad(rotation.y);
+        
+        // Calculate new orbital position (Neck to Eye offset)
+        const x = this.data.radius * Math.sin(radY);
+        const z = this.data.radius * Math.cos(radY);
+        
+        // Apply position to the camera itself
+        cameraEl.setAttribute('position', {x: x, y: 0, z: -z});
+      }
+    });
+
+    // Custom Spherized Cube Component (as previously defined)
     AFRAME.registerComponent('spherized-viewer', {
       schema: {
         baseUrl: {type: 'string', default: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/'},
         colorSuffix: {type: 'string', default: '_ud_trimmed.webp'},
         depthSuffix: {type: 'string', default: '_depth.webp'},
-        // Negative value reverses depth: Black is Near, White is Far
         depthScale: {type: 'number', default: -1.2} 
       },
-
       init: function () {
         const data = this.data;
-        // Standard Three.js Box order: +x, -x, +y, -y, +z, -z
         const faceIds = ['MAWW11', 'MAWW12', 'MAWW13', 'MAWW9', 'MAWW8', 'MAWW10'];
-        
-        // 1. Create a high-poly subdivided cube (128x128 per face)
         const geometry = new THREE.BoxGeometry(10, 10, 10, 128, 128, 128);
-        
-        // 2. Spherize: Inflate the cube into a smooth sphere
         const pos = geometry.attributes.position;
         const v = new THREE.Vector3();
         for (let i = 0; i < pos.count; i++) {
           v.fromBufferAttribute(pos, i).normalize().multiplyScalar(5);
           pos.setXYZ(i, v.x, v.y, v.z);
         }
-        
-        // 3. Invert the sphere to see it from the inside
         geometry.scale(-1, 1, 1);
-
-        // 4. Load materials asynchronously
         const loader = new THREE.TextureLoader();
         const materials = faceIds.map(id => {
-          // MeshStandardMaterial reacts to light/depth
-          const mat = new THREE.MeshStandardMaterial({ 
-            roughness: 0.7, 
-            metalness: 0.1 
-          });
-
-          // Load Color Texture
+          const mat = new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0.1 });
           loader.load(`${data.baseUrl}${id}${data.colorSuffix}`, (tex) => {
             tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
             mat.map = tex;
             mat.needsUpdate = true;
           });
-
-          // Attempt to load Depth Texture (Optional)
-          loader.load(
-            `${data.baseUrl}${id}${data.depthSuffix}`, 
-            (depth) => {
-              depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping;
-              mat.displacementMap = depth;
-              mat.displacementScale = data.depthScale;
-              // Bias helps prevent the mesh from shifting too far from center
-              mat.displacementBias = -data.depthScale * 0.5; 
-              mat.needsUpdate = true;
-            },
-            undefined, 
-            () => { /* Silently ignore missing depth maps */ }
-          );
-
+          loader.load(`${data.baseUrl}${id}${data.depthSuffix}`, (depth) => {
+            depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping;
+            mat.displacementMap = depth;
+            mat.displacementScale = data.depthScale;
+            mat.displacementBias = -data.depthScale * 0.5;
+            mat.needsUpdate = true;
+          });
           return mat;
         });
-
         this.el.setObject3D('mesh', new THREE.Mesh(geometry, materials));
       }
     });
   </script>
 </head>
 <body style="margin: 0; background: #000; overflow: hidden;">
-  <!-- Renderer: ColorManagement ensures accurate upscale colors -->
-  <!-- Exposure 1.5 boosts the brightness globally -->
   <a-scene renderer="colorManagement: true; exposure: 1.5; antialias: true;" vr-mode-ui="enabled: false">
     
-    <!-- The Spherized Cubemap Entity -->
     <a-entity spherized-viewer></a-entity>
 
-    <!-- Camera Setup: reverseMouseDrag matches standard 360 viewer feel -->
-    <a-entity position="0 0 0">
-      <a-camera look-controls="reverseMouseDrag: true" wasd-controls-enabled="false">
-        <!-- A Point Light attached to camera acts as a flashlight for 3D depth -->
-        <a-light type="point" intensity="2.5" position="0 0 -0.5" color="#fff"></a-light>
+    <!-- NECK RIG: Controls manual movement and orbital pivot -->
+    <a-entity id="neck-rig" neck-pivot="radius: 0.2">
+      <!-- 
+        magicWindowTrackingEnabled: false -> Disables phone gyroscope [web:311]
+        touchEnabled: true -> Ensures finger swiping works [web:311]
+        reverseTouchDrag: true -> Optional: matches standard 360 viewer feel
+      -->
+      <a-camera 
+        look-controls="magicWindowTrackingEnabled: false; touchEnabled: true; reverseTouchDrag: true; reverseMouseDrag: true" 
+        wasd-controls-enabled="false">
+        <a-light type="point" intensity="2.5" position="0 0 -0.5"></a-light>
       </a-camera>
     </a-entity>
 
-    <!-- Global Fill Lighting: Ambient + Hemisphere to brighten dark corners -->
     <a-light type="ambient" intensity="1.2"></a-light>
     <a-light type="hemisphere" intensity="0.8" color="#ffffff" groundColor="#444444"></a-light>
-
   </a-scene>
 </body>
 </html>
