@@ -2,74 +2,61 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>A-Frame Cubemap Viewer</title>
-  <!-- A-Frame Library -->
+  <title>Spherized 3D Cubemap</title>
   <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
-  <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-    #ui-layer { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; z-index: 101; background: rgba(40,40,40,0.7); border-radius: 8px; padding: 4px 10px; }
-    #caption { position: absolute; left: 50%; transform: translateX(-50%); bottom: 54px; z-index: 100; background: rgba(0,0,0,0.7); color: #fff; padding: 8px 18px; border-radius: 5px; font-size: 15px; font-weight: 500; text-align: center; }
-    button { color: white; border: none; border-radius: 5px; font-size: 15px; font-weight: bold; padding: 10px 18px; cursor: pointer; min-width:72px; }
-  </style>
-</head>
-<body>
-  <div id="ui-layer"></div>
-  <div id="caption">This product was created using artwork with ™ and/or © works of Cyan...</div>
-
-  <a-scene vr-mode-ui="enabled: false">
-    <!-- Camera at Center -->
-    <a-entity position="0 0 0">
-      <a-camera look-controls="reverseMouseDrag: true" wasd-controls-enabled="false"></a-camera>
-    </a-entity>
-
-    <!-- The 6-Face Cube (Planes facing inward) -->
-    <a-plane id="face-front" position="0 0 -5" rotation="0 0 0" width="10" height="10" material="shader: flat; side: double"></a-plane>
-    <a-plane id="face-back" position="0 0 5" rotation="0 180 0" width="10" height="10" material="shader: flat; side: double"></a-plane>
-    <a-plane id="face-right" position="5 0 0" rotation="0 -90 0" width="10" height="10" material="shader: flat; side: double"></a-plane>
-    <a-plane id="face-left" position="-5 0 0" rotation="0 90 0" width="10" height="10" material="shader: flat; side: double"></a-plane>
-    <a-plane id="face-top" position="0 5 0" rotation="90 0 0" width="10" height="10" material="shader: flat; side: double"></a-plane>
-    <a-plane id="face-bottom" position="0 -5 0" rotation="-90 0 0" width="10" height="10" material="shader: flat; side: double"></a-plane>
-  </a-scene>
-
   <script>
-    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
-    const versions = [
-      { label: '3.9K', suffix: '_ud_trimmed.webp' },
-      { label: 'J90', suffix: '_jay.webp' }
-    ];
-    let currentIndex = 0;
+    AFRAME.registerComponent('spherized-cube', {
+      schema: {
+        colorSuffix: {type: 'string'},
+        depthSuffix: {type: 'string'}
+      },
+      init: function () {
+        const el = this.el;
+        const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
+        const faceIds = ['MAWW8', 'MAWW9', 'MAWW10', 'MAWW11', 'MAWW12', 'MAWW13'];
+        
+        // 1. Create a high-poly Box Geometry (256 segments for smooth depth)
+        const geometry = new THREE.BoxGeometry(10, 10, 10, 256, 256, 256);
+        
+        // 2. Spherize the Box: Normalize every vertex to a radius of 5
+        const pos = geometry.attributes.position;
+        const v = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i++) {
+          v.fromBufferAttribute(pos, i).normalize().multiplyScalar(5);
+          pos.setXYZ(i, v.x, v.y, v.z);
+        }
+        
+        // 3. Invert to see from inside
+        geometry.scale(-1, 1, 1);
 
-    const faces = {
-      'face-front': 'MAWW8', 'face-bottom': 'MAWW9', 'face-back': 'MAWW10',
-      'face-right': 'MAWW11', 'face-left': 'MAWW12', 'face-top': 'MAWW13'
-    };
+        // 4. Create 6 Materials for the 6 faces
+        const loader = new THREE.TextureLoader();
+        const materials = faceIds.map(id => new THREE.MeshStandardMaterial({
+          map: loader.load(`${baseUrl}${id}${this.data.colorSuffix}`),
+          displacementMap: loader.load(`${baseUrl}${id}${this.data.depthSuffix}`),
+          displacementScale: 1.5, // Adjust depth intensity
+          roughness: 0.6,
+          metalness: 0.2
+        }));
 
-    function updateScene(idx) {
-      currentIndex = idx;
-      const suffix = versions[idx].suffix;
-      
-      Object.keys(faces).forEach(id => {
-        const url = `${baseUrl}${faces[id]}${suffix}`;
-        document.getElementById(id).setAttribute('material', 'src', url);
-      });
-      renderButtons();
-    }
-
-    function renderButtons() {
-      const container = document.getElementById('ui-layer');
-      container.innerHTML = '';
-      versions.forEach((v, i) => {
-        const btn = document.createElement('button');
-        btn.textContent = v.label;
-        btn.style.background = (i === currentIndex) ? '#2259E8' : '#558CFE';
-        btn.onclick = () => updateScene(i);
-        container.appendChild(btn);
-      });
-    }
-
-    // Initialize
-    window.onload = () => updateScene(0);
+        el.setObject3D('mesh', new THREE.Mesh(geometry, materials));
+      }
+    });
   </script>
+</head>
+<body style="margin:0; overflow:hidden;">
+  <a-scene vr-mode-ui="enabled: false">
+    <!-- Single Scene Setup (No Buttons/Copyright) -->
+    <a-entity spherized-cube="colorSuffix: _ud_trimmed.webp; depthSuffix: _depth.webp"></a-entity>
+
+    <!-- Lighting (Required for Depth/Standard Material) -->
+    <a-entity position="0 0 0">
+      <a-camera look-controls="reverseMouseDrag: true">
+        <a-light type="point" intensity="1.5" position="0 0 -1"></a-light>
+      </a-camera>
+    </a-entity>
+    
+    <a-light type="ambient" intensity="0.5"></a-light>
+  </a-scene>
 </body>
 </html>
