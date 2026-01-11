@@ -1,62 +1,67 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Spherized 3D Cubemap</title>
-  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
-  <script>
-    AFRAME.registerComponent('spherized-cube', {
-      schema: {
-        colorSuffix: {type: 'string'},
-        depthSuffix: {type: 'string'}
-      },
-      init: function () {
-        const el = this.el;
-        const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
-        const faceIds = ['MAWW8', 'MAWW9', 'MAWW10', 'MAWW11', 'MAWW12', 'MAWW13'];
-        
-        // 1. Create a high-poly Box Geometry (256 segments for smooth depth)
-        const geometry = new THREE.BoxGeometry(10, 10, 10, 256, 256, 256);
-        
-        // 2. Spherize the Box: Normalize every vertex to a radius of 5
-        const pos = geometry.attributes.position;
-        const v = new THREE.Vector3();
-        for (let i = 0; i < pos.count; i++) {
-          v.fromBufferAttribute(pos, i).normalize().multiplyScalar(5);
-          pos.setXYZ(i, v.x, v.y, v.z);
+<html>
+  <head>
+    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+    <script>
+      AFRAME.registerComponent('basic-3d-cube', {
+        init: function () {
+          const el = this.el;
+          const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
+          
+          // Correct Indexing for BoxGeometry: [+x, -x, +y, -y, +z, -z]
+          const faces = [
+            'MAWW11', // +x (Right)
+            'MAWW12', // -x (Left)
+            'MAWW13', // +y (Top)
+            'MAWW9',  // -y (Bottom)
+            'MAWW8',  // +z (Front)
+            'MAWW10'  // -z (Back)
+          ];
+
+          const geometry = new THREE.BoxGeometry(10, 10, 10, 128, 128, 128);
+          
+          // Spherize: Move vertices to radius 5
+          const pos = geometry.attributes.position;
+          const v = new THREE.Vector3();
+          for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i).normalize().multiplyScalar(5);
+            pos.setXYZ(i, v.x, v.y, v.z);
+          }
+          
+          geometry.scale(-1, 1, 1); // Invert for interior view
+
+          const loader = new THREE.TextureLoader();
+          const materials = faces.map(id => {
+            const tex = loader.load(`${baseUrl}${id}_ud_trimmed.webp`);
+            const depth = loader.load(`${baseUrl}${id}_depth.webp`);
+            
+            // Fix edge seams: clamp textures to the edge
+            tex.wrapS = tex.wrapT = depth.wrapS = depth.wrapT = THREE.ClampToEdgeWrapping;
+
+            return new THREE.MeshStandardMaterial({
+              map: tex,
+              displacementMap: depth,
+              displacementScale: 1.0,
+              roughness: 0.8
+            });
+          });
+
+          el.setObject3D('mesh', new THREE.Mesh(geometry, materials));
         }
-        
-        // 3. Invert to see from inside
-        geometry.scale(-1, 1, 1);
-
-        // 4. Create 6 Materials for the 6 faces
-        const loader = new THREE.TextureLoader();
-        const materials = faceIds.map(id => new THREE.MeshStandardMaterial({
-          map: loader.load(`${baseUrl}${id}${this.data.colorSuffix}`),
-          displacementMap: loader.load(`${baseUrl}${id}${this.data.depthSuffix}`),
-          displacementScale: 1.5, // Adjust depth intensity
-          roughness: 0.6,
-          metalness: 0.2
-        }));
-
-        el.setObject3D('mesh', new THREE.Mesh(geometry, materials));
-      }
-    });
-  </script>
-</head>
-<body style="margin:0; overflow:hidden;">
-  <a-scene vr-mode-ui="enabled: false">
-    <!-- Single Scene Setup (No Buttons/Copyright) -->
-    <a-entity spherized-cube="colorSuffix: _ud_trimmed.webp; depthSuffix: _depth.webp"></a-entity>
-
-    <!-- Lighting (Required for Depth/Standard Material) -->
-    <a-entity position="0 0 0">
-      <a-camera look-controls="reverseMouseDrag: true">
-        <a-light type="point" intensity="1.5" position="0 0 -1"></a-light>
-      </a-camera>
-    </a-entity>
-    
-    <a-light type="ambient" intensity="0.5"></a-light>
-  </a-scene>
-</body>
+      });
+    </script>
+  </head>
+  <body>
+    <a-scene vr-mode-ui="enabled: false">
+      <a-entity basic-3d-cube></a-entity>
+      
+      <!-- Camera with simple gaze-light -->
+      <a-entity position="0 0 0">
+        <a-camera look-controls="reverseMouseDrag: true">
+          <a-light type="point" intensity="1.2" position="0 0 -1"></a-light>
+        </a-camera>
+      </a-entity>
+      <a-light type="ambient" intensity="0.5"></a-light>
+    </a-scene>
+  </body>
 </html>
