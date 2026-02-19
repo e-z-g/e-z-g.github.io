@@ -14,10 +14,55 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
+      font-family: sans-serif;
     }
     #viewer {
       width: 100%;
       height: 100%;
+    }
+    .ui-container {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      z-index: 101;
+      width: 100%;
+      pointer-events: none;
+    }
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      background: rgba(40,40,40,0.8);
+      border-radius: 8px;
+      padding: 6px 12px;
+      pointer-events: auto;
+      backdrop-filter: blur(4px);
+    }
+    button, select {
+      background: #558CFE;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      font-weight: bold;
+      padding: 8px 14px;
+      cursor: pointer;
+      outline: none;
+    }
+    button.active {
+      background: #2259E8;
+    }
+    select {
+      appearance: none;
+      padding-right: 30px;
+      background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px top 50%;
+      background-size: 10px auto;
     }
   </style>
   
@@ -34,11 +79,15 @@
 </head>
 <body>
   <div id="viewer"></div>
-  <div id="quality-buttons" style="
-    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 14px; z-index: 101; user-select: none;
-    background: rgba(40,40,40,0.7); border-radius: 8px; padding: 4px 10px;">
+  
+  <div class="ui-container">
+    <div class="controls-row">
+      <label style="color: white; font-size: 12px; align-self: center; font-weight: bold; text-transform: uppercase; opacity: 0.8;">Location</label>
+      <select id="scene-selector"></select>
+    </div>
+    <div id="quality-buttons" class="controls-row"></div>
   </div>
+
   <div id="caption" style="
     position: absolute; left: 50%; transform: translateX(-50%);
     bottom: 54px; z-index: 100; background: rgba(0,0,0,0.7); color: #fff;
@@ -53,68 +102,99 @@
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
     import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
 
-    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
+    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/vr2/';
+
+    // Mapping based on the logic that the number (8, 9, 10, etc.) acts as the side identifier.
+    // Assuming standard 1-6 face mapping: 1=Front, 2=Bottom, 3=Back, 4=Right, 5=Left, 6=Top
+    const scenes = [
+      { id: 'node-8',  name: 'Node 8',  base: 'MAWWnodes-8', faces: ['1','2','3','4','5','6'] },
+      { id: 'node-9',  name: 'Node 9',  base: 'MAWWnodes-9', faces: ['1','2','3','4','5','6'] },
+      { id: 'node-10', name: 'Node 10', base: 'MAWWnodes-10', faces: ['1','2','3','4','5','6'] },
+      { id: 'node-11', name: 'Node 11', base: 'MAWWnodes-11', faces: ['1','2','3','4','5','6'] },
+      { id: 'node-12', name: 'Node 12', base: 'MAWWnodes-12', faces: ['1','2','3','4','5','6'] },
+      { id: 'node-13', name: 'Node 13', base: 'MAWWnodes-13', faces: ['1','2','3','4','5','6'] }
+    ];
+
     const versions = [
-      { label: 'Original', suffix: '-orig.jpg' },
-      { label: 'HD Mod', suffix: '-hdmod.webp' },
-      { label: '4K', suffix: '-4096.jpg', mobileOnly: true },
-      { label: '24K', suffix: '-seamless.webp', desktopOnly: true }
+      { label: 'Original', suffix: '_orig.jpeg' },
+      { label: 'Color Match', suffix: '_colormatch.webp' }
     ];
     
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    let activeIndexes = versions.map((v, i) => {
-      if (!v.desktopOnly && !v.mobileOnly) return i; 
-      if (!isMobile && v.desktopOnly) return i;      
-      if (isMobile && v.mobileOnly) return i;        
-      return null;
-    }).filter(x => x !== null);
-
+    let activeIndexes = versions.map((v, i) => i);
+    let currentScene = scenes[0];
     let currentIndex = activeIndexes[0];
 
-    function getCubemap(suffix) {
+    function getCubemap(scene, version) {
+      // Reconstructing the paths based on the 'side' logic.
+      // Assuming filenames like: MAWWnodes-8_orig.jpeg, MAWWnodes-9_orig.jpeg, etc. 
+      // are actually specific sides of the same room.
       return {
-        left: baseUrl + 'LEIS665' + suffix,
-        front: baseUrl + 'LEIS661' + suffix,
-        right: baseUrl + 'LEIS664' + suffix,
-        back: baseUrl + 'LEIS663' + suffix,
-        top: baseUrl + 'LEIS666' + suffix,
-        bottom: baseUrl + 'LEIS662' + suffix,
+        front:  baseUrl + 'MAWWnodes-8' + version.suffix,
+        bottom: baseUrl + 'MAWWnodes-9' + version.suffix,
+        back:   baseUrl + baseUrl + 'MAWWnodes-10' + version.suffix,
+        right:  baseUrl + baseUrl + 'MAWWnodes-11' + version.suffix,
+        left:   baseUrl + baseUrl + 'MAWWnodes-12' + version.suffix,
+        top:    baseUrl + baseUrl + 'MAWWnodes-13' + version.suffix,
       };
     }
 
-    function updateButtons() {
-      const bar = document.getElementById('quality-buttons');
-      bar.innerHTML = '';
+    // Corrected getCubemap function to use the Node IDs as face identifiers
+    function getCubemapCorrected(scene, version) {
+      // If the numbers 8-13 are actually the faces for one location:
+      return {
+        front:  baseUrl + 'MAWWnodes-8'  + version.suffix,
+        bottom: baseUrl + 'MAWWnodes-9'  + version.suffix,
+        back:   baseUrl + 'MAWWnodes-10' + version.suffix,
+        right:  baseUrl + 'MAWWnodes-11' + version.suffix,
+        left:   baseUrl + 'MAWWnodes-12' + version.suffix,
+        top:    baseUrl + 'MAWWnodes-13' + version.suffix,
+      };
+    }
+
+    function updateUI() {
+      const qBar = document.getElementById('quality-buttons');
+      qBar.innerHTML = '';
       activeIndexes.forEach((idx) => {
         const btn = document.createElement('button');
         btn.textContent = versions[idx].label;
-        btn.style = `
-          background: ${idx === currentIndex ? '#2259E8' : '#558CFE'};
-          color: white; border: none; border-radius: 5px;
-          font-size: 15px; font-weight: bold;
-          padding: 10px 18px; cursor: pointer; min-width:72px;
-        `;
+        if (idx === currentIndex) btn.classList.add('active');
         btn.onclick = () => {
           if (currentIndex !== idx) {
             currentIndex = idx;
-            updateButtons();
-            viewer.setPanorama(getCubemap(versions[idx].suffix), {transition:true,showLoader:true});
+            updateUI();
+            viewer.setPanorama(getCubemapCorrected(currentScene, versions[idx]), { transition: true, showLoader: true });
           }
         };
-        bar.appendChild(btn);
+        qBar.appendChild(btn);
       });
-    }
 
-    updateButtons();
+      const sSelect = document.getElementById('scene-selector');
+      if (sSelect.options.length === 0) {
+        // Since nodes 8-13 are sides of one view, we define this as one location.
+        // If there are other sets (e.g., 14-19), you can add them to scenes array.
+        const opt = document.createElement('option');
+        opt.value = 0;
+        opt.textContent = "Main Gallery"; 
+        sSelect.appendChild(opt);
+        
+        sSelect.onchange = (e) => {
+          currentScene = scenes[e.target.value];
+          viewer.setPanorama(getCubemapCorrected(currentScene, versions[currentIndex]), { transition: true, showLoader: true });
+        };
+      }
+    }
 
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
       plugins: [
-        [GyroscopePlugin] // Register the plugin here
+        [GyroscopePlugin, {
+          moveMode: 'fast',
+          absolutePosition: true
+        }]
       ],
-      panorama: getCubemap(versions[currentIndex].suffix),
+      panorama: getCubemapCorrected(currentScene, versions[currentIndex]),
       caption: '',
       loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
       touchmoveTwoFingers: false,
@@ -125,14 +205,15 @@
         'zoom',
         'move',
         'download',
-        'gyroscope', // Add the button to the UI
+        'gyroscope',
         'fullscreen',
       ]
     });
 
+    updateUI();
+
     viewer.addEventListener('panorama-loaded', () => {
       const materials = viewer.renderer.mesh.material;
-      
       if (Array.isArray(materials)) {
         materials.forEach(mat => {
           if (mat.map) {
@@ -144,7 +225,7 @@
       }
     });
 
-    window.addEventListener('resize', ()=>{
+    window.addEventListener('resize', () => {
       const caption = document.getElementById('caption');
       caption.style.left = '50%'; 
     });
