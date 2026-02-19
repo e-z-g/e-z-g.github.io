@@ -58,12 +58,16 @@
       { label: '4K', suffix: '-4096.jpg', mobileOnly: true },
       { label: '24K', suffix: '-seamless.webp', desktopOnly: true }
     ];
+    
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    let activeIndexes = versions.map((v, i) =>
-      (!isMobile && v.desktopOnly) || (isMobile && v.mobileOnly) ? i : null
-    ).filter(x => x !== null);
-    // Always keep 'Original' as an option
-    if (!activeIndexes.includes(0)) activeIndexes.unshift(0);
+    
+    // Automatically include versions with no restrictions, or those matching the device
+    let activeIndexes = versions.map((v, i) => {
+      if (!v.desktopOnly && !v.mobileOnly) return i; 
+      if (!isMobile && v.desktopOnly) return i;      
+      if (isMobile && v.mobileOnly) return i;        
+      return null;
+    }).filter(x => x !== null);
 
     let currentIndex = activeIndexes[0];
 
@@ -112,7 +116,7 @@
       touchmoveTwoFingers: false,
       mousewheelCtrlKey: false,
       minFov: 10,
-      maxFov: 180,
+      maxFov: 110, // Restricts zooming out
       navbar: [
         'zoom',
         'move',
@@ -123,7 +127,6 @@
 
     // Apply texture filtering once the panorama loads
     viewer.addEventListener('panorama-loaded', () => {
-      // The cubemap adapter uses an array of materials for the BoxGeometry
       const materials = viewer.renderer.mesh.material;
       
       if (Array.isArray(materials)) {
@@ -131,7 +134,7 @@
           if (mat.map) {
             // Nearest-neighbor for upscaling
             mat.map.magFilter = THREE.NearestFilter;
-            // Trilinear mipmapping for high-quality downscaling (WebGL native alternative to Lanczos)
+            // Trilinear mipmapping for high-quality downscaling
             mat.map.minFilter = THREE.LinearMipmapLinearFilter;
             // Flag the material for an update so Three.js recompiles the texture
             mat.map.needsUpdate = true;
@@ -143,6 +146,12 @@
     // Keep caption visible on resize/load
     window.addEventListener('resize', ()=>{
       const caption = document.getElementById('caption');
+      caption.style.left = '50%'; // keep at center
+    });
+  </script>
+</body>
+</html>
+
       caption.style.left = '50%'; // keep at center
     });
   </script>
