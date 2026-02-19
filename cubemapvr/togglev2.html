@@ -26,7 +26,8 @@
     "imports": {
       "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js",
       "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core/index.module.js",
-      "@photo-sphere-viewer/cubemap-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/cubemap-adapter/index.module.js"
+      "@photo-sphere-viewer/cubemap-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/cubemap-adapter/index.module.js",
+      "@photo-sphere-viewer/gyroscope-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/gyroscope-plugin/index.module.js"
     }
   }
   </script>
@@ -50,6 +51,7 @@
     import * as THREE from 'three';
     import { Viewer } from '@photo-sphere-viewer/core';
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
+    import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
 
     const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
     const versions = [
@@ -61,7 +63,6 @@
     
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
-    // Automatically include versions with no restrictions, or those matching the device
     let activeIndexes = versions.map((v, i) => {
       if (!v.desktopOnly && !v.mobileOnly) return i; 
       if (!isMobile && v.desktopOnly) return i;      
@@ -110,49 +111,42 @@
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
+      plugins: [
+        [GyroscopePlugin] // Register the plugin here
+      ],
       panorama: getCubemap(versions[currentIndex].suffix),
-      caption: '', // remove from plugin, keep our custom
+      caption: '',
       loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
       touchmoveTwoFingers: false,
       mousewheelCtrlKey: false,
       minFov: 10,
-      maxFov: 110, // Restricts zooming out
+      maxFov: 110,
       navbar: [
         'zoom',
         'move',
         'download',
+        'gyroscope', // Add the button to the UI
         'fullscreen',
       ]
     });
 
-    // Apply texture filtering once the panorama loads
     viewer.addEventListener('panorama-loaded', () => {
       const materials = viewer.renderer.mesh.material;
       
       if (Array.isArray(materials)) {
         materials.forEach(mat => {
           if (mat.map) {
-            // Nearest-neighbor for upscaling
             mat.map.magFilter = THREE.NearestFilter;
-            // Trilinear mipmapping for high-quality downscaling
             mat.map.minFilter = THREE.LinearMipmapLinearFilter;
-            // Flag the material for an update so Three.js recompiles the texture
             mat.map.needsUpdate = true;
           }
         });
       }
     });
 
-    // Keep caption visible on resize/load
     window.addEventListener('resize', ()=>{
       const caption = document.getElementById('caption');
-      caption.style.left = '50%'; // keep at center
-    });
-  </script>
-</body>
-</html>
-
-      caption.style.left = '50%'; // keep at center
+      caption.style.left = '50%'; 
     });
   </script>
 </body>
