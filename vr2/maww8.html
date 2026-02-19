@@ -52,11 +52,11 @@
     import { Viewer } from '@photo-sphere-viewer/core';
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
 
-    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/vr2/MAWWnodes-';
+    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
     const versions = [
       { label: '3.9K', suffix: '_colormatch.webp' },
-      { label: 'J90M', suffix: 'nodes-8_colormatch.webp', mobileOnly: true },
-      { label: 'J90D', suffix: 'nodes-8_colormatch.webp', desktopOnly: true }
+      { label: 'Orig (M)', suffix: '_orig.jpeg', mobileOnly: true },
+      { label: 'Orig (D)', suffix: '_orig.jpeg', desktopOnly: true }
     ];
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     let activeIndexes = versions.map((v, i) =>
@@ -69,12 +69,12 @@
 
     function getCubemap(suffix) {
       return {
-        front: baseUrl + '8' + suffix,
-        bottom: baseUrl + '9' + suffix,
-        back: baseUrl + '10' + suffix,
-        right: baseUrl + '11' + suffix,
-        left: baseUrl + '12' + suffix,
-        top: baseUrl + '13' + suffix,
+        left: baseUrl + 'LEIS665' + suffix,
+        front: baseUrl + 'LEIS661' + suffix,
+        right: baseUrl + 'LEIS664' + suffix,
+        back: baseUrl + 'LEIS663' + suffix,
+        top: baseUrl + 'LEIS666' + suffix,
+        bottom: baseUrl + 'LEIS662' + suffix,
       };
     }
 
@@ -112,7 +112,7 @@
       touchmoveTwoFingers: false,
       mousewheelCtrlKey: false,
       minFov: 10,
-      maxFov: 120,
+      maxFov: 180,
       navbar: [
         'zoom',
         'move',
