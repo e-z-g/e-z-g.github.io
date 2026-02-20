@@ -2,9 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cubemap Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Cubemap VR</title>
   
+  <!-- The Web App Method: Standalone Mode Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cubemap VR">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
+  
+  <!-- App Icon (Uses your loader as a placeholder) -->
+  <link rel="apple-touch-icon" href="https://photo-sphere-viewer-data.netlify.app/assets/loader.gif">
+
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core/index.min.css" />
   
   <style>
@@ -12,9 +22,11 @@
       margin: 0;
       padding: 0;
       width: 100%;
-      height: 100%;
+      /* dvh accounts for browser bars dynamically; fallback to 100% for standalone mode */
+      height: 100vh;
+      height: 100dvh; 
       overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #000;
     }
     #viewer {
@@ -23,7 +35,8 @@
     }
     .ui-container {
       position: absolute;
-      top: 12px;
+      /* Respects iOS Notch/Dynamic Island in standalone mode */
+      top: env(safe-area-inset-top, 12px);
       left: 50%;
       transform: translateX(-50%);
       display: flex;
@@ -37,36 +50,36 @@
     .controls-row {
       display: flex;
       gap: 10px;
-      background: rgba(30, 30, 30, 0.85);
-      border-radius: 10px;
-      padding: 8px 14px;
+      background: rgba(40,40,40,0.85);
+      border-radius: 12px;
+      padding: 8px 16px;
       pointer-events: auto;
-      backdrop-filter: blur(8px);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
       border: 1px solid rgba(255,255,255,0.1);
     }
     button, select {
-      background: #4A90E2;
+      background: #558CFE;
       color: white;
       border: none;
       border-radius: 6px;
       font-size: 14px;
-      font-weight: 600;
-      padding: 8px 16px;
+      font-weight: bold;
+      padding: 10px 16px;
       cursor: pointer;
       outline: none;
       transition: all 0.2s ease;
     }
-    button:hover {
-      background: #357ABD;
+    button:active {
+      background: #2259E8;
+      transform: scale(0.95);
     }
     button.active {
       background: #2259E8;
-      box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
     }
     select {
       appearance: none;
-      padding-right: 32px;
+      padding-right: 34px;
       background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
       background-repeat: no-repeat;
       background-position: right 12px top 50%;
@@ -76,19 +89,19 @@
       position: absolute; 
       left: 50%; 
       transform: translateX(-50%);
-      bottom: 60px; 
+      /* Respects the home indicator bar on iPhone */
+      bottom: env(safe-area-inset-bottom, 54px);
       z-index: 100; 
-      background: rgba(0,0,0,0.75); 
-      color: rgba(255,255,255,0.9);
+      background: rgba(0,0,0,0.7); 
+      color: #fff;
       padding: 10px 20px; 
       border-radius: 8px; 
       font-size: 13px; 
-      font-weight: 400;
+      font-weight: 500;
       max-width: 85vw; 
       text-align: center;
-      line-height: 1.5;
+      line-height: 1.4;
       pointer-events: none;
-      border: 1px solid rgba(255,255,255,0.05);
     }
   </style>
   
@@ -108,7 +121,7 @@
   
   <div class="ui-container">
     <div class="controls-row">
-      <label style="color: #bbb; font-size: 11px; align-self: center; font-weight: 800; text-transform: uppercase; margin-right: 6px; letter-spacing: 0.5px;">Location</label>
+      <label style="color: white; font-size: 11px; align-self: center; font-weight: bold; text-transform: uppercase; opacity: 0.8; margin-right: 4px;">Location</label>
       <select id="location-selector"></select>
     </div>
     <div id="quality-buttons" class="controls-row"></div>
@@ -153,10 +166,51 @@
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     let currentLocation = locations[0];
     let currentVersionIndex = 0;
+    let transitionMesh = null;
+    let isTransitioning = false;
+
+    // --- Block Dissolve Shader (Large Blocks) ---
+    const blockDissolveShader = {
+      uniforms: {
+        tOld: { value: null },
+        tNew: { value: null },
+        uProgress: { value: 0 },
+        uBlockSize: { value: 10.0 } // Even larger chunky blocks
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D tOld;
+        uniform sampler2D tNew;
+        uniform float uProgress;
+        uniform float uBlockSize;
+        varying vec2 vUv;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+
+        void main() {
+          vec2 blockUv = floor(vUv * uBlockSize) / uBlockSize;
+          float r = hash(blockUv);
+          float threshold = smoothstep(0.0, 1.0, uProgress);
+          
+          if (threshold > r) {
+            gl_FragColor = texture2D(tNew, vUv);
+          } else {
+            gl_FragColor = texture2D(tOld, vUv);
+          }
+        }
+      `
+    };
 
     function getCubemap(loc, version) {
       if (loc.type === 'side-numbered') {
-        // MAWW logic: 8-13 are the sides
         return {
           front:  loc.baseUrl + 'MAWWnodes-8'  + version.suffix,
           bottom: loc.baseUrl + 'MAWWnodes-9'  + version.suffix,
@@ -166,7 +220,6 @@
           top:    loc.baseUrl + 'MAWWnodes-13' + version.suffix,
         };
       } else {
-        // LEIS logic: 661-666 specific mapping
         const s = version.suffix;
         return {
           left:   loc.baseUrl + 'LEIS665' + s,
@@ -179,8 +232,21 @@
       }
     }
 
+    function applyPixelFiltering() {
+      if (!viewer.renderer || !viewer.renderer.mesh) return;
+      const materials = viewer.renderer.mesh.material;
+      const matArray = Array.isArray(materials) ? materials : [materials];
+      
+      matArray.forEach(mat => {
+        if (mat.map) {
+          mat.map.magFilter = THREE.NearestFilter;
+          mat.map.minFilter = THREE.LinearMipmapLinearFilter;
+          mat.map.needsUpdate = true;
+        }
+      });
+    }
+
     function updateUI() {
-      // 1. Populate Location Selector if empty
       const locSelect = document.getElementById('location-selector');
       if (locSelect.options.length === 0) {
         locations.forEach((loc, i) => {
@@ -191,13 +257,12 @@
         });
         locSelect.onchange = (e) => {
           currentLocation = locations[e.target.value];
-          currentVersionIndex = 0; 
+          currentVersionIndex = 0;
           updateUI();
           loadPanorama();
         };
       }
 
-      // 2. Filter versions based on device context
       const activeVersions = currentLocation.versions.filter(v => {
         if (v.desktopOnly && isMobile) return false;
         if (v.mobileOnly && !isMobile) return false;
@@ -206,7 +271,6 @@
 
       if (currentVersionIndex >= activeVersions.length) currentVersionIndex = 0;
 
-      // 3. Render Dynamic Quality Buttons
       const qBar = document.getElementById('quality-buttons');
       qBar.innerHTML = '';
       activeVersions.forEach((v, idx) => {
@@ -214,7 +278,7 @@
         btn.textContent = v.label;
         if (idx === currentVersionIndex) btn.classList.add('active');
         btn.onclick = () => {
-          if (currentVersionIndex !== idx) {
+          if (currentVersionIndex !== idx && !isTransitioning) {
             currentVersionIndex = idx;
             updateUI();
             loadPanorama();
@@ -224,26 +288,87 @@
       });
     }
 
-    function loadPanorama() {
+    async function loadPanorama() {
+      if (isTransitioning) return;
+      isTransitioning = true;
+
+      const renderer = viewer.renderer.renderer;
+      const scene = viewer.renderer.scene;
+      const camera = viewer.renderer.camera;
+      const size = new THREE.Vector2();
+      renderer.getSize(size);
+
+      // Snapshot Old
+      const rtOld = new THREE.WebGLRenderTarget(size.x, size.y);
+      renderer.setRenderTarget(rtOld);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+
+      if (!transitionMesh) {
+        const geom = new THREE.PlaneGeometry(2, 2);
+        const mat = new THREE.ShaderMaterial({
+          uniforms: THREE.UniformsUtils.clone(blockDissolveShader.uniforms),
+          vertexShader: blockDissolveShader.vertexShader,
+          fragmentShader: blockDissolveShader.fragmentShader,
+          depthTest: false, depthWrite: false, transparent: true
+        });
+        transitionMesh = new THREE.Mesh(geom, mat);
+        transitionMesh.renderOrder = 9999;
+      }
+      
+      transitionMesh.material.uniforms.tOld.value = rtOld.texture;
+      transitionMesh.material.uniforms.uProgress.value = 0;
+      camera.add(transitionMesh);
+      transitionMesh.position.set(0, 0, -0.1); 
+
       const activeVersions = currentLocation.versions.filter(v => {
         if (v.desktopOnly && isMobile) return false;
         if (v.mobileOnly && !isMobile) return false;
         return true;
       });
       const config = getCubemap(currentLocation, activeVersions[currentVersionIndex]);
-      viewer.setPanorama(config, { transition: true, showLoader: true });
+      
+      try {
+        await viewer.setPanorama(config, { transition: false, showLoader: false });
+        applyPixelFiltering();
+
+        // Snapshot New
+        const rtNew = new THREE.WebGLRenderTarget(size.x, size.y);
+        renderer.setRenderTarget(rtNew);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(null);
+        transitionMesh.material.uniforms.tNew.value = rtNew.texture;
+
+        let startTime = performance.now();
+        const duration = 1200;
+
+        function animateTransition(now) {
+          let elapsed = now - startTime;
+          let p = Math.min(elapsed / duration, 1);
+          transitionMesh.material.uniforms.uProgress.value = p;
+
+          if (p < 1) {
+            requestAnimationFrame(animateTransition);
+          } else {
+            camera.remove(transitionMesh);
+            rtOld.dispose();
+            rtNew.dispose();
+            isTransitioning = false;
+            applyPixelFiltering();
+          }
+        }
+        requestAnimationFrame(animateTransition);
+      } catch (err) {
+        console.error("Transition failed", err);
+        camera.remove(transitionMesh);
+        isTransitioning = false;
+      }
     }
 
-    // Initialize Viewer
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
-      plugins: [
-        [GyroscopePlugin, {
-          moveMode: 'fast',
-          absolutePosition: true
-        }]
-      ],
+      plugins: [[GyroscopePlugin, { moveMode: 'fast', absolutePosition: true }]],
       panorama: getCubemap(currentLocation, currentLocation.versions[0]),
       caption: '',
       loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
@@ -251,37 +376,29 @@
       mousewheelCtrlKey: false,
       minFov: 10,
       maxFov: 110,
-      navbar: [
-        'zoom',
-        'move',
-        'download',
-        'gyroscope',
-        'fullscreen',
-      ]
+      navbar: ['zoom', 'move', 'download', 'gyroscope', 'fullscreen']
     });
 
     updateUI();
-
-    // Injects high-quality texture filtering logic directly into Three.js materials
-    viewer.addEventListener('panorama-loaded', () => {
-      const materials = viewer.renderer.mesh.material;
-      if (Array.isArray(materials)) {
-        materials.forEach(mat => {
-          if (mat.map) {
-            // Nearest-neighbor for upscaling (crisp pixels)
-            mat.map.magFilter = THREE.NearestFilter;
-            // Trilinear mipmapping for smooth downscaling
-            mat.map.minFilter = THREE.LinearMipmapLinearFilter;
-            mat.map.needsUpdate = true;
-          }
-        });
-      }
-    });
+    viewer.addEventListener('panorama-loaded', applyPixelFiltering);
+    viewer.addEventListener('render', applyPixelFiltering);
 
     window.addEventListener('resize', () => {
       const caption = document.getElementById('caption');
       caption.style.left = '50%'; 
+      if (transitionMesh) {
+        viewer.renderer.camera.remove(transitionMesh);
+        transitionMesh = null;
+      }
     });
+
+    // iOS Safara Standalone Fix
+    const fixHeight = () => {
+      document.body.style.height = window.innerHeight + 'px';
+    };
+    window.addEventListener('resize', fixHeight);
+    fixHeight();
   </script>
 </body>
 </html>
+
