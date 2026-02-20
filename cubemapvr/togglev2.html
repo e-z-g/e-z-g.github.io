@@ -14,7 +14,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      font-family: sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #000;
     }
     #viewer {
       width: 100%;
@@ -36,33 +37,58 @@
     .controls-row {
       display: flex;
       gap: 10px;
-      background: rgba(40,40,40,0.8);
-      border-radius: 8px;
-      padding: 6px 12px;
+      background: rgba(30, 30, 30, 0.85);
+      border-radius: 10px;
+      padding: 8px 14px;
       pointer-events: auto;
-      backdrop-filter: blur(4px);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
     }
     button, select {
-      background: #558CFE;
+      background: #4A90E2;
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
       font-size: 14px;
-      font-weight: bold;
-      padding: 8px 14px;
+      font-weight: 600;
+      padding: 8px 16px;
       cursor: pointer;
       outline: none;
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      background: #357ABD;
     }
     button.active {
       background: #2259E8;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
     }
     select {
       appearance: none;
-      padding-right: 30px;
+      padding-right: 32px;
       background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
       background-repeat: no-repeat;
-      background-position: right 10px top 50%;
+      background-position: right 12px top 50%;
       background-size: 10px auto;
+    }
+    #caption {
+      position: absolute; 
+      left: 50%; 
+      transform: translateX(-50%);
+      bottom: 60px; 
+      z-index: 100; 
+      background: rgba(0,0,0,0.75); 
+      color: rgba(255,255,255,0.9);
+      padding: 10px 20px; 
+      border-radius: 8px; 
+      font-size: 13px; 
+      font-weight: 400;
+      max-width: 85vw; 
+      text-align: center;
+      line-height: 1.5;
+      pointer-events: none;
+      border: 1px solid rgba(255,255,255,0.05);
     }
   </style>
   
@@ -82,17 +108,13 @@
   
   <div class="ui-container">
     <div class="controls-row">
-      <label style="color: white; font-size: 12px; align-self: center; font-weight: bold; text-transform: uppercase; opacity: 0.8;">Location</label>
-      <select id="scene-selector"></select>
+      <label style="color: #bbb; font-size: 11px; align-self: center; font-weight: 800; text-transform: uppercase; margin-right: 6px; letter-spacing: 0.5px;">Location</label>
+      <select id="location-selector"></select>
     </div>
     <div id="quality-buttons" class="controls-row"></div>
   </div>
 
-  <div id="caption" style="
-    position: absolute; left: 50%; transform: translateX(-50%);
-    bottom: 54px; z-index: 100; background: rgba(0,0,0,0.7); color: #fff;
-    padding: 8px 18px; border-radius: 5px; font-size: 15px; font-weight: 500;
-    max-width: 95vw; text-align: center;">
+  <div id="caption">
     This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.
   </div>
   
@@ -102,89 +124,117 @@
     import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
     import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
 
-    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/vr2/';
+    const rawUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/';
 
-    // Mapping based on the logic that the number (8, 9, 10, etc.) acts as the side identifier.
-    // Assuming standard 1-6 face mapping: 1=Front, 2=Bottom, 3=Back, 4=Right, 5=Left, 6=Top
-    const scenes = [
-      { id: 'node-8',  name: 'Node 8',  base: 'MAWWnodes-8', faces: ['1','2','3','4','5','6'] },
-      { id: 'node-9',  name: 'Node 9',  base: 'MAWWnodes-9', faces: ['1','2','3','4','5','6'] },
-      { id: 'node-10', name: 'Node 10', base: 'MAWWnodes-10', faces: ['1','2','3','4','5','6'] },
-      { id: 'node-11', name: 'Node 11', base: 'MAWWnodes-11', faces: ['1','2','3','4','5','6'] },
-      { id: 'node-12', name: 'Node 12', base: 'MAWWnodes-12', faces: ['1','2','3','4','5','6'] },
-      { id: 'node-13', name: 'Node 13', base: 'MAWWnodes-13', faces: ['1','2','3','4','5','6'] }
-    ];
-
-    const versions = [
-      { label: 'Original', suffix: '_orig.jpeg' },
-      { label: 'Color Match', suffix: '_colormatch.webp' }
+    const locations = [
+      {
+        name: 'MAWW Nodes',
+        baseUrl: rawUrl + 'vr2/',
+        type: 'side-numbered',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpeg' },
+          { label: 'Color Match', suffix: '_colormatch.webp' },
+          { label: 'Seamless', suffix: '_seamless.webp' }
+        ]
+      },
+      {
+        name: 'LEIS Scene',
+        baseUrl: rawUrl + 'cubemapvr/',
+        type: 'classic-leis',
+        versions: [
+          { label: 'Original', suffix: '-orig.jpg' },
+          { label: 'HD Mod', suffix: '-hdmod.webp' },
+          { label: '4K', suffix: '-4096.jpg', mobileOnly: true },
+          { label: '24K', suffix: '-seamless.webp', desktopOnly: true }
+        ]
+      }
     ];
     
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    let activeIndexes = versions.map((v, i) => i);
-    let currentScene = scenes[0];
-    let currentIndex = activeIndexes[0];
+    let currentLocation = locations[0];
+    let currentVersionIndex = 0;
 
-    function getCubemap(scene, version) {
-      // Reconstructing the paths based on the 'side' logic.
-      // Assuming filenames like: MAWWnodes-8_orig.jpeg, MAWWnodes-9_orig.jpeg, etc. 
-      // are actually specific sides of the same room.
-      return {
-        front:  baseUrl + 'MAWWnodes-8' + version.suffix,
-        bottom: baseUrl + 'MAWWnodes-9' + version.suffix,
-        back:   baseUrl + baseUrl + 'MAWWnodes-10' + version.suffix,
-        right:  baseUrl + baseUrl + 'MAWWnodes-11' + version.suffix,
-        left:   baseUrl + baseUrl + 'MAWWnodes-12' + version.suffix,
-        top:    baseUrl + baseUrl + 'MAWWnodes-13' + version.suffix,
-      };
-    }
-
-    // Corrected getCubemap function to use the Node IDs as face identifiers
-    function getCubemapCorrected(scene, version) {
-      // If the numbers 8-13 are actually the faces for one location:
-      return {
-        front:  baseUrl + 'MAWWnodes-8'  + version.suffix,
-        bottom: baseUrl + 'MAWWnodes-9'  + version.suffix,
-        back:   baseUrl + 'MAWWnodes-10' + version.suffix,
-        right:  baseUrl + 'MAWWnodes-11' + version.suffix,
-        left:   baseUrl + 'MAWWnodes-12' + version.suffix,
-        top:    baseUrl + 'MAWWnodes-13' + version.suffix,
-      };
-    }
-
-    function updateUI() {
-      const qBar = document.getElementById('quality-buttons');
-      qBar.innerHTML = '';
-      activeIndexes.forEach((idx) => {
-        const btn = document.createElement('button');
-        btn.textContent = versions[idx].label;
-        if (idx === currentIndex) btn.classList.add('active');
-        btn.onclick = () => {
-          if (currentIndex !== idx) {
-            currentIndex = idx;
-            updateUI();
-            viewer.setPanorama(getCubemapCorrected(currentScene, versions[idx]), { transition: true, showLoader: true });
-          }
+    function getCubemap(loc, version) {
+      if (loc.type === 'side-numbered') {
+        // MAWW logic: 8-13 are the sides
+        return {
+          front:  loc.baseUrl + 'MAWWnodes-8'  + version.suffix,
+          bottom: loc.baseUrl + 'MAWWnodes-9'  + version.suffix,
+          back:   loc.baseUrl + 'MAWWnodes-10' + version.suffix,
+          right:  loc.baseUrl + 'MAWWnodes-11' + version.suffix,
+          left:   loc.baseUrl + 'MAWWnodes-12' + version.suffix,
+          top:    loc.baseUrl + 'MAWWnodes-13' + version.suffix,
         };
-        qBar.appendChild(btn);
-      });
-
-      const sSelect = document.getElementById('scene-selector');
-      if (sSelect.options.length === 0) {
-        // Since nodes 8-13 are sides of one view, we define this as one location.
-        // If there are other sets (e.g., 14-19), you can add them to scenes array.
-        const opt = document.createElement('option');
-        opt.value = 0;
-        opt.textContent = "Main Gallery"; 
-        sSelect.appendChild(opt);
-        
-        sSelect.onchange = (e) => {
-          currentScene = scenes[e.target.value];
-          viewer.setPanorama(getCubemapCorrected(currentScene, versions[currentIndex]), { transition: true, showLoader: true });
+      } else {
+        // LEIS logic: 661-666 specific mapping
+        const s = version.suffix;
+        return {
+          left:   loc.baseUrl + 'LEIS665' + s,
+          front:  loc.baseUrl + 'LEIS661' + s,
+          right:  loc.baseUrl + 'LEIS664' + s,
+          back:   loc.baseUrl + 'LEIS663' + s,
+          top:    loc.baseUrl + 'LEIS666' + s,
+          bottom: loc.baseUrl + 'LEIS662' + s,
         };
       }
     }
 
+    function updateUI() {
+      // 1. Populate Location Selector if empty
+      const locSelect = document.getElementById('location-selector');
+      if (locSelect.options.length === 0) {
+        locations.forEach((loc, i) => {
+          const opt = document.createElement('option');
+          opt.value = i;
+          opt.textContent = loc.name;
+          locSelect.appendChild(opt);
+        });
+        locSelect.onchange = (e) => {
+          currentLocation = locations[e.target.value];
+          currentVersionIndex = 0; 
+          updateUI();
+          loadPanorama();
+        };
+      }
+
+      // 2. Filter versions based on device context
+      const activeVersions = currentLocation.versions.filter(v => {
+        if (v.desktopOnly && isMobile) return false;
+        if (v.mobileOnly && !isMobile) return false;
+        return true;
+      });
+
+      if (currentVersionIndex >= activeVersions.length) currentVersionIndex = 0;
+
+      // 3. Render Dynamic Quality Buttons
+      const qBar = document.getElementById('quality-buttons');
+      qBar.innerHTML = '';
+      activeVersions.forEach((v, idx) => {
+        const btn = document.createElement('button');
+        btn.textContent = v.label;
+        if (idx === currentVersionIndex) btn.classList.add('active');
+        btn.onclick = () => {
+          if (currentVersionIndex !== idx) {
+            currentVersionIndex = idx;
+            updateUI();
+            loadPanorama();
+          }
+        };
+        qBar.appendChild(btn);
+      });
+    }
+
+    function loadPanorama() {
+      const activeVersions = currentLocation.versions.filter(v => {
+        if (v.desktopOnly && isMobile) return false;
+        if (v.mobileOnly && !isMobile) return false;
+        return true;
+      });
+      const config = getCubemap(currentLocation, activeVersions[currentVersionIndex]);
+      viewer.setPanorama(config, { transition: true, showLoader: true });
+    }
+
+    // Initialize Viewer
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
@@ -194,7 +244,7 @@
           absolutePosition: true
         }]
       ],
-      panorama: getCubemapCorrected(currentScene, versions[currentIndex]),
+      panorama: getCubemap(currentLocation, currentLocation.versions[0]),
       caption: '',
       loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
       touchmoveTwoFingers: false,
@@ -212,12 +262,15 @@
 
     updateUI();
 
+    // Injects high-quality texture filtering logic directly into Three.js materials
     viewer.addEventListener('panorama-loaded', () => {
       const materials = viewer.renderer.mesh.material;
       if (Array.isArray(materials)) {
         materials.forEach(mat => {
           if (mat.map) {
+            // Nearest-neighbor for upscaling (crisp pixels)
             mat.map.magFilter = THREE.NearestFilter;
+            // Trilinear mipmapping for smooth downscaling
             mat.map.minFilter = THREE.LinearMipmapLinearFilter;
             mat.map.needsUpdate = true;
           }
