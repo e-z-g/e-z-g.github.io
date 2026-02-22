@@ -106,11 +106,13 @@
 
     const rawUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/';
 
+    // Added audio URLs (Swap these with your actual audio files)
     const locations = [
       {
-        name: 'MAWW Nodes',
+        name: 'Amateria',
         baseUrl: rawUrl + 'vr2/',
         type: 'side-numbered',
+        audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_amateria.mp3',
         versions: [
           { label: 'Original',    suffix: '_orig.jpeg' },
           { label: 'Color Match', suffix: '_colormatch.webp' },
@@ -118,9 +120,10 @@
         ]
       },
       {
-        name: 'LEIS Scene',
+        name: 'J\'nanin',
         baseUrl: rawUrl + 'cubemapvr/',
         type: 'classic-leis',
+        audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_jnanin.mp3',
         versions: [
           { label: 'Original', suffix: '-orig.jpg' },
           { label: 'HD Mod',   suffix: '-hdmod.webp' },
@@ -135,7 +138,65 @@
     let currentVersionIndex = 0;
     let isTransitioning = false;
 
-    // Fullscreen transition overlay — completely separate from PSV's scene
+    // --- Audio System ---
+    const audioSystem = {
+      active: new Audio(),
+      fading: new Audio(),
+      isUnlocked: false,
+      currentUrl: null
+    };
+
+    audioSystem.active.loop = true;
+    audioSystem.fading.loop = true;
+
+    function unlockAudio() {
+      if (audioSystem.isUnlocked) return;
+      audioSystem.isUnlocked = true;
+      document.removeEventListener('pointerdown', unlockAudio);
+      if (audioSystem.currentUrl) {
+        playOrCrossfadeAudio(audioSystem.currentUrl);
+      }
+    }
+    document.addEventListener('pointerdown', unlockAudio);
+
+    function playOrCrossfadeAudio(newUrl) {
+      if (!newUrl || audioSystem.currentUrl === newUrl) return;
+      audioSystem.currentUrl = newUrl;
+      
+      if (!audioSystem.isUnlocked) return;
+
+      const temp = audioSystem.fading;
+      audioSystem.fading = audioSystem.active;
+      audioSystem.active = temp;
+
+      audioSystem.active.src = newUrl;
+      audioSystem.active.volume = 0;
+      audioSystem.active.play().catch(e => console.warn('Audio blocked:', e));
+
+      const steps = 20;
+      let step = 0;
+
+      const fade = setInterval(() => {
+        step++;
+        const progress = step / steps;
+        
+        audioSystem.active.volume = progress;
+        
+        if (audioSystem.fading.src) {
+          audioSystem.fading.volume = Math.max(0, 1 - progress);
+        }
+
+        if (step >= steps) {
+          clearInterval(fade);
+          if (audioSystem.fading.src) {
+            audioSystem.fading.pause();
+            audioSystem.fading.src = ''; 
+          }
+        }
+      }, 1000 / steps);
+    }
+
+    // --- Fullscreen transition overlay ---
     const transitionScene  = new THREE.Scene();
     const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     let transitionMesh = null;
@@ -150,7 +211,6 @@
       }
     `;
 
-    // Block dissolve — aspect-corrected so blocks are always square
     const FRAG_BLOCK = `
       uniform sampler2D tOld;
       uniform sampler2D tNew;
@@ -175,7 +235,6 @@
       }
     `;
 
-    // Cross-fade — used for resolution switches
     const FRAG_FADE = `
       uniform sampler2D tOld;
       uniform sampler2D tNew;
@@ -305,7 +364,7 @@
           if (currentVersionIndex !== idx && !isTransitioning) {
             currentVersionIndex = idx;
             updateUI();
-            loadPanorama('fade'); // resolution switch = cross-fade
+            loadPanorama('fade');
           }
         };
         qBar.appendChild(btn);
@@ -318,14 +377,21 @@
       if (isTransitioning) return;
       isTransitioning = true;
 
+      // Ensure any active camera animations are halted before transitioning
+      if (typeof viewer.stopAnimation === 'function') {
+        viewer.stopAnimation();
+      }
+
+      if (currentLocation.audio) {
+        playOrCrossfadeAudio(currentLocation.audio);
+      }
+
       const r   = viewer.renderer.renderer;
       const sc  = viewer.renderer.scene;
       const cam = viewer.renderer.camera;
       
-      // FIX 1: Use getDrawingBufferSize instead of getSize for accurate scaling on Retina/High-DPI screens
       const size = r.getDrawingBufferSize(new THREE.Vector2());
 
-      // 1. Capture old frame
       rtOld = new THREE.WebGLRenderTarget(size.x, size.y);
       r.setRenderTarget(rtOld);
       r.render(sc, cam);
@@ -347,19 +413,16 @@
         await viewer.setPanorama(config, { transition: false, showLoader: false });
         applyPixelFiltering();
 
-        // 2. Capture new frame
         rtNew = new THREE.WebGLRenderTarget(size.x, size.y);
         r.setRenderTarget(rtNew);
         r.render(sc, cam);
         r.setRenderTarget(null);
         mesh.material.uniforms.tNew.value = rtNew.texture;
 
-        // 3. Animate — we own the render loop for the transition duration
         const duration  = mode === 'block' ? 1200 : 600;
         const startTime = performance.now();
 
         (function animateTransition(now) {
-          // FIX 2: Check if transition was aborted (e.g., by window resize) to prevent crashing loop
           if (!isTransitioning) return; 
 
           const p = Math.min((now - startTime) / duration, 1);
@@ -427,7 +490,7 @@
       const { yaw } = viewer.getPosition();
       const targetPitch = await readDevicePitchOnce();
       if (targetPitch == null) return;
-      viewer.animate({ yaw, pitch: targetPitch, speed: '700ms' });
+      viewer.animate({ yaw, pitch: targetPitch, speed: 700 });
     }
 
     // --- Viewer ---
@@ -435,6 +498,11 @@
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
+      
+      // Prevent Gimbal Lock by restricting absolute up/down look angles
+      minPitch: -(Math.PI / 2) + 0.01,
+      maxPitch: (Math.PI / 2) - 0.01,
+
       plugins: [
         [GyroscopePlugin, {
           moveMode: 'fast',
@@ -442,7 +510,7 @@
           roll: false              
         }]
       ],
-      panorama: getCubemap(currentLocation, currentLocation.versions[0]),
+      panorama: getCubemap(locations[0], locations[0].versions[0]),
       caption: '',
       loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
       touchmoveTwoFingers: false,
@@ -453,6 +521,11 @@
     });
 
     updateUI();
+    
+    // Initialize audio system with first location on load
+    if (currentLocation.audio) {
+      audioSystem.currentUrl = currentLocation.audio;
+    }
 
     viewer.addEventListener('panorama-loaded', applyPixelFiltering);
 
@@ -468,8 +541,6 @@
     viewer.addEventListener('ready', () => {
       const gyro = viewer.getPlugin(GyroscopePlugin);
       if (!gyro) return;
-      
-      // FIX 3: Use the native plugin event instead of monkey-patching 'toggle'
       gyro.addEventListener('gyroscope-enabled', settlePitchToDevice);
     });
 
