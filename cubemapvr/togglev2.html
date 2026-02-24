@@ -70,7 +70,7 @@
     }
 
     input[type=range] {
-      -webkit-appearance: none; background: transparent; width: 100px; margin: 0 8px;
+      -webkit-appearance: none; background: transparent; width: 100px; margin: 0 8px; transition: opacity 0.2s;
     }
     input[type=range]::-webkit-slider-runnable-track {
       width: 100%; height: 2px; background: rgba(255,255,255,0.4); border-radius: 1px;
@@ -119,6 +119,21 @@
     #dni-zoom-overlay.active {
       opacity: 1; pointer-events: auto;
     }
+    
+    #close-overlay {
+      position: absolute; top: 20px; right: 20px;
+      color: rgba(255,255,255,0.6); font-size: 40px; font-weight: 300; 
+      cursor: pointer; line-height: 1; transition: color 0.2s; padding: 10px;
+    }
+    #close-overlay:hover { color: #fff; }
+
+    /* Large slider styling for the overlay */
+    #large-volume-slider {
+      width: 50vmin; max-width: 400px; margin-top: 40px;
+    }
+    #large-volume-slider::-webkit-slider-thumb {
+      height: 20px; width: 20px; margin-top: -9px;
+    }
   </style>
 
   <script type="importmap">
@@ -160,6 +175,7 @@
   </div>
 
   <div id="dni-zoom-overlay">
+    <div id="close-overlay" title="Close">&times;</div>
     <svg viewBox="-15 -15 30 30" style="width: 50vmin; height: 50vmin; max-width: 400px; max-height: 400px; stroke: #fff; fill: none; stroke-width: 0.6; stroke-linecap: round; stroke-linejoin: round;">
       <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
       <path id="dni-large-0" d="M 0,0 Q 0,0 0,0" />
@@ -167,7 +183,7 @@
       <path id="dni-large-2" d="M 0,0 Q 0,0 0,0" />
       <path id="dni-large-3" d="M 0,0 Q 0,0 0,0" />
     </svg>
-    <div style="color: rgba(255,255,255,0.6); margin-top: 30px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Click anywhere to close</div>
+    <input type="range" id="large-volume-slider" min="0" max="25" value="0">
   </div>
 
   <div id="caption">
@@ -203,7 +219,7 @@
         baseUrl: rawUrl + 'vr2/',
         type: 'voltaic',
         audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_amateria.mp3',
-        depthSuffix: '-depth.jpeg', // Added depth map binding
+        depthSuffix: '-depth.jpeg', // Correctly bound as background depth property, not a separate user version
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' }
         ]
@@ -224,12 +240,12 @@
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
-    // Set initial location to J'nanin
-    let currentLocation = locations[2]; // Index 2 is J'nanin now
+    // Set initial location to Voltaic (index 1)
+    let currentLocation = locations[1];
     let currentVersionIndex = 0;
     let isTransitioning = false;
 
-    // --- Audio System ---
+    // --- Audio System & Mute State Fix ---
     const audioSystem = {
       active: new Audio(),
       fading: new Audio(),
@@ -243,33 +259,68 @@
 
     const audioToggleBtn = document.getElementById('audio-toggle');
     const volumeSlider = document.getElementById('volume-slider');
+    const largeVolumeSlider = document.getElementById('large-volume-slider');
+    let savedVolume = 15; // Remembers last volume for the toggle button
 
-    audioToggleBtn.addEventListener('click', () => {
-      if (audioSystem.masterVolume === 0) {
-        audioSystem.masterVolume = 15 / 25;
-        volumeSlider.value = 15;
-        targetDniState = dniStates[15];
-        if (!isDniAnimating) { isDniAnimating = true; animateDni(); }
-      }
-
-      audioSystem.isMuted = !audioSystem.isMuted;
+    // Master function to sync state safely
+    function setVolume(rawVal) {
+      const val = parseInt(rawVal, 10);
+      audioSystem.masterVolume = val / 25;
       
-      if (audioSystem.isMuted) {
+      // Keep both sliders synced visually
+      volumeSlider.value = val;
+      largeVolumeSlider.value = val;
+
+      if (val === 0) {
+        audioSystem.isMuted = true;
         audioToggleBtn.classList.remove('active');
         audioSystem.active.pause();
       } else {
+        audioSystem.isMuted = false;
         audioToggleBtn.classList.add('active');
-        if (audioSystem.currentUrl && !audioSystem.active.getAttribute('src')) {
+
+        // Play or resume if needed
+        if (audioSystem.currentUrl && (!audioSystem.active.src || audioSystem.active.src === '')) {
           playOrCrossfadeAudio(audioSystem.currentUrl);
-        } else {
+        } else if (audioSystem.active.paused) {
           audioSystem.active.play().catch(e => console.warn('Audio blocked:', e));
         }
+        audioSystem.active.volume = audioSystem.masterVolume;
+      }
+
+      // Trigger D'ni animation
+      targetDniState = dniStates[val];
+      if (!isDniAnimating) {
+        isDniAnimating = true;
+        animateDni();
+      }
+    }
+
+    audioToggleBtn.addEventListener('click', () => {
+      if (audioSystem.masterVolume === 0) {
+        // Unmute and jump to saved volume
+        setVolume(savedVolume);
+      } else {
+        // Mute, save current position, jump sliders to 0
+        savedVolume = Math.round(audioSystem.masterVolume * 25);
+        setVolume(0);
       }
     });
 
+    // Both sliders feed into the master function
+    volumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
+    largeVolumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
+
     function playOrCrossfadeAudio(newUrl) {
       if (!newUrl) return;
-      if (audioSystem.currentUrl === newUrl && audioSystem.active.getAttribute('src')) return;
+      
+      // If we are already on this URL and it's loaded, just ensure it's playing
+      if (audioSystem.currentUrl === newUrl && audioSystem.active.getAttribute('src')) {
+        if (!audioSystem.isMuted && audioSystem.masterVolume > 0 && audioSystem.active.paused) {
+           audioSystem.active.play().catch(e=>console.warn(e));
+        }
+        return;
+      }
       
       audioSystem.currentUrl = newUrl;
       
@@ -342,6 +393,7 @@
     let currentDniState = JSON.parse(JSON.stringify(dniStates[0]));
     let targetDniState = dniStates[0];
     
+    // Arrays containing both the UI paths and the large overlay paths
     const dniPaths = [
       document.getElementById('dni-line-0'), document.getElementById('dni-line-1'),
       document.getElementById('dni-line-2'), document.getElementById('dni-line-3')
@@ -384,38 +436,28 @@
       }
     }
 
-    volumeSlider.addEventListener('input', (e) => {
-      const rawVal = parseInt(e.target.value, 10);
-      
-      audioSystem.masterVolume = rawVal / 25;
-      
-      if (rawVal > 0 && audioSystem.active.paused) {
-        audioSystem.isMuted = false;
-        audioToggleBtn.classList.add('active');
-        if (audioSystem.currentUrl && !audioSystem.active.getAttribute('src')) {
-          playOrCrossfadeAudio(audioSystem.currentUrl);
-        } else {
-          audioSystem.active.play().catch(e => console.warn('Audio blocked:', e));
-        }
-      }
-
-      if (audioSystem.active.src) {
-        audioSystem.active.volume = audioSystem.masterVolume;
-      }
-
-      targetDniState = dniStates[rawVal];
-      if (!isDniAnimating) {
-        isDniAnimating = true;
-        animateDni();
-      }
-    });
-
+    // --- Overlay & UI Interaction ---
+    const overlay = document.getElementById('dni-zoom-overlay');
+    
     document.getElementById('dni-trigger').addEventListener('click', () => {
-      document.getElementById('dni-zoom-overlay').classList.add('active');
+      overlay.classList.add('active');
+      volumeSlider.style.opacity = '0';
+      volumeSlider.style.pointerEvents = 'none';
     });
-    document.getElementById('dni-zoom-overlay').addEventListener('click', () => {
-      document.getElementById('dni-zoom-overlay').classList.remove('active');
+    
+    function closeOverlay() {
+      overlay.classList.remove('active');
+      volumeSlider.style.opacity = '1';
+      volumeSlider.style.pointerEvents = 'auto';
+    }
+    
+    document.getElementById('close-overlay').addEventListener('click', closeOverlay);
+    
+    // Allow clicking the dark background to close, but prevent closing if dragging the slider
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeOverlay();
     });
+
     document.getElementById('close-caption').addEventListener('click', () => {
       document.getElementById('caption').style.display = 'none';
     });
@@ -436,7 +478,7 @@
       }
     `;
 
-    // Updated Depth-Aware Ragged Block Shader
+    // Restored Depth-Aware Ragged Block Shader
     const FRAG_BLOCK = `
       uniform sampler2D tOld;
       uniform sampler2D tNew;
@@ -503,7 +545,7 @@
     }
 
     function getCubemap(loc, version) {
-      // Allow passing a manual object to retrieve depth maps quickly
+      // Allow passing a manual string to retrieve depth maps quickly
       const s = version.suffix || version;
       
       if (loc.type === 'side-numbered') {
@@ -590,7 +632,7 @@
       }
     }
 
-    // Capture the spatial depth of the current PSV scene
+    // Restored Spatial Depth Capture
     async function captureDepthSnapshot(renderer, scene, camera, size, loc, version) {
         const target = new THREE.WebGLRenderTarget(size.x, size.y);
         renderer.setRenderTarget(target);
@@ -697,7 +739,7 @@
 
     // --- Panorama loader ---
 
-    // Default arguments handle the initial load safely
+    // Accepts the OLD location to snapshot its depth before transitioning to the NEW
     async function loadPanorama(mode = 'block', oldLoc = currentLocation, oldVersion = getActiveVersions(currentLocation)[currentVersionIndex]) {
       if (isTransitioning) return;
       isTransitioning = true;
