@@ -33,7 +33,8 @@
       transform: translateX(-50%);
       display: flex; flex-direction: column;
       align-items: center; gap: 8px;
-      z-index: 101; width: 100%;
+      z-index: 10000; 
+      width: 100%;
       pointer-events: none;
     }
     
@@ -127,7 +128,6 @@
     }
     #close-overlay:hover { color: #fff; }
 
-    /* Large slider styling for the overlay */
     #large-volume-slider {
       width: 50vmin; max-width: 400px; margin-top: 40px;
     }
@@ -219,9 +219,10 @@
         baseUrl: rawUrl + 'vr2/',
         type: 'voltaic',
         audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_amateria.mp3',
-        depthSuffix: '-depth.jpeg', // Correctly bound as background depth property, not a separate user version
+        depthSuffix: '-depth.jpeg',
         versions: [
-          { label: 'Original', suffix: '_orig.jpeg' }
+          { label: 'Original', suffix: '_orig.jpeg' },
+          { label: 'Alt (IMG)', type: 'img-seq' } // Added new version mapped to a custom loader type
         ]
       },
       {
@@ -240,12 +241,11 @@
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
-    // Set initial location to Voltaic (index 1)
     let currentLocation = locations[1];
     let currentVersionIndex = 0;
     let isTransitioning = false;
 
-    // --- Audio System & Mute State Fix ---
+    // --- Audio System ---
     const audioSystem = {
       active: new Audio(),
       fading: new Audio(),
@@ -260,14 +260,12 @@
     const audioToggleBtn = document.getElementById('audio-toggle');
     const volumeSlider = document.getElementById('volume-slider');
     const largeVolumeSlider = document.getElementById('large-volume-slider');
-    let savedVolume = 15; // Remembers last volume for the toggle button
+    let savedVolume = 15; 
 
-    // Master function to sync state safely
     function setVolume(rawVal) {
       const val = parseInt(rawVal, 10);
       audioSystem.masterVolume = val / 25;
       
-      // Keep both sliders synced visually
       volumeSlider.value = val;
       largeVolumeSlider.value = val;
 
@@ -279,7 +277,6 @@
         audioSystem.isMuted = false;
         audioToggleBtn.classList.add('active');
 
-        // Play or resume if needed
         if (audioSystem.currentUrl && (!audioSystem.active.src || audioSystem.active.src === '')) {
           playOrCrossfadeAudio(audioSystem.currentUrl);
         } else if (audioSystem.active.paused) {
@@ -288,7 +285,6 @@
         audioSystem.active.volume = audioSystem.masterVolume;
       }
 
-      // Trigger D'ni animation
       targetDniState = dniStates[val];
       if (!isDniAnimating) {
         isDniAnimating = true;
@@ -298,23 +294,19 @@
 
     audioToggleBtn.addEventListener('click', () => {
       if (audioSystem.masterVolume === 0) {
-        // Unmute and jump to saved volume
         setVolume(savedVolume);
       } else {
-        // Mute, save current position, jump sliders to 0
         savedVolume = Math.round(audioSystem.masterVolume * 25);
         setVolume(0);
       }
     });
 
-    // Both sliders feed into the master function
     volumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
     largeVolumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
 
     function playOrCrossfadeAudio(newUrl) {
       if (!newUrl) return;
       
-      // If we are already on this URL and it's loaded, just ensure it's playing
       if (audioSystem.currentUrl === newUrl && audioSystem.active.getAttribute('src')) {
         if (!audioSystem.isMuted && audioSystem.masterVolume > 0 && audioSystem.active.paused) {
            audioSystem.active.play().catch(e=>console.warn(e));
@@ -377,7 +369,7 @@
     const dniStates = [];
     for (let i = 0; i <= 25; i++) {
       if (i === 0) {
-        dniStates.push([ [-1,0, 0,-1.5, 1,0], [1,0, 0,1.5, -1,0], emptyPath, emptyPath ]); 
+        dniStates.push([ [-0.75,0, 0,-1, 0.75,0], [0.75,0, 0,1, -0.75,0], emptyPath, emptyPath ]); 
       } else if (i === 25) {
         dniStates.push([
           [-10,10, -5,5, 0,0], [0,0, 5,-5, 10,-10], 
@@ -393,7 +385,6 @@
     let currentDniState = JSON.parse(JSON.stringify(dniStates[0]));
     let targetDniState = dniStates[0];
     
-    // Arrays containing both the UI paths and the large overlay paths
     const dniPaths = [
       document.getElementById('dni-line-0'), document.getElementById('dni-line-1'),
       document.getElementById('dni-line-2'), document.getElementById('dni-line-3')
@@ -453,7 +444,6 @@
     
     document.getElementById('close-overlay').addEventListener('click', closeOverlay);
     
-    // Allow clicking the dark background to close, but prevent closing if dragging the slider
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) closeOverlay();
     });
@@ -478,7 +468,6 @@
       }
     `;
 
-    // Restored Depth-Aware Ragged Block Shader
     const FRAG_BLOCK = `
       uniform sampler2D tOld;
       uniform sampler2D tNew;
@@ -496,23 +485,17 @@
       void main() {
         float pixelDepth = 0.5;
         if (uHasDepth) {
-            // Read exact pixel depth (Black = 0.0 Near, White = 1.0 Far)
             pixelDepth = texture2D(tDepth, vUv).r;
         } else {
-            // Fallback gradient simulating depth (bottom near, top far) if no depth map exists
             pixelDepth = 1.0 - vUv.y;
         }
 
         vec2 correctedUv = vec2(vUv.x * uAspect, vUv.y);
         vec2 blockUv = floor(correctedUv * uBlockSize) / uBlockSize;
         
-        // Random timing offset for each square block
         float blockOffset = hash(blockUv) * 0.2;
-        
-        // Scale progress to clear the offset margin
         float wipe = uProgress * 1.2;
         
-        // The transition organically follows the 3D depth of the room
         if (wipe > pixelDepth + blockOffset) {
           gl_FragColor = texture2D(tNew, vUv);
         } else {
@@ -545,10 +528,24 @@
     }
 
     function getCubemap(loc, version) {
-      // Allow passing a manual string to retrieve depth maps quickly
-      const s = version.suffix || version;
+      // Robustly extract suffix or version string
+      const s = typeof version === 'string' ? version : (version.suffix || '');
       
-      if (loc.type === 'side-numbered') {
+      // Allow version to override the location type
+      const type = (typeof version === 'object' && version.type) ? version.type : loc.type;
+      
+      if (type === 'img-seq') {
+        const b = rawUrl + 'cubemapvr/';
+        return {
+          front:  b + 'IMG_5228.jpeg',
+          bottom: b + 'IMG_5229.jpeg',
+          back:   b + 'IMG_5230.jpeg',
+          right:  b + 'IMG_5231.jpeg',
+          left:   b + 'IMG_5232.jpeg',
+          top:    b + 'IMG_5233.jpeg',
+        };
+      }
+      else if (type === 'side-numbered') {
         return {
           front:  loc.baseUrl + 'MAWWnodes-8'  + s,
           bottom: loc.baseUrl + 'MAWWnodes-9'  + s,
@@ -558,7 +555,7 @@
           top:    loc.baseUrl + 'MAWWnodes-13' + s,
         };
       } 
-      else if (loc.type === 'voltaic') {
+      else if (type === 'voltaic') {
         return {
           left:   loc.baseUrl + 'ENCHnodes-281' + s,
           front:  loc.baseUrl + 'ENCHnodes-277' + s,
@@ -632,7 +629,6 @@
       }
     }
 
-    // Restored Spatial Depth Capture
     async function captureDepthSnapshot(renderer, scene, camera, size, loc, version) {
         const target = new THREE.WebGLRenderTarget(size.x, size.y);
         renderer.setRenderTarget(target);
@@ -642,6 +638,7 @@
         let hasDepth = false;
 
         if (loc.depthSuffix) {
+            // Because loc.depthSuffix is a string, getCubemap correctly builds the base ENCHnodes paths
             const depthUrls = getCubemap(loc, loc.depthSuffix);
             const colorUrls = getCubemap(loc, version);
             
@@ -651,6 +648,7 @@
             const loadedDepths = {};
             const loadPromises = Object.keys(depthUrls).map(async (key) => {
                 try {
+                    // Mapped via 'front', 'back', etc. so alternative color maps still get the right depth
                     loadedDepths[colorUrls[key]] = await loader.loadAsync(depthUrls[key]);
                 } catch(e) {
                     console.warn('Failed to load depth map:', depthUrls[key]);
@@ -661,7 +659,6 @@
             const materials = viewer.renderer.mesh.material;
             const originalMaps = [];
             
-            // Swap out the color maps for depth maps
             materials.forEach((mat, i) => {
                 originalMaps[i] = mat.map;
                 if (mat.map && mat.map.image) {
@@ -679,7 +676,6 @@
                 renderer.render(scene, camera);
             }
 
-            // Put the original color maps back
             materials.forEach((mat, i) => {
                 mat.map = originalMaps[i];
                 mat.needsUpdate = true;
@@ -739,7 +735,6 @@
 
     // --- Panorama loader ---
 
-    // Accepts the OLD location to snapshot its depth before transitioning to the NEW
     async function loadPanorama(mode = 'block', oldLoc = currentLocation, oldVersion = getActiveVersions(currentLocation)[currentVersionIndex]) {
       if (isTransitioning) return;
       isTransitioning = true;
@@ -758,13 +753,11 @@
       
       const size = r.getDrawingBufferSize(new THREE.Vector2());
 
-      // Snapshot Current Color
       rtOld = new THREE.WebGLRenderTarget(size.x, size.y);
       r.setRenderTarget(rtOld);
       r.render(sc, cam);
       r.setRenderTarget(null);
 
-      // Snapshot Current Depth (If Block wipe)
       let hasDepth = false;
       if (mode === 'block') {
           const depthData = await captureDepthSnapshot(r, sc, cam, size, oldLoc, oldVersion);
