@@ -33,8 +33,7 @@
       transform: translateX(-50%);
       display: flex; flex-direction: column;
       align-items: center; gap: 8px;
-      z-index: 10000; /* Increased to sit above the zoom overlay for scrubbing */
-      width: 100%;
+      z-index: 101; width: 100%;
       pointer-events: none;
     }
     
@@ -200,6 +199,16 @@
         ]
       },
       {
+        name: 'Voltaic',
+        baseUrl: rawUrl + 'vr2/',
+        type: 'voltaic',
+        audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_amateria.mp3',
+        depthSuffix: '-depth.jpeg', // Added depth map binding
+        versions: [
+          { label: 'Original', suffix: '_orig.jpeg' }
+        ]
+      },
+      {
         name: 'J\'nanin',
         baseUrl: rawUrl + 'cubemapvr/',
         type: 'classic-leis',
@@ -216,7 +225,7 @@
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     // Set initial location to J'nanin
-    let currentLocation = locations[1];
+    let currentLocation = locations[2]; // Index 2 is J'nanin now
     let currentVersionIndex = 0;
     let isTransitioning = false;
 
@@ -236,7 +245,6 @@
     const volumeSlider = document.getElementById('volume-slider');
 
     audioToggleBtn.addEventListener('click', () => {
-      // If clicking play while volume is 0, bump it to 15
       if (audioSystem.masterVolume === 0) {
         audioSystem.masterVolume = 15 / 25;
         volumeSlider.value = 15;
@@ -261,7 +269,6 @@
 
     function playOrCrossfadeAudio(newUrl) {
       if (!newUrl) return;
-      
       if (audioSystem.currentUrl === newUrl && audioSystem.active.getAttribute('src')) return;
       
       audioSystem.currentUrl = newUrl;
@@ -319,8 +326,7 @@
     const dniStates = [];
     for (let i = 0; i <= 25; i++) {
       if (i === 0) {
-        // Tighter coordinates to create a solid dot/circle
-        dniStates.push([ [-0.75,0, 0,-1, 0.75,0], [0.75,0, 0,1, -0.75,0], emptyPath, emptyPath ]); 
+        dniStates.push([ [-1,0, 0,-1.5, 1,0], [1,0, 0,1.5, -1,0], emptyPath, emptyPath ]); 
       } else if (i === 25) {
         dniStates.push([
           [-10,10, -5,5, 0,0], [0,0, 5,-5, 10,-10], 
@@ -336,7 +342,6 @@
     let currentDniState = JSON.parse(JSON.stringify(dniStates[0]));
     let targetDniState = dniStates[0];
     
-    // Arrays containing both the UI paths and the large overlay paths
     const dniPaths = [
       document.getElementById('dni-line-0'), document.getElementById('dni-line-1'),
       document.getElementById('dni-line-2'), document.getElementById('dni-line-3')
@@ -405,12 +410,9 @@
       }
     });
 
-    // --- Overlay & UI Interaction ---
     document.getElementById('dni-trigger').addEventListener('click', () => {
       document.getElementById('dni-zoom-overlay').classList.add('active');
     });
-    // Clicking anywhere on the overlay closes it, but since the UI container 
-    // is z-indexed higher, clicks on the slider won't trigger this
     document.getElementById('dni-zoom-overlay').addEventListener('click', () => {
       document.getElementById('dni-zoom-overlay').classList.remove('active');
     });
@@ -424,6 +426,7 @@
     let transitionMesh = null;
     let rtOld = null;
     let rtNew = null;
+    let rtDepth = null;
 
     const VERT = `
       varying vec2 vUv;
@@ -433,12 +436,15 @@
       }
     `;
 
+    // Updated Depth-Aware Ragged Block Shader
     const FRAG_BLOCK = `
       uniform sampler2D tOld;
       uniform sampler2D tNew;
+      uniform sampler2D tDepth;
       uniform float uProgress;
       uniform float uBlockSize;
       uniform float uAspect;
+      uniform bool uHasDepth;
       varying vec2 vUv;
 
       float hash(vec2 p) {
@@ -446,10 +452,26 @@
       }
 
       void main() {
+        float pixelDepth = 0.5;
+        if (uHasDepth) {
+            // Read exact pixel depth (Black = 0.0 Near, White = 1.0 Far)
+            pixelDepth = texture2D(tDepth, vUv).r;
+        } else {
+            // Fallback gradient simulating depth (bottom near, top far) if no depth map exists
+            pixelDepth = 1.0 - vUv.y;
+        }
+
         vec2 correctedUv = vec2(vUv.x * uAspect, vUv.y);
         vec2 blockUv = floor(correctedUv * uBlockSize) / uBlockSize;
-        float r = hash(blockUv);
-        if (smoothstep(0.0, 1.0, uProgress) > r) {
+        
+        // Random timing offset for each square block
+        float blockOffset = hash(blockUv) * 0.2;
+        
+        // Scale progress to clear the offset margin
+        float wipe = uProgress * 1.2;
+        
+        // The transition organically follows the 3D depth of the room
+        if (wipe > pixelDepth + blockOffset) {
           gl_FragColor = texture2D(tNew, vUv);
         } else {
           gl_FragColor = texture2D(tOld, vUv);
@@ -481,17 +503,30 @@
     }
 
     function getCubemap(loc, version) {
+      // Allow passing a manual object to retrieve depth maps quickly
+      const s = version.suffix || version;
+      
       if (loc.type === 'side-numbered') {
         return {
-          front:  loc.baseUrl + 'MAWWnodes-8'  + version.suffix,
-          bottom: loc.baseUrl + 'MAWWnodes-9'  + version.suffix,
-          back:   loc.baseUrl + 'MAWWnodes-10' + version.suffix,
-          right:  loc.baseUrl + 'MAWWnodes-11' + version.suffix,
-          left:   loc.baseUrl + 'MAWWnodes-12' + version.suffix,
-          top:    loc.baseUrl + 'MAWWnodes-13' + version.suffix,
+          front:  loc.baseUrl + 'MAWWnodes-8'  + s,
+          bottom: loc.baseUrl + 'MAWWnodes-9'  + s,
+          back:   loc.baseUrl + 'MAWWnodes-10' + s,
+          right:  loc.baseUrl + 'MAWWnodes-11' + s,
+          left:   loc.baseUrl + 'MAWWnodes-12' + s,
+          top:    loc.baseUrl + 'MAWWnodes-13' + s,
         };
-      } else {
-        const s = version.suffix;
+      } 
+      else if (loc.type === 'voltaic') {
+        return {
+          left:   loc.baseUrl + 'ENCHnodes-281' + s,
+          front:  loc.baseUrl + 'ENCHnodes-277' + s,
+          right:  loc.baseUrl + 'ENCHnodes-280' + s,
+          back:   loc.baseUrl + 'ENCHnodes-279' + s,
+          top:    loc.baseUrl + 'ENCHnodes-282' + s,
+          bottom: loc.baseUrl + 'ENCHnodes-278' + s,
+        };
+      }
+      else {
         return {
           left:   loc.baseUrl + 'LEIS665' + s,
           front:  loc.baseUrl + 'LEIS661' + s,
@@ -518,6 +553,8 @@
           uProgress: { value: 0 },
         };
         if (mode === 'block') {
+          uniforms.tDepth = { value: null };
+          uniforms.uHasDepth = { value: false };
           uniforms.uBlockSize = { value: 50.0 };
           uniforms.uAspect    = { value: window.innerWidth / window.innerHeight };
         }
@@ -540,6 +577,7 @@
     function disposeRenderTargets() {
       if (rtOld) { rtOld.dispose(); rtOld = null; }
       if (rtNew) { rtNew.dispose(); rtNew = null; }
+      if (rtDepth) { rtDepth.dispose(); rtDepth = null; }
     }
 
     function disposeAll() {
@@ -550,6 +588,64 @@
         transitionMesh.material.dispose();
         transitionMesh = null;
       }
+    }
+
+    // Capture the spatial depth of the current PSV scene
+    async function captureDepthSnapshot(renderer, scene, camera, size, loc, version) {
+        const target = new THREE.WebGLRenderTarget(size.x, size.y);
+        renderer.setRenderTarget(target);
+        renderer.setClearColor(0.0);
+        renderer.clear();
+
+        let hasDepth = false;
+
+        if (loc.depthSuffix) {
+            const depthUrls = getCubemap(loc, loc.depthSuffix);
+            const colorUrls = getCubemap(loc, version);
+            
+            const loader = new THREE.TextureLoader();
+            loader.crossOrigin = 'anonymous';
+            
+            const loadedDepths = {};
+            const loadPromises = Object.keys(depthUrls).map(async (key) => {
+                try {
+                    loadedDepths[colorUrls[key]] = await loader.loadAsync(depthUrls[key]);
+                } catch(e) {
+                    console.warn('Failed to load depth map:', depthUrls[key]);
+                }
+            });
+            await Promise.all(loadPromises);
+
+            const materials = viewer.renderer.mesh.material;
+            const originalMaps = [];
+            
+            // Swap out the color maps for depth maps
+            materials.forEach((mat, i) => {
+                originalMaps[i] = mat.map;
+                if (mat.map && mat.map.image) {
+                    let currentSrc = mat.map.image.src || mat.map.image.currentSrc || '';
+                    let matchedColorUrl = Object.values(colorUrls).find(url => currentSrc.endsWith(url));
+                    if (matchedColorUrl && loadedDepths[matchedColorUrl]) {
+                        mat.map = loadedDepths[matchedColorUrl];
+                        mat.needsUpdate = true;
+                        hasDepth = true;
+                    }
+                }
+            });
+
+            if (hasDepth) {
+                renderer.render(scene, camera);
+            }
+
+            // Put the original color maps back
+            materials.forEach((mat, i) => {
+                mat.map = originalMaps[i];
+                mat.needsUpdate = true;
+            });
+        }
+
+        renderer.setRenderTarget(null);
+        return { rt: target, hasDepth };
     }
 
     // --- UI Update ---
@@ -565,12 +661,15 @@
           locSelect.appendChild(opt);
         });
         locSelect.onchange = (e) => {
+          const oldLocation = currentLocation;
+          const oldVersion = getActiveVersions(currentLocation)[currentVersionIndex];
           const newLocation = locations[e.target.value];
           const isLocationChange = newLocation !== currentLocation;
+          
           currentLocation = newLocation;
           currentVersionIndex = 0;
           updateUI();
-          loadPanorama(isLocationChange ? 'block' : 'fade');
+          loadPanorama(isLocationChange ? 'block' : 'fade', oldLocation, oldVersion);
         };
       }
 
@@ -585,9 +684,11 @@
         if (idx === currentVersionIndex) btn.classList.add('active');
         btn.onclick = () => {
           if (currentVersionIndex !== idx && !isTransitioning) {
+            const oldLocation = currentLocation;
+            const oldVersion = activeVersions[currentVersionIndex];
             currentVersionIndex = idx;
             updateUI();
-            loadPanorama('fade');
+            loadPanorama('fade', oldLocation, oldVersion);
           }
         };
         qBar.appendChild(btn);
@@ -596,7 +697,8 @@
 
     // --- Panorama loader ---
 
-    async function loadPanorama(mode = 'block') {
+    // Default arguments handle the initial load safely
+    async function loadPanorama(mode = 'block', oldLoc = currentLocation, oldVersion = getActiveVersions(currentLocation)[currentVersionIndex]) {
       if (isTransitioning) return;
       isTransitioning = true;
 
@@ -614,10 +716,19 @@
       
       const size = r.getDrawingBufferSize(new THREE.Vector2());
 
+      // Snapshot Current Color
       rtOld = new THREE.WebGLRenderTarget(size.x, size.y);
       r.setRenderTarget(rtOld);
       r.render(sc, cam);
       r.setRenderTarget(null);
+
+      // Snapshot Current Depth (If Block wipe)
+      let hasDepth = false;
+      if (mode === 'block') {
+          const depthData = await captureDepthSnapshot(r, sc, cam, size, oldLoc, oldVersion);
+          rtDepth = depthData.rt;
+          hasDepth = depthData.hasDepth;
+      }
 
       const mesh = getOrCreateTransitionMesh(mode);
       mesh.material.uniforms.tOld.value = rtOld.texture;
@@ -625,6 +736,8 @@
       mesh.material.uniforms.uProgress.value = 0;
 
       if (mode === 'block') {
+        mesh.material.uniforms.tDepth.value = rtDepth ? rtDepth.texture : null;
+        mesh.material.uniforms.uHasDepth.value = hasDepth;
         mesh.material.uniforms.uAspect.value = size.x / size.y;
       }
 
