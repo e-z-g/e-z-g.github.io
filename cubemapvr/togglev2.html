@@ -222,7 +222,7 @@
         depthSuffix: '-depth.jpeg',
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' },
-          { label: 'Alt (IMG)', type: 'img-seq' } // Added new version mapped to a custom loader type
+          { label: 'Alt (IMG)', type: 'img-seq' }
         ]
       },
       {
@@ -487,6 +487,7 @@
         if (uHasDepth) {
             pixelDepth = texture2D(tDepth, vUv).r;
         } else {
+            // Fallback safe gradient if no depth
             pixelDepth = 1.0 - vUv.y;
         }
 
@@ -528,20 +529,17 @@
     }
 
     function getCubemap(loc, version) {
-      // Robustly extract suffix or version string
       const s = typeof version === 'string' ? version : (version.suffix || '');
-      
-      // Allow version to override the location type
       const type = (typeof version === 'object' && version.type) ? version.type : loc.type;
       
       if (type === 'img-seq') {
         const b = rawUrl + 'cubemapvr/';
         return {
-          front:  b + 'IMG_5230.jpeg',
+          front:  b + 'IMG_5228.jpeg',
           bottom: b + 'IMG_5229.jpeg',
-          back:   b + 'IMG_5228.jpeg',
-          right:  b + 'IMG_5232.jpeg',
-          left:   b + 'IMG_5231.jpeg',
+          back:   b + 'IMG_5230.jpeg',
+          left:   b + 'IMG_5231.jpeg', 
+          right:  b + 'IMG_5232.jpeg',  
           top:    b + 'IMG_5233.jpeg',
         };
       }
@@ -629,6 +627,7 @@
       }
     }
 
+    // Completely rebuilt to bypass URL checking and use strict Three.js array mapping
     async function captureDepthSnapshot(renderer, scene, camera, size, loc, version) {
         const target = new THREE.WebGLRenderTarget(size.x, size.y);
         renderer.setRenderTarget(target);
@@ -638,48 +637,48 @@
         let hasDepth = false;
 
         if (loc.depthSuffix) {
-            // Because loc.depthSuffix is a string, getCubemap correctly builds the base ENCHnodes paths
             const depthUrls = getCubemap(loc, loc.depthSuffix);
-            const colorUrls = getCubemap(loc, version);
-            
             const loader = new THREE.TextureLoader();
             loader.crossOrigin = 'anonymous';
             
-            const loadedDepths = {};
-            const loadPromises = Object.keys(depthUrls).map(async (key) => {
+            // Three.js BoxGeometry array maps materials in exactly this order:
+            // 0: right, 1: left, 2: top, 3: bottom, 4: front, 5: back
+            const faceOrder = ['right', 'left', 'top', 'bottom', 'front', 'back'];
+            const loadedDepths = [];
+            
+            await Promise.all(faceOrder.map(async (face, i) => {
                 try {
-                    // Mapped via 'front', 'back', etc. so alternative color maps still get the right depth
-                    loadedDepths[colorUrls[key]] = await loader.loadAsync(depthUrls[key]);
+                    if (depthUrls[face]) {
+                        loadedDepths[i] = await loader.loadAsync(depthUrls[face]);
+                    }
                 } catch(e) {
-                    console.warn('Failed to load depth map:', depthUrls[key]);
+                    console.warn(`Failed to load depth map for face ${face}:`, depthUrls[face]);
                 }
-            });
-            await Promise.all(loadPromises);
+            }));
 
             const materials = viewer.renderer.mesh.material;
             const originalMaps = [];
             
-            materials.forEach((mat, i) => {
-                originalMaps[i] = mat.map;
-                if (mat.map && mat.map.image) {
-                    let currentSrc = mat.map.image.src || mat.map.image.currentSrc || '';
-                    let matchedColorUrl = Object.values(colorUrls).find(url => currentSrc.endsWith(url));
-                    if (matchedColorUrl && loadedDepths[matchedColorUrl]) {
-                        mat.map = loadedDepths[matchedColorUrl];
+            if (Array.isArray(materials)) {
+                materials.forEach((mat, i) => {
+                    originalMaps[i] = mat.map;
+                    if (loadedDepths[i]) {
+                        mat.map = loadedDepths[i];
                         mat.needsUpdate = true;
                         hasDepth = true;
                     }
+                });
+
+                if (hasDepth) {
+                    renderer.render(scene, camera);
                 }
-            });
 
-            if (hasDepth) {
-                renderer.render(scene, camera);
+                // Restore original color textures immediately
+                materials.forEach((mat, i) => {
+                    mat.map = originalMaps[i];
+                    mat.needsUpdate = true;
+                });
             }
-
-            materials.forEach((mat, i) => {
-                mat.map = originalMaps[i];
-                mat.needsUpdate = true;
-            });
         }
 
         renderer.setRenderTarget(null);
@@ -707,7 +706,10 @@
           currentLocation = newLocation;
           currentVersionIndex = 0;
           updateUI();
-          loadPanorama(isLocationChange ? 'block' : 'fade', oldLocation, oldVersion);
+          
+          // Logic update: Only trigger block transition if leaving a scene that has depth maps
+          const mode = (isLocationChange && oldLocation.depthSuffix) ? 'block' : 'fade';
+          loadPanorama(mode, oldLocation, oldVersion);
         };
       }
 
