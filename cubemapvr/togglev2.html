@@ -25,50 +25,100 @@
       background: #000;
     }
     #viewer { width: 100%; height: 100%; }
+    
     .ui-container {
       position: absolute;
       top: calc(env(safe-area-inset-top, 0px) + 12px);
       left: 50%;
       transform: translateX(-50%);
       display: flex; flex-direction: column;
-      align-items: center; gap: 10px;
-      z-index: 101; width: 100%;
+      align-items: center; gap: 8px;
+      z-index: 10000; /* Increased to sit above the zoom overlay for scrubbing */
+      width: 100%;
       pointer-events: none;
     }
+    
     .controls-row {
-      display: flex; gap: 10px;
-      background: rgba(20,20,20,0.85);
-      border-radius: 12px; padding: 8px 16px;
+      display: flex; gap: 4px; align-items: center;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 4px; padding: 4px 6px;
       pointer-events: auto;
-      backdrop-filter: blur(15px);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-      border: 1px solid rgba(255,255,255,0.1);
     }
+    
     button, select {
-      background: #558CFE; color: white;
-      border: none; border-radius: 6px;
-      font-size: 14px; font-weight: bold;
-      padding: 10px 16px; cursor: pointer;
-      outline: none; transition: background 0.2s;
+      background: transparent; 
+      color: rgba(255, 255, 255, 0.8);
+      border: none; border-radius: 4px;
+      font-size: 13px; font-weight: normal;
+      padding: 6px 12px; cursor: pointer;
+      outline: none; transition: background 0.2s, color 0.2s;
     }
-    button.active { background: #2259E8; }
+    button:hover, select:hover { 
+      background: rgba(255, 255, 255, 0.1); 
+      color: #fff;
+    }
+    button.active { 
+      background: rgba(255, 255, 255, 0.2); 
+      color: #fff;
+    }
+    
     select {
-      appearance: none; padding-right: 34px;
-      background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+      appearance: none; padding-right: 28px;
+      background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22rgba(255,255,255,0.8)%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
       background-repeat: no-repeat;
-      background-position: right 12px top 50%;
+      background-position: right 8px top 50%;
       background-size: 10px auto;
     }
+
+    input[type=range] {
+      -webkit-appearance: none; background: transparent; width: 100px; margin: 0 8px;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%; height: 2px; background: rgba(255,255,255,0.4); border-radius: 1px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; height: 12px; width: 12px;
+      border-radius: 50%; background: rgba(255,255,255,0.8); margin-top: -5px; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      background: #fff; transform: scale(1.15); transition: transform 0.1s ease;
+    }
+
     #caption {
       position: absolute; left: 50%;
       transform: translateX(-50%);
       bottom: calc(env(safe-area-inset-bottom, 0px) + 54px);
       z-index: 100;
       background: rgba(0,0,0,0.7); color: #fff;
-      padding: 10px 20px; border-radius: 8px;
+      padding: 10px 24px 10px 20px; border-radius: 8px;
       font-size: 13px; font-weight: 500;
       max-width: 85vw; text-align: center;
-      line-height: 1.4; pointer-events: none;
+      line-height: 1.4; pointer-events: auto;
+    }
+    
+    #close-caption {
+      position: absolute; top: 4px; right: 8px;
+      font-size: 18px; font-weight: bold; opacity: 0.6;
+      cursor: pointer; line-height: 1; transition: opacity 0.2s;
+    }
+    #close-caption:hover { opacity: 1; }
+
+    /* D'ni Overlay */
+    #dni-trigger {
+      width: 20px; height: 20px; margin-right: 6px; cursor: pointer;
+      border-radius: 4px; transition: background 0.2s; padding: 2px;
+    }
+    #dni-trigger:hover { background: rgba(255,255,255,0.1); }
+    
+    #dni-zoom-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85); z-index: 9999;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+      backdrop-filter: blur(8px);
+    }
+    #dni-zoom-overlay.active {
+      opacity: 1; pointer-events: auto;
     }
   </style>
 
@@ -84,18 +134,50 @@
   </script>
 </head>
 <body>
+
   <div id="viewer"></div>
 
   <div class="ui-container">
     <div class="controls-row">
-      <label style="color:white;font-size:11px;align-self:center;font-weight:bold;text-transform:uppercase;opacity:0.8;margin-right:4px;">Location</label>
+      <label style="color:rgba(255,255,255,0.8);font-size:11px;align-self:center;text-transform:uppercase;margin:0 4px;">Location</label>
       <select id="location-selector"></select>
+      <div style="width:1px; height:16px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
+      <div id="quality-buttons" style="display:flex; gap:2px;"></div>
     </div>
-    <div id="quality-buttons" class="controls-row"></div>
+    
+    <div class="controls-row">
+      <button id="audio-toggle" style="font-size: 16px;">♫</button>
+      <input type="range" id="volume-slider" min="0" max="25" value="0">
+      <div id="dni-trigger" title="View large symbol">
+        <svg viewBox="-15 -15 30 30" style="width:100%; height:100%; stroke: rgba(255,255,255,0.8); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
+          <path id="dni-line-0" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-1" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-2" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-3" d="M 0,0 Q 0,0 0,0" />
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div id="dni-zoom-overlay">
+    <svg viewBox="-15 -15 30 30" style="width: 50vmin; height: 50vmin; max-width: 400px; max-height: 400px; stroke: #fff; fill: none; stroke-width: 0.6; stroke-linecap: round; stroke-linejoin: round;">
+      <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
+      <path id="dni-large-0" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-1" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-2" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-3" d="M 0,0 Q 0,0 0,0" />
+    </svg>
+    <div style="color: rgba(255,255,255,0.6); margin-top: 30px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Click anywhere to close</div>
   </div>
 
   <div id="caption">
-    This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.
+    <div id="close-caption" title="Hide caption">&times;</div>
+    This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.<br>
+    <span style="font-size: 0.9em; opacity: 0.8;">
+      D'ni numerals © 2026 by Robin Lionheart, used under 
+      <a href="https://creativecommons.org/licenses/by-nc-nd/2.5/" target="_blank" style="color: #fff; text-decoration: underline;">CC BY-NC-ND 2.5</a>.
+    </span>
   </div>
 
   <script type="module">
@@ -106,7 +188,6 @@
 
     const rawUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/';
 
-    // Added audio URLs (Swap these with your actual audio files)
     const locations = [
       {
         name: 'Amateria',
@@ -114,9 +195,8 @@
         type: 'side-numbered',
         audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_amateria.mp3',
         versions: [
-          { label: 'Original',    suffix: '_orig.jpeg' },
-          { label: 'Color Match', suffix: '_colormatch.webp' },
-          { label: 'Seamless',    suffix: '_seamless.webp' }
+          { label: 'Original', suffix: '_orig.jpeg' },
+          { label: '4K',       suffix: '_seamless.webp' }
         ]
       },
       {
@@ -125,16 +205,18 @@
         type: 'classic-leis',
         audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_jnanin.mp3',
         versions: [
-          { label: 'Original', suffix: '-orig.jpg' },
-          { label: 'HD Mod',   suffix: '-hdmod.webp' },
-          { label: '4K',       suffix: '-4096.jpg',     mobileOnly: true },
-          { label: '24K',      suffix: '-seamless.webp', desktopOnly: true }
+          { label: 'Original',    suffix: '-orig.jpg' },
+          { label: '2K (HD Mod)', suffix: '-hdmod.webp' },
+          { label: '4K',          suffix: '-4096.jpg',     mobileOnly: true },
+          { label: '6K',          suffix: '-seamless.webp', desktopOnly: true }
         ]
       }
     ];
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    let currentLocation = locations[0];
+    
+    // Set initial location to J'nanin
+    let currentLocation = locations[1];
     let currentVersionIndex = 0;
     let isTransitioning = false;
 
@@ -142,28 +224,49 @@
     const audioSystem = {
       active: new Audio(),
       fading: new Audio(),
-      isUnlocked: false,
-      currentUrl: null
+      isMuted: true,
+      masterVolume: 0,
+      currentUrl: currentLocation.audio
     };
 
     audioSystem.active.loop = true;
     audioSystem.fading.loop = true;
 
-    function unlockAudio() {
-      if (audioSystem.isUnlocked) return;
-      audioSystem.isUnlocked = true;
-      document.removeEventListener('pointerdown', unlockAudio);
-      if (audioSystem.currentUrl) {
-        playOrCrossfadeAudio(audioSystem.currentUrl);
+    const audioToggleBtn = document.getElementById('audio-toggle');
+    const volumeSlider = document.getElementById('volume-slider');
+
+    audioToggleBtn.addEventListener('click', () => {
+      // If clicking play while volume is 0, bump it to 15
+      if (audioSystem.masterVolume === 0) {
+        audioSystem.masterVolume = 15 / 25;
+        volumeSlider.value = 15;
+        targetDniState = dniStates[15];
+        if (!isDniAnimating) { isDniAnimating = true; animateDni(); }
       }
-    }
-    document.addEventListener('pointerdown', unlockAudio);
+
+      audioSystem.isMuted = !audioSystem.isMuted;
+      
+      if (audioSystem.isMuted) {
+        audioToggleBtn.classList.remove('active');
+        audioSystem.active.pause();
+      } else {
+        audioToggleBtn.classList.add('active');
+        if (audioSystem.currentUrl && !audioSystem.active.getAttribute('src')) {
+          playOrCrossfadeAudio(audioSystem.currentUrl);
+        } else {
+          audioSystem.active.play().catch(e => console.warn('Audio blocked:', e));
+        }
+      }
+    });
 
     function playOrCrossfadeAudio(newUrl) {
-      if (!newUrl || audioSystem.currentUrl === newUrl) return;
+      if (!newUrl) return;
+      
+      if (audioSystem.currentUrl === newUrl && audioSystem.active.getAttribute('src')) return;
+      
       audioSystem.currentUrl = newUrl;
       
-      if (!audioSystem.isUnlocked) return;
+      if (audioSystem.isMuted || audioSystem.masterVolume === 0) return;
 
       const temp = audioSystem.fading;
       audioSystem.fading = audioSystem.active;
@@ -180,21 +283,140 @@
         step++;
         const progress = step / steps;
         
-        audioSystem.active.volume = progress;
+        audioSystem.active.volume = progress * audioSystem.masterVolume;
         
         if (audioSystem.fading.src) {
-          audioSystem.fading.volume = Math.max(0, 1 - progress);
+          audioSystem.fading.volume = Math.max(0, 1 - progress) * audioSystem.masterVolume;
         }
 
         if (step >= steps) {
           clearInterval(fade);
           if (audioSystem.fading.src) {
             audioSystem.fading.pause();
-            audioSystem.fading.src = ''; 
+            audioSystem.fading.removeAttribute('src'); 
           }
         }
       }, 1000 / steps);
     }
+
+    // --- D'ni SVG Morph Engine ---
+    const emptyPath = [0,0, 0,0, 0,0];
+    const onesMap = {
+      0: [emptyPath, emptyPath],
+      1: [[0,-10, 0,-5, 0,0], [0,0, 0,5, 0,10]],
+      2: [[-10,-10, -5,-5, -5,0], [-5,0, -5,5, -10,10]],
+      3: [[0,-10, -5,-5, -10,0], [-10,0, -5,5, 0,10]],
+      4: [[0,10, 0,2.5, 0,-5], [0,-5, 5,-5, 10,-5]]
+    };
+    const fivesMap = {
+      0: [emptyPath, emptyPath],
+      1: [[-10,0, -5,0, 0,0], [0,0, 5,0, 10,0]],
+      2: [[-10,10, -5,5, 0,5], [0,5, 5,5, 10,10]],
+      3: [[-10,0, -5,5, 0,10], [0,10, 5,5, 10,0]],
+      4: [[10,0, 2.5,0, -5,0], [-5,0, -5,-5, -5,-10]]
+    };
+
+    const dniStates = [];
+    for (let i = 0; i <= 25; i++) {
+      if (i === 0) {
+        // Tighter coordinates to create a solid dot/circle
+        dniStates.push([ [-0.75,0, 0,-1, 0.75,0], [0.75,0, 0,1, -0.75,0], emptyPath, emptyPath ]); 
+      } else if (i === 25) {
+        dniStates.push([
+          [-10,10, -5,5, 0,0], [0,0, 5,-5, 10,-10], 
+          [-10,-10, -5,-5, 0,0], [0,0, 5,5, 10,10]  
+        ]);
+      } else {
+        const fives = Math.floor(i / 5);
+        const ones = i % 5;
+        dniStates.push([ ...onesMap[ones], ...fivesMap[fives] ]);
+      }
+    }
+
+    let currentDniState = JSON.parse(JSON.stringify(dniStates[0]));
+    let targetDniState = dniStates[0];
+    
+    // Arrays containing both the UI paths and the large overlay paths
+    const dniPaths = [
+      document.getElementById('dni-line-0'), document.getElementById('dni-line-1'),
+      document.getElementById('dni-line-2'), document.getElementById('dni-line-3')
+    ];
+    const dniLargePaths = [
+      document.getElementById('dni-large-0'), document.getElementById('dni-large-1'),
+      document.getElementById('dni-large-2'), document.getElementById('dni-large-3')
+    ];
+    let isDniAnimating = false;
+
+    for (let i = 0; i < 4; i++) {
+      const s = currentDniState[i];
+      const str = `M ${s[0]},${s[1]} Q ${s[2]},${s[3]} ${s[4]},${s[5]}`;
+      dniPaths[i].setAttribute('d', str);
+      dniLargePaths[i].setAttribute('d', str);
+    }
+
+    function animateDni() {
+      let needsUpdate = false;
+      for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 6; j++) {
+          const diff = targetDniState[i][j] - currentDniState[i][j];
+          if (Math.abs(diff) > 0.05) {
+            currentDniState[i][j] += diff * 0.15; 
+            needsUpdate = true;
+          } else {
+            currentDniState[i][j] = targetDniState[i][j];
+          }
+        }
+        const s = currentDniState[i];
+        const str = `M ${s[0]},${s[1]} Q ${s[2]},${s[3]} ${s[4]},${s[5]}`;
+        dniPaths[i].setAttribute('d', str);
+        dniLargePaths[i].setAttribute('d', str);
+      }
+      
+      if (needsUpdate) {
+        requestAnimationFrame(animateDni);
+      } else {
+        isDniAnimating = false;
+      }
+    }
+
+    volumeSlider.addEventListener('input', (e) => {
+      const rawVal = parseInt(e.target.value, 10);
+      
+      audioSystem.masterVolume = rawVal / 25;
+      
+      if (rawVal > 0 && audioSystem.active.paused) {
+        audioSystem.isMuted = false;
+        audioToggleBtn.classList.add('active');
+        if (audioSystem.currentUrl && !audioSystem.active.getAttribute('src')) {
+          playOrCrossfadeAudio(audioSystem.currentUrl);
+        } else {
+          audioSystem.active.play().catch(e => console.warn('Audio blocked:', e));
+        }
+      }
+
+      if (audioSystem.active.src) {
+        audioSystem.active.volume = audioSystem.masterVolume;
+      }
+
+      targetDniState = dniStates[rawVal];
+      if (!isDniAnimating) {
+        isDniAnimating = true;
+        animateDni();
+      }
+    });
+
+    // --- Overlay & UI Interaction ---
+    document.getElementById('dni-trigger').addEventListener('click', () => {
+      document.getElementById('dni-zoom-overlay').classList.add('active');
+    });
+    // Clicking anywhere on the overlay closes it, but since the UI container 
+    // is z-indexed higher, clicks on the slider won't trigger this
+    document.getElementById('dni-zoom-overlay').addEventListener('click', () => {
+      document.getElementById('dni-zoom-overlay').classList.remove('active');
+    });
+    document.getElementById('close-caption').addEventListener('click', () => {
+      document.getElementById('caption').style.display = 'none';
+    });
 
     // --- Fullscreen transition overlay ---
     const transitionScene  = new THREE.Scene();
@@ -330,7 +552,7 @@
       }
     }
 
-    // --- UI ---
+    // --- UI Update ---
 
     function updateUI() {
       const locSelect = document.getElementById('location-selector');
@@ -339,6 +561,7 @@
           const opt = document.createElement('option');
           opt.value = i;
           opt.textContent = loc.name;
+          if (loc === currentLocation) opt.selected = true;
           locSelect.appendChild(opt);
         });
         locSelect.onchange = (e) => {
@@ -377,7 +600,6 @@
       if (isTransitioning) return;
       isTransitioning = true;
 
-      // Ensure any active camera animations are halted before transitioning
       if (typeof viewer.stopAnimation === 'function') {
         viewer.stopAnimation();
       }
@@ -463,8 +685,6 @@
       });
     }
 
-    // --- Gyro pitch settle ---
-
     function readDevicePitchOnce(timeoutMs = 700) {
       return new Promise((resolve) => {
         let done = false;
@@ -494,14 +714,15 @@
     }
 
     // --- Viewer ---
+    const activeVersions = getActiveVersions(currentLocation);
 
     const viewer = new Viewer({
       container: 'viewer',
       adapter: CubemapAdapter,
       
-      // Prevent Gimbal Lock by restricting absolute up/down look angles
-      minPitch: -(Math.PI / 2) + 0.01,
-      maxPitch: (Math.PI / 2) - 0.01,
+      defaultYaw: "225deg",
+      defaultZoomLvl: 20,
+      zoomSpeed: 0.2,
 
       plugins: [
         [GyroscopePlugin, {
@@ -510,23 +731,19 @@
           roll: false              
         }]
       ],
-      panorama: getCubemap(locations[0], locations[0].versions[0]),
+      panorama: getCubemap(currentLocation, activeVersions[currentVersionIndex]),
       caption: '',
       loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
       touchmoveTwoFingers: false,
       mousewheelCtrlKey: false,
       minFov: 10,
       maxFov: 110,
+      
       navbar: ['zoom', 'move', 'download', 'gyroscope', 'fullscreen']
     });
 
     updateUI();
     
-    // Initialize audio system with first location on load
-    if (currentLocation.audio) {
-      audioSystem.currentUrl = currentLocation.audio;
-    }
-
     viewer.addEventListener('panorama-loaded', applyPixelFiltering);
 
     viewer.addEventListener('render', () => {
