@@ -134,6 +134,13 @@
     #large-volume-slider::-webkit-slider-thumb {
       height: 20px; width: 20px; margin-top: -9px;
     }
+    
+    /* Dedicated Video Button */
+    #video-toggle {
+      display: none;
+      font-size: 14px;
+      padding: 6px 10px;
+    }
   </style>
 
   <script type="importmap">
@@ -149,6 +156,8 @@
 </head>
 <body>
 
+  <video id="source-video" crossOrigin="anonymous" loop playsInline muted style="display:none;"></video>
+
   <div id="viewer"></div>
 
   <div class="ui-container">
@@ -160,6 +169,7 @@
     </div>
     
     <div class="controls-row">
+      <button id="video-toggle" title="Play/Pause Video">▶</button>
       <button id="audio-toggle" style="font-size: 16px;">♫</button>
       <input type="range" id="volume-slider" min="0" max="25" value="0">
       <div id="dni-trigger" title="View large symbol">
@@ -219,10 +229,10 @@
         baseUrl: rawUrl + 'vr2/',
         type: 'voltaic',
         audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_amateria.mp3',
-        depthSuffix: '-depth.jpeg',
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' },
-          { label: 'Alt (IMG)', type: 'img-seq' }
+          { label: 'Alt (IMG)', type: 'img-seq' },
+          { label: 'Video (5x3)', type: 'video-5x3', url: rawUrl + 'cubemapvr/voltaic_video.mp4' } // Adjust URL here as needed
         ]
       },
       {
@@ -452,13 +462,141 @@
       document.getElementById('caption').style.display = 'none';
     });
 
+    // --- Video Extraction System ---
+    const sourceVideo = document.getElementById('source-video');
+    const videoToggleBtn = document.getElementById('video-toggle');
+    
+    const videoCanvases = {
+      front: document.createElement('canvas'),
+      back: document.createElement('canvas'),
+      left: document.createElement('canvas'),
+      right: document.createElement('canvas'),
+      top: document.createElement('canvas'),
+      bottom: document.createElement('canvas')
+    };
+
+    const ctxs = {
+      front: videoCanvases.front.getContext('2d', { alpha: false }),
+      back: videoCanvases.back.getContext('2d', { alpha: false }),
+      left: videoCanvases.left.getContext('2d'), // needs alpha for composite wipe
+      right: videoCanvases.right.getContext('2d', { alpha: false }),
+      top: videoCanvases.top.getContext('2d', { alpha: false }),
+      bottom: videoCanvases.bottom.getContext('2d', { alpha: false })
+    };
+
+    let videoRafId = null;
+
+    function updateVideoCanvases() {
+      const W = Math.floor(sourceVideo.videoWidth / 5);
+      const H = Math.floor(sourceVideo.videoHeight / 3);
+
+      if (W === 0 || H === 0) return;
+
+      Object.values(videoCanvases).forEach(c => {
+        if (c.width !== W) c.width = W;
+        if (c.height !== H) c.height = H;
+      });
+
+      // Front, Right, Back
+      ctxs.front.drawImage(sourceVideo, 1 * W, 1 * H, W, H, 0, 0, W, H);
+      ctxs.right.drawImage(sourceVideo, 2 * W, 1 * H, W, H, 0, 0, W, H);
+      ctxs.back.drawImage(sourceVideo, 3 * W, 1 * H, W, H, 0, 0, W, H);
+
+      // Left
+      ctxs.left.clearRect(0, 0, W, H);
+      ctxs.left.drawImage(sourceVideo, 4 * W, 1 * H, W, H, 0, 0, W, H);
+      ctxs.left.globalCompositeOperation = 'destination-out';
+      const grad = ctxs.left.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0.25, 'rgba(0,0,0,0)');
+      grad.addColorStop(0.75, 'rgba(0,0,0,1)');
+      ctxs.left.fillStyle = grad;
+      ctxs.left.fillRect(0, 0, W, H);
+      ctxs.left.globalCompositeOperation = 'destination-over';
+      ctxs.left.drawImage(sourceVideo, 0 * W, 1 * H, W, H, 0, 0, W, H);
+      ctxs.left.globalCompositeOperation = 'source-over';
+
+      // Top & Bottom Wedges
+      const drawWedges = (ctx, isTop) => {
+        const cx = W / 2, cy = H / 2;
+        const drawTri = (col, row, rot, pts) => {
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          ctx.lineTo(pts[1].x, pts[1].y);
+          ctx.lineTo(pts[2].x, pts[2].y);
+          ctx.closePath();
+          ctx.clip();
+          
+          ctx.translate(cx, cy);
+          ctx.rotate((rot * Math.PI) / 180);
+          ctx.drawImage(sourceVideo, col * W, row * H, W, H, -cx, -cy, W, H);
+          ctx.restore();
+        };
+
+        if (isTop) {
+          ctx.drawImage(sourceVideo, 1 * W, 0 * H, W, H, 0, 0, W, H);
+          drawTri(3, 0, 180, [{ x: -1, y: -1 }, { x: W + 1, y: -1 }, { x: cx, y: cy }]);
+          drawTri(0, 0, 90,  [{ x: -1, y: -1 }, { x: -1, y: H + 1 }, { x: cx, y: cy }]);
+          drawTri(2, 0, 270, [{ x: W + 1, y: -1 }, { x: W + 1, y: H + 1 }, { x: cx, y: cy }]);
+        } else {
+          ctx.drawImage(sourceVideo, 1 * W, 2 * H, W, H, 0, 0, W, H);
+          drawTri(3, 2, 180, [{ x: -1, y: H + 1 }, { x: W + 1, y: H + 1 }, { x: cx, y: cy }]);
+          drawTri(0, 2, 270, [{ x: -1, y: -1 }, { x: -1, y: H + 1 }, { x: cx, y: cy }]);
+          drawTri(2, 2, 90,  [{ x: W + 1, y: -1 }, { x: W + 1, y: H + 1 }, { x: cx, y: cy }]);
+        }
+      };
+
+      drawWedges(ctxs.top, true);
+      drawWedges(ctxs.bottom, false);
+    }
+
+    function renderVideoLoop() {
+      updateVideoCanvases();
+      // Force Three.js to re-upload the canvas textures to the GPU
+      if (viewer && viewer.renderer && viewer.renderer.mesh && viewer.renderer.mesh.material) {
+        viewer.renderer.mesh.material.forEach(mat => {
+          if (mat.map) mat.map.needsUpdate = true;
+        });
+      }
+      videoRafId = requestAnimationFrame(renderVideoLoop);
+    }
+
+    sourceVideo.addEventListener('play', () => {
+      videoToggleBtn.textContent = '⏸';
+      if (!videoRafId) renderVideoLoop();
+    });
+
+    sourceVideo.addEventListener('pause', () => {
+      videoToggleBtn.textContent = '▶';
+      if (videoRafId) cancelAnimationFrame(videoRafId);
+      videoRafId = null;
+    });
+
+    videoToggleBtn.addEventListener('click', () => {
+      if (sourceVideo.paused) {
+        sourceVideo.play().catch(e => console.warn('Playback blocked', e));
+      } else {
+        sourceVideo.pause();
+      }
+    });
+
+    async function prepareVideo(url) {
+      return new Promise((resolve) => {
+        sourceVideo.src = url;
+        sourceVideo.onloadeddata = () => {
+          // Render the first frame statically so it isn't black when setPanorama runs
+          updateVideoCanvases();
+          resolve(videoCanvases);
+        };
+      });
+    }
+
     // --- Fullscreen transition overlay ---
     const transitionScene  = new THREE.Scene();
     const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     let transitionMesh = null;
     let rtOld = null;
     let rtNew = null;
-    let rtDepth = null;
 
     const VERT = `
       varying vec2 vUv;
@@ -468,14 +606,13 @@
       }
     `;
 
+    // Reverted to regular random block wipe
     const FRAG_BLOCK = `
       uniform sampler2D tOld;
       uniform sampler2D tNew;
-      uniform sampler2D tDepth;
       uniform float uProgress;
       uniform float uBlockSize;
       uniform float uAspect;
-      uniform bool uHasDepth;
       varying vec2 vUv;
 
       float hash(vec2 p) {
@@ -483,18 +620,12 @@
       }
 
       void main() {
-        float pixelDepth = 0.5;
-        if (uHasDepth) {
-            pixelDepth = texture2D(tDepth, vUv).r;
-        } else {
-            // Fallback safe gradient if no depth
-            pixelDepth = 1.0 - vUv.y;
-        }
-
         vec2 correctedUv = vec2(vUv.x * uAspect, vUv.y);
         vec2 blockUv = floor(correctedUv * uBlockSize) / uBlockSize;
         
         float blockOffset = hash(blockUv) * 0.2;
+        float pixelDepth = 1.0 - vUv.y; // Standard top-to-bottom fallback
+        
         float wipe = uProgress * 1.2;
         
         if (wipe > pixelDepth + blockOffset) {
@@ -590,8 +721,6 @@
           uProgress: { value: 0 },
         };
         if (mode === 'block') {
-          uniforms.tDepth = { value: null };
-          uniforms.uHasDepth = { value: false };
           uniforms.uBlockSize = { value: 50.0 };
           uniforms.uAspect    = { value: window.innerWidth / window.innerHeight };
         }
@@ -614,7 +743,6 @@
     function disposeRenderTargets() {
       if (rtOld) { rtOld.dispose(); rtOld = null; }
       if (rtNew) { rtNew.dispose(); rtNew = null; }
-      if (rtDepth) { rtDepth.dispose(); rtDepth = null; }
     }
 
     function disposeAll() {
@@ -625,64 +753,6 @@
         transitionMesh.material.dispose();
         transitionMesh = null;
       }
-    }
-
-    // Completely rebuilt to bypass URL checking and use strict Three.js array mapping
-    async function captureDepthSnapshot(renderer, scene, camera, size, loc, version) {
-        const target = new THREE.WebGLRenderTarget(size.x, size.y);
-        renderer.setRenderTarget(target);
-        renderer.setClearColor(0.0);
-        renderer.clear();
-
-        let hasDepth = false;
-
-        if (loc.depthSuffix) {
-            const depthUrls = getCubemap(loc, loc.depthSuffix);
-            const loader = new THREE.TextureLoader();
-            loader.crossOrigin = 'anonymous';
-            
-            // Three.js BoxGeometry array maps materials in exactly this order:
-            // 0: right, 1: left, 2: top, 3: bottom, 4: front, 5: back
-            const faceOrder = ['right', 'left', 'top', 'bottom', 'front', 'back'];
-            const loadedDepths = [];
-            
-            await Promise.all(faceOrder.map(async (face, i) => {
-                try {
-                    if (depthUrls[face]) {
-                        loadedDepths[i] = await loader.loadAsync(depthUrls[face]);
-                    }
-                } catch(e) {
-                    console.warn(`Failed to load depth map for face ${face}:`, depthUrls[face]);
-                }
-            }));
-
-            const materials = viewer.renderer.mesh.material;
-            const originalMaps = [];
-            
-            if (Array.isArray(materials)) {
-                materials.forEach((mat, i) => {
-                    originalMaps[i] = mat.map;
-                    if (loadedDepths[i]) {
-                        mat.map = loadedDepths[i];
-                        mat.needsUpdate = true;
-                        hasDepth = true;
-                    }
-                });
-
-                if (hasDepth) {
-                    renderer.render(scene, camera);
-                }
-
-                // Restore original color textures immediately
-                materials.forEach((mat, i) => {
-                    mat.map = originalMaps[i];
-                    mat.needsUpdate = true;
-                });
-            }
-        }
-
-        renderer.setRenderTarget(null);
-        return { rt: target, hasDepth };
     }
 
     // --- UI Update ---
@@ -707,9 +777,7 @@
           currentVersionIndex = 0;
           updateUI();
           
-          // Logic update: Only trigger block transition if leaving a scene that has depth maps
-          const mode = (isLocationChange && oldLocation.depthSuffix) ? 'block' : 'fade';
-          loadPanorama(mode, oldLocation, oldVersion);
+          loadPanorama(isLocationChange ? 'block' : 'fade', oldLocation, oldVersion);
         };
       }
 
@@ -760,26 +828,28 @@
       r.render(sc, cam);
       r.setRenderTarget(null);
 
-      let hasDepth = false;
-      if (mode === 'block') {
-          const depthData = await captureDepthSnapshot(r, sc, cam, size, oldLoc, oldVersion);
-          rtDepth = depthData.rt;
-          hasDepth = depthData.hasDepth;
-      }
-
       const mesh = getOrCreateTransitionMesh(mode);
       mesh.material.uniforms.tOld.value = rtOld.texture;
       mesh.material.uniforms.tNew.value = null;
       mesh.material.uniforms.uProgress.value = 0;
 
       if (mode === 'block') {
-        mesh.material.uniforms.tDepth.value = rtDepth ? rtDepth.texture : null;
-        mesh.material.uniforms.uHasDepth.value = hasDepth;
         mesh.material.uniforms.uAspect.value = size.x / size.y;
       }
 
       const activeVersions = getActiveVersions(currentLocation);
-      const config = getCubemap(currentLocation, activeVersions[currentVersionIndex]);
+      const targetVersion = activeVersions[currentVersionIndex];
+      let config;
+
+      // Check if we are shifting to a live video map
+      if (targetVersion.type === 'video-5x3') {
+        videoToggleBtn.style.display = 'inline-block';
+        config = await prepareVideo(targetVersion.url);
+      } else {
+        videoToggleBtn.style.display = 'none';
+        sourceVideo.pause(); // Ensure hidden video isn't pulling background CPU
+        config = getCubemap(currentLocation, targetVersion);
+      }
 
       try {
         await viewer.setPanorama(config, { transition: false, showLoader: false });
