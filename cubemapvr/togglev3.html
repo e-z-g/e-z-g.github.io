@@ -363,7 +363,7 @@
     geometry.scale(-1, 1, 1); 
     
     // Material Order: Right, Left, Top, Bottom, Front, Back
-    const materials = Array(6).fill().map(() => new THREE.MeshBasicMaterial({ color: 0x000000, depthWrite: false }));
+    const materials = Array(6).fill().map(() => new THREE.MeshBasicMaterial({ color: 0xffffff, depthWrite: false }));
     const cubeMesh = new THREE.Mesh(geometry, materials);
     scene.add(cubeMesh);
 
