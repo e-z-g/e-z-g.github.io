@@ -2,274 +2,717 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Voltaic - Depth Map Transition & Displacement</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Cubemap VR (Pure Three.js Engine)</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cubemap VR">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
+
   <style>
-    body {
-      margin: 0;
-      padding: 0;
+    body, html {
+      margin: 0; padding: 0;
+      width: 100%; height: 100vh; height: 100dvh;
       overflow: hidden;
-      background-color: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #000;
     }
-    canvas {
-      display: block;
+    #viewer-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+    
+    .ui-container {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 12px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+      z-index: 10000; 
+      width: 100%;
+      pointer-events: none;
     }
+    
+    .controls-row {
+      display: flex; gap: 4px; align-items: center;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 4px; padding: 4px 6px;
+      pointer-events: auto;
+    }
+    
+    button, select {
+      background: transparent; 
+      color: rgba(255, 255, 255, 0.8);
+      border: none; border-radius: 4px;
+      font-size: 13px; font-weight: normal;
+      padding: 6px 12px; cursor: pointer;
+      outline: none; transition: background 0.2s, color 0.2s;
+    }
+    button:hover, select:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    button.active { background: rgba(255, 255, 255, 0.2); color: #fff; }
+    
+    select {
+      appearance: none; padding-right: 28px;
+      background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22rgba(255,255,255,0.8)%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+      background-repeat: no-repeat; background-position: right 8px top 50%; background-size: 10px auto;
+    }
+
+    input[type=range] { -webkit-appearance: none; background: transparent; width: 100px; margin: 0 8px; transition: opacity 0.2s; }
+    input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 2px; background: rgba(255,255,255,0.4); border-radius: 1px; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 12px; width: 12px; border-radius: 50%; background: rgba(255,255,255,0.8); margin-top: -5px; cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb:hover { background: #fff; transform: scale(1.15); transition: transform 0.1s ease; }
+
+    #caption {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 54px);
+      z-index: 100; background: rgba(0,0,0,0.7); color: #fff;
+      padding: 10px 24px 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500;
+      max-width: 85vw; text-align: center; line-height: 1.4; pointer-events: auto;
+    }
+    #close-caption { position: absolute; top: 4px; right: 8px; font-size: 18px; font-weight: bold; opacity: 0.6; cursor: pointer; line-height: 1; transition: opacity 0.2s; }
+    #close-caption:hover { opacity: 1; }
+
+    /* Overlays & Toggles */
+    #dni-trigger { width: 20px; height: 20px; margin-right: 6px; cursor: pointer; border-radius: 4px; transition: background 0.2s; padding: 2px; }
+    #dni-trigger:hover { background: rgba(255,255,255,0.1); }
+    #dni-zoom-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(8px);
+    }
+    #dni-zoom-overlay.active { opacity: 1; pointer-events: auto; }
+    #close-overlay { position: absolute; top: 20px; right: 20px; color: rgba(255,255,255,0.6); font-size: 40px; font-weight: 300; cursor: pointer; line-height: 1; transition: color 0.2s; padding: 10px; }
+    #close-overlay:hover { color: #fff; }
+    #large-volume-slider { width: 50vmin; max-width: 400px; margin-top: 40px; }
+    #large-volume-slider::-webkit-slider-thumb { height: 20px; width: 20px; margin-top: -9px; }
+    
+    #video-toggle, #gyro-toggle { display: none; padding: 6px 10px; }
+    #gyro-toggle { display: inline-flex; align-items: center; justify-content: center; }
+    #video-toggle { font-size: 14px; }
+    
+    /* Loading Spinner */
+    #loader {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
+      width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #fff; border-radius: 50%;
+      animation: spin 1s linear infinite; pointer-events: none; display: none;
+    }
+    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
   </style>
+
   <script type="importmap">
-    {
-      "imports": {
-        "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-      }
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
     }
+  }
   </script>
 </head>
 <body>
 
-<script type="module">
-  import * as THREE from 'three';
+  <video id="source-video" crossOrigin="anonymous" loop playsInline muted style="display:none;"></video>
 
-  // 1. SETUP & TARGETS FOR TRANSITION
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  // Position camera inside the box
-  camera.position.set(0, 0, 0.1); 
-  
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
+  <div id="viewer-container"></div>
+  <div id="loader"></div>
 
-  // Standard lighting required for MeshStandardMaterial to be visible
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1.0);
-  scene.add(ambientLight);
+  <div class="ui-container">
+    <div class="controls-row">
+      <label style="color:rgba(255,255,255,0.8);font-size:11px;align-self:center;text-transform:uppercase;margin:0 4px;">Location</label>
+      <select id="location-selector"></select>
+      <div style="width:1px; height:16px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
+      <div id="quality-buttons" style="display:flex; gap:2px;"></div>
+    </div>
+    
+    <div class="controls-row">
+      <button id="video-toggle" title="Play/Pause Video">▶</button>
+      <button id="gyro-toggle" title="Toggle Gyroscope">
+        <svg viewBox="0 0 24 24" style="width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; vertical-align:middle;">
+          <circle cx="12" cy="12" r="8"></circle>
+          <ellipse cx="12" cy="12" rx="8" ry="3" transform="rotate(45 12 12)"></ellipse>
+          <ellipse cx="12" cy="12" rx="8" ry="3" transform="rotate(-45 12 12)"></ellipse>
+        </svg>
+      </button>
+      <button id="audio-toggle" style="font-size: 16px;">♫</button>
+      <input type="range" id="volume-slider" min="0" max="25" value="0">
+      <div id="dni-trigger" title="View large symbol">
+        <svg viewBox="-15 -15 30 30" style="width:100%; height:100%; stroke: rgba(255,255,255,0.8); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
+          <path id="dni-line-0" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-1" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-2" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-3" d="M 0,0 Q 0,0 0,0" />
+        </svg>
+      </div>
+    </div>
+  </div>
 
-  // Render targets with Depth Textures to feed the transition shader
-  const targetParams = {
-    minFilter: THREE.LinearFilter,
-    magFilter: THREE.LinearFilter,
-    format: THREE.RGBAFormat,
-    depthTexture: new THREE.DepthTexture()
-  };
-  const oldTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, targetParams);
-  const newTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, targetParams);
+  <div id="dni-zoom-overlay">
+    <div id="close-overlay" title="Close">&times;</div>
+    <svg viewBox="-15 -15 30 30" style="width: 50vmin; height: 50vmin; max-width: 400px; max-height: 400px; stroke: #fff; fill: none; stroke-width: 0.6; stroke-linecap: round; stroke-linejoin: round;">
+      <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
+      <path id="dni-large-0" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-1" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-2" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-3" d="M 0,0 Q 0,0 0,0" />
+    </svg>
+    <input type="range" id="large-volume-slider" min="0" max="25" value="0">
+  </div>
 
-  // 2. THE DEPTH-AWARE BLOCK TRANSITION SHADER
-  const transitionShader = {
-    uniforms: {
-      tOld: { value: null },
-      tNew: { value: null },
-      tDepth: { value: null },
-      uProgress: { value: 0.0 },
-      uBlockSize: { value: 40.0 },
-      uAspect: { value: window.innerWidth / window.innerHeight },
-      uHasDepth: { value: false }
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  <div id="caption">
+    <div id="close-caption" title="Hide caption">&times;</div>
+    This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan.<br>
+    <span style="font-size: 0.9em; opacity: 0.8;">
+      D'ni numerals © 2026 by Robin Lionheart, used under CC BY-NC-ND 2.5.
+    </span>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    const rawUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/';
+
+    const locations = [
+      {
+        name: 'Amateria',
+        baseUrl: rawUrl + 'vr2/',
+        type: 'side-numbered',
+        audio: rawUrl + 'cubemapvr/audio_amateria.mp3',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpeg' },
+          { label: '4K',       suffix: '_seamless.webp' }
+        ]
+      },
+      {
+        name: 'Voltaic',
+        baseUrl: rawUrl + 'vr2/',
+        type: 'voltaic',
+        audio: rawUrl + 'cubemapvr/audio_amateria.mp3',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpeg' },
+          { label: 'Alt (IMG)', type: 'img-seq' },
+          { label: 'Video (5x3)', type: 'video-5x3', url: rawUrl + 'cubemapvr/voltaic_video.mp4' }
+        ]
+      },
+      {
+        name: 'J\'nanin',
+        baseUrl: rawUrl + 'cubemapvr/',
+        type: 'classic-leis',
+        audio: rawUrl + 'cubemapvr/audio_jnanin.mp3',
+        versions: [
+          { label: 'Original',    suffix: '-orig.jpg' },
+          { label: '2K (HD)',     suffix: '-hdmod.webp' },
+          { label: '6K',          suffix: '-seamless.webp' }
+        ]
       }
-    `,
-    fragmentShader: `
-      uniform sampler2D tOld;
-      uniform sampler2D tNew;
-      uniform sampler2D tDepth;
-      uniform float uProgress;
-      uniform float uBlockSize;
-      uniform float uAspect;
-      uniform bool uHasDepth;
-      varying vec2 vUv;
+    ];
+    
+    let currentLocation = locations[1];
+    let currentVersionIndex = 0;
+    
+    // --- Audio System ---
+    const audioSystem = { active: new Audio(), fading: new Audio(), isMuted: true, masterVolume: 0, currentUrl: currentLocation.audio };
+    audioSystem.active.loop = true; audioSystem.fading.loop = true;
 
-      float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+    const audioToggleBtn = document.getElementById('audio-toggle');
+    const volumeSlider = document.getElementById('volume-slider');
+    const largeVolumeSlider = document.getElementById('large-volume-slider');
+    let savedVolume = 15; 
+
+    function setVolume(rawVal) {
+      const val = parseInt(rawVal, 10);
+      audioSystem.masterVolume = val / 25;
+      volumeSlider.value = val; largeVolumeSlider.value = val;
+
+      if (val === 0) {
+        audioSystem.isMuted = true; audioToggleBtn.classList.remove('active'); audioSystem.active.pause();
+      } else {
+        audioSystem.isMuted = false; audioToggleBtn.classList.add('active');
+        if (audioSystem.currentUrl && (!audioSystem.active.src || audioSystem.active.src === '')) playOrCrossfadeAudio(audioSystem.currentUrl);
+        else if (audioSystem.active.paused) audioSystem.active.play().catch(e => console.warn(e));
+        audioSystem.active.volume = audioSystem.masterVolume;
       }
+      targetDniState = dniStates[val];
+      if (!isDniAnimating) { isDniAnimating = true; animateDni(); }
+    }
 
+    audioToggleBtn.addEventListener('click', () => { setVolume(audioSystem.masterVolume === 0 ? savedVolume : (savedVolume = Math.round(audioSystem.masterVolume * 25), 0)); });
+    volumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
+    largeVolumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
+
+    function playOrCrossfadeAudio(newUrl) {
+      if (!newUrl) return;
+      if (audioSystem.currentUrl === newUrl && audioSystem.active.src) {
+        if (!audioSystem.isMuted && audioSystem.masterVolume > 0 && audioSystem.active.paused) audioSystem.active.play().catch(e=>console.warn(e));
+        return;
+      }
+      audioSystem.currentUrl = newUrl;
+      if (audioSystem.isMuted || audioSystem.masterVolume === 0) return;
+
+      const temp = audioSystem.fading; audioSystem.fading = audioSystem.active; audioSystem.active = temp;
+      audioSystem.active.src = newUrl; audioSystem.active.volume = 0;
+      audioSystem.active.play().catch(e => console.warn(e));
+
+      let step = 0; const steps = 20;
+      const fade = setInterval(() => {
+        step++; const progress = step / steps;
+        audioSystem.active.volume = progress * audioSystem.masterVolume;
+        if (audioSystem.fading.src) audioSystem.fading.volume = Math.max(0, 1 - progress) * audioSystem.masterVolume;
+        if (step >= steps) { clearInterval(fade); if (audioSystem.fading.src) { audioSystem.fading.pause(); audioSystem.fading.removeAttribute('src'); } }
+      }, 50);
+    }
+
+    // --- D'ni SVG Morph Engine ---
+    const emptyPath = [0,0, 0,0, 0,0];
+    const onesMap = { 0: [emptyPath, emptyPath], 1: [[0,-10, 0,-5, 0,0], [0,0, 0,5, 0,10]], 2: [[-10,-10, -5,-5, -5,0], [-5,0, -5,5, -10,10]], 3: [[0,-10, -5,-5, -10,0], [-10,0, -5,5, 0,10]], 4: [[0,10, 0,2.5, 0,-5], [0,-5, 5,-5, 10,-5]] };
+    const fivesMap = { 0: [emptyPath, emptyPath], 1: [[-10,0, -5,0, 0,0], [0,0, 5,0, 10,0]], 2: [[-10,10, -5,5, 0,5], [0,5, 5,5, 10,10]], 3: [[-10,0, -5,5, 0,10], [0,10, 5,5, 10,0]], 4: [[10,0, 2.5,0, -5,0], [-5,0, -5,-5, -5,-10]] };
+    const dniStates = [];
+    for (let i = 0; i <= 25; i++) {
+      if (i === 0) dniStates.push([ [-0.75,0, 0,-1, 0.75,0], [0.75,0, 0,1, -0.75,0], emptyPath, emptyPath ]); 
+      else if (i === 25) dniStates.push([ [-10,10, -5,5, 0,0], [0,0, 5,-5, 10,-10], [-10,-10, -5,-5, 0,0], [0,0, 5,5, 10,10] ]);
+      else dniStates.push([ ...onesMap[i % 5], ...fivesMap[Math.floor(i / 5)] ]);
+    }
+    let currentDniState = JSON.parse(JSON.stringify(dniStates[0]));
+    let targetDniState = dniStates[0]; let isDniAnimating = false;
+    const dniPaths = [0,1,2,3].map(i => document.getElementById(`dni-line-${i}`));
+    const dniLargePaths = [0,1,2,3].map(i => document.getElementById(`dni-large-${i}`));
+    
+    function animateDni() {
+      let needsUpdate = false;
+      for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 6; j++) {
+          const diff = targetDniState[i][j] - currentDniState[i][j];
+          if (Math.abs(diff) > 0.05) { currentDniState[i][j] += diff * 0.15; needsUpdate = true; } 
+          else currentDniState[i][j] = targetDniState[i][j];
+        }
+        const s = currentDniState[i]; const str = `M ${s[0]},${s[1]} Q ${s[2]},${s[3]} ${s[4]},${s[5]}`;
+        dniPaths[i].setAttribute('d', str); dniLargePaths[i].setAttribute('d', str);
+      }
+      if (needsUpdate) requestAnimationFrame(animateDni); else isDniAnimating = false;
+    }
+
+    // --- Overlays ---
+    const overlay = document.getElementById('dni-zoom-overlay');
+    document.getElementById('dni-trigger').addEventListener('click', () => { overlay.classList.add('active'); volumeSlider.style.opacity = '0'; volumeSlider.style.pointerEvents = 'none'; });
+    const closeOverlay = () => { overlay.classList.remove('active'); volumeSlider.style.opacity = '1'; volumeSlider.style.pointerEvents = 'auto'; };
+    document.getElementById('close-overlay').addEventListener('click', closeOverlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+    document.getElementById('close-caption').addEventListener('click', () => document.getElementById('caption').style.display = 'none');
+
+    // --- Video State ---
+    const sourceVideo = document.getElementById('source-video');
+    const videoToggleBtn = document.getElementById('video-toggle');
+    let isVideoPlaying = false;
+
+    sourceVideo.addEventListener('play', () => { isVideoPlaying = true; videoToggleBtn.textContent = '⏸'; });
+    sourceVideo.addEventListener('pause', () => { isVideoPlaying = false; videoToggleBtn.textContent = '▶'; });
+    videoToggleBtn.addEventListener('click', () => sourceVideo.paused ? sourceVideo.play() : sourceVideo.pause());
+
+    // --- Pure Three.js Core Engine ---
+    const container = document.getElementById('viewer-container');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+
+    // Cube Mesh Setup (Scale X by -1 to put us inside the box)
+    const geometry = new THREE.BoxGeometry(10, 10, 10);
+    geometry.scale(-1, 1, 1); 
+    
+    // Static Materials Array
+    const materials = Array(6).fill().map(() => new THREE.MeshBasicMaterial({ color: 0xffffff, depthWrite: false }));
+    const cubeMesh = new THREE.Mesh(geometry, materials);
+    scene.add(cubeMesh);
+
+    // --- 5x3 Video GPU Shader Setup ---
+    const videoTexture = new THREE.VideoTexture(sourceVideo);
+    videoTexture.colorSpace = THREE.SRGBColorSpace;
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.generateMipmaps = false;
+
+    const videoMaterials = [];
+    for (let i = 0; i < 6; i++) {
+      videoMaterials.push(new THREE.ShaderMaterial({
+        uniforms: {
+          tVideo: { value: videoTexture },
+          uFace: { value: i }
+        },
+        vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `
+          uniform sampler2D tVideo;
+          uniform int uFace;
+          varying vec2 vUv;
+
+          vec2 getGrid(float col, float row, vec2 localUv) {
+            return vec2((col + localUv.x) / 5.0, (2.0 - row + localUv.y) / 3.0);
+          }
+
+          vec2 rotateUV(vec2 uv, float angleDeg) {
+            float a = radians(angleDeg);
+            float s = sin(a), c = cos(a);
+            vec2 p = uv - 0.5;
+            return vec2(p.x * c - p.y * s, p.x * s + p.y * c) + 0.5;
+          }
+
+          void main() {
+            vec2 local = vUv;
+            vec4 color = vec4(0.0);
+
+            if (uFace == 0) { // Physical Right face (shows Left logic)
+              vec4 c4 = texture2D(tVideo, getGrid(4.0, 1.0, local));
+              vec4 c0 = texture2D(tVideo, getGrid(0.0, 1.0, local));
+              color = mix(c4, c0, smoothstep(0.25, 0.75, local.x));
+            } else if (uFace == 1) { // Physical Left face
+              color = texture2D(tVideo, getGrid(2.0, 1.0, local));
+            } else if (uFace == 2) { // Top
+              if (local.y > local.x && local.y > 1.0 - local.x) {
+                color = texture2D(tVideo, getGrid(3.0, 0.0, rotateUV(local, 180.0)));
+              } else if (local.x < local.y && local.x < 1.0 - local.y) {
+                color = texture2D(tVideo, getGrid(0.0, 0.0, rotateUV(local, -90.0)));
+              } else if (local.x > local.y && local.x > 1.0 - local.y) {
+                color = texture2D(tVideo, getGrid(2.0, 0.0, rotateUV(local, 90.0)));
+              } else {
+                color = texture2D(tVideo, getGrid(1.0, 0.0, local));
+              }
+            } else if (uFace == 3) { // Bottom
+              if (local.y < local.x && local.y < 1.0 - local.x) {
+                color = texture2D(tVideo, getGrid(3.0, 2.0, rotateUV(local, 180.0)));
+              } else if (local.x < local.y && local.x < 1.0 - local.y) {
+                color = texture2D(tVideo, getGrid(0.0, 2.0, rotateUV(local, 90.0)));
+              } else if (local.x > local.y && local.x > 1.0 - local.y) {
+                color = texture2D(tVideo, getGrid(2.0, 2.0, rotateUV(local, -90.0)));
+              } else {
+                color = texture2D(tVideo, getGrid(1.0, 2.0, local));
+              }
+            } else if (uFace == 4) { // Physical Front face
+              color = texture2D(tVideo, getGrid(3.0, 1.0, local));
+            } else if (uFace == 5) { // Physical Back face
+              color = texture2D(tVideo, getGrid(1.0, 1.0, local));
+            }
+
+            gl_FragColor = color;
+          }
+        `,
+        depthWrite: false,
+        side: THREE.FrontSide
+      }));
+    }
+
+    // --- Custom Camera Controller (Mouse, Touch, Pinch-to-Zoom & Gyroscope) ---
+    let lon = 225, lat = 0; // Default view
+    let phi = 0, theta = 0;
+    let isDragging = false, startX, startY, startLon, startLat;
+    let useGyro = false;
+    let gyroEnabled = false;
+
+    // Gyroscope Quaternion Math (Prevents Gimbal Lock)
+    const gyroEuler = new THREE.Euler();
+    const gyroQ0 = new THREE.Quaternion();
+    const gyroQ1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // - PI/2 around x-axis
+    const zee = new THREE.Vector3(0, 0, 1);
+    let deviceOrientation = null;
+    let screenOrientation = 0;
+
+    window.addEventListener('orientationchange', () => { 
+      screenOrientation = (screen.orientation || {}).angle || window.orientation || 0; 
+    });
+
+    document.getElementById('gyro-toggle').addEventListener('click', () => {
+      if (!gyroEnabled) {
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          DeviceOrientationEvent.requestPermission().then(state => {
+            if (state === 'granted') {
+              window.addEventListener('deviceorientation', (e) => deviceOrientation = e);
+              gyroEnabled = true; useGyro = true;
+              document.getElementById('gyro-toggle').classList.add('active');
+            }
+          }).catch(console.error);
+        } else {
+          window.addEventListener('deviceorientation', (e) => deviceOrientation = e);
+          gyroEnabled = true; useGyro = true;
+          document.getElementById('gyro-toggle').classList.add('active');
+        }
+      } else {
+        useGyro = !useGyro;
+        document.getElementById('gyro-toggle').classList.toggle('active', useGyro);
+        
+        if (!useGyro) {
+           const vector = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+           lat = 90 - THREE.MathUtils.radToDeg(Math.acos(vector.y));
+           lon = THREE.MathUtils.radToDeg(Math.atan2(vector.x, vector.z));
+        }
+      }
+    });
+
+    const onPointerDown = (clientX, clientY) => {
+      isDragging = true; useGyro = false; 
+      startX = clientX; startY = clientY; startLon = lon; startLat = lat;
+    };
+    const onPointerMove = (clientX, clientY) => {
+      if (!isDragging) return;
+      lon = startLon - (clientX - startX) * 0.15;
+      lat = startLat + (clientY - startY) * 0.15;
+      lat = Math.max(-85, Math.min(85, lat)); 
+    };
+
+    renderer.domElement.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
+    document.addEventListener('mousemove', e => onPointerMove(e.clientX, e.clientY));
+    document.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; if (gyroEnabled) useGyro = true; } });
+    
+    // Zoom & Pinch Logic
+    let initialPinchDistance = null;
+    let initialFov = camera.fov;
+
+    const getPinchDistance = (e) => Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+
+    renderer.domElement.addEventListener('wheel', (e) => {
+      camera.fov += e.deltaY * 0.05;
+      camera.fov = Math.max(30, Math.min(120, camera.fov)); 
+      camera.updateProjectionMatrix();
+    }, { passive: true });
+
+    renderer.domElement.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+      } else if (e.touches.length === 2) {
+        isDragging = false; 
+        initialPinchDistance = getPinchDistance(e);
+        initialFov = camera.fov;
+      }
+    }, {passive: false});
+
+    document.addEventListener('touchmove', e => {
+      if (e.touches.length === 1 && isDragging) {
+        e.preventDefault();
+        onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+      } else if (e.touches.length === 2 && initialPinchDistance !== null) {
+        e.preventDefault();
+        const currentPinchDistance = getPinchDistance(e);
+        const scale = initialPinchDistance / currentPinchDistance;
+        camera.fov = initialFov * scale;
+        camera.fov = Math.max(30, Math.min(120, camera.fov)); 
+        camera.updateProjectionMatrix();
+      }
+    }, {passive: false});
+
+    document.addEventListener('touchend', e => {
+      if (e.touches.length === 0) {
+        if (isDragging) { isDragging = false; if (gyroEnabled) useGyro = true; }
+        initialPinchDistance = null;
+      } else if (e.touches.length === 1) {
+        initialPinchDistance = null;
+        onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    });
+
+    // --- Fullscreen Transition Shader Setup ---
+    const transitionScene = new THREE.Scene();
+    const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    
+    let rtOld = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { colorSpace: THREE.SRGBColorSpace });
+    let rtNew = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { colorSpace: THREE.SRGBColorSpace });
+    
+    const VERT = `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`;
+    const FRAG_BLOCK = `
+      uniform sampler2D tOld; uniform sampler2D tNew; uniform float uProgress; uniform float uAspect;
+      varying vec2 vUv;
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
       void main() {
         vec2 correctedUv = vec2(vUv.x * uAspect, vUv.y);
-        vec2 blockUv = floor(correctedUv * uBlockSize) / uBlockSize;
-        
-        float noise = hash(blockUv);
-        float depthVal = 0.5; // Neutral fallback if no depth exists
-        
-        if (uHasDepth) {
-          depthVal = texture2D(tDepth, vUv).r; 
-        }
-        
-        // Combine noise and depth. Closer objects dissolve first.
-        float threshold = noise * 0.4 + (1.0 - depthVal) * 0.6;
-        
-        if (smoothstep(0.0, 1.0, uProgress) > threshold) {
+        vec2 blockUv = floor(correctedUv * 50.0) / 50.0;
+        if (uProgress * 1.2 > (1.0 - vUv.y) + hash(blockUv) * 0.2) {
           gl_FragColor = texture2D(tNew, vUv);
         } else {
           gl_FragColor = texture2D(tOld, vUv);
         }
       }
-    `
-  };
-
-  const transitionQuad = new THREE.Mesh(
-    new THREE.PlaneGeometry(2, 2),
-    new THREE.ShaderMaterial(transitionShader)
-  );
-  const transitionScene = new THREE.Scene();
-  const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  transitionScene.add(transitionQuad);
-
-  // 3. CUBEMAP & DEPTH ROUTING
-  function getCubemap(loc, options = {}) {
-    const isDepth = options.isDepth || false;
-    const type = loc.type;
-    const baseUrl = loc.baseUrl || 'vr2/';
-
-    if (type === 'voltaic') {
-      const ext = isDepth ? '-depth.jpeg' : '.jpeg';
-      return [
-        baseUrl + 'ENCHnodes-280' + ext, // Right (px)
-        baseUrl + 'ENCHnodes-281' + ext, // Left (nx)
-        baseUrl + 'ENCHnodes-282' + ext, // Top (py)
-        baseUrl + 'ENCHnodes-278' + ext, // Bottom (ny)
-        baseUrl + 'ENCHnodes-277' + ext, // Front (pz) 
-        baseUrl + 'ENCHnodes-279' + ext  // Back (nz)
-      ];
-    }
+    `;
+    const FRAG_FADE = `
+      uniform sampler2D tOld; uniform sampler2D tNew; uniform float uProgress; varying vec2 vUv;
+      void main() { gl_FragColor = mix(texture2D(tOld, vUv), texture2D(tNew, vUv), smoothstep(0.0, 1.0, uProgress)); }
+    `;
     
-    if (type === 'img-seq') {
-      const b = baseUrl + 'cubemapvr/';
-      return [
-        b + 'IMG_5232.jpeg', b + 'IMG_5231.jpeg', b + 'IMG_5233.jpeg',
-        b + 'IMG_5229.jpeg', b + 'IMG_5228.jpeg', b + 'IMG_5230.jpeg'
-      ];
-    }
-    
-    return [];
-  }
+    const transitionMat = new THREE.ShaderMaterial({
+      uniforms: { tOld: { value: null }, tNew: { value: null }, uProgress: { value: 0 }, uAspect: { value: 1.0 } },
+      vertexShader: VERT, fragmentShader: FRAG_BLOCK, depthTest: false, depthWrite: false
+    });
+    const transitionMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), transitionMat);
+    transitionScene.add(transitionMesh);
 
-  // 4. TRUE GEOMETRY DISPLACEMENT ROOM
-  const textureLoader = new THREE.TextureLoader();
-  let currentRoom = null;
+    let isTransitioning = false;
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.crossOrigin = 'anonymous';
 
-  function createRoom(loc) {
-    // Highly subdivided box for physical 3D parallax
-    const geometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128); 
-    
-    const colorUrls = getCubemap(loc, { isDepth: false });
-    const hasDepth = loc.type === 'voltaic'; 
-    const depthUrls = hasDepth ? getCubemap(loc, { isDepth: true }) : null;
-
-    const materials = [];
-
-    for (let i = 0; i < 6; i++) {
-      const colorTex = textureLoader.load(colorUrls[i]);
-      colorTex.colorSpace = THREE.SRGBColorSpace;
+    // Helper to get image paths
+    function getCubemapUrls(loc, version) {
+      const s = typeof version === 'string' ? version : (version.suffix || '');
+      const type = (typeof version === 'object' && version.type) ? version.type : loc.type;
       
-      const matParams = {
-        map: colorTex,
-        side: THREE.BackSide,
-        roughness: 1.0, 
-        metalness: 0.0
-      };
-
-      if (hasDepth && depthUrls) {
-        const depthTex = textureLoader.load(depthUrls[i]);
-        matParams.displacementMap = depthTex;
-        // Push walls correctly to create physical parallax
-        matParams.displacementScale = -15.0; 
+      let paths;
+      if (type === 'img-seq') {
+        const b = rawUrl + 'cubemapvr/';
+        paths = { front: b+'IMG_5228.jpeg', bottom: b+'IMG_5229.jpeg', back: b+'IMG_5230.jpeg', left: b+'IMG_5231.jpeg', right: b+'IMG_5232.jpeg', top: b+'IMG_5233.jpeg' };
+      } else if (type === 'side-numbered') {
+        paths = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s };
+      } else if (type === 'voltaic') {
+        paths = { left: loc.baseUrl+'ENCHnodes-281'+s, front: loc.baseUrl+'ENCHnodes-277'+s, right: loc.baseUrl+'ENCHnodes-280'+s, back: loc.baseUrl+'ENCHnodes-279'+s, top: loc.baseUrl+'ENCHnodes-282'+s, bottom: loc.baseUrl+'ENCHnodes-278'+s };
+      } else {
+        paths = { left: loc.baseUrl+'LEIS665'+s, front: loc.baseUrl+'LEIS661'+s, right: loc.baseUrl+'LEIS664'+s, back: loc.baseUrl+'LEIS663'+s, top: loc.baseUrl+'LEIS666'+s, bottom: loc.baseUrl+'LEIS662'+s };
       }
-
-      materials.push(new THREE.MeshStandardMaterial(matParams));
+      
+      // Front and Back are swapped here
+      return [paths.left, paths.right, paths.top, paths.bottom, paths.back, paths.front]; 
     }
 
-    return new THREE.Mesh(geometry, materials);
-  }
+    async function loadPanorama(mode = 'block') {
+      if (isTransitioning) return;
+      isTransitioning = true;
+      document.getElementById('loader').style.display = 'block';
 
-  // 5. TRANSITION LOGIC & RENDER LOOP
-  let isTransitioning = false;
-  let transitionProgress = 0.0;
-  let newRoom = null;
-  let currentLocation = null;
+      if (currentLocation.audio) playOrCrossfadeAudio(currentLocation.audio);
 
-  function triggerTransition(newLoc) {
-    if (isTransitioning) return;
-    
-    isTransitioning = true;
-    transitionProgress = 0.0;
-    newRoom = createRoom(newLoc);
-    
-    transitionQuad.material.uniforms.uHasDepth.value = (currentLocation && currentLocation.type === 'voltaic');
-    currentLocation = newLoc;
-  }
-
-  function animate() {
-    requestAnimationFrame(animate);
-
-    // Simple camera pan to show off the displacement parallax
-    camera.rotation.y += 0.001;
-
-    if (isTransitioning) {
-      transitionProgress += 0.01; 
-      transitionQuad.material.uniforms.uProgress.value = transitionProgress;
-
-      if (currentRoom) {
-        scene.add(currentRoom);
-        renderer.setRenderTarget(oldTarget);
-        renderer.render(scene, camera);
-        scene.remove(currentRoom);
-      }
-
-      scene.add(newRoom);
-      renderer.setRenderTarget(newTarget);
+      // 1. Snapshot old state
+      renderer.setRenderTarget(rtOld);
       renderer.render(scene, camera);
-
-      transitionQuad.material.uniforms.tOld.value = oldTarget.texture;
-      transitionQuad.material.uniforms.tNew.value = newTarget.texture;
-      transitionQuad.material.uniforms.tDepth.value = oldTarget.depthTexture;
-
       renderer.setRenderTarget(null);
-      renderer.render(transitionScene, orthoCamera);
+      transitionMat.uniforms.tOld.value = rtOld.texture;
+      transitionMat.uniforms.uProgress.value = 0;
+      transitionMat.fragmentShader = mode === 'block' ? FRAG_BLOCK : FRAG_FADE;
+      transitionMat.needsUpdate = true;
 
-      if (transitionProgress >= 1.0) {
-        isTransitioning = false;
-        if (currentRoom) {
-          currentRoom.geometry.dispose();
-          currentRoom.material.forEach(m => {
-            if (m.map) m.map.dispose();
-            if (m.displacementMap) m.displacementMap.dispose();
-            m.dispose();
-          });
-        }
-        currentRoom = newRoom;
+      const targetVersion = currentLocation.versions[currentVersionIndex];
+      const isVideo = targetVersion.type === 'video-5x3';
+      
+      // Setup Video or Load Images
+      if (isVideo) {
+        videoToggleBtn.style.display = 'inline-block';
+        sourceVideo.src = targetVersion.url;
+        sourceVideo.load();
+        await new Promise(r => { sourceVideo.onloadeddata = () => r(); });
+        
+        cubeMesh.material = videoMaterials; // Use the GPU shaders
+        
+      } else {
+        videoToggleBtn.style.display = 'none';
+        sourceVideo.pause();
+        
+        cubeMesh.material = materials; // Re-assign the static materials array
+        
+        const urls = getCubemapUrls(currentLocation, targetVersion);
+        const textures = await Promise.all(urls.map(url => textureLoader.loadAsync(url)));
+        
+        materials.forEach((mat, i) => {
+          if (mat.map) mat.map.dispose();
+          mat.map = textures[i];
+          mat.map.colorSpace = THREE.SRGBColorSpace;
+          mat.map.minFilter = THREE.LinearMipmapLinearFilter;
+          mat.map.magFilter = THREE.NearestFilter; 
+          mat.needsUpdate = true;
+        });
       }
-    } else {
-      if (currentRoom) {
-        scene.add(currentRoom);
-        renderer.setRenderTarget(null);
+
+      // 2. Snapshot new state
+      renderer.setRenderTarget(rtNew);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      transitionMat.uniforms.tNew.value = rtNew.texture;
+
+      document.getElementById('loader').style.display = 'none';
+
+      // 3. Animate Transition
+      const duration = mode === 'block' ? 1200 : 600;
+      const startTime = performance.now();
+
+      function animateTween(now) {
+        const p = Math.min((now - startTime) / duration, 1);
+        transitionMat.uniforms.uProgress.value = p;
+        if (p < 1) requestAnimationFrame(animateTween);
+        else isTransitioning = false;
+      }
+      requestAnimationFrame(animateTween);
+    }
+
+    // --- Main Render Loop ---
+    function render() {
+      requestAnimationFrame(render);
+
+      // Camera Math
+      if (useGyro && deviceOrientation) {
+        const alpha = deviceOrientation.alpha ? THREE.MathUtils.degToRad(deviceOrientation.alpha) : 0;
+        const beta = deviceOrientation.beta ? THREE.MathUtils.degToRad(deviceOrientation.beta) : 0;
+        const gamma = deviceOrientation.gamma ? THREE.MathUtils.degToRad(deviceOrientation.gamma) : 0;
+        const orient = screenOrientation ? THREE.MathUtils.degToRad(screenOrientation) : 0;
+
+        gyroEuler.set(beta, alpha, -gamma, 'YXZ');
+        camera.quaternion.setFromEuler(gyroEuler);
+        camera.quaternion.multiply(gyroQ1);
+        camera.quaternion.multiply(gyroQ0.setFromAxisAngle(zee, -orient));
+      } else {
+        phi = THREE.MathUtils.degToRad(90 - lat);
+        theta = THREE.MathUtils.degToRad(lon);
+        camera.position.set(0, 0, 0); 
+        const target = new THREE.Vector3(
+          Math.sin(phi) * Math.cos(theta),
+          Math.cos(phi),
+          Math.sin(phi) * Math.sin(theta)
+        );
+        camera.lookAt(target);
+      }
+
+      // Draw Screen
+      if (isTransitioning) {
+        renderer.render(transitionScene, transitionCamera);
+      } else {
         renderer.render(scene, camera);
-        scene.remove(currentRoom);
       }
     }
-  }
 
-  // Handle window resizing
-  window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    oldTarget.setSize(window.innerWidth, window.innerHeight);
-    newTarget.setSize(window.innerWidth, window.innerHeight);
-    transitionQuad.material.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
-  });
+    // --- Window Resize ---
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      rtOld.setSize(window.innerWidth, window.innerHeight);
+      rtNew.setSize(window.innerWidth, window.innerHeight);
+      transitionMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
+    });
 
-  // Kickoff Default Scene
-  const voltaicLoc = { type: 'voltaic', baseUrl: 'vr2/' };
-  currentLocation = voltaicLoc;
-  currentRoom = createRoom(voltaicLoc);
-  animate();
+    // --- Initial UI Binding ---
+    function updateUI() {
+      const locSelect = document.getElementById('location-selector');
+      if (locSelect.options.length === 0) {
+        locations.forEach((loc, i) => {
+          const opt = document.createElement('option'); opt.value = i; opt.textContent = loc.name;
+          if (loc === currentLocation) opt.selected = true;
+          locSelect.appendChild(opt);
+        });
+        locSelect.onchange = (e) => {
+          const isLocChange = locations[e.target.value] !== currentLocation;
+          currentLocation = locations[e.target.value]; currentVersionIndex = 0;
+          updateUI(); loadPanorama(isLocChange ? 'block' : 'fade');
+        };
+      }
 
-  // Uncomment to test a transition after 3 seconds
-  // setTimeout(() => {
-  //   triggerTransition({ type: 'img-seq', baseUrl: 'vr2/' });
-  // }, 3000);
+      const qBar = document.getElementById('quality-buttons'); qBar.innerHTML = '';
+      currentLocation.versions.forEach((v, idx) => {
+        const btn = document.createElement('button'); btn.textContent = v.label;
+        if (idx === currentVersionIndex) btn.classList.add('active');
+        btn.onclick = () => {
+          if (currentVersionIndex !== idx && !isTransitioning) {
+            currentVersionIndex = idx; updateUI(); loadPanorama('fade');
+          }
+        };
+        qBar.appendChild(btn);
+      });
+    }
 
-</script>
+    // Boot Up
+    transitionMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
+    updateUI();
+    loadPanorama('block'); 
+    render(); 
+
+  </script>
 </body>
 </html>
