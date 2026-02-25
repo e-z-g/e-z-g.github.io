@@ -80,7 +80,6 @@
     #close-caption { position: absolute; top: 4px; right: 8px; font-size: 18px; font-weight: bold; opacity: 0.6; cursor: pointer; line-height: 1; transition: opacity 0.2s; }
     #close-caption:hover { opacity: 1; }
 
-    /* Overlays & Toggles */
     #dni-trigger { width: 20px; height: 20px; margin-left: 6px; cursor: pointer; border-radius: 4px; transition: background 0.2s; padding: 2px; }
     #dni-trigger:hover { background: rgba(255,255,255,0.1); }
     #dni-zoom-overlay {
@@ -153,7 +152,7 @@
 
     <div class="controls-row" id="depth-controls" style="display:none; padding-left: 14px; padding-right: 14px;">
       <label class="depth-label">3D Parallax</label>
-      <input type="range" id="displacement-slider" min="-100" max="100" value="0" title="Mesh Deformation Strength">
+      <input type="range" id="displacement-slider" min="-100" max="100" value="60" title="Mesh Deformation Strength">
     </div>
   </div>
 
@@ -225,7 +224,6 @@
     let currentVersionIndex = 0;
     
     // --- Audio System ---
-    // Added fadeInterval to prevent interval memory leaks
     const audioSystem = { active: new Audio(), fading: new Audio(), isMuted: true, masterVolume: 0, currentUrl: currentLocation.audio, fadeInterval: null };
     audioSystem.active.loop = true; audioSystem.fading.loop = true;
 
@@ -268,7 +266,6 @@
       audioSystem.active.src = newUrl; audioSystem.active.volume = 0;
       audioSystem.active.play().catch(e => console.warn(e));
 
-      // Clear any existing intervals to prevent overlapping crossfades
       if (audioSystem.fadeInterval) clearInterval(audioSystem.fadeInterval);
 
       let step = 0; const steps = 20;
@@ -338,7 +335,6 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
 
-    // Highly Subdivided Cube Mesh (64x64 is reliable for smooth depth rendering)
     const geometry = new THREE.BoxGeometry(100, 100, 100, 64, 64, 64);
     geometry.scale(-1, 1, 1); 
     
@@ -361,7 +357,6 @@
           vec4 dTex = texture2D(tDepth, uv);
           float vDepth = clamp(dTex.r, 0.0, 1.0);
 
-          // We push vertices directly towards the center origin based on depth intensity.
           vec3 dir = -normalize(position);
           vec3 newPos = position + dir * (vDepth * uDisplacementScale);
           
@@ -378,7 +373,6 @@
       `
     };
 
-    // Instantiate explicitly for each face to ensure uniforms are independent & textures bind safely
     const materials = [];
     for (let i = 0; i < 6; i++) {
       materials.push(new THREE.ShaderMaterial({
@@ -397,14 +391,12 @@
     const cubeMesh = new THREE.Mesh(geometry, materials);
     scene.add(cubeMesh);
 
-    // --- Depth Controls UI Mapping ---
     const depthControlsContainer = document.getElementById('depth-controls');
     document.getElementById('displacement-slider').addEventListener('input', (e) => {
       const val = parseFloat(e.target.value) / 100.0;
       materials.forEach(m => m.uniforms.uDisplacementScale.value = val * 20.0); 
     });
 
-    // --- Video GPU Shader Setup ---
     const videoTexture = new THREE.VideoTexture(sourceVideo);
     videoTexture.colorSpace = THREE.SRGBColorSpace;
     videoTexture.minFilter = THREE.LinearFilter;
@@ -448,13 +440,17 @@
       }));
     }
 
-    // --- Custom Camera Controller ---
+    // --- Custom Camera Controller & Pointer Tracking ---
     let lon = 225, lat = 0; 
     let phi = 0, theta = 0;
     let isDragging = false, startX, startY, startLon, startLat;
     let useGyro = false, gyroEnabled = false;
     const gyroEuler = new THREE.Euler(), gyroQ0 = new THREE.Quaternion(), gyroQ1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), zee = new THREE.Vector3(0, 0, 1);
     let deviceOrientation = null, screenOrientation = 0;
+
+    // FIX: Variables for Mouse Parallax smoothing
+    let targetMouseX = 0, targetMouseY = 0;
+    let currentMouseX = 0, currentMouseY = 0;
 
     window.addEventListener('orientationchange', () => { screenOrientation = (screen.orientation || {}).angle || window.orientation || 0; });
     document.getElementById('gyro-toggle').addEventListener('click', () => {
@@ -476,14 +472,21 @@
     const onPointerDown = (clientX, clientY) => { isDragging = true; useGyro = false; startX = clientX; startY = clientY; startLon = lon; startLat = lat; };
     const onPointerMove = (clientX, clientY, isTouch = false) => {
       if (!isDragging) return;
-      const sensitivity = isTouch ? 0.35 : 0.15; // Increased touch swiping speed
+      const sensitivity = isTouch ? 0.35 : 0.15; 
       lon = startLon - (clientX - startX) * sensitivity; 
       lat = startLat + (clientY - startY) * sensitivity; 
       lat = Math.max(-85, Math.min(85, lat)); 
     };
 
     renderer.domElement.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
-    document.addEventListener('mousemove', e => onPointerMove(e.clientX, e.clientY, false));
+    
+    // FIX: Capture mouse position universally for the 3D parallax effect
+    document.addEventListener('mousemove', e => {
+      targetMouseX = (e.clientX / window.innerWidth) * 2 - 1;
+      targetMouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+      onPointerMove(e.clientX, e.clientY, false);
+    });
+    
     document.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; if (gyroEnabled) useGyro = true; } });
     
     // Zoom Logic
@@ -521,6 +524,7 @@
     transitionScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), transitionMat));
 
     let isTransitioning = false;
+    let currentLoadId = 0;
     const textureLoader = new THREE.TextureLoader(); textureLoader.crossOrigin = 'anonymous';
 
     function getCubemapUrls(loc, version, fetchDepth = false) {
@@ -530,7 +534,6 @@
       let p;
       if (type === 'img-seq') { 
           const b = rawUrl + 'cubemapvr/'; 
-          // Left and Right faces swapped as requested for this variation
           p = { front: b+'IMG_5228.jpeg', bottom: b+'IMG_5229.jpeg', back: b+'IMG_5230.jpeg', left: b+'IMG_5232.jpeg', right: b+'IMG_5231.jpeg', top: b+'IMG_5233.jpeg' }; 
       } 
       else if (type === 'side-numbered') { p = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s }; } 
@@ -544,6 +547,7 @@
 
     async function loadPanorama(mode = 'block') {
       if (isTransitioning) return;
+      const loadId = ++currentLoadId;
       isTransitioning = true;
       document.getElementById('loader').style.display = 'block';
       if (currentLocation.audio) playOrCrossfadeAudio(currentLocation.audio);
@@ -559,29 +563,27 @@
         depthControlsContainer.style.display = 'none';
         videoToggleBtn.style.display = 'inline-block';
         sourceVideo.src = targetVersion.url; sourceVideo.load();
-        await new Promise(r => { sourceVideo.onloadeddata = () => r(); });
+        await new Promise(r => { 
+          if(sourceVideo.readyState >= 2) r(); 
+          else sourceVideo.onloadeddata = () => r(); 
+        });
         cubeMesh.material = videoMaterials; 
       } else {
         videoToggleBtn.style.display = 'none';
         sourceVideo.pause();
         cubeMesh.material = materials; 
         
-        // 1. Fetch RGB Textures
         const urls = getCubemapUrls(currentLocation, targetVersion, false);
         const textures = await Promise.all(urls.map(url => textureLoader.loadAsync(url)));
+        if (loadId !== currentLoadId) return; 
         
-        // 2. Fetch Depth Textures safely
         let depthTextures = null;
         if (currentLocation.hasDepth) {
             depthControlsContainer.style.display = 'flex';
             const dUrls = getCubemapUrls(currentLocation, targetVersion, true);
             depthTextures = await Promise.all(dUrls.map(async (url) => {
-                try {
-                    return await textureLoader.loadAsync(url);
-                } catch(e) {
-                    console.warn("Missing depth map:", url);
-                    return dummyDepthTex;
-                }
+                try { return await textureLoader.loadAsync(url); } 
+                catch(e) { console.warn("Missing depth map:", url); return dummyDepthTex; }
             }));
         } else {
             depthControlsContainer.style.display = 'none';
@@ -589,7 +591,6 @@
 
         const currentSliderVal = currentLocation.hasDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
         
-        // 3. Apply Uniforms & Textures
         materials.forEach((mat, i) => {
           if (mat.uniforms.tColor.value) mat.uniforms.tColor.value.dispose();
           mat.uniforms.tColor.value = textures[i];
@@ -601,7 +602,6 @@
           if (depthTextures && depthTextures[i] && depthTextures[i] !== dummyDepthTex) {
               if (mat.uniforms.tDepth.value && mat.uniforms.tDepth.value !== dummyDepthTex) mat.uniforms.tDepth.value.dispose();
               mat.uniforms.tDepth.value = depthTextures[i];
-              
               mat.uniforms.tDepth.value.colorSpace = THREE.NoColorSpace;
               mat.uniforms.tDepth.value.minFilter = THREE.LinearFilter;
               mat.uniforms.tDepth.value.magFilter = THREE.LinearFilter;
@@ -631,8 +631,11 @@
     function render() {
       requestAnimationFrame(render);
 
-      // FIX: Reset camera position to the origin before recalculating lookAt vectors!
-      // This prevents the camera rotation from drifting based on the offset of previous frames.
+      // Smooth mouse interpolation for the 3D depth camera shift
+      currentMouseX += (targetMouseX - currentMouseX) * 0.1;
+      currentMouseY += (targetMouseY - currentMouseY) * 0.1;
+
+      // Always reset back to origin center before math to prevent accumulation bugs
       camera.position.set(0, 0, 0);
 
       if (useGyro && deviceOrientation) {
@@ -647,12 +650,15 @@
         camera.lookAt(new THREE.Vector3(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta)));
       }
       
-      // Pivot offset (Neck Model): Restored to generate parallax from depth maps
-      // Pushing the camera slightly off-center makes the geometry scale reveal real 3D depth as you rotate
-      const neckLength = 2.0;
-      camera.position.set(0, 0, neckLength);
-      camera.position.applyQuaternion(camera.quaternion);
-      camera.position.multiplyScalar(-1); 
+      // FIX: 3D Parallax Calculation
+      // 1. Move the camera back slightly to create a pivoting neck effect
+      camera.translateZ(2.0); 
+
+      // 2. Lateral shift based on cursor position. This completely breaks the 2D optical
+      //    illusion by changing the viewing angle independently of the rotation.
+      const parallaxStrength = 4.0;
+      camera.translateX(currentMouseX * parallaxStrength);
+      camera.translateY(currentMouseY * parallaxStrength);
 
       if (isTransitioning) renderer.render(transitionScene, transitionCamera);
       else renderer.render(scene, camera);
