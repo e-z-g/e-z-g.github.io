@@ -37,9 +37,11 @@
       display: flex; gap: 6px; align-items: center; justify-content: center;
       background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       border-radius: 6px; padding: 6px 10px;
       pointer-events: auto; white-space: nowrap;
-      max-width: 100%; overflow-x: auto;
+      max-width: 100%; box-sizing: border-box;
+      flex-wrap: wrap;
       border: 1px solid rgba(255,255,255,0.05);
     }
     
@@ -64,7 +66,11 @@
       background-repeat: no-repeat; background-position: right 8px top 50%; background-size: 10px auto;
     }
 
-    input[type=range] { -webkit-appearance: none; background: transparent; width: 100px; margin: 0 4px; transition: opacity 0.2s; flex-shrink: 0; }
+    input[type=range] { 
+      -webkit-appearance: none; background: transparent; 
+      width: 80px; max-width: 20vw;
+      margin: 0 4px; transition: opacity 0.2s; flex-shrink: 0; 
+    }
     input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 3px; background: rgba(255,255,255,0.3); border-radius: 1.5px; }
     input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: rgba(255,255,255,0.9); margin-top: -6.5px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.5); }
     input[type=range]::-webkit-slider-thumb:hover { background: #fff; transform: scale(1.15); transition: transform 0.1s ease; }
@@ -87,7 +93,7 @@
     #dni-zoom-overlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999;
       display: flex; flex-direction: column; justify-content: center; align-items: center;
-      opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(8px);
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     }
     #dni-zoom-overlay.active { opacity: 1; pointer-events: auto; }
     #close-overlay { position: absolute; top: 20px; right: 20px; color: rgba(255,255,255,0.6); font-size: 40px; font-weight: 300; cursor: pointer; line-height: 1; transition: color 0.2s; padding: 10px; }
@@ -482,12 +488,17 @@
       lat = startLat + (clientY - startY) * sensitivity; 
       lat = Math.max(-85, Math.min(85, lat)); 
     };
+    
+    // NEW: Touch Helper for Mobile Parallax
+    const updateTouchParallax = (clientX, clientY) => {
+      targetMouseX = (clientX / window.innerWidth) * 2 - 1;
+      targetMouseY = -(clientY / window.innerHeight) * 2 + 1;
+    };
 
     renderer.domElement.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
     
     document.addEventListener('mousemove', e => {
-      targetMouseX = (e.clientX / window.innerWidth) * 2 - 1;
-      targetMouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+      updateTouchParallax(e.clientX, e.clientY);
       onPointerMove(e.clientX, e.clientY, false);
     });
     
@@ -502,17 +513,25 @@
     }, { passive: true });
 
     renderer.domElement.addEventListener('touchstart', e => {
-      if (e.touches.length === 1) onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+      if (e.touches.length === 1) {
+        onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+        updateTouchParallax(e.touches[0].clientX, e.touches[0].clientY);
+      }
       else if (e.touches.length === 2) { isDragging = false; initialPinchDistance = getPinchDistance(e); initialFov = camera.fov; }
     }, {passive: false});
 
     document.addEventListener('touchmove', e => {
-      if (e.touches.length === 1 && isDragging) { e.preventDefault(); onPointerMove(e.touches[0].clientX, e.touches[0].clientY, true); } 
+      if (e.touches.length === 1 && isDragging) { 
+        e.preventDefault(); 
+        onPointerMove(e.touches[0].clientX, e.touches[0].clientY, true); 
+        updateTouchParallax(e.touches[0].clientX, e.touches[0].clientY);
+      } 
       else if (e.touches.length === 2 && initialPinchDistance !== null) {
         e.preventDefault(); const scale = initialPinchDistance / getPinchDistance(e);
         camera.fov = initialFov * scale; camera.fov = Math.max(30, Math.min(120, camera.fov)); camera.updateProjectionMatrix();
       }
     }, {passive: false});
+    
     document.addEventListener('touchend', e => {
       if (e.touches.length === 0) { if (isDragging) { isDragging = false; if (gyroEnabled) useGyro = true; } initialPinchDistance = null; } 
       else if (e.touches.length === 1) { initialPinchDistance = null; onPointerDown(e.touches[0].clientX, e.touches[0].clientY); }
@@ -521,7 +540,6 @@
     // --- Fullscreen Transition Logic ---
     const transitionScene = new THREE.Scene(); const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     
-    // FIX: Render targets changed to HalfFloatType to prevent linear-to-srgb double conversion during crossfades
     let rtOld = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType });
     let rtNew = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType });
     
@@ -639,25 +657,11 @@
     function render() {
       requestAnimationFrame(render);
 
-      // Smooth mouse interpolation
       currentMouseX += (targetMouseX - currentMouseX) * 0.1;
       currentMouseY += (targetMouseY - currentMouseY) * 0.1;
 
-      // FIX: Reset center
       camera.position.set(0, 0, 0);
 
-      // FIX: Calculate parallax offsets + gyro sway BEFORE rotation
-      let swayX = 0, swayY = 0;
-      if (useGyro && deviceOrientation) {
-          swayX = Math.sin((deviceOrientation.gamma || 0) * Math.PI / 180) * 1.5;
-          swayY = Math.sin((deviceOrientation.beta || 0) * Math.PI / 180) * 1.5;
-      }
-
-      const parallaxStrength = 1.5;
-      camera.position.x = currentMouseX * parallaxStrength + swayX;
-      camera.position.y = currentMouseY * parallaxStrength + swayY;
-
-      // FIX: Rotate and LookAt relative to the new offset position
       if (useGyro && deviceOrientation) {
         const alpha = deviceOrientation.alpha ? THREE.MathUtils.degToRad(deviceOrientation.alpha) : 0;
         const beta = deviceOrientation.beta ? THREE.MathUtils.degToRad(deviceOrientation.beta) : 0;
@@ -668,14 +672,23 @@
       } else {
         phi = THREE.MathUtils.degToRad(90 - lat); 
         theta = THREE.MathUtils.degToRad(lon);
-        
-        const target = new THREE.Vector3(
-            camera.position.x + Math.sin(phi) * Math.cos(theta),
-            camera.position.y + Math.cos(phi),
-            camera.position.z + Math.sin(phi) * Math.sin(theta)
-        );
-        camera.lookAt(target);
+        camera.lookAt(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
       }
+
+      // Calculate idle sway and gyroscope offset
+      const time = performance.now() * 0.001;
+      let swayX = Math.sin(time * 0.5) * 0.5;
+      let swayY = Math.cos(time * 0.6) * 0.3;
+
+      if (useGyro && deviceOrientation) {
+          swayX = Math.sin((deviceOrientation.gamma || 0) * Math.PI / 180) * 2.5;
+          swayY = Math.sin((deviceOrientation.beta || 0) * Math.PI / 180) * 2.5;
+      }
+
+      // Apply Local Space Parallax Translation
+      const parallaxStrength = 2.0;
+      camera.translateX(currentMouseX * parallaxStrength + swayX);
+      camera.translateY(currentMouseY * parallaxStrength + swayY);
 
       if (isTransitioning) renderer.render(transitionScene, transitionCamera);
       else renderer.render(scene, camera);
