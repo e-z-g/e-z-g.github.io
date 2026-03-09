@@ -116,8 +116,7 @@
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
     }
   }
   </script>
@@ -187,8 +186,6 @@
 
   <script type="module">
     import * as THREE from 'three';
-    // Import the RoundedBoxGeometry addon
-    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
     const rawUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/';
 
@@ -346,10 +343,8 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
 
-    // Using RoundedBoxGeometry to bevel the corners. 
-    // This allows normal-based displacement to wrap smoothly without tearing the edges.
-    const radius = 12;
-    const geometry = new RoundedBoxGeometry(100, 100, 100, 32, radius);
+    // Using heavily tessellated standard BoxGeometry to prevent 1:1 UV stretching that occurs on rounded edges.
+    const geometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128);
     geometry.scale(-1, 1, 1); 
     
     const dummyDepthData = new Uint8Array([0, 0, 0, 255]); 
@@ -371,9 +366,14 @@
           vec4 dTex = texture2D(tDepth, uv);
           float vDepth = clamp(dTex.r, 0.0, 1.0);
 
+          // Fade out displacement at the extreme edges (0.5% margin) to prevent seam cracking
+          float edgeX = min(uv.x, 1.0 - uv.x);
+          float edgeY = min(uv.y, 1.0 - uv.y);
+          float edgeFade = smoothstep(0.0, 0.005, min(edgeX, edgeY));
+
           // Pushing inward toward the center based on depth
           vec3 dir = -normalize(position);
-          vec3 newPos = position + dir * (vDepth * uDisplacementScale);
+          vec3 newPos = position + dir * (vDepth * uDisplacementScale * edgeFade);
           
           gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
         }
@@ -462,8 +462,14 @@
     // --- Custom Camera Controller & Pointer Tracking ---
     let lon = 225, lat = 0; 
     let phi = 0, theta = 0;
+    
+    // Gyro & Pan tracking
+    let gyroActive = false;
+    let panLon = 0, panLat = 0;
+    const panOffset = new THREE.Quaternion();
+    const panEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
     let isDragging = false, startX, startY, startLon, startLat;
-    let useGyro = false, gyroEnabled = false;
     const gyroEuler = new THREE.Euler(), gyroQ0 = new THREE.Quaternion(), gyroQ1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), zee = new THREE.Vector3(0, 0, 1);
     let deviceOrientation = null, screenOrientation = 0;
 
@@ -498,24 +504,40 @@
     
     document.getElementById('gyro-toggle').addEventListener('click', () => {
       initTiltSensors();
-      if (!gyroEnabled) {
-        gyroEnabled = true; useGyro = true; document.getElementById('gyro-toggle').classList.add('active');
+      gyroActive = !gyroActive;
+      document.getElementById('gyro-toggle').classList.toggle('active', gyroActive);
+      
+      if (gyroActive) {
+         // Reset panning offsets when turning ON to align with physical orientation
+         panLon = 0; panLat = 0;
       } else {
-        useGyro = !useGyro; document.getElementById('gyro-toggle').classList.toggle('active', useGyro);
-        if (!useGyro) {
-           const vector = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-           lat = 90 - THREE.MathUtils.radToDeg(Math.acos(vector.y)); lon = THREE.MathUtils.radToDeg(Math.atan2(vector.x, vector.z));
-        }
+         // Snap fixed view to current camera look direction so it doesn't jump when turning OFF
+         const vector = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+         lat = 90 - THREE.MathUtils.radToDeg(Math.acos(vector.y)); 
+         lon = THREE.MathUtils.radToDeg(Math.atan2(vector.x, vector.z));
       }
     });
 
-    const onPointerDown = (clientX, clientY) => { isDragging = true; useGyro = false; startX = clientX; startY = clientY; startLon = lon; startLat = lat; };
+    const onPointerDown = (clientX, clientY) => { 
+      isDragging = true; 
+      startX = clientX; startY = clientY; 
+      startLon = gyroActive ? panLon : lon; 
+      startLat = gyroActive ? panLat : lat; 
+    };
+    
     const onPointerMove = (clientX, clientY, isTouch = false) => {
       if (!isDragging) return;
       const sensitivity = isTouch ? 0.35 : 0.15; 
-      lon = startLon - (clientX - startX) * sensitivity; 
-      lat = startLat + (clientY - startY) * sensitivity; 
-      lat = Math.max(-85, Math.min(85, lat)); 
+      const newLon = startLon - (clientX - startX) * sensitivity;
+      const newLat = startLat + (clientY - startY) * sensitivity;
+      
+      if (gyroActive) {
+          panLon = newLon;
+          panLat = Math.max(-85, Math.min(85, newLat));
+      } else {
+          lon = newLon;
+          lat = Math.max(-85, Math.min(85, newLat)); 
+      }
     };
     
     const updateTouchParallax = (clientX, clientY) => {
@@ -530,7 +552,7 @@
       onPointerMove(e.clientX, e.clientY, false);
     });
     
-    document.addEventListener('mouseup', () => { if (isDragging) { isDragging = false; if (gyroEnabled) useGyro = true; } });
+    document.addEventListener('mouseup', () => { isDragging = false; });
     
     // Zoom Logic
     let initialPinchDistance = null, initialFov = camera.fov;
@@ -561,7 +583,7 @@
     }, {passive: false});
     
     document.addEventListener('touchend', e => {
-      if (e.touches.length === 0) { if (isDragging) { isDragging = false; if (gyroEnabled) useGyro = true; } initialPinchDistance = null; } 
+      if (e.touches.length === 0) { isDragging = false; initialPinchDistance = null; } 
       else if (e.touches.length === 1) { initialPinchDistance = null; onPointerDown(e.touches[0].clientX, e.touches[0].clientY); }
     });
 
@@ -656,6 +678,9 @@
           if (depthTextures && depthTextures[i] && depthTextures[i] !== dummyDepthTex) {
               if (mat.uniforms.tDepth.value && mat.uniforms.tDepth.value !== dummyDepthTex) mat.uniforms.tDepth.value.dispose();
               mat.uniforms.tDepth.value = depthTextures[i];
+              // Explicit edge wrapping ensures depth aligns at boundaries
+              mat.uniforms.tDepth.value.wrapS = THREE.ClampToEdgeWrapping;
+              mat.uniforms.tDepth.value.wrapT = THREE.ClampToEdgeWrapping;
               mat.uniforms.tDepth.value.colorSpace = THREE.NoColorSpace;
               mat.uniforms.tDepth.value.minFilter = THREE.LinearFilter;
               mat.uniforms.tDepth.value.magFilter = THREE.LinearFilter;
@@ -690,7 +715,6 @@
 
       camera.position.set(0, 0, 0);
 
-      // Continuously calculates translation tilt without disabling if gyro is on
       if (deviceOrientation && !isDragging) {
         if (baseGamma === null) { 
            baseGamma = deviceOrientation.gamma || 0; 
@@ -714,26 +738,39 @@
       }
 
       // Sets macro rotation based on active input
-      if (useGyro && deviceOrientation) {
+      if (gyroActive && deviceOrientation) {
         const alpha = deviceOrientation.alpha ? THREE.MathUtils.degToRad(deviceOrientation.alpha) : 0;
         const beta = deviceOrientation.beta ? THREE.MathUtils.degToRad(deviceOrientation.beta) : 0;
         const gamma = deviceOrientation.gamma ? THREE.MathUtils.degToRad(deviceOrientation.gamma) : 0;
         const orient = screenOrientation ? THREE.MathUtils.degToRad(screenOrientation) : 0;
         gyroEuler.set(beta, alpha, -gamma, 'YXZ');
-        camera.quaternion.setFromEuler(gyroEuler).multiply(gyroQ1).multiply(gyroQ0.setFromAxisAngle(zee, -orient));
+        
+        const qGyro = new THREE.Quaternion().setFromEuler(gyroEuler).multiply(gyroQ1).multiply(gyroQ0.setFromAxisAngle(zee, -orient));
+        
+        // Combine gyro with manual panning (swiping shifts your base orientation)
+        panEuler.set(THREE.MathUtils.degToRad(panLat), THREE.MathUtils.degToRad(panLon), 0, 'YXZ');
+        panOffset.setFromEuler(panEuler);
+        
+        camera.quaternion.copy(panOffset).multiply(qGyro);
       } else {
         phi = THREE.MathUtils.degToRad(90 - lat); 
         theta = THREE.MathUtils.degToRad(lon);
         camera.lookAt(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
       }
 
-      const orbitRadius = 4.0; 
+      // "Neck Model" offset. Translating forward (-Z) before orbit translations ensures 
+      // rotation yields physical lateral movement (parallax), revealing the depth map in Gyro mode.
+      const orbitRadius = -3.0; 
       camera.translateZ(orbitRadius); 
 
-      // Reduces translation strength if gyro is handling large sweeps
-      const parallaxStrength = useGyro ? 4.0 : 8.0;
-      camera.translateX((currentMouseX + tiltX) * parallaxStrength);
-      camera.translateY((currentMouseY + tiltY) * parallaxStrength);
+      // Apply ambient sway + touch/tilt offsets
+      const time = performance.now() * 0.001;
+      const swayX = Math.sin(time * 0.5) * 0.5;
+      const swayY = Math.cos(time * 0.4) * 0.3;
+
+      const parallaxStrength = gyroActive ? 3.0 : 8.0;
+      camera.translateX(swayX + (currentMouseX + tiltX) * parallaxStrength);
+      camera.translateY(swayY + (currentMouseY + tiltY) * parallaxStrength);
 
       if (isTransitioning) renderer.render(transitionScene, transitionCamera);
       else renderer.render(scene, camera);
@@ -771,3 +808,4 @@
   </script>
 </body>
 </html>
+
