@@ -371,9 +371,14 @@
           float edgeY = min(uv.y, 1.0 - uv.y);
           float edgeFade = smoothstep(0.0, 0.005, min(edgeX, edgeY));
 
-          // Pushing inward toward the center based on depth
+          // Calculate radial gradient to counteract spherical cubemap distortion
+          // By scaling the displacement linearly towards the corners, planar surfaces remain flat
+          vec2 localPos = uv * 2.0 - 1.0;
+          float distortionCorrection = sqrt(dot(localPos, localPos) + 1.0);
+
+          // Pushing inward toward the center based on depth, multiplied by correction
           vec3 dir = -normalize(position);
-          vec3 newPos = position + dir * (vDepth * uDisplacementScale * edgeFade);
+          vec3 newPos = position + dir * (vDepth * uDisplacementScale * edgeFade * distortionCorrection);
           
           gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
         }
@@ -808,4 +813,5 @@
   </script>
 </body>
 </html>
+
 
