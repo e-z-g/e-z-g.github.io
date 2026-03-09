@@ -696,36 +696,44 @@
     }
 
     // --- Main Render Loop ---
+        // --- Main Render Loop ---
     function render() {
       requestAnimationFrame(render);
 
+      // Smooth mouse interpolation
       currentMouseX += (targetMouseX - currentMouseX) * 0.1;
       currentMouseY += (targetMouseY - currentMouseY) * 0.1;
 
+      // Reset Camera to Origin
       camera.position.set(0, 0, 0);
 
-      // --- Pure Tilt Translation (No Auto-Drift) ---
-      let targetTiltX = 0, targetTiltY = 0;
-      
-      if (deviceOrientation && !useGyro && !isDragging) {
+      // --- WAKE UP TILT CONTINUOUSLY ---
+      // Removed the !useGyro restriction so the high-pass filter always tracks micro-movements
+      if (deviceOrientation && !isDragging) {
         if (baseGamma === null) { 
            baseGamma = deviceOrientation.gamma || 0; 
            baseBeta = deviceOrientation.beta || 0; 
-        } 
+        } else {
+           // The "spring" constantly centers the baseline
+           baseGamma += ((deviceOrientation.gamma || 0) - baseGamma) * 0.05;
+           baseBeta += ((deviceOrientation.beta || 0) - baseBeta) * 0.05;
+        }
         
         let dGamma = (deviceOrientation.gamma || 0) - baseGamma;
         let dBeta = (deviceOrientation.beta || 0) - baseBeta;
 
+        // Prevent physical 360 wrap-around snapping
         if (dGamma > 180) dGamma -= 360; else if (dGamma < -180) dGamma += 360;
         if (dBeta > 180) dBeta -= 360; else if (dBeta < -180) dBeta += 360;
 
-        targetTiltX = THREE.MathUtils.clamp(dGamma * 0.05, -1, 1);
-        targetTiltY = THREE.MathUtils.clamp(dBeta * 0.05, -1, 1);
+        tiltX = THREE.MathUtils.lerp(tiltX, THREE.MathUtils.clamp(dGamma * 0.05, -1, 1), 0.1);
+        tiltY = THREE.MathUtils.lerp(tiltY, THREE.MathUtils.clamp(dBeta * 0.05, -1, 1), 0.1);
+      } else {
+        tiltX = THREE.MathUtils.lerp(tiltX, 0, 0.1);
+        tiltY = THREE.MathUtils.lerp(tiltY, 0, 0.1);
       }
-      
-      tiltX = THREE.MathUtils.lerp(tiltX, targetTiltX, 0.1);
-      tiltY = THREE.MathUtils.lerp(tiltY, targetTiltY, 0.1);
 
+      // --- APPLY MACRO-ROTATION FIRST ---
       if (useGyro && deviceOrientation) {
         const alpha = deviceOrientation.alpha ? THREE.MathUtils.degToRad(deviceOrientation.alpha) : 0;
         const beta = deviceOrientation.beta ? THREE.MathUtils.degToRad(deviceOrientation.beta) : 0;
@@ -739,10 +747,13 @@
         camera.lookAt(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
       }
 
+      // --- APPLY KINEMATIC OFFSETS ---
       const orbitRadius = 4.0; 
       camera.translateZ(orbitRadius); 
 
-      const parallaxStrength = 8.0;
+      // If the gyro is active, we lower the translation strength slightly 
+      // because the rotation is already creating massive movement.
+      const parallaxStrength = useGyro ? 4.0 : 8.0;
       camera.translateX((currentMouseX + tiltX) * parallaxStrength);
       camera.translateY((currentMouseY + tiltY) * parallaxStrength);
 
@@ -750,12 +761,6 @@
       else renderer.render(scene, camera);
     }
 
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      rtOld.setSize(window.innerWidth, window.innerHeight); rtNew.setSize(window.innerWidth, window.innerHeight);
-      transitionMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
-    });
 
     function updateUI() {
       const locSelect = document.getElementById('location-selector');
