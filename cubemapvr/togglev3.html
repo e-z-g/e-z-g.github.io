@@ -160,7 +160,7 @@
 
     <div class="controls-row" id="depth-controls" style="display:none; padding-left: 14px; padding-right: 14px;">
       <label class="depth-label">3D Parallax</label>
-      <input type="range" id="displacement-slider" min="-100" max="100" value="80" title="Mesh Deformation Strength">
+      <input type="range" id="displacement-slider" min="-100" max="100" value="70" title="Mesh Deformation Strength">
     </div>
   </div>
 
@@ -384,27 +384,37 @@
     };
 
     const materials = [];
+    const shellMaterials = []; // NEW: Flat materials to hide seams
+
     for (let i = 0; i < 6; i++) {
+      // Main displaced material
       materials.push(new THREE.ShaderMaterial({
-        uniforms: {
-          tColor: { value: null },
-          tDepth: { value: dummyDepthTex },
-          uDisplacementScale: { value: 0.0 } 
-        },
+        uniforms: { tColor: { value: null }, tDepth: { value: dummyDepthTex }, uDisplacementScale: { value: 0.0 } },
         vertexShader: depthShaderDef.vertexShader,
         fragmentShader: depthShaderDef.fragmentShader,
-        side: THREE.FrontSide,
-        depthWrite: true 
+        side: THREE.FrontSide, depthWrite: true 
+      }));
+
+      // Background flat shell material
+      shellMaterials.push(new THREE.ShaderMaterial({
+        uniforms: { tColor: { value: null } },
+        vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `uniform sampler2D tColor; varying vec2 vUv; void main() { gl_FragColor = texture2D(tColor, vUv); #include <tonemapping_fragment> \n #include <colorspace_fragment> }`,
+        side: THREE.FrontSide, depthWrite: false
       }));
     }
 
     const cubeMesh = new THREE.Mesh(geometry, materials);
     scene.add(cubeMesh);
 
+    // NEW: Ghost Shell to fix seams. It scales slightly outwards to catch the cracks.
+    const shellMesh = new THREE.Mesh(geometry, shellMaterials);
+    shellMesh.scale.set(1.02, 1.02, 1.02);
+    scene.add(shellMesh);
+
     const depthControlsContainer = document.getElementById('depth-controls');
     document.getElementById('displacement-slider').addEventListener('input', (e) => {
       const val = parseFloat(e.target.value) / 100.0;
-      // Multiplier boosted to 40 for much stronger depth deformation
       materials.forEach(m => m.uniforms.uDisplacementScale.value = val * 40.0); 
     });
 
@@ -464,14 +474,32 @@
     let targetMouseX = 0, targetMouseY = 0;
     let currentMouseX = 0, currentMouseY = 0;
 
-    window.addEventListener('orientationchange', () => { screenOrientation = (screen.orientation || {}).angle || window.orientation || 0; });
+    // NEW: Independent tilt tracking variables
+    let tiltX = 0, tiltY = 0;
+    let baseGamma = null, baseBeta = null;
+    let sensorsInitialized = false;
+
+    // NEW: Wake up the accelerometer on the very first touch (bypasses iOS restrictions)
+    const initTiltSensors = () => {
+      if (sensorsInitialized) return;
+      sensorsInitialized = true;
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(state => {
+          if (state === 'granted') window.addEventListener('deviceorientation', e => deviceOrientation = e);
+        }).catch(console.error);
+      } else {
+        window.addEventListener('deviceorientation', e => deviceOrientation = e);
+      }
+    };
+    document.body.addEventListener('touchstart', initTiltSensors, { once: true });
+    document.body.addEventListener('mousedown', initTiltSensors, { once: true });
+
+    window.addEventListener('orientationchange', () => { screenOrientation = (screen.orientation || {}).angle || window.orientation || 0; baseGamma = null; });
+    
     document.getElementById('gyro-toggle').addEventListener('click', () => {
       if (!gyroEnabled) {
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission().then(state => {
-            if (state === 'granted') { window.addEventListener('deviceorientation', (e) => deviceOrientation = e); gyroEnabled = true; useGyro = true; document.getElementById('gyro-toggle').classList.add('active'); }
-          }).catch(console.error);
-        } else { window.addEventListener('deviceorientation', (e) => deviceOrientation = e); gyroEnabled = true; useGyro = true; document.getElementById('gyro-toggle').classList.add('active'); }
+        initTiltSensors();
+        gyroEnabled = true; useGyro = true; document.getElementById('gyro-toggle').classList.add('active');
       } else {
         useGyro = !useGyro; document.getElementById('gyro-toggle').classList.toggle('active', useGyro);
         if (!useGyro) {
@@ -593,11 +621,13 @@
           if(sourceVideo.readyState >= 2) r(); 
           else sourceVideo.onloadeddata = () => r(); 
         });
-        cubeMesh.material = videoMaterials; 
+        cubeMesh.material = videoMaterials;
+        shellMesh.visible = false; // Hide shell for video 
       } else {
         videoToggleBtn.style.display = 'none';
         sourceVideo.pause();
         cubeMesh.material = materials; 
+        shellMesh.visible = true; // Show shell
         
         const urls = getCubemapUrls(currentLocation, targetVersion, false);
         const textures = await Promise.all(urls.map(url => textureLoader.loadAsync(url)));
@@ -639,6 +669,12 @@
           mat.uniforms.uDisplacementScale.value = currentSliderVal * 40.0;
           mat.needsUpdate = true;
         });
+
+        // Update Ghost Shell textures
+        shellMaterials.forEach((mat, i) => {
+          mat.uniforms.tColor.value = textures[i];
+          mat.needsUpdate = true;
+        });
       }
 
       renderer.setRenderTarget(rtNew); renderer.render(scene, camera); renderer.setRenderTarget(null);
@@ -662,6 +698,28 @@
 
       camera.position.set(0, 0, 0);
 
+      // --- NEW: Calculate Independent Auto-Tilt Parallax ---
+      if (deviceOrientation && !useGyro && !isDragging) {
+        if (baseGamma === null) { 
+           baseGamma = deviceOrientation.gamma || 0; 
+           baseBeta = deviceOrientation.beta || 0; 
+        }
+        let dGamma = (deviceOrientation.gamma || 0) - baseGamma;
+        let dBeta = (deviceOrientation.beta || 0) - baseBeta;
+        
+        // Handle physical wrap-around to prevent snapping
+        if (dGamma > 180) dGamma -= 360; else if (dGamma < -180) dGamma += 360;
+        if (dBeta > 180) dBeta -= 360; else if (dBeta < -180) dBeta += 360;
+
+        // Smooth interpolation for the tilt
+        tiltX = THREE.MathUtils.lerp(tiltX, THREE.MathUtils.clamp(dGamma * 0.05, -1, 1), 0.1);
+        tiltY = THREE.MathUtils.lerp(tiltY, THREE.MathUtils.clamp(dBeta * 0.05, -1, 1), 0.1);
+      } else {
+        tiltX = THREE.MathUtils.lerp(tiltX, 0, 0.1);
+        tiltY = THREE.MathUtils.lerp(tiltY, 0, 0.1);
+      }
+
+      // Orientation overrides mouse look if Gyro is physically active
       if (useGyro && deviceOrientation) {
         const alpha = deviceOrientation.alpha ? THREE.MathUtils.degToRad(deviceOrientation.alpha) : 0;
         const beta = deviceOrientation.beta ? THREE.MathUtils.degToRad(deviceOrientation.beta) : 0;
@@ -676,23 +734,13 @@
       }
 
       // Orbital rotation arc
-      const orbitRadius = 8.0; 
+      const orbitRadius = 6.0; 
       camera.translateZ(orbitRadius); 
 
-      // Stronger idle breath and gyro sweep
-      const time = performance.now() * 0.001;
-      let swayX = Math.sin(time * 0.5) * 2.0;
-      let swayY = Math.cos(time * 0.6) * 1.0;
-
-      if (useGyro && deviceOrientation) {
-          swayX = Math.sin((deviceOrientation.gamma || 0) * Math.PI / 180) * 8.0;
-          swayY = Math.sin((deviceOrientation.beta || 0) * Math.PI / 180) * 8.0;
-      }
-
-      // Deep parallax offset
-      const parallaxStrength = 6.0;
-      camera.translateX(currentMouseX * parallaxStrength + swayX);
-      camera.translateY(currentMouseY * parallaxStrength + swayY);
+      // Deep parallax offset combining Touch Drag + Physical Tilt
+      const parallaxStrength = 8.0;
+      camera.translateX((currentMouseX + tiltX) * parallaxStrength);
+      camera.translateY((currentMouseY + tiltY) * parallaxStrength);
 
       if (isTransitioning) renderer.render(transitionScene, transitionCamera);
       else renderer.render(scene, camera);
@@ -730,3 +778,4 @@
   </script>
 </body>
 </html>
+ 
