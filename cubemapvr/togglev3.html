@@ -116,7 +116,8 @@
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
     }
   }
   </script>
@@ -186,6 +187,8 @@
 
   <script type="module">
     import * as THREE from 'three';
+    // Import the RoundedBoxGeometry addon
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
     const rawUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/';
 
@@ -343,8 +346,10 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
 
-    // Geometry kept heavily subdivided for clean spherical deformation
-    const geometry = new THREE.BoxGeometry(100, 100, 100, 64, 64, 64);
+    // Using RoundedBoxGeometry to bevel the corners. 
+    // This allows normal-based displacement to wrap smoothly without tearing the edges.
+    const radius = 12;
+    const geometry = new RoundedBoxGeometry(100, 100, 100, 32, radius);
     geometry.scale(-1, 1, 1); 
     
     const dummyDepthData = new Uint8Array([0, 0, 0, 255]); 
@@ -354,7 +359,7 @@
     dummyDepthTex.generateMipmaps = false;
     dummyDepthTex.needsUpdate = true;
 
-    // --- THE SEAM FIX & SPHERE SHADER ---
+    // --- Standard Displacement Shader ---
     const depthShaderDef = {
       vertexShader: `
         uniform sampler2D tDepth;
@@ -366,18 +371,9 @@
           vec4 dTex = texture2D(tDepth, uv);
           float vDepth = clamp(dTex.r, 0.0, 1.0);
 
-          // 1. Convert rigid box into a perfect sphere
-          vec3 dir = normalize(position);
-          float radius = 50.0;
-          vec3 spherePos = dir * radius;
-
-          // 2. STITCH SEAMS: Force displacement to zero at the extreme edges of the UV maps
-          // This keeps the faces perfectly glued together, preventing tearing.
-          float edgeDist = min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y));
-          float seamMask = smoothstep(0.0, 0.02, edgeDist); 
-
-          // 3. Apply the masked depth displacement
-          vec3 newPos = spherePos - dir * (vDepth * uDisplacementScale * seamMask);
+          // Pushing inward toward the center based on depth
+          vec3 dir = -normalize(position);
+          vec3 newPos = position + dir * (vDepth * uDisplacementScale);
           
           gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
         }
@@ -397,10 +393,15 @@
     const materials = [];
     for (let i = 0; i < 6; i++) {
       materials.push(new THREE.ShaderMaterial({
-        uniforms: { tColor: { value: null }, tDepth: { value: dummyDepthTex }, uDisplacementScale: { value: 0.0 } },
+        uniforms: {
+          tColor: { value: null },
+          tDepth: { value: dummyDepthTex },
+          uDisplacementScale: { value: 0.0 } 
+        },
         vertexShader: depthShaderDef.vertexShader,
         fragmentShader: depthShaderDef.fragmentShader,
-        side: THREE.FrontSide, depthWrite: true 
+        side: THREE.FrontSide,
+        depthWrite: true 
       }));
     }
 
@@ -423,7 +424,7 @@
     for (let i = 0; i < 6; i++) {
       videoMaterials.push(new THREE.ShaderMaterial({
         uniforms: { tVideo: { value: videoTexture }, uFace: { value: i } },
-        vertexShader: `varying vec2 vUv; void main() { vUv = uv; vec3 dir = normalize(position); vec3 spherePos = dir * 50.0; gl_Position = projectionMatrix * modelViewMatrix * vec4(spherePos, 1.0); }`,
+        vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
         fragmentShader: `
           uniform sampler2D tVideo; uniform int uFace; varying vec2 vUv;
           vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 5.0, (2.0 - row + localUv.y) / 3.0); }
@@ -473,7 +474,7 @@
     let baseGamma = null, baseBeta = null;
     let sensorsInitialized = false;
 
-    // --- Robust Sensor Initialization ---
+    // --- Wakes up sensor silently on first tap ---
     const initTiltSensors = () => {
       if (sensorsInitialized) return;
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -508,22 +509,7 @@
       }
     });
 
-    const onPointerDown = (clientX, clientY) => { 
-      isDragging = true; 
-      useGyro = false; 
-      startX = clientX; 
-      startY = clientY; 
-      startLon = lon; 
-      startLat = lat; 
-      
-      // RECALIBRATE TILT CENTER ON TAP
-      // If the effect gets stuck, touching the screen instantly resets the baseline to the phone's current position.
-      if (deviceOrientation) {
-          baseGamma = deviceOrientation.gamma || 0;
-          baseBeta = deviceOrientation.beta || 0;
-      }
-    };
-
+    const onPointerDown = (clientX, clientY) => { isDragging = true; useGyro = false; startX = clientX; startY = clientY; startLon = lon; startLat = lat; };
     const onPointerMove = (clientX, clientY, isTouch = false) => {
       if (!isDragging) return;
       const sensitivity = isTouch ? 0.35 : 0.15; 
@@ -695,26 +681,21 @@
       requestAnimationFrame(animateTween);
     }
 
-    // --- Main Render Loop ---
-        // --- Main Render Loop ---
+    // --- Main Render Loop (Fused Tilt & Gyro) ---
     function render() {
       requestAnimationFrame(render);
 
-      // Smooth mouse interpolation
       currentMouseX += (targetMouseX - currentMouseX) * 0.1;
       currentMouseY += (targetMouseY - currentMouseY) * 0.1;
 
-      // Reset Camera to Origin
       camera.position.set(0, 0, 0);
 
-      // --- WAKE UP TILT CONTINUOUSLY ---
-      // Removed the !useGyro restriction so the high-pass filter always tracks micro-movements
+      // Continuously calculates translation tilt without disabling if gyro is on
       if (deviceOrientation && !isDragging) {
         if (baseGamma === null) { 
            baseGamma = deviceOrientation.gamma || 0; 
            baseBeta = deviceOrientation.beta || 0; 
         } else {
-           // The "spring" constantly centers the baseline
            baseGamma += ((deviceOrientation.gamma || 0) - baseGamma) * 0.05;
            baseBeta += ((deviceOrientation.beta || 0) - baseBeta) * 0.05;
         }
@@ -722,7 +703,6 @@
         let dGamma = (deviceOrientation.gamma || 0) - baseGamma;
         let dBeta = (deviceOrientation.beta || 0) - baseBeta;
 
-        // Prevent physical 360 wrap-around snapping
         if (dGamma > 180) dGamma -= 360; else if (dGamma < -180) dGamma += 360;
         if (dBeta > 180) dBeta -= 360; else if (dBeta < -180) dBeta += 360;
 
@@ -733,7 +713,7 @@
         tiltY = THREE.MathUtils.lerp(tiltY, 0, 0.1);
       }
 
-      // --- APPLY MACRO-ROTATION FIRST ---
+      // Sets macro rotation based on active input
       if (useGyro && deviceOrientation) {
         const alpha = deviceOrientation.alpha ? THREE.MathUtils.degToRad(deviceOrientation.alpha) : 0;
         const beta = deviceOrientation.beta ? THREE.MathUtils.degToRad(deviceOrientation.beta) : 0;
@@ -747,12 +727,10 @@
         camera.lookAt(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
       }
 
-      // --- APPLY KINEMATIC OFFSETS ---
       const orbitRadius = 4.0; 
       camera.translateZ(orbitRadius); 
 
-      // If the gyro is active, we lower the translation strength slightly 
-      // because the rotation is already creating massive movement.
+      // Reduces translation strength if gyro is handling large sweeps
       const parallaxStrength = useGyro ? 4.0 : 8.0;
       camera.translateX((currentMouseX + tiltX) * parallaxStrength);
       camera.translateY((currentMouseY + tiltY) * parallaxStrength);
@@ -761,6 +739,12 @@
       else renderer.render(scene, camera);
     }
 
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      rtOld.setSize(window.innerWidth, window.innerHeight); rtNew.setSize(window.innerWidth, window.innerHeight);
+      transitionMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
+    });
 
     function updateUI() {
       const locSelect = document.getElementById('location-selector');
