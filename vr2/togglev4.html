@@ -442,7 +442,6 @@
             vUv = uv;
             float vDepth = clamp(texture2D(tDepth, uv).r, 0.0, 1.0);
             
-            // The edge pinch has been completely removed to preserve seamless continuous geometry
             vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
           }
@@ -479,11 +478,6 @@
         }
 
         // CORRECTED WEDGE BLEND WEIGHTS
-        // By aligning the d1 and d2 formulas strictly to the geometry boundaries:
-        // wBottom meets Front (y=0)
-        // wTop meets Back (y=1)
-        // wLeft meets Left (x=0)
-        // wRight meets Right (x=1)
         float d1 = local.x - local.y; 
         float d2 = (1.0 - local.x) - local.y;
         float t1 = smoothstep(-0.1, 0.1, d1); 
@@ -532,7 +526,6 @@
             vUv = uv;
             float vDepth = clamp(sampleAtlas(tDepth, uFace, uv).r, 0.0, 1.0);
             
-            // No edge pinch! Seamless depth sampling guarantees physical mesh continuity
             vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
           }
@@ -944,19 +937,27 @@
         camera.lookAt(Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta));
       }
 
-      let orbitRadius = 2.0;
+      let orbitRadius = 0.0;
       let swayX = 0, swayY = 0;
 
       if (hasActiveDepth) {
-          orbitRadius = -1.5; 
-          const time = performance.now() * 0.001;
-          swayX = Math.sin(time * 0.5) * 0.25;
-          swayY = Math.cos(time * 0.4) * 0.15;
+          // Pushing the pivot back translates rotational sweeping into massive physical arcs
+          orbitRadius = -3.5; 
+          
+          // Continuous, slow "floating" movement ensures depth parallax is 
+          // constantly visible even if the device/camera is held perfectly still.
+          const floatTime = performance.now() * 0.0006;
+          swayX = Math.sin(floatTime) * 1.5 + Math.cos(floatTime * 0.7) * 0.5;
+          swayY = Math.cos(floatTime * 1.1) * 1.0 + Math.sin(floatTime * 0.8) * 0.5;
+      } else {
+          // Flat panos remain relatively stationary with minor orbiting
+          orbitRadius = 2.0;
       }
       
       camera.translateZ(orbitRadius); 
 
-      const parallaxStrength = gyroActive ? (hasActiveDepth ? 1.5 : 2.0) : 4.0;
+      // Stack touch parallax and tilt offsets on top of the ambient sway
+      const parallaxStrength = gyroActive ? (hasActiveDepth ? 1.0 : 2.0) : 4.0;
       camera.translateX(swayX + (currentMouseX + tiltX) * parallaxStrength);
       camera.translateY(swayY + (currentMouseY + tiltY) * parallaxStrength);
 
