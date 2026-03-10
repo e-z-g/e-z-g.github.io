@@ -287,10 +287,10 @@
             customMaps.color = URL.createObjectURL(e.target.files[0]);
             document.getElementById('lbl-upload-color').classList.add('active');
             forceCustomSelection();
-            isTransitioning = false; // Break any existing lock so upload applies instantly
+            isTransitioning = false;
             loadPanorama('fade');
         }
-        e.target.value = ''; // Reset input so identical file can be picked again
+        e.target.value = '';
     });
     
     document.getElementById('upload-depth').addEventListener('change', e => {
@@ -299,7 +299,7 @@
             customMaps.depth = URL.createObjectURL(e.target.files[0]);
             document.getElementById('lbl-upload-depth').classList.add('active');
             forceCustomSelection();
-            isTransitioning = false; // Break any existing lock so upload applies instantly
+            isTransitioning = false;
             loadPanorama('fade');
         }
         e.target.value = ''; 
@@ -441,9 +441,9 @@
           void main() {
             vUv = uv;
             float vDepth = clamp(texture2D(tDepth, uv).r, 0.0, 1.0);
-            float edgeX = min(uv.x, 1.0 - uv.x); float edgeY = min(uv.y, 1.0 - uv.y);
-            float edgeFade = smoothstep(0.0, 0.01, min(edgeX, edgeY));
-            vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale * edgeFade));
+            
+            // The edge pinch has been completely removed to preserve seamless continuous geometry
+            vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
           }
         `,
@@ -461,7 +461,6 @@
     }
 
     // --- MATERIAL SYSTEM 2: 5x3 ATLAS WEDGE/CROSSFADE ENGINE ---
-    // Dedicated shader with complex branching logic, guaranteed to be fed NPOT-safe textures.
     const atlasLogic = `
       vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 5.0, (2.0 - row + localUv.y) / 3.0); }
       vec2 rotateUV(vec2 uv, float angleDeg) {
@@ -469,33 +468,46 @@
         vec2 p = uv - 0.5; return vec2(p.x * c - p.y * s, p.x * s + p.y * c) + 0.5;
       }
       vec4 sampleAtlas(sampler2D tex, int face, vec2 local) {
-        if (face == 4) return texture2D(tex, getGrid(1.0, 1.0, local));
-        if (face == 0) return texture2D(tex, getGrid(2.0, 1.0, local));
-        if (face == 5) return texture2D(tex, getGrid(3.0, 1.0, local));
-        if (face == 1) {
+        if (face == 4) return texture2D(tex, getGrid(1.0, 1.0, local)); // Front
+        if (face == 0) return texture2D(tex, getGrid(2.0, 1.0, local)); // Right
+        if (face == 5) return texture2D(tex, getGrid(3.0, 1.0, local)); // Back
+        
+        if (face == 1) { // Left (Crossfade col 4 with col 0)
           vec4 c4 = texture2D(tex, getGrid(4.0, 1.0, local));
           vec4 c0 = texture2D(tex, getGrid(0.0, 1.0, local));
           return mix(c4, c0, smoothstep(0.25, 0.75, local.x));
         }
-        if (face == 2) {
-          float d1 = local.x - local.y; float d2 = (1.0 - local.x) - local.y;
-          float t1 = smoothstep(-0.1, 0.1, d1); float t2 = smoothstep(-0.1, 0.1, d2);
-          float w_top = t1 * t2; float w_left = (1.0 - t1) * t2; float w_bottom = (1.0 - t1) * (1.0 - t2); float w_right = t1 * (1.0 - t2);
-          vec4 cTop = texture2D(tex, getGrid(3.0, 0.0, rotateUV(local, 180.0)));
-          vec4 cBot = texture2D(tex, getGrid(1.0, 0.0, local));
-          vec4 cLeft = texture2D(tex, getGrid(0.0, 0.0, rotateUV(local, 90.0)));
+
+        // CORRECTED WEDGE BLEND WEIGHTS
+        // By aligning the d1 and d2 formulas strictly to the geometry boundaries:
+        // wBottom meets Front (y=0)
+        // wTop meets Back (y=1)
+        // wLeft meets Left (x=0)
+        // wRight meets Right (x=1)
+        float d1 = local.x - local.y; 
+        float d2 = (1.0 - local.x) - local.y;
+        float t1 = smoothstep(-0.1, 0.1, d1); 
+        float t2 = smoothstep(-0.1, 0.1, d2);
+        
+        float wBottom = t1 * t2;
+        float wTop    = (1.0 - t1) * (1.0 - t2);
+        float wLeft   = (1.0 - t1) * t2;
+        float wRight  = t1 * (1.0 - t2);
+
+        if (face == 2) { // Top Cap
+          vec4 cFront = texture2D(tex, getGrid(1.0, 0.0, local));
+          vec4 cBack  = texture2D(tex, getGrid(3.0, 0.0, rotateUV(local, 180.0)));
+          vec4 cLeft  = texture2D(tex, getGrid(0.0, 0.0, rotateUV(local, 90.0)));
           vec4 cRight = texture2D(tex, getGrid(2.0, 0.0, rotateUV(local, -90.0)));
-          return cTop * w_top + cBot * w_bottom + cLeft * w_left + cRight * w_right;
+          return cFront * wBottom + cBack * wTop + cLeft * wLeft + cRight * wRight;
         }
-        if (face == 3) {
-          float d1 = local.x - local.y; float d2 = (1.0 - local.x) - local.y;
-          float t1 = smoothstep(-0.1, 0.1, d1); float t2 = smoothstep(-0.1, 0.1, d2);
-          float w_top = t1 * t2; float w_left = (1.0 - t1) * t2; float w_bottom = (1.0 - t1) * (1.0 - t2); float w_right = t1 * (1.0 - t2);
-          vec4 cTop = texture2D(tex, getGrid(1.0, 2.0, local));
-          vec4 cBot = texture2D(tex, getGrid(3.0, 2.0, rotateUV(local, 180.0)));
-          vec4 cLeft = texture2D(tex, getGrid(0.0, 2.0, rotateUV(local, -90.0))); 
+        
+        if (face == 3) { // Bottom Cap
+          vec4 cFront = texture2D(tex, getGrid(1.0, 2.0, local));
+          vec4 cBack  = texture2D(tex, getGrid(3.0, 2.0, rotateUV(local, 180.0)));
+          vec4 cLeft  = texture2D(tex, getGrid(0.0, 2.0, rotateUV(local, -90.0))); 
           vec4 cRight = texture2D(tex, getGrid(2.0, 2.0, rotateUV(local, 90.0)));
-          return cTop * w_top + cBot * w_bottom + cLeft * w_left + cRight * w_right;
+          return cFront * wTop + cBack * wBottom + cLeft * wLeft + cRight * wRight;
         }
         return vec4(0.0);
       }
@@ -519,9 +531,9 @@
           void main() {
             vUv = uv;
             float vDepth = clamp(sampleAtlas(tDepth, uFace, uv).r, 0.0, 1.0);
-            float edgeX = min(uv.x, 1.0 - uv.x); float edgeY = min(uv.y, 1.0 - uv.y);
-            float edgeFade = smoothstep(0.0, 0.01, min(edgeX, edgeY));
-            vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale * edgeFade));
+            
+            // No edge pinch! Seamless depth sampling guarantees physical mesh continuity
+            vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
           }
         `,
@@ -692,6 +704,21 @@
 
     const textureLoader = new THREE.TextureLoader(); textureLoader.crossOrigin = 'anonymous';
 
+    function safeDisposeTextures() {
+        const toDispose = new Set();
+        standardMaterials.forEach(mat => {
+            const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
+            if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
+            if (d && d !== dummyDepthTex) toDispose.add(d);
+        });
+        atlasMaterials.forEach(mat => {
+            const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
+            if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
+            if (d && d !== dummyDepthTex) toDispose.add(d);
+        });
+        return toDispose;
+    }
+
     function getCubemapUrls(loc, version, fetchDepth = false) {
       const s = fetchDepth ? loc.depthSuffix : (typeof version === 'string' ? version : (version.suffix || ''));
       const type = (typeof version === 'object' && version.type) ? version.type : loc.type;
@@ -726,6 +753,8 @@
       const isCustom = currentLocation.type === 'custom';
       
       try {
+          const oldTextures = safeDisposeTextures();
+
           if (isVideo) {
             hasActiveDepth = false;
             depthControlsContainer.style.display = 'none';
@@ -737,7 +766,6 @@
             
             cubeMesh.material = atlasMaterials;
             atlasMaterials.forEach((mat) => {
-              if (mat.uniforms.tColor.value && mat.uniforms.tColor.value !== videoTexture && mat.uniforms.tColor.value !== defaultCustomTex) mat.uniforms.tColor.value.dispose();
               mat.uniforms.tColor.value = videoTexture;
               mat.uniforms.tDepth.value = dummyDepthTex;
               mat.uniforms.uDisplacementScale.value = 0.0;
@@ -758,7 +786,6 @@
                 cTex = loaded[0];
                 dTex = loaded[1];
                 
-                // CRITICAL FOR NPOT IMAGES (Web Stitcher outputs)
                 if (cTex !== defaultCustomTex) {
                     cTex.colorSpace = THREE.SRGBColorSpace;
                     cTex.generateMipmaps = false;
@@ -785,20 +812,20 @@
             
             cubeMesh.material = atlasMaterials;
             atlasMaterials.forEach((mat) => {
-              if (mat.uniforms.tColor.value && mat.uniforms.tColor.value !== videoTexture && mat.uniforms.tColor.value !== defaultCustomTex) mat.uniforms.tColor.value.dispose();
-              if (mat.uniforms.tDepth.value && mat.uniforms.tDepth.value !== dummyDepthTex) mat.uniforms.tDepth.value.dispose();
-              
               mat.uniforms.tColor.value = cTex;
               mat.uniforms.tDepth.value = dTex;
               mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
             });
+            
+            oldTextures.delete(cTex); oldTextures.delete(dTex);
             
           } else {
             videoToggleBtn.style.display = 'none';
             sourceVideo.pause();
             
             const urls = getCubemapUrls(currentLocation, targetVersion, false);
-            const textures = await Promise.all(urls.map(url => textureLoader.loadAsync(url)));
+            const loadedColors = await Promise.all(urls.map(url => textureLoader.loadAsync(url)));
+            
             if (loadId !== currentLoadId) return; 
             
             let depthTextures = null;
@@ -818,30 +845,35 @@
             
             cubeMesh.material = standardMaterials;
             standardMaterials.forEach((mat, i) => {
-              if (mat.uniforms.tColor.value) mat.uniforms.tColor.value.dispose();
-              if (mat.uniforms.tDepth.value && mat.uniforms.tDepth.value !== dummyDepthTex) mat.uniforms.tDepth.value.dispose();
-              
-              mat.uniforms.tColor.value = textures[i];
-              mat.uniforms.tColor.value.colorSpace = THREE.SRGBColorSpace;
-              mat.uniforms.tColor.value.minFilter = THREE.LinearMipmapLinearFilter;
-              mat.uniforms.tColor.value.magFilter = THREE.LinearFilter;
-              mat.uniforms.tColor.value.generateMipmaps = true;
+              const tex = loadedColors[i];
+              tex.colorSpace = THREE.SRGBColorSpace;
+              tex.minFilter = THREE.LinearMipmapLinearFilter;
+              tex.magFilter = THREE.LinearFilter;
+              tex.generateMipmaps = true;
+              mat.uniforms.tColor.value = tex;
               
               if (depthTextures && depthTextures[i] && depthTextures[i] !== dummyDepthTex) {
-                  mat.uniforms.tDepth.value = depthTextures[i];
-                  mat.uniforms.tDepth.value.wrapS = THREE.ClampToEdgeWrapping;
-                  mat.uniforms.tDepth.value.wrapT = THREE.ClampToEdgeWrapping;
-                  mat.uniforms.tDepth.value.colorSpace = THREE.NoColorSpace;
-                  mat.uniforms.tDepth.value.minFilter = THREE.LinearFilter;
-                  mat.uniforms.tDepth.value.magFilter = THREE.LinearFilter;
-                  mat.uniforms.tDepth.value.generateMipmaps = false;
+                  const dTex = depthTextures[i];
+                  dTex.wrapS = THREE.ClampToEdgeWrapping;
+                  dTex.wrapT = THREE.ClampToEdgeWrapping;
+                  dTex.colorSpace = THREE.NoColorSpace;
+                  dTex.minFilter = THREE.LinearFilter;
+                  dTex.magFilter = THREE.LinearFilter;
+                  dTex.generateMipmaps = false;
+                  mat.uniforms.tDepth.value = dTex;
               } else {
                   mat.uniforms.tDepth.value = dummyDepthTex; 
               }
               
               mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
             });
+            
+            loadedColors.forEach(t => oldTextures.delete(t));
+            if(depthTextures) depthTextures.forEach(t => oldTextures.delete(t));
           }
+          
+          oldTextures.forEach(t => t.dispose());
+
       } catch (err) {
           console.error("Failed to load panorama:", err);
           isTransitioning = false;
