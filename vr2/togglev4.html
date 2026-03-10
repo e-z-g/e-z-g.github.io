@@ -70,13 +70,14 @@
       background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
       border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer;
       color: #fff; text-transform: uppercase; font-weight: bold; transition: all 0.2s;
+      flex: 1; text-align: center;
     }
     .upload-btn:hover { background: rgba(255,255,255,0.25); }
     .upload-btn.active { border-color: #4ade80; color: #4ade80; }
 
     input[type=range] { 
       -webkit-appearance: none; background: transparent; 
-      width: 80px; max-width: 20vw;
+      width: 70px; max-width: 15vw;
       margin: 0 4px; transition: opacity 0.2s; flex-shrink: 0; 
     }
     input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 3px; background: rgba(255,255,255,0.3); border-radius: 1.5px; }
@@ -143,15 +144,15 @@
       <div style="width:1px; height:16px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
       <div id="quality-buttons" style="display:flex; gap:2px;"></div>
       
-      <div id="custom-upload-controls" style="display:none; gap:6px;">
-        <label class="upload-btn" id="lbl-upload-color">
-          Color 5x3
-          <input type="file" id="upload-color" accept="image/*" style="display:none;">
-        </label>
-        <label class="upload-btn" id="lbl-upload-depth">
-          Depth 5x3
-          <input type="file" id="upload-depth" accept="image/*" style="display:none;">
-        </label>
+      <div id="custom-upload-controls" style="display:none; flex-direction:column; gap:4px;">
+        <div style="display:flex; gap:6px; width: 100%;">
+            <label class="upload-btn" id="lbl-upload-fg-color">FG Color <input type="file" id="upload-fg-color" accept="image/*" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-fg-depth">FG Depth <input type="file" id="upload-fg-depth" accept="image/*" style="display:none;"></label>
+        </div>
+        <div style="display:flex; gap:6px; width: 100%;">
+            <label class="upload-btn" id="lbl-upload-bg-color">BG Color <input type="file" id="upload-bg-color" accept="image/*" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-bg-depth">BG Depth <input type="file" id="upload-bg-depth" accept="image/*" style="display:none;"></label>
+        </div>
       </div>
     </div>
     
@@ -178,8 +179,13 @@
     </div>
 
     <div class="controls-row" id="depth-controls" style="display:none; padding-left: 14px; padding-right: 14px;">
-      <label class="depth-label">3D Parallax</label>
+      <label class="depth-label">Depth</label>
       <input type="range" id="displacement-slider" min="0" max="100" value="70" title="Mesh Deformation Strength">
+      <div id="tear-controls" style="display:none; align-items:center;">
+          <div style="width:1px; height:12px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
+          <label class="depth-label">Tear</label>
+          <input type="range" id="tear-slider" min="0" max="100" value="15" title="Edge Tearing Sensitivity">
+      </div>
     </div>
   </div>
 
@@ -246,7 +252,7 @@
         ]
       },
       {
-        name: 'Custom (5x3 Upload)',
+        name: 'Custom (5x3 LDI Upload)',
         type: 'custom',
         audio: null,
         hasDepth: false,
@@ -260,16 +266,14 @@
     let isTransitioning = false;
     let currentLoadId = 0;
     
-    // Manage Custom Files
-    const customMaps = { color: null, depth: null };
+    // Manage Custom Files for Layered Depth Images
+    const customMaps = { fgColor: null, fgDepth: null, bgColor: null, bgDepth: null };
 
-    // Default dark texture for custom view before an image is provided
     const defaultCustomData = new Uint8Array([20, 20, 20, 255]);
     const defaultCustomTex = new THREE.DataTexture(defaultCustomData, 1, 1, THREE.RGBAFormat);
     defaultCustomTex.colorSpace = THREE.SRGBColorSpace;
     defaultCustomTex.needsUpdate = true;
     
-    // Unifies UI selection automatically when an upload occurs
     const forceCustomSelection = () => {
       const locSelect = document.getElementById('location-selector');
       const customIdx = locations.findIndex(l => l.type === 'custom');
@@ -281,29 +285,24 @@
       }
     };
 
-    document.getElementById('upload-color').addEventListener('change', e => {
-        if(e.target.files[0]) {
-            if(customMaps.color) URL.revokeObjectURL(customMaps.color);
-            customMaps.color = URL.createObjectURL(e.target.files[0]);
-            document.getElementById('lbl-upload-color').classList.add('active');
-            forceCustomSelection();
-            isTransitioning = false;
-            loadPanorama('fade');
-        }
-        e.target.value = '';
-    });
-    
-    document.getElementById('upload-depth').addEventListener('change', e => {
-        if(e.target.files[0]) {
-            if(customMaps.depth) URL.revokeObjectURL(customMaps.depth);
-            customMaps.depth = URL.createObjectURL(e.target.files[0]);
-            document.getElementById('lbl-upload-depth').classList.add('active');
-            forceCustomSelection();
-            isTransitioning = false;
-            loadPanorama('fade');
-        }
-        e.target.value = ''; 
-    });
+    const setupUploader = (id, mapKey) => {
+        document.getElementById(`upload-${id}`).addEventListener('change', e => {
+            if(e.target.files[0]) {
+                if(customMaps[mapKey]) URL.revokeObjectURL(customMaps[mapKey]);
+                customMaps[mapKey] = URL.createObjectURL(e.target.files[0]);
+                document.getElementById(`lbl-upload-${id}`).classList.add('active');
+                forceCustomSelection();
+                isTransitioning = false;
+                loadPanorama('fade');
+            }
+            e.target.value = '';
+        });
+    };
+
+    setupUploader('fg-color', 'fgColor');
+    setupUploader('fg-depth', 'fgDepth');
+    setupUploader('bg-color', 'bgColor');
+    setupUploader('bg-depth', 'bgDepth');
 
     // --- Audio System ---
     const audioSystem = { active: new Audio(), fading: new Audio(), isMuted: true, masterVolume: 0, currentUrl: currentLocation.audio, fadeInterval: null };
@@ -420,12 +419,15 @@
     const geometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128);
     geometry.scale(-1, 1, 1); 
     
+    // Background geometry gets scaled slightly larger so it doesn't z-fight
+    const bgGeometry = new THREE.BoxGeometry(100.2, 100.2, 100.2, 128, 128, 128);
+    bgGeometry.scale(-1, 1, 1);
+    
     const dummyDepthData = new Uint8Array([0, 0, 0, 255]); 
     const dummyDepthTex = new THREE.DataTexture(dummyDepthData, 1, 1, THREE.RGBAFormat);
     dummyDepthTex.needsUpdate = true;
 
     // --- MATERIAL SYSTEM 1: STANDARD 1x1 FACES ---
-    // Pure, branchless shader that safely handles mipmapping for standard galleries.
     const standardMaterials = [];
     for (let i = 0; i < 6; i++) {
       standardMaterials.push(new THREE.ShaderMaterial({
@@ -441,7 +443,6 @@
           void main() {
             vUv = uv;
             float vDepth = clamp(texture2D(tDepth, uv).r, 0.0, 1.0);
-            
             vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
             gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
           }
@@ -459,7 +460,7 @@
       }));
     }
 
-    // --- MATERIAL SYSTEM 2: 5x3 ATLAS WEDGE/CROSSFADE ENGINE ---
+    // --- MATERIAL SYSTEM 2: 5x3 ATLAS WEDGE/CROSSFADE + LDI OCCLUSION ENGINE ---
     const atlasLogic = `
       vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 5.0, (2.0 - row + localUv.y) / 3.0); }
       vec2 rotateUV(vec2 uv, float angleDeg) {
@@ -507,52 +508,94 @@
       }
     `;
 
-    const atlasMaterials = [];
-    for (let i = 0; i < 6; i++) {
-      atlasMaterials.push(new THREE.ShaderMaterial({
-        uniforms: {
-          tColor: { value: null },
-          tDepth: { value: dummyDepthTex },
-          uDisplacementScale: { value: 0.0 },
-          uFace: { value: i }
-        },
-        vertexShader: `
-          uniform sampler2D tDepth;
-          uniform float uDisplacementScale;
-          uniform int uFace;
-          varying vec2 vUv;
-          ${atlasLogic}
-          void main() {
-            vUv = uv;
-            float vDepth = clamp(sampleAtlas(tDepth, uFace, uv).r, 0.0, 1.0);
-            
-            vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform sampler2D tColor;
-          uniform int uFace;
-          varying vec2 vUv;
-          ${atlasLogic}
-          void main() {
-            gl_FragColor = sampleAtlas(tColor, uFace, vUv);
-            #include <tonemapping_fragment>
-            #include <colorspace_fragment>
-          }
-        `,
-        side: THREE.FrontSide, depthWrite: true 
-      }));
-    }
+    const createAtlasMaterials = () => {
+        const mats = [];
+        for (let i = 0; i < 6; i++) {
+          mats.push(new THREE.ShaderMaterial({
+            uniforms: {
+              tColor: { value: null },
+              tDepth: { value: dummyDepthTex },
+              uDisplacementScale: { value: 0.0 },
+              uFace: { value: i },
+              uIsForeground: { value: 0 },
+              uTearThreshold: { value: 0.0 }
+            },
+            derivatives: true, // Required to unlock fwidth() in WebGL 1.0 environments
+            vertexShader: `
+              uniform sampler2D tDepth;
+              uniform float uDisplacementScale;
+              uniform int uFace;
+              varying vec2 vUv;
+              varying float vDepthInterp;
+              ${atlasLogic}
+              void main() {
+                vUv = uv;
+                float vDepth = clamp(sampleAtlas(tDepth, uFace, uv).r, 0.0, 1.0);
+                vDepthInterp = vDepth;
+                
+                vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+              }
+            `,
+            fragmentShader: `
+              uniform sampler2D tColor;
+              uniform int uFace;
+              uniform int uIsForeground;
+              uniform float uTearThreshold;
+              varying vec2 vUv;
+              varying float vDepthInterp;
+              ${atlasLogic}
+              void main() {
+                if (uIsForeground == 1) {
+                    // LDI OCCLUSION LOGIC
+                    
+                    // 1. Delete absolute black pixels (these are strictly the background)
+                    if (vDepthInterp < 0.01) discard;
+                    
+                    // 2. Delete the stretched polygons connecting background to foreground
+                    // fwidth tracks the physical slope/gradient of the mesh face.
+                    if (uTearThreshold > 0.0 && fwidth(vDepthInterp) > uTearThreshold) {
+                        discard;
+                    }
+                }
+                
+                gl_FragColor = sampleAtlas(tColor, uFace, vUv);
+                #include <tonemapping_fragment>
+                #include <colorspace_fragment>
+              }
+            `,
+            side: THREE.FrontSide, depthWrite: true 
+          }));
+        }
+        return mats;
+    };
 
-    const cubeMesh = new THREE.Mesh(geometry, standardMaterials);
-    scene.add(cubeMesh);
+    const fgAtlasMaterials = createAtlasMaterials();
+    const bgAtlasMaterials = createAtlasMaterials();
+
+    // The two overlapping cubes that create the physical 3D masking illusion
+    const bgCubeMesh = new THREE.Mesh(bgGeometry, bgAtlasMaterials);
+    bgCubeMesh.renderOrder = 0; // Draw Background first
+    scene.add(bgCubeMesh);
+
+    const fgCubeMesh = new THREE.Mesh(geometry, fgAtlasMaterials);
+    fgCubeMesh.renderOrder = 1; // Draw Foreground with masking/discard on top
+    scene.add(fgCubeMesh);
 
     const depthControlsContainer = document.getElementById('depth-controls');
+    const tearControls = document.getElementById('tear-controls');
+    
     document.getElementById('displacement-slider').addEventListener('input', (e) => {
       const val = parseFloat(e.target.value) / 100.0;
       standardMaterials.forEach(m => m.uniforms.uDisplacementScale.value = val * 0.95); 
-      atlasMaterials.forEach(m => m.uniforms.uDisplacementScale.value = val * 0.95); 
+      fgAtlasMaterials.forEach(m => m.uniforms.uDisplacementScale.value = val * 0.95); 
+      bgAtlasMaterials.forEach(m => m.uniforms.uDisplacementScale.value = val * 0.95); 
+    });
+    
+    document.getElementById('tear-slider').addEventListener('input', (e) => {
+        // Values from 0 to 100 map to a highly sensitive gradient limit (0 to 0.1)
+        const val = parseFloat(e.target.value) / 1000.0; 
+        fgAtlasMaterials.forEach(m => m.uniforms.uTearThreshold.value = val); 
     });
 
     const videoTexture = new THREE.VideoTexture(sourceVideo);
@@ -699,16 +742,14 @@
 
     function safeDisposeTextures() {
         const toDispose = new Set();
-        standardMaterials.forEach(mat => {
-            const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
-            if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
-            if (d && d !== dummyDepthTex) toDispose.add(d);
-        });
-        atlasMaterials.forEach(mat => {
-            const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
-            if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
-            if (d && d !== dummyDepthTex) toDispose.add(d);
-        });
+        const checkMats = (mats) => {
+            mats.forEach(mat => {
+                const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
+                if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
+                if (d && d !== dummyDepthTex) toDispose.add(d);
+            });
+        };
+        checkMats(standardMaterials); checkMats(fgAtlasMaterials); checkMats(bgAtlasMaterials);
         return toDispose;
     }
 
@@ -751,66 +792,79 @@
           if (isVideo) {
             hasActiveDepth = false;
             depthControlsContainer.style.display = 'none';
+            tearControls.style.display = 'none';
             videoToggleBtn.style.display = 'inline-block';
             sourceVideo.src = targetVersion.url; sourceVideo.load();
             await new Promise(r => { 
               if(sourceVideo.readyState >= 2) r(); else sourceVideo.onloadeddata = () => r(); 
             });
             
-            cubeMesh.material = atlasMaterials;
-            atlasMaterials.forEach((mat) => {
+            fgCubeMesh.material = fgAtlasMaterials;
+            bgCubeMesh.visible = false;
+            
+            fgAtlasMaterials.forEach((mat) => {
               mat.uniforms.tColor.value = videoTexture;
               mat.uniforms.tDepth.value = dummyDepthTex;
               mat.uniforms.uDisplacementScale.value = 0.0;
+              mat.uniforms.uIsForeground.value = 0;
             });
             
           } else if (isCustom) {
             videoToggleBtn.style.display = 'none';
             sourceVideo.pause();
             
-            let cTex = defaultCustomTex;
-            let dTex = dummyDepthTex;
+            const isDualLayer = !!customMaps.bgColor;
             
-            if (customMaps.color || customMaps.depth) {
-                const loaded = await Promise.all([
-                    customMaps.color ? textureLoader.loadAsync(customMaps.color) : Promise.resolve(defaultCustomTex),
-                    customMaps.depth ? textureLoader.loadAsync(customMaps.depth) : Promise.resolve(dummyDepthTex)
-                ]);
-                cTex = loaded[0];
-                dTex = loaded[1];
-                
-                if (cTex !== defaultCustomTex) {
-                    cTex.colorSpace = THREE.SRGBColorSpace;
-                    cTex.generateMipmaps = false;
-                    cTex.minFilter = THREE.LinearFilter;
-                    cTex.magFilter = THREE.LinearFilter;
-                    cTex.wrapS = THREE.ClampToEdgeWrapping;
-                    cTex.wrapT = THREE.ClampToEdgeWrapping;
-                }
-                if (dTex !== dummyDepthTex) {
-                    dTex.colorSpace = THREE.NoColorSpace;
-                    dTex.generateMipmaps = false;
-                    dTex.minFilter = THREE.LinearFilter;
-                    dTex.magFilter = THREE.LinearFilter;
-                    dTex.wrapS = THREE.ClampToEdgeWrapping;
-                    dTex.wrapT = THREE.ClampToEdgeWrapping;
-                }
-            }
+            const loaded = await Promise.all([
+                customMaps.fgColor ? textureLoader.loadAsync(customMaps.fgColor) : Promise.resolve(defaultCustomTex),
+                customMaps.fgDepth ? textureLoader.loadAsync(customMaps.fgDepth) : Promise.resolve(dummyDepthTex),
+                isDualLayer ? textureLoader.loadAsync(customMaps.bgColor) : Promise.resolve(defaultCustomTex),
+                (isDualLayer && customMaps.bgDepth) ? textureLoader.loadAsync(customMaps.bgDepth) : Promise.resolve(dummyDepthTex)
+            ]);
+            
+            const processAtlasTex = (tex, isColor) => {
+                if (tex === defaultCustomTex || tex === dummyDepthTex) return tex;
+                tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+                tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
+                return tex;
+            };
+
+            const fgC = processAtlasTex(loaded[0], true);
+            const fgD = processAtlasTex(loaded[1], false);
+            const bgC = processAtlasTex(loaded[2], true);
+            const bgD = processAtlasTex(loaded[3], false);
             
             if (loadId !== currentLoadId) return;
 
-            hasActiveDepth = !!customMaps.depth;
+            hasActiveDepth = !!customMaps.fgDepth || !!customMaps.bgDepth;
             depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
-            const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
+            tearControls.style.display = isDualLayer ? 'flex' : 'none';
             
-            cubeMesh.material = atlasMaterials;
-            atlasMaterials.forEach((mat) => {
-              mat.uniforms.tColor.value = cTex;
-              mat.uniforms.tDepth.value = dTex;
+            const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
+            const currentTearVal = isDualLayer ? (parseFloat(document.getElementById('tear-slider').value) / 1000.0) : 0.0;
+            
+            fgCubeMesh.material = fgAtlasMaterials;
+            bgCubeMesh.visible = isDualLayer;
+            
+            fgAtlasMaterials.forEach((mat) => {
+              mat.uniforms.tColor.value = fgC;
+              mat.uniforms.tDepth.value = fgD;
               mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
+              mat.uniforms.uIsForeground.value = isDualLayer ? 1 : 0;
+              mat.uniforms.uTearThreshold.value = currentTearVal;
             });
             
-            oldTextures.delete(cTex); oldTextures.delete(dTex);
+            if (isDualLayer) {
+                bgAtlasMaterials.forEach((mat) => {
+                  mat.uniforms.tColor.value = bgC;
+                  mat.uniforms.tDepth.value = bgD;
+                  mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
+                  mat.uniforms.uIsForeground.value = 0;
+                });
+            }
+            
+            [fgC, fgD, bgC, bgD].forEach(t => oldTextures.delete(t));
             
           } else {
             videoToggleBtn.style.display = 'none';
@@ -824,6 +878,7 @@
             let depthTextures = null;
             if (currentLocation.hasDepth) {
                 depthControlsContainer.style.display = 'flex';
+                tearControls.style.display = 'none';
                 const dUrls = getCubemapUrls(currentLocation, targetVersion, true);
                 depthTextures = await Promise.all(dUrls.map(async (url) => {
                     try { return await textureLoader.loadAsync(url); } 
@@ -836,7 +891,9 @@
             hasActiveDepth = currentLocation.hasDepth;
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
             
-            cubeMesh.material = standardMaterials;
+            fgCubeMesh.material = standardMaterials;
+            bgCubeMesh.visible = false;
+            
             standardMaterials.forEach((mat, i) => {
               const tex = loadedColors[i];
               tex.colorSpace = THREE.SRGBColorSpace;
@@ -941,22 +998,17 @@
       let swayX = 0, swayY = 0;
 
       if (hasActiveDepth) {
-          // Pushing the pivot back translates rotational sweeping into massive physical arcs
           orbitRadius = -3.5; 
           
-          // Continuous, slow "floating" movement ensures depth parallax is 
-          // constantly visible even if the device/camera is held perfectly still.
           const floatTime = performance.now() * 0.0006;
           swayX = Math.sin(floatTime) * 1.5 + Math.cos(floatTime * 0.7) * 0.5;
           swayY = Math.cos(floatTime * 1.1) * 1.0 + Math.sin(floatTime * 0.8) * 0.5;
       } else {
-          // Flat panos remain relatively stationary with minor orbiting
           orbitRadius = 2.0;
       }
       
       camera.translateZ(orbitRadius); 
 
-      // Stack touch parallax and tilt offsets on top of the ambient sway
       const parallaxStrength = gyroActive ? (hasActiveDepth ? 1.0 : 2.0) : 4.0;
       camera.translateX(swayX + (currentMouseX + tiltX) * parallaxStrength);
       camera.translateY(swayY + (currentMouseY + tiltY) * parallaxStrength);
