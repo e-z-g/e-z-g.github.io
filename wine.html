@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VinoVision - Smart Inventory & AR Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+        }
+        
+        h1, h2, h3, .serif {
+            font-family: 'Playfair Display', serif;
+        }
+
+        /* Custom Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #7f1d1d;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 2px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #7f1d1d;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Highly Gradual, Softened Spotlight Effect */
+        .spotlight {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 
+                inset 0 0 80px 40px rgba(0,0,0,0.2), 
+                0 0 100px 80px rgba(0,0,0,0.4), 
+                0 0 0 9999px rgba(0,0,0,0.55);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 20;
+        }
+
+        /* Smaller soft spotlight for the minimap cards */
+        .minimap-spotlight {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 
+                inset 0 0 25px 25px rgba(255,255,255,0.05), 
+                0 0 40px 40px rgba(0,0,0,0.4), 
+                0 0 0 999px rgba(0,0,0,0.55);
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        /* AR Video container */
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* Sidebar scrollbar */
+        .sidebar-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+            background: #e5e7eb; 
+            border-radius: 4px;
+        }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+            background: #d1d5db; 
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col overflow-x-hidden">
+
+    <!-- Header -->
+    <header class="bg-red-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" />
+                </svg>
+                <h1 class="text-2xl font-bold tracking-tight">VinoVision</h1>
+            </div>
+            <div class="flex gap-3 items-center">
+                <button id="open-ar-btn" class="bg-red-800 hover:bg-red-700 text-white text-xs sm:text-sm px-3 py-1.5 rounded-full font-medium transition flex items-center gap-1.5 border border-red-700 shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    Live AR Finder
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Inventory Content (View 1) -->
+    <main id="inventory-view" class="flex-grow max-w-6xl mx-auto w-full px-4 py-6 sm:py-8 space-y-6">
+        
+        <!-- Section 1: Upload Image -->
+        <div id="upload-section" class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 sm:p-6 transition-all">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-xl font-semibold mb-1">Shelf Inventory Scanner</h3>
+                    <p class="text-sm text-gray-500">Upload a photo to extract all visible bottles into a filterable database.</p>
+                </div>
+            </div>
+            
+            <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer relative mb-4">
+                <input type="file" id="image-input" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                
+                <div id="upload-prompt" class="space-y-2 pointer-events-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p class="text-sm font-medium text-gray-700">Tap to upload a photo of the shelves</p>
+                </div>
+
+                <div id="image-preview-container" class="hidden relative z-20 pointer-events-auto">
+                    <img id="image-preview" src="" alt="Shelf Preview" class="max-h-64 mx-auto rounded shadow-sm object-contain">
+                    <button type="button" id="remove-image-btn" class="mt-3 text-sm text-red-600 hover:text-red-800 font-medium bg-white px-4 py-1.5 rounded-full shadow border border-gray-200 cursor-pointer">Remove & Reselect</button>
+                </div>
+            </div>
+
+            <button id="scan-btn" class="w-full bg-red-900 hover:bg-red-800 text-white font-semibold py-3 px-4 rounded-lg shadow-md transition-colors flex items-center justify-center text-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                Scan Shelf Inventory
+            </button>
+        </div>
+
+        <!-- Error Container -->
+        <div id="error-container" class="hidden bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+                </div>
+                <div class="ml-3"><p id="error-message" class="text-sm text-red-700"></p></div>
+            </div>
+        </div>
+
+        <!-- Main Workspace (Hidden until scan is complete) -->
+        <div id="workspace" class="hidden grid grid-cols-1 md:grid-cols-4 gap-6">
+            
+            <!-- Filters Sidebar -->
+            <div class="md:col-span-1 space-y-4">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 md:sticky md:top-24 max-h-[calc(100vh-7rem)] overflow-y-auto sidebar-scroll">
+                    <h3 class="text-lg font-bold mb-4 flex items-center justify-between">
+                        <span>Filters</span>
+                        <button id="reset-filters" class="text-xs font-normal text-red-600 hover:underline">Reset</button>
+                    </h3>
+
+                    <div class="space-y-5">
+                        <!-- Wine Type Filter -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                            <div id="type-grid" class="flex gap-2 w-full"></div>
+                        </div>
+
+                        <!-- Varietal Filter -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Grape / Varietal</label>
+                            <div id="varietal-grid" class="flex flex-wrap gap-1.5"></div>
+                        </div>
+
+                        <!-- Vibe / Occasion Filter (NEW) -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Vibe & Occasion</label>
+                            <div id="vibe-grid" class="flex flex-wrap gap-1.5"></div>
+                        </div>
+
+                        <!-- Search -->
+                        <div>
+                            <label for="search-input" class="block text-sm font-medium text-gray-700 mb-1">Search Name / Producer</label>
+                            <input type="text" id="search-input" placeholder="e.g., Chardonnay" class="filter-input w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500 text-sm">
+                        </div>
+
+                        <!-- Price Range -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="min-price" class="block text-sm font-medium text-gray-700 mb-1">Min Price</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500">$</span>
+                                    <input type="number" id="min-price" min="0" value="0" class="filter-input w-full border border-gray-300 rounded-md shadow-sm py-1.5 pl-6 pr-2 focus:outline-none focus:ring-red-500 focus:border-red-500 text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label for="max-price" class="block text-sm font-medium text-gray-700 mb-1">Max Price</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 pl-2 flex items-center text-gray-500">$</span>
+                                    <input type="number" id="max-price" min="0" value="1000" class="filter-input w-full border border-gray-300 rounded-md shadow-sm py-1.5 pl-6 pr-2 focus:outline-none focus:ring-red-500 focus:border-red-500 text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="border-gray-100">
+
+                        <!-- Profile Ranges -->
+                        <div class="space-y-4">
+                            <!-- Body -->
+                            <div class="space-y-1.5">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Body Range</label>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="relative w-1/2">
+                                        <select id="body-min" class="filter-input w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg py-2 pl-2.5 pr-6 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 shadow-sm cursor-pointer transition-colors hover:bg-white">
+                                            <option value="1">1 - Light</option>
+                                            <option value="2">2 - Med-Light</option>
+                                            <option value="3">3 - Medium</option>
+                                            <option value="4">4 - Med-Bold</option>
+                                            <option value="5">5 - Bold</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                    <span class="text-gray-400 text-[10px] font-bold uppercase px-0.5">to</span>
+                                    <div class="relative w-1/2">
+                                        <select id="body-max" class="filter-input w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg py-2 pl-2.5 pr-6 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 shadow-sm cursor-pointer transition-colors hover:bg-white">
+                                            <option value="1">1 - Light</option>
+                                            <option value="2">2 - Med-Light</option>
+                                            <option value="3">3 - Medium</option>
+                                            <option value="4">4 - Med-Bold</option>
+                                            <option value="5" selected>5 - Bold</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tannin -->
+                            <div class="space-y-1.5">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Tannin Range</label>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="relative w-1/2">
+                                        <select id="tannin-min" class="filter-input w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg py-2 pl-2.5 pr-6 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 shadow-sm cursor-pointer transition-colors hover:bg-white">
+                                            <option value="1">1 - Smooth</option>
+                                            <option value="2">2 - Mellow</option>
+                                            <option value="3">3 - Balanced</option>
+                                            <option value="4">4 - Grippy</option>
+                                            <option value="5">5 - Tannic</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                    <span class="text-gray-400 text-[10px] font-bold uppercase px-0.5">to</span>
+                                    <div class="relative w-1/2">
+                                        <select id="tannin-max" class="filter-input w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg py-2 pl-2.5 pr-6 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 shadow-sm cursor-pointer transition-colors hover:bg-white">
+                                            <option value="1">1 - Smooth</option>
+                                            <option value="2">2 - Mellow</option>
+                                            <option value="3">3 - Balanced</option>
+                                            <option value="4">4 - Grippy</option>
+                                            <option value="5" selected>5 - Tannic</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Acidity -->
+                            <div class="space-y-1.5">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Acidity Range</label>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="relative w-1/2">
+                                        <select id="acidity-min" class="filter-input w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg py-2 pl-2.5 pr-6 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 shadow-sm cursor-pointer transition-colors hover:bg-white">
+                                            <option value="1">1 - Soft</option>
+                                            <option value="2">2 - Low-Med</option>
+                                            <option value="3">3 - Balanced</option>
+                                            <option value="4">4 - Crisp</option>
+                                            <option value="5">5 - High/Tart</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                    <span class="text-gray-400 text-[10px] font-bold uppercase px-0.5">to</span>
+                                    <div class="relative w-1/2">
+                                        <select id="acidity-max" class="filter-input w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg py-2 pl-2.5 pr-6 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 shadow-sm cursor-pointer transition-colors hover:bg-white">
+                                            <option value="1">1 - Soft</option>
+                                            <option value="2">2 - Low-Med</option>
+                                            <option value="3">3 - Balanced</option>
+                                            <option value="4">4 - Crisp</option>
+                                            <option value="5" selected>5 - High/Tart</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Sweetness -->
+                            <div class="space-y-1.5">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Sweetness Range</label>
+                                <div class="flex items-center gap-1.5">
+                                    <div class="relative w-1/2">
+                                        <select id="sweet-min" class="filter-input w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg py-2 pl-2.5 pr-6 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 shadow-sm cursor-pointer transition-colors hover:bg-white">
+                                            <option value="1">1 - Dry</option>
+                                            <option value="2">2 - Off-Dry</option>
+                                            <option value="3">3 - Semi-Sweet</option>
+                                            <option value="4">4 - Sweet</option>
+                                            <option value="5">5 - Syrupy</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                    <span class="text-gray-400 text-[10px] font-bold uppercase px-0.5">to</span>
+                                    <div class="relative w-1/2">
+                                        <select id="sweet-max" class="filter-input w-full appearance-none bg-gray-50 border border-gray-200 text-gray-700 text-xs rounded-lg py-2 pl-2.5 pr-6 focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500 shadow-sm cursor-pointer transition-colors hover:bg-white">
+                                            <option value="1">1 - Dry</option>
+                                            <option value="2">2 - Off-Dry</option>
+                                            <option value="3">3 - Semi-Sweet</option>
+                                            <option value="4">4 - Sweet</option>
+                                            <option value="5" selected>5 - Syrupy</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-400">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="border-gray-100">
+
+                        <!-- Flavor Preferences -->
+                        <div>
+                            <label class="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-3">
+                                Present Flavors
+                                <span class="group relative cursor-help text-gray-400 hover:text-gray-600">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <div class="absolute hidden group-hover:block bg-gray-900 text-white text-xs p-2 rounded -top-10 left-1/2 transform -translate-x-1/2 w-48 z-50 shadow-lg text-center">
+                                        Click to Require. Click twice to Exclude.
+                                    </div>
+                                </span>
+                            </label>
+                            <div id="emoji-grid" class="flex flex-wrap gap-2.5">
+                                <p class="text-xs text-gray-400 italic">Flavors will appear here after scanning...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results List -->
+            <div class="md:col-span-3 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-3">
+                    <h3 class="text-2xl font-semibold text-gray-900 serif">Available Bottles</h3>
+                    <div class="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+                        <span id="svg-status" class="hidden text-xs font-medium text-purple-700 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-200 flex items-center gap-1.5 shadow-sm">
+                            <span class="loader !border-gray-300 !border-t-purple-700 w-3 h-3 border-2"></span> Generating Icons...
+                        </span>
+                        <span id="live-rating-status" class="hidden text-xs font-medium text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200 flex items-center gap-1.5 shadow-sm">
+                            <span class="loader !border-gray-300 !border-t-blue-700 w-3 h-3 border-2"></span> Fetching Live Data...
+                        </span>
+                        <button onclick="openMasterShelfModal()" class="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-full shadow-sm flex items-center gap-1.5 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                            Interactive Shelf Overview
+                        </button>
+                        <button id="rescan-btn" class="text-xs font-medium text-red-700 hover:text-red-900 underline hidden sm:inline-block">Scan New Photo</button>
+                        <span id="showing-count" class="text-sm text-gray-500 font-medium bg-gray-100 px-3 py-1.5 rounded-full whitespace-nowrap">0 Found</span>
+                    </div>
+                </div>
+                
+                <div id="inventory-list" class="space-y-5"></div>
+                
+                <div id="no-results-msg" class="hidden text-center py-12 bg-white rounded-xl border border-gray-200">
+                    <p class="text-gray-500">No wines match your current filters.</p>
+                    <button onclick="document.getElementById('reset-filters').click()" class="mt-2 text-red-600 hover:underline text-sm font-medium">Clear Filters</button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- AR Camera View -->
+    <div id="ar-view" class="hidden fixed inset-0 z-40 bg-black flex flex-col">
+        <div class="absolute top-0 left-0 right-0 p-4 z-50 flex justify-between items-start bg-gradient-to-b from-black/80 to-transparent pt-6 pb-12">
+            <button id="close-ar-btn" class="bg-white/20 hover:bg-white/30 backdrop-blur text-white px-4 py-2 rounded-full font-medium text-sm flex items-center gap-2 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Exit AR
+            </button>
+            <div id="ar-status-badge" class="bg-gray-800/80 backdrop-blur text-white px-3 py-1.5 rounded-full text-xs font-medium border border-gray-600 flex items-center gap-2 shadow-md">
+                Ready
+            </div>
+        </div>
+        <div class="video-container flex-grow relative overflow-hidden">
+            <video id="ar-video" autoplay playsinline muted></video>
+            <div id="ar-spotlight" class="spotlight hidden"></div>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black via-black/90 to-transparent pt-20 z-50">
+            <div class="max-w-md mx-auto space-y-4">
+                <p class="text-white text-sm font-medium text-center drop-shadow-md">Point your camera at a wine shelf and tell us what you want to find.</p>
+                <div class="relative">
+                    <input type="text" id="ar-search-input" placeholder="e.g., 'Rombauer' or 'Sweet Rose'" class="w-full bg-white/10 backdrop-blur border border-white/20 text-white placeholder-gray-300 rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-lg pr-12">
+                </div>
+                <button id="ar-scan-btn" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 text-lg">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    Find It Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Fullscreen Photo Modal -->
+    <div id="interactive-modal" class="fixed inset-0 z-50 hidden bg-black/95 backdrop-blur-sm flex items-center justify-center p-0 sm:p-8 transition-opacity">
+        <button id="close-modal" class="absolute top-6 right-6 z-[60] text-white p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <div class="relative w-full h-full flex items-center justify-center overflow-hidden">
+            <div class="relative w-fit h-fit max-w-full mx-auto" id="modal-img-container">
+                <img id="modal-img" src="" class="max-w-full max-h-[85vh] block rounded-xl shadow-2xl">
+            </div>
+        </div>
+        <div class="absolute bottom-8 left-0 right-0 text-center pointer-events-none z-[60]">
+            <span class="bg-black/80 text-white text-sm px-5 py-2.5 rounded-full font-medium tracking-wide shadow-lg border border-white/10 backdrop-blur">Shelf Location(s) Highlighted</span>
+        </div>
+    </div>
+
+    <!-- Master Shelf Overview Modal -->
+    <div id="master-shelf-modal" class="fixed inset-0 z-[70] hidden bg-black/95 backdrop-blur-sm flex items-center justify-center p-0 sm:p-8 transition-opacity">
+        <button onclick="closeMasterShelfModal()" class="absolute top-6 right-6 z-[80] text-white p-3 bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+        <div class="relative w-full h-full flex items-center justify-center overflow-hidden">
+            <div class="relative w-fit h-fit max-w-full mx-auto" id="master-img-container">
+                <img id="master-modal-img" src="" class="max-w-full max-h-[85vh] block opacity-80 rounded-xl shadow-2xl">
+                <div id="master-dots-container" class="absolute inset-0 pointer-events-none"></div>
+            </div>
+        </div>
+        <div class="absolute bottom-8 left-0 right-0 flex justify-center pointer-events-none z-[80]">
+            <div class="bg-black/80 text-white text-[10px] sm:text-xs px-4 py-2.5 rounded-full font-medium tracking-wide shadow-lg border border-white/10 backdrop-blur flex flex-wrap justify-center gap-3 sm:gap-5 max-w-[90%]">
+                <span class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-green-500 border border-white"></div> High Confidence</span>
+                <span class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-yellow-500 border border-white"></div> Uncertain Match</span>
+                <span class="flex items-center gap-1.5">
+                    <div class="relative w-3 h-3">
+                        <div class="absolute inset-0 bg-blue-600 rounded-full translate-x-[3px] translate-y-[3px] border border-white"></div>
+                        <div class="absolute inset-0 bg-blue-400 rounded-full border border-white z-10"></div>
+                    </div> 
+                    Duplicates
+                </span>
+                <span class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-gray-400 border border-white flex items-center justify-center text-[8px] font-bold text-white">?</div> Unreadable</span>
+                <span class="flex items-center gap-1.5"><div class="w-3 h-3 rounded-full bg-red-600 border border-white flex items-center justify-center"><svg class="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg></div> Not Wine</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = ""; 
+        let allScannedWines = [];
+        let base64ImageData = null;
+        let originalImageFullDataURL = null; 
+        let originalImageElement = new Image(); 
+        
+        let dynamicSVGCache = {}; 
+        try {
+            const cached = localStorage.getItem('vinovision_svg_cache');
+            if (cached) dynamicSVGCache = JSON.parse(cached);
+        } catch(e) { console.warn("Could not load SVG cache"); }
+
+        const inventoryView = document.getElementById('inventory-view');
+        const uploadSection = document.getElementById('upload-section');
+        const workspace = document.getElementById('workspace');
+        const imageInput = document.getElementById('image-input');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const removeImageBtn = document.getElementById('remove-image-btn');
+        const scanBtn = document.getElementById('scan-btn');
+        const rescanBtn = document.getElementById('rescan-btn');
+        const inventoryList = document.getElementById('inventory-list');
+        const showingCount = document.getElementById('showing-count');
+        const noResultsMsg = document.getElementById('no-results-msg');
+        const searchInput = document.getElementById('search-input');
+        const minPriceInput = document.getElementById('min-price');
+        const maxPriceInput = document.getElementById('max-price');
+        const typeGrid = document.getElementById('type-grid');
+        const varietalGrid = document.getElementById('varietal-grid');
+        const vibeGrid = document.getElementById('vibe-grid');
+        const emojiGrid = document.getElementById('emoji-grid');
+        const resetFiltersBtn = document.getElementById('reset-filters');
+        const filterInputs = document.querySelectorAll('.filter-input');
+        const errorContainer = document.getElementById('error-container');
+        const errorMessage = document.getElementById('error-message');
+        const modal = document.getElementById('interactive-modal');
+        const modalImg = document.getElementById('modal-img');
+        const modalImgContainer = document.getElementById('modal-img-container');
+        const closeModalBtn = document.getElementById('close-modal');
+        const arView = document.getElementById('ar-view');
+        const openArBtn = document.getElementById('open-ar-btn');
+        const closeArBtn = document.getElementById('close-ar-btn');
+        const arVideo = document.getElementById('ar-video');
+        const arSearchInput = document.getElementById('ar-search-input');
+        const arScanBtn = document.getElementById('ar-scan-btn');
+        const arSpotlight = document.getElementById('ar-spotlight');
+        const arStatusBadge = document.getElementById('ar-status-badge');
+        
+        let arStream = null;
+        let isArScanning = false;
+        let arScanInterval = null;
+
+        const typeCategories = [
+            { icon: '🍷', name: 'Red', val: 'red' },
+            { icon: '🥂', name: 'White', val: 'white' },
+            { icon: '🌷', name: 'Rosé', val: 'rose' },
+            { icon: '🍾', name: 'Sparkling', val: 'sparkling' }
+        ];
+        let typePreferences = {};
+
+        const varietalTags = [
+            { name: 'Cabernet', val: 'cabernet' },
+            { name: 'Malbec', val: 'malbec' },
+            { name: 'Pinot Noir', val: 'pinot noir' },
+            { name: 'Chardonnay', val: 'chardonnay' },
+            { name: 'Sauvignon', val: 'sauvignon' },
+            { name: 'Blend', val: 'blend' },
+            { name: 'Merlot', val: 'merlot' },
+            { name: 'Zinfandel', val: 'zinfandel' }
+        ];
+        let varietalPreferences = {};
+
+        // Occasion Vibes
+        const vibeTags = [
+            { name: 'Gift Worthy', val: 'gift' },
+            { name: 'Patio Chiller', val: 'patio' },
+            { name: 'Dinner Party', val: 'dinner' },
+            { name: 'Cellar Candidate', val: 'cellar' },
+            { name: 'Everyday Value', val: 'value' },
+            { name: 'Celebration', val: 'celebration' }
+        ];
+        let vibePreferences = {};
+
+        let flavorTags = [];
+        let tagPreferences = {}; 
+
+        function renderTypeGrid() {
+            if(!typeGrid) return;
+            typeGrid.innerHTML = typeCategories.map(cat => {
+                const isActive = typePreferences[cat.val];
+                const stateClass = isActive ? 'bg-red-50 text-red-800 border-red-400 shadow-inner ring-1 ring-red-200 scale-105 z-10' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 hover:scale-105';
+                return `<button type="button" onclick="toggleType('${cat.val}')" title="${cat.name}" class="text-2xl flex-1 py-2 rounded-xl border transition-all flex items-center justify-center cursor-pointer ${stateClass} shadow-sm">
+                    ${cat.icon}
+                </button>`;
+            }).join('');
+        }
+
+        window.toggleType = function(val) {
+            if (typePreferences[val]) delete typePreferences[val];
+            else typePreferences[val] = true;
+            renderTypeGrid();
+            applyFilters();
+        };
+
+        function renderVarietalGrid() {
+            if(!varietalGrid) return;
+            varietalGrid.innerHTML = varietalTags.map(v => {
+                const isActive = varietalPreferences[v.val];
+                const stateClass = isActive ? 'bg-red-50 text-red-800 border-red-400 font-semibold' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50';
+                return `<button type="button" onclick="toggleVarietal('${v.val}')" class="text-xs px-3 py-1.5 rounded-full border transition-colors flex items-center gap-1 cursor-pointer ${stateClass} shadow-sm">
+                    ${v.name}
+                </button>`;
+            }).join('');
+        }
+
+        window.toggleVarietal = function(val) {
+            if (varietalPreferences[val]) delete varietalPreferences[val];
+            else varietalPreferences[val] = true;
+            renderVarietalGrid();
+            applyFilters();
+        };
+
+        function renderVibeGrid() {
+            if(!vibeGrid) return;
+            vibeGrid.innerHTML = vibeTags.map(v => {
+                const isActive = vibePreferences[v.val];
+                const stateClass = isActive ? 'bg-blue-50 text-blue-800 border-blue-400 font-semibold' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50';
+                return `<button type="button" onclick="toggleVibe('${v.val}')" class="text-xs px-3 py-1.5 rounded-full border transition-colors flex items-center gap-1 cursor-pointer ${stateClass} shadow-sm">
+                    ${v.name}
+                </button>`;
+            }).join('');
+        }
+
+        window.toggleVibe = function(val) {
+            if (vibePreferences[val]) delete vibePreferences[val];
+            else vibePreferences[val] = true;
+            renderVibeGrid();
+            applyFilters();
+        };
+
+        function renderEmojiGrid() {
+            if(!emojiGrid) return;
+            if (flavorTags.length === 0) {
+                emojiGrid.innerHTML = `<p class="text-xs text-gray-400 italic">Flavors will appear here after scanning...</p>`;
+                return;
+            }
+            emojiGrid.innerHTML = flavorTags.map(tag => {
+                let stateClass = 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100 hover:scale-105';
+                let svgClass = ''; // Icons now always colored by default
+                let strikeout = '';
+                
+                if (tagPreferences[tag.toLowerCase()] === 1) {
+                    stateClass = 'bg-green-50 border-green-400 text-green-800 ring-2 ring-green-300 shadow-inner scale-110 z-10';
+                }
+                if (tagPreferences[tag.toLowerCase()] === -1) {
+                    stateClass = 'bg-red-50 border-red-400 text-red-500 opacity-60';
+                    svgClass = 'grayscale opacity-50'; // Grey out only for Exclusion
+                    strikeout = `<div class="absolute inset-0 flex items-center justify-center"><div class="w-full h-0.5 bg-red-600 rotate-45 rounded"></div></div>`;
+                }
+                
+                const svg = dynamicSVGCache[tag.toLowerCase()] || generateProceduralFallbackSVG(tag);
+                
+                return `<button type="button" onclick="toggleTag('${tag.toLowerCase()}')" title="${tag}" class="w-10 h-10 rounded-full border transition-all flex items-center justify-center cursor-pointer ${stateClass} shadow-sm relative flex-shrink-0">
+                    <span class="w-6 h-6 ${svgClass}">${svg}</span>
+                    ${strikeout}
+                </button>`;
+            }).join('');
+        }
+
+        window.toggleTag = function(val) {
+            if (!tagPreferences[val]) tagPreferences[val] = 1; 
+            else if (tagPreferences[val] === 1) tagPreferences[val] = -1; 
+            else delete tagPreferences[val]; 
+            renderEmojiGrid();
+            applyFilters();
+        };
+
+        renderTypeGrid();
+        renderVarietalGrid();
+        renderVibeGrid();
+        renderEmojiGrid();
+
+        function drawSpotlight(element, bbox) {
+            if (!element || !bbox || bbox.length !== 4) return;
+            const [ymin_pct, xmin_pct, ymax_pct, xmax_pct] = bbox.map(v => v / 10);
+            const w_pct = xmax_pct - xmin_pct;
+            const h_pct = ymax_pct - ymin_pct;
+            const expansionFactor = 1.6;
+            const offsetFactor = (expansionFactor - 1) / 2;
+            element.style.top = `${ymin_pct - (h_pct * offsetFactor)}%`;
+            element.style.left = `${xmin_pct - (w_pct * offsetFactor)}%`;
+            element.style.width = `${w_pct * expansionFactor}%`;
+            element.style.height = `${h_pct * expansionFactor}%`;
+            element.style.display = 'block';
+        }
+
+        window.openInteractiveModal = function(bboxesStr) {
+            if (!originalImageFullDataURL || !modalImg || !modal) return;
+            document.querySelectorAll('.dynamic-spotlight').forEach(el => el.remove());
+            modalImg.src = originalImageFullDataURL;
+            modalImg.onload = () => {
+                if (bboxesStr) {
+                    const boxes = bboxesStr.split('|').map(s => s.split(',').map(Number));
+                    boxes.forEach(bbox => {
+                        const spot = document.createElement('div');
+                        spot.className = 'spotlight dynamic-spotlight';
+                        drawSpotlight(spot, bbox);
+                        modalImgContainer.appendChild(spot);
+                    });
+                }
+            };
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        };
+
+        function closeModal() {
+            if(modal) modal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+            document.querySelectorAll('.dynamic-spotlight').forEach(el => el.remove());
+        }
+
+        if(closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+        if(modal) modal.addEventListener('click', (e) => { if (e.target === modal || e.target === modalImgContainer) closeModal(); });
+
+        window.openMasterShelfModal = function() {
+            if (!originalImageFullDataURL || allScannedWines.length === 0) return;
+            const mModal = document.getElementById('master-shelf-modal');
+            const mImg = document.getElementById('master-modal-img');
+            const dotsContainer = document.getElementById('master-dots-container');
+            if(!mModal || !mImg || !dotsContainer) return;
+            mImg.src = originalImageFullDataURL;
+            dotsContainer.innerHTML = ''; 
+            mImg.onload = () => {
+                allScannedWines.forEach((wine, idx) => {
+                    if (!wine.boundingBoxes || wine.boundingBoxes.length === 0) return;
+                    const isDuplicate = wine.boundingBoxes.length > 1;
+                    wine.boundingBoxes.forEach(bbox => {
+                        const [ymin, xmin, ymax, xmax] = bbox.map(v => v / 10);
+                        const centerY = ymin + (ymax - ymin) / 2;
+                        const centerX = xmin + (xmax - xmin) / 2;
+                        const dot = document.createElement('div');
+                        let dotColor = 'bg-green-500';
+                        let dotRing = 'bg-green-400';
+                        let tooltip = `${wine.name} - $${(wine.price || 0).toFixed(2)}`;
+                        let isClickable = true;
+                        let innerContent = `<span class="animate-ping absolute inline-flex h-full w-full rounded-full ${dotRing} opacity-75"></span>`;
+                        if (wine.confidence === 'LOW') {
+                            dotColor = 'bg-yellow-500';
+                            dotRing = 'bg-yellow-400';
+                            innerContent = `<span class="animate-ping absolute inline-flex h-full w-full rounded-full ${dotRing} opacity-75"></span>`;
+                        } else if (wine.confidence === 'UNIDENTIFIABLE_WINE') {
+                            dotColor = 'bg-gray-400';
+                            tooltip = 'Unidentifiable Wine';
+                            isClickable = false;
+                            innerContent = `<span class="text-white text-[10px] absolute font-bold">?</span>`;
+                        } else if (wine.confidence === 'NOT_WINE') {
+                            dotColor = 'bg-red-600';
+                            tooltip = 'Definitely Not Wine';
+                            isClickable = false;
+                            innerContent = `<svg class="w-3 h-3 text-white absolute" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+                        }
+                        if (isClickable && isDuplicate) {
+                            dot.className = `absolute w-5 h-5 rounded-full transform -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto flex items-center justify-center cursor-pointer hover:scale-150 transition-all hover:z-20 shadow-[0_0_10px_rgba(0,0,0,0.5)]`;
+                            innerContent = `
+                               <span class="absolute w-full h-full bg-blue-700 rounded-full translate-x-[4px] translate-y-[4px] border border-white shadow-sm"></span>
+                               <span class="absolute w-full h-full bg-blue-500 rounded-full border border-white z-10 shadow-sm flex items-center justify-center text-[9px] font-bold text-white">${wine.boundingBoxes.length}</span>
+                               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 z-20"></span>
+                            `;
+                        } else {
+                            dot.className = `absolute w-5 h-5 ${dotColor} rounded-full border-[3px] border-white shadow-[0_0_10px_rgba(0,0,0,0.5)] transform -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto flex items-center justify-center ${isClickable ? 'cursor-pointer hover:scale-150 transition-all hover:z-20' : ''}`;
+                        }
+                        dot.innerHTML = innerContent;
+                        dot.style.top = `${centerY}%`;
+                        dot.style.left = `${centerX}%`;
+                        dot.title = tooltip;
+                        if (isClickable) {
+                            dot.onclick = () => {
+                                closeMasterShelfModal();
+                                const card = document.getElementById(`wine-card-${idx}`);
+                                if (card) {
+                                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    card.classList.add('ring-4', 'ring-red-500', 'transition-all', 'duration-500');
+                                    setTimeout(() => card.classList.remove('ring-4', 'ring-red-500'), 2500);
+                                }
+                            };
+                        }
+                        dotsContainer.appendChild(dot);
+                    });
+                });
+            };
+            mModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        };
+
+        window.closeMasterShelfModal = function() {
+            const mModal = document.getElementById('master-shelf-modal');
+            if(mModal) mModal.classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        };
+
+        if(openArBtn) {
+            openArBtn.addEventListener('click', async () => {
+                if(inventoryView) inventoryView.classList.add('hidden');
+                if(arView) arView.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+                try {
+                    arStream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+                    });
+                    if(arVideo) arVideo.srcObject = arStream;
+                    if(arStatusBadge) arStatusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500"></span> Camera Active`;
+                } catch (err) {
+                    if(arStatusBadge) arStatusBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500"></span> Camera Denied`;
+                }
+            });
+        }
+
+        if(closeArBtn) {
+            closeArBtn.addEventListener('click', () => {
+                if(arView) arView.classList.add('hidden');
+                if(inventoryView) inventoryView.classList.remove('hidden');
+                document.body.style.overflow = 'auto';
+                if (arStream) { arStream.getTracks().forEach(track => track.stop()); arStream = null; }
+                stopArScanning();
+            });
+        }
+
+        function stopArScanning() {
+            isArScanning = false;
+            clearTimeout(arScanInterval);
+            if(arScanBtn) {
+                arScanBtn.innerHTML = `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> Find It Now`;
+                arScanBtn.classList.remove('bg-gray-600', 'hover:bg-gray-500');
+                arScanBtn.classList.add('bg-red-600', 'hover:bg-red-500');
+            }
+        }
+
+        if(imageInput) {
+            imageInput.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        originalImageFullDataURL = e.target.result;
+                        if(imagePreview) imagePreview.src = originalImageFullDataURL;
+                        base64ImageData = originalImageFullDataURL.split(',')[1];
+                        originalImageElement.src = originalImageFullDataURL; 
+                        if(uploadPrompt) uploadPrompt.classList.add('hidden');
+                        if(imagePreviewContainer) imagePreviewContainer.classList.remove('hidden');
+                    }
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        function resetImage() {
+            if(imageInput) imageInput.value = '';
+            base64ImageData = null;
+            originalImageFullDataURL = null;
+            if(imagePreview) imagePreview.src = '';
+            if(uploadPrompt) uploadPrompt.classList.remove('hidden');
+            if(imagePreviewContainer) imagePreviewContainer.classList.add('hidden');
+            if(workspace) workspace.classList.add('hidden');
+            if(uploadSection) uploadSection.classList.remove('hidden');
+            hideError();
+        }
+
+        if(removeImageBtn) removeImageBtn.addEventListener('click', (e) => { e.preventDefault(); resetImage(); });
+        if(rescanBtn) rescanBtn.addEventListener('click', resetImage);
+        if(filterInputs) filterInputs.forEach(input => input.addEventListener('input', applyFilters));
+
+        if(resetFiltersBtn) {
+            resetFiltersBtn.addEventListener('click', () => {
+                if(searchInput) searchInput.value = '';
+                if(minPriceInput) minPriceInput.value = 0;
+                if(maxPriceInput) maxPriceInput.value = 1000;
+                document.getElementById('body-min').value = "1";
+                document.getElementById('body-max').value = "5";
+                document.getElementById('tannin-min').value = "1";
+                document.getElementById('tannin-max').value = "5";
+                document.getElementById('acidity-min').value = "1";
+                document.getElementById('acidity-max').value = "5";
+                document.getElementById('sweet-min').value = "1";
+                document.getElementById('sweet-max').value = "5";
+                tagPreferences = {};
+                typePreferences = {};
+                varietalPreferences = {};
+                vibePreferences = {};
+                renderEmojiGrid();
+                renderTypeGrid();
+                renderVarietalGrid();
+                renderVibeGrid();
+                applyFilters();
+            });
+        }
+
+        function showError(msg) { if(errorMessage) errorMessage.textContent = msg; if(errorContainer) errorContainer.classList.remove('hidden'); }
+        function hideError() { if(errorContainer) errorContainer.classList.add('hidden'); }
+
+        function getCroppedBottleDataUrl(bbox) {
+            if (!bbox || bbox.length !== 4) return ''; 
+            const [ymin, xmin, ymax, xmax] = bbox;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const imgW = originalImageElement.width;
+            const imgH = originalImageElement.height;
+            const sx = (xmin / 1000) * imgW;
+            const sy = (ymin / 1000) * imgH;
+            const sWidth = ((xmax - xmin) / 1000) * imgW;
+            const sHeight = ((ymax - ymin) / 1000) * imgH;
+            const padX = sWidth * 0.1;
+            const padY = sHeight * 0.05;
+            const finalSx = Math.max(0, sx - padX);
+            const finalSy = Math.max(0, sy - padY);
+            const finalSW = Math.min(imgW - finalSx, sWidth + (padX * 2));
+            const finalSH = Math.min(imgH - finalSy, sHeight + (padY * 2));
+            canvas.width = finalSW;
+            canvas.height = finalSH;
+            ctx.drawImage(originalImageElement, finalSx, finalSy, finalSW, finalSH, 0, 0, finalSW, finalSH);
+            return canvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        if(scanBtn) {
+            scanBtn.addEventListener('click', async () => {
+                if (!base64ImageData) { showError("Please upload an image first."); return; }
+                hideError();
+                workspace.classList.add('hidden');
+                scanBtn.disabled = true;
+                scanBtn.innerHTML = `<span class="loader"></span> &nbsp; Scanning All Shelves...`;
+
+                const promptText = `
+                    Analyze this wine shelf photo. Identify ALL distinct bottles (except those oriented cap-forward). 
+                    Group exact duplicates into a single entry with multiple boundingBoxes.
+                    Categorize confidence as: "HIGH", "LOW", "UNIDENTIFIABLE_WINE", or "NOT_WINE".
+                    
+                    For HIGH/LOW wines:
+                    1. Name (including producer), Winery, Region, Price, Vivino Rating.
+                    2. Profile metrics (Body, Tannin, Sweetness, Acidity 1-5).
+                    3. ABV, Grapes, Food Pairings.
+                    4. Tasting Notes: Explicitly extract 3-4 specific flavor notes (e.g. Cedar, Plum).
+                    5. Vibe/Occasions: Return 1-2 scenarios from this list that fit: gift, patio, dinner, cellar, value, celebration.
+                `;
+
+                try {
+                    const data = await fetchWineInventory(promptText, base64ImageData);
+                    if (data && data.wines) {
+                        allScannedWines = data.wines;
+                        allScannedWines.forEach(wine => {
+                            if (!wine.boundingBoxes && wine.boundingBox) wine.boundingBoxes = [wine.boundingBox];
+                            if (wine.boundingBoxes && wine.boundingBoxes[0]) wine.cropDataUrl = getCroppedBottleDataUrl(wine.boundingBoxes[0]);
+                        });
+                        maxPriceInput.value = 1000;
+                        const uniqueNotes = new Set();
+                        allScannedWines.forEach(w => {
+                            if (w.confidence === 'HIGH' || w.confidence === 'LOW') {
+                                w.notes.forEach(n => { if(n.toLowerCase() !== 'unknown') uniqueNotes.add(n.charAt(0).toUpperCase() + n.slice(1).toLowerCase()); });
+                            }
+                        });
+                        flavorTags = Array.from(uniqueNotes).sort();
+                        workspace.classList.remove('hidden');
+                        uploadSection.classList.add('hidden'); 
+                        renderEmojiGrid();
+                        applyFilters(); 
+                        fetchLiveRatingsForTopWines();
+                        fetchNoteSVGs();
+                    }
+                } catch (error) { showError("An error occurred. Please try again."); } finally { scanBtn.disabled = false; scanBtn.innerHTML = "Scan Shelf Inventory"; }
+            });
+        }
+
+        async function fetchWineInventory(prompt, base64Image) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: base64Image } }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            wines: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        confidence: { type: "STRING" },
+                                        name: { type: "STRING" },
+                                        winery: { type: "STRING" },
+                                        origin: { type: "STRING" },
+                                        price: { type: "NUMBER" },
+                                        rating: { type: "NUMBER" },
+                                        type: { type: "STRING" },
+                                        body: { type: "NUMBER" },
+                                        tannin: { type: "NUMBER" },
+                                        sweetness: { type: "NUMBER" },
+                                        acidity: { type: "NUMBER" },
+                                        abv: { type: "STRING" },
+                                        vibes: { type: "ARRAY", items: { type: "STRING" } },
+                                        grapes: { type: "ARRAY", items: { type: "STRING" } },
+                                        foodPairings: { type: "ARRAY", items: { type: "STRING" } },
+                                        notes: { type: "ARRAY", items: { type: "STRING" } },
+                                        boundingBoxes: { type: "ARRAY", items: { type: "ARRAY", items: { type: "NUMBER" } } }
+                                    },
+                                    required: ["confidence", "name", "price", "rating", "type", "body", "tannin", "sweetness", "acidity", "notes", "boundingBoxes"]
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            return await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        }
+
+        async function fetchLiveRatingsForTopWines() {
+            const validWines = allScannedWines.filter(w => w.confidence === 'HIGH' || w.confidence === 'LOW');
+            const topWines = validWines.sort((a, b) => b.rating - a.rating).slice(0, 5);
+            if (topWines.length === 0) return;
+            document.getElementById('live-rating-status').classList.remove('hidden');
+            const namesToSearch = topWines.map(w => w.name);
+            const promptText = `Find actual Vivino ratings, ABV %, and Origin for: ${namesToSearch.join(', ')}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: promptText }] }],
+                tools: [{ google_search: {} }],
+                generationConfig: { responseMimeType: "application/json", responseSchema: { type: "ARRAY", items: { type: "OBJECT", properties: { name: { type: "STRING" }, realRating: { type: "NUMBER" }, realAbv: { type: "STRING" } }, required: ["name"] } } }
+            };
+            try {
+                const response = await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (response && Array.isArray(response)) {
+                    response.forEach(liveData => {
+                        const wine = allScannedWines.find(w => w.name === liveData.name);
+                        if (wine) {
+                            if (liveData.realRating) wine.rating = liveData.realRating;
+                            if (liveData.realAbv) wine.abv = liveData.realAbv;
+                            wine.isLiveRating = true;
+                        }
+                    });
+                    applyFilters(); 
+                }
+            } catch(e) {} finally { document.getElementById('live-rating-status').classList.add('hidden'); }
+        }
+
+        function generateProceduralFallbackSVG(note) {
+            let hash = 0;
+            for (let i = 0; i < note.length; i++) { hash = note.charCodeAt(i) + ((hash << 5) - hash); }
+            const colors = [['#FCD34D', '#D97706'], ['#FCA5A5', '#DC2626'], ['#A5B4FC', '#4F46E5'], ['#6EE7B7', '#059669'], ['#F9A8D4', '#DB2777'], ['#FDBA74', '#EA580C']];
+            const [c1, c2] = colors[Math.abs(hash) % colors.length];
+            return `<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="grad-${Math.abs(hash)}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${c1}" /><stop offset="100%" stop-color="${c2}" /></linearGradient></defs><circle cx="50" cy="50" r="40" fill="url(#grad-${Math.abs(hash)})" /><text x="50" y="66" font-size="44" font-weight="900" fill="#ffffff" text-anchor="middle" font-family="sans-serif">${note.charAt(0).toUpperCase()}</text></svg>`;
+        }
+
+        async function fetchNoteSVGs() {
+            const allNotes = new Set();
+            flavorTags.forEach(t => allNotes.add(t.toLowerCase()));
+            const notesToFetch = Array.from(allNotes).filter(n => !dynamicSVGCache[n]);
+            if (notesToFetch.length === 0) return;
+            document.getElementById('svg-status').classList.remove('hidden');
+            const promptText = `Generate vibrant SVG icons for: ${notesToFetch.join(', ')}`;
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: promptText }] }],
+                generationConfig: { responseMimeType: "application/json", responseSchema: { type: "ARRAY", items: { type: "OBJECT", properties: { note: { type: "STRING" }, svg: { type: "STRING" } }, required: ["note", "svg"] } } }
+            };
+            try {
+                const response = await fetchWithRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (response && Array.isArray(response)) {
+                    response.forEach(item => { if (item.note && item.svg) dynamicSVGCache[item.note.toLowerCase()] = item.svg; });
+                    try { localStorage.setItem('vinovision_svg_cache', JSON.stringify(dynamicSVGCache)); } catch(e) {}
+                }
+            } catch (e) {
+                notesToFetch.forEach(note => { dynamicSVGCache[note] = generateProceduralFallbackSVG(note); });
+            } finally { document.getElementById('svg-status').classList.add('hidden'); renderEmojiGrid(); applyFilters(); }
+        }
+
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            let delays = [1000, 2000, 4000, 8000, 16000];
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const result = await response.json();
+                    let rawText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!rawText) return result;
+                    rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                    return JSON.parse(rawText);
+                } catch (e) {
+                    if (i === maxRetries - 1) throw e;
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        }
+
+        function checkWineTypeMatch(wineTypeStr) {
+            const activeTypes = Object.keys(typePreferences);
+            if (activeTypes.length === 0) return true; 
+            const wt = wineTypeStr.toLowerCase();
+            if (activeTypes.includes('red') && (wt.includes('red') || wt.includes('cabernet') || wt.includes('pinot noir') || wt.includes('merlot') || wt.includes('zinfandel') || wt.includes('syrah'))) return true;
+            if (activeTypes.includes('white') && (wt.includes('white') || wt.includes('chardonnay') || wt.includes('sauvignon') || wt.includes('pinot grigio'))) return true;
+            if (activeTypes.includes('rose') && (wt.includes('rose') || wt.includes('rosé'))) return true;
+            if (activeTypes.includes('sparkling') && (wt.includes('sparkling') || wt.includes('champagne') || wt.includes('prosecco'))) return true;
+            return false;
+        }
+
+        function applyFilters() {
+            const minP = parseFloat(minPriceInput.value) || 0;
+            const maxP = parseFloat(maxPriceInput.value) || Infinity;
+            const minBody = parseInt(document.getElementById('body-min').value);
+            const maxBody = parseInt(document.getElementById('body-max').value);
+            const minTannin = parseInt(document.getElementById('tannin-min').value);
+            const maxTannin = parseInt(document.getElementById('tannin-max').value);
+            const minAcidity = parseInt(document.getElementById('acidity-min').value);
+            const maxAcidity = parseInt(document.getElementById('acidity-max').value);
+            const minSweet = parseInt(document.getElementById('sweet-min').value);
+            const maxSweet = parseInt(document.getElementById('sweet-max').value);
+            const searchQ = searchInput.value.toLowerCase().trim();
+
+            let filtered = allScannedWines.filter(wine => {
+                if (wine.confidence === 'UNIDENTIFIABLE_WINE' || wine.confidence === 'NOT_WINE') return false;
+                if (wine.price < minP || wine.price > maxP) return false;
+                if (searchQ && !wine.name.toLowerCase().includes(searchQ) && !(wine.winery && wine.winery.toLowerCase().includes(searchQ))) return false;
+                if (!checkWineTypeMatch(wine.type)) return false;
+                
+                // Varietal Filter
+                const activeVarietals = Object.keys(varietalPreferences);
+                if (activeVarietals.length > 0) {
+                    const searchStr = (wine.type + ' ' + wine.name).toLowerCase();
+                    if (!activeVarietals.some(v => searchStr.includes(v))) return false;
+                }
+
+                // Vibe Filter
+                const activeVibes = Object.keys(vibePreferences);
+                if (activeVibes.length > 0) {
+                    if (!wine.vibes || !activeVibes.some(v => wine.vibes.includes(v))) return false;
+                }
+
+                if ((wine.body || 3) < minBody || (wine.body || 3) > maxBody) return false;
+                if ((wine.tannin || 3) < minTannin || (wine.tannin || 3) > maxTannin) return false;
+                if ((wine.acidity || 3) < minAcidity || (wine.acidity || 3) > maxAcidity) return false;
+                if ((wine.sweetness || 2) < minSweet || (wine.sweetness || 2) > maxSweet) return false;
+
+                const wineNotes = wine.notes.map(n => n.toLowerCase());
+                if (Object.keys(tagPreferences).some(tag => tagPreferences[tag] === -1 && wineNotes.includes(tag))) return false;
+                const requiredLikes = Object.keys(tagPreferences).filter(tag => tagPreferences[tag] === 1);
+                if (requiredLikes.length > 0 && requiredLikes.some(like => !wineNotes.includes(like))) return false;
+                return true;
+            });
+            filtered.sort((a, b) => b.rating - a.rating);
+            renderWines(filtered);
+        }
+
+        function renderWines(wines) {
+            inventoryList.innerHTML = '';
+            showingCount.textContent = `${wines.length} Found`;
+            if (wines.length === 0) { noResultsMsg.classList.remove('hidden'); return; }
+            noResultsMsg.classList.add('hidden');
+            
+            wines.forEach((wine, index) => {
+                const originalIndex = allScannedWines.indexOf(wine);
+                const card = document.createElement('div');
+                card.id = `wine-card-${originalIndex}`;
+                card.className = "bg-white border border-gray-200 rounded-xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group/card";
+                
+                const isSparkling = wine.type.toLowerCase().includes('sparkling');
+                const badgeColor = isSparkling ? "bg-yellow-50 text-yellow-800 border-yellow-200" : "bg-red-50 text-red-700 border-red-100";
+                
+                let bboxesStr = wine.boundingBoxes.map(b => b.join(',')).join('|');
+                let minimapSpotlightsHTML = wine.boundingBoxes.map(bbox => {
+                    const [ymin, xmin, ymax, xmax] = bbox;
+                    const ymin_pct = ymin / 10, xmin_pct = xmin / 10, h_pct = (ymax - ymin) / 10, w_pct = (xmax - xmin) / 10;
+                    return `<div class="minimap-spotlight" style="top:${ymin_pct-h_pct*0.3}%; left:${xmin_pct-w_pct*0.3}%; width:${w_pct*1.6}%; height:${h_pct*1.6}%;"></div>`;
+                }).join('');
+
+                card.innerHTML = `
+                    <div class="flex flex-col sm:flex-row gap-5">
+                        <div class="w-full sm:w-1/4 flex-shrink-0 flex flex-row sm:flex-col gap-3">
+                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-2 h-32 sm:h-44 flex items-center justify-center relative overflow-hidden">
+                                <img src="${wine.cropDataUrl}" class="w-full h-full object-contain drop-shadow-md z-10">
+                            </div>
+                            <div onclick="openInteractiveModal('${bboxesStr}')" class="relative w-1/2 sm:w-full h-32 sm:h-24 bg-black rounded-lg border border-gray-200 overflow-hidden cursor-pointer group/minimap">
+                                <img src="${originalImageFullDataURL}" class="w-full h-full object-cover opacity-80">
+                                ${minimapSpotlightsHTML}
+                            </div>
+                        </div>
+                        <div class="w-full sm:w-3/4 flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start gap-4 mb-2">
+                                    <div class="pr-8">
+                                        <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border shadow-sm ${badgeColor}">
+                                                ${wine.type}
+                                            </span>
+                                            ${wine.confidence==='LOW' ? '<span class="text-[10px] font-bold text-yellow-600">⚠️ Uncertain</span>' : ''}
+                                            ${wine.boundingBoxes.length > 1 ? `<span class="bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded border border-blue-200">${wine.boundingBoxes.length} Stacks</span>` : ''}
+                                        </div>
+                                        <h4 class="text-xl font-bold text-gray-900 serif">${wine.name}</h4>
+                                        <p class="text-xs text-gray-500 font-medium">${wine.origin || ''} ${wine.isLiveRating ? '✓ Verified' : ''}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-2xl font-black text-green-700">$${wine.price.toFixed(2)}</div>
+                                        <div class="text-xs font-medium text-gray-500 flex items-center justify-end gap-1">⭐ ${wine.rating}</div>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-2 mb-3">
+                                    ${wine.notes.map(note => {
+                                        const svg = dynamicSVGCache[note.toLowerCase()] || generateProceduralFallbackSVG(note);
+                                        return `<span class="bg-gray-50 border border-gray-100 text-[11px] px-2.5 py-1.5 rounded-full flex items-center gap-1.5">
+                                            <span class="w-4 h-4">${svg}</span> ${note}
+                                        </span>`;
+                                    }).join('')}
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-4 gap-3 bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+                                ${['Body', 'Tannin', 'Acidity', 'Sweetness'].map(p => {
+                                    const val = wine[p.toLowerCase()];
+                                    return `<div><span class="text-[9px] text-gray-400 font-bold uppercase block mb-1">${p}</span><div class="w-full bg-gray-200 h-1 rounded-full"><div class="bg-red-800 h-1 rounded-full" style="width:${(val/5)*100}%"></div></div></div>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                inventoryList.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>

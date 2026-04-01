@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Cubemap VR</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Cubemap VR">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
+
+  <link rel="apple-touch-icon" href="https://photo-sphere-viewer-data.netlify.app/assets/loader.gif">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.min.css" />
+
+  <style>
+    body, html {
+      margin: 0; padding: 0;
+      width: 100%;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #000;
+    }
+    #viewer { width: 100%; height: 100%; }
+    
+    .ui-container {
+      position: absolute;
+      top: calc(env(safe-area-inset-top, 0px) + 12px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex; flex-direction: column;
+      align-items: center; gap: 8px;
+      z-index: 10000; 
+      width: 100%;
+      pointer-events: none;
+    }
+    
+    .controls-row {
+      display: flex; gap: 4px; align-items: center;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 4px; padding: 4px 6px;
+      pointer-events: auto;
+    }
+    
+    button, select {
+      background: transparent; 
+      color: rgba(255, 255, 255, 0.8);
+      border: none; border-radius: 4px;
+      font-size: 13px; font-weight: normal;
+      padding: 6px 12px; cursor: pointer;
+      outline: none; transition: background 0.2s, color 0.2s;
+    }
+    button:hover, select:hover { 
+      background: rgba(255, 255, 255, 0.1); 
+      color: #fff;
+    }
+    button.active { 
+      background: rgba(255, 255, 255, 0.2); 
+      color: #fff;
+    }
+    
+    select {
+      appearance: none; padding-right: 28px;
+      background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22rgba(255,255,255,0.8)%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px top 50%;
+      background-size: 10px auto;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none; background: transparent; width: 100px; margin: 0 8px; transition: opacity 0.2s;
+    }
+    input[type=range]::-webkit-slider-runnable-track {
+      width: 100%; height: 2px; background: rgba(255,255,255,0.4); border-radius: 1px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; height: 12px; width: 12px;
+      border-radius: 50%; background: rgba(255,255,255,0.8); margin-top: -5px; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      background: #fff; transform: scale(1.15); transition: transform 0.1s ease;
+    }
+
+    #caption {
+      position: absolute; left: 50%;
+      transform: translateX(-50%);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 54px);
+      z-index: 100;
+      background: rgba(0,0,0,0.7); color: #fff;
+      padding: 10px 24px 10px 20px; border-radius: 8px;
+      font-size: 13px; font-weight: 500;
+      max-width: 85vw; text-align: center;
+      line-height: 1.4; pointer-events: auto;
+    }
+    
+    #close-caption {
+      position: absolute; top: 4px; right: 8px;
+      font-size: 18px; font-weight: bold; opacity: 0.6;
+      cursor: pointer; line-height: 1; transition: opacity 0.2s;
+    }
+    #close-caption:hover { opacity: 1; }
+
+    /* D'ni Overlay */
+    #dni-trigger {
+      width: 20px; height: 20px; margin-right: 6px; cursor: pointer;
+      border-radius: 4px; transition: background 0.2s; padding: 2px;
+    }
+    #dni-trigger:hover { background: rgba(255,255,255,0.1); }
+    
+    #dni-zoom-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85); z-index: 9999;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+      backdrop-filter: blur(8px);
+    }
+    #dni-zoom-overlay.active {
+      opacity: 1; pointer-events: auto;
+    }
+    
+    #close-overlay {
+      position: absolute; top: 20px; right: 20px;
+      color: rgba(255,255,255,0.6); font-size: 40px; font-weight: 300; 
+      cursor: pointer; line-height: 1; transition: color 0.2s; padding: 10px;
+    }
+    #close-overlay:hover { color: #fff; }
+
+    #large-volume-slider {
+      width: 50vmin; max-width: 400px; margin-top: 40px;
+    }
+    #large-volume-slider::-webkit-slider-thumb {
+      height: 20px; width: 20px; margin-top: -9px;
+    }
+    
+    /* Dedicated Video Button */
+    #video-toggle {
+      display: none;
+      font-size: 14px;
+      padding: 6px 10px;
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.module.js",
+      "@photo-sphere-viewer/cubemap-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/cubemap-adapter@5/index.module.js",
+      "@photo-sphere-viewer/gyroscope-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/gyroscope-plugin@5/index.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <video id="source-video" crossOrigin="anonymous" loop playsInline muted style="display:none;"></video>
+
+  <div id="viewer"></div>
+
+  <div class="ui-container">
+    <div class="controls-row">
+      <label style="color:rgba(255,255,255,0.8);font-size:11px;align-self:center;text-transform:uppercase;margin:0 4px;">Location</label>
+      <select id="location-selector"></select>
+      <div style="width:1px; height:16px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
+      <div id="quality-buttons" style="display:flex; gap:2px;"></div>
+    </div>
+    
+    <div class="controls-row">
+      <button id="video-toggle" title="Play/Pause Video">▶</button>
+      <button id="audio-toggle" style="font-size: 16px;">♫</button>
+      <input type="range" id="volume-slider" min="0" max="25" value="0">
+      <div id="dni-trigger" title="View large symbol">
+        <svg viewBox="-15 -15 30 30" style="width:100%; height:100%; stroke: rgba(255,255,255,0.8); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;">
+          <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
+          <path id="dni-line-0" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-1" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-2" d="M 0,0 Q 0,0 0,0" />
+          <path id="dni-line-3" d="M 0,0 Q 0,0 0,0" />
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div id="dni-zoom-overlay">
+    <div id="close-overlay" title="Close">&times;</div>
+    <svg viewBox="-15 -15 30 30" style="width: 50vmin; height: 50vmin; max-width: 400px; max-height: 400px; stroke: #fff; fill: none; stroke-width: 0.6; stroke-linecap: round; stroke-linejoin: round;">
+      <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
+      <path id="dni-large-0" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-1" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-2" d="M 0,0 Q 0,0 0,0" />
+      <path id="dni-large-3" d="M 0,0 Q 0,0 0,0" />
+    </svg>
+    <input type="range" id="large-volume-slider" min="0" max="25" value="0">
+  </div>
+
+  <div id="caption">
+    <div id="close-caption" title="Hide caption">&times;</div>
+    This product was created using artwork with ™ and/or © works of Cyan. All rights reserved by Cyan. This product is not official and is not endorsed by Cyan.<br>
+    <span style="font-size: 0.9em; opacity: 0.8;">
+      D'ni numerals © 2026 by Robin Lionheart, used under 
+      <a href="https://creativecommons.org/licenses/by-nc-nd/2.5/" target="_blank" style="color: #fff; text-decoration: underline;">CC BY-NC-ND 2.5</a>.
+    </span>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { Viewer } from '@photo-sphere-viewer/core';
+    import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
+    import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
+
+    const rawUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/';
+
+    const locations = [
+      {
+        name: 'Amateria',
+        baseUrl: rawUrl + 'vr2/',
+        type: 'side-numbered',
+        audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_amateria.mp3',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpeg' },
+          { label: '4K',       suffix: '_seamless.webp' }
+        ]
+      },
+      {
+        name: 'Voltaic',
+        baseUrl: rawUrl + 'vr2/',
+        type: 'voltaic',
+        audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_amateria.mp3',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpeg' },
+          { label: 'Alt (IMG)', type: 'img-seq' },
+          { label: 'Video (5x3)', type: 'video-5x3', url: rawUrl + 'cubemapvr/voltaic_video.mp4' } // Adjust URL here as needed
+        ]
+      },
+      {
+        name: 'J\'nanin',
+        baseUrl: rawUrl + 'cubemapvr/',
+        type: 'classic-leis',
+        audio: 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/audio_jnanin.mp3',
+        versions: [
+          { label: 'Original',    suffix: '-orig.jpg' },
+          { label: '2K (HD Mod)', suffix: '-hdmod.webp' },
+          { label: '4K',          suffix: '-4096.jpg',     mobileOnly: true },
+          { label: '6K',          suffix: '-seamless.webp', desktopOnly: true }
+        ]
+      }
+    ];
+
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    let currentLocation = locations[1];
+    let currentVersionIndex = 0;
+    let isTransitioning = false;
+
+    // --- Audio System ---
+    const audioSystem = {
+      active: new Audio(),
+      fading: new Audio(),
+      isMuted: true,
+      masterVolume: 0,
+      currentUrl: currentLocation.audio
+    };
+
+    audioSystem.active.loop = true;
+    audioSystem.fading.loop = true;
+
+    const audioToggleBtn = document.getElementById('audio-toggle');
+    const volumeSlider = document.getElementById('volume-slider');
+    const largeVolumeSlider = document.getElementById('large-volume-slider');
+    let savedVolume = 15; 
+
+    function setVolume(rawVal) {
+      const val = parseInt(rawVal, 10);
+      audioSystem.masterVolume = val / 25;
+      
+      volumeSlider.value = val;
+      largeVolumeSlider.value = val;
+
+      if (val === 0) {
+        audioSystem.isMuted = true;
+        audioToggleBtn.classList.remove('active');
+        audioSystem.active.pause();
+      } else {
+        audioSystem.isMuted = false;
+        audioToggleBtn.classList.add('active');
+
+        if (audioSystem.currentUrl && (!audioSystem.active.src || audioSystem.active.src === '')) {
+          playOrCrossfadeAudio(audioSystem.currentUrl);
+        } else if (audioSystem.active.paused) {
+          audioSystem.active.play().catch(e => console.warn('Audio blocked:', e));
+        }
+        audioSystem.active.volume = audioSystem.masterVolume;
+      }
+
+      targetDniState = dniStates[val];
+      if (!isDniAnimating) {
+        isDniAnimating = true;
+        animateDni();
+      }
+    }
+
+    audioToggleBtn.addEventListener('click', () => {
+      if (audioSystem.masterVolume === 0) {
+        setVolume(savedVolume);
+      } else {
+        savedVolume = Math.round(audioSystem.masterVolume * 25);
+        setVolume(0);
+      }
+    });
+
+    volumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
+    largeVolumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
+
+    function playOrCrossfadeAudio(newUrl) {
+      if (!newUrl) return;
+      
+      if (audioSystem.currentUrl === newUrl && audioSystem.active.getAttribute('src')) {
+        if (!audioSystem.isMuted && audioSystem.masterVolume > 0 && audioSystem.active.paused) {
+           audioSystem.active.play().catch(e=>console.warn(e));
+        }
+        return;
+      }
+      
+      audioSystem.currentUrl = newUrl;
+      
+      if (audioSystem.isMuted || audioSystem.masterVolume === 0) return;
+
+      const temp = audioSystem.fading;
+      audioSystem.fading = audioSystem.active;
+      audioSystem.active = temp;
+
+      audioSystem.active.src = newUrl;
+      audioSystem.active.volume = 0;
+      audioSystem.active.play().catch(e => console.warn('Audio blocked:', e));
+
+      const steps = 20;
+      let step = 0;
+
+      const fade = setInterval(() => {
+        step++;
+        const progress = step / steps;
+        
+        audioSystem.active.volume = progress * audioSystem.masterVolume;
+        
+        if (audioSystem.fading.src) {
+          audioSystem.fading.volume = Math.max(0, 1 - progress) * audioSystem.masterVolume;
+        }
+
+        if (step >= steps) {
+          clearInterval(fade);
+          if (audioSystem.fading.src) {
+            audioSystem.fading.pause();
+            audioSystem.fading.removeAttribute('src'); 
+          }
+        }
+      }, 1000 / steps);
+    }
+
+    // --- D'ni SVG Morph Engine ---
+    const emptyPath = [0,0, 0,0, 0,0];
+    const onesMap = {
+      0: [emptyPath, emptyPath],
+      1: [[0,-10, 0,-5, 0,0], [0,0, 0,5, 0,10]],
+      2: [[-10,-10, -5,-5, -5,0], [-5,0, -5,5, -10,10]],
+      3: [[0,-10, -5,-5, -10,0], [-10,0, -5,5, 0,10]],
+      4: [[0,10, 0,2.5, 0,-5], [0,-5, 5,-5, 10,-5]]
+    };
+    const fivesMap = {
+      0: [emptyPath, emptyPath],
+      1: [[-10,0, -5,0, 0,0], [0,0, 5,0, 10,0]],
+      2: [[-10,10, -5,5, 0,5], [0,5, 5,5, 10,10]],
+      3: [[-10,0, -5,5, 0,10], [0,10, 5,5, 10,0]],
+      4: [[10,0, 2.5,0, -5,0], [-5,0, -5,-5, -5,-10]]
+    };
+
+    const dniStates = [];
+    for (let i = 0; i <= 25; i++) {
+      if (i === 0) {
+        dniStates.push([ [-0.75,0, 0,-1, 0.75,0], [0.75,0, 0,1, -0.75,0], emptyPath, emptyPath ]); 
+      } else if (i === 25) {
+        dniStates.push([
+          [-10,10, -5,5, 0,0], [0,0, 5,-5, 10,-10], 
+          [-10,-10, -5,-5, 0,0], [0,0, 5,5, 10,10]  
+        ]);
+      } else {
+        const fives = Math.floor(i / 5);
+        const ones = i % 5;
+        dniStates.push([ ...onesMap[ones], ...fivesMap[fives] ]);
+      }
+    }
+
+    let currentDniState = JSON.parse(JSON.stringify(dniStates[0]));
+    let targetDniState = dniStates[0];
+    
+    const dniPaths = [
+      document.getElementById('dni-line-0'), document.getElementById('dni-line-1'),
+      document.getElementById('dni-line-2'), document.getElementById('dni-line-3')
+    ];
+    const dniLargePaths = [
+      document.getElementById('dni-large-0'), document.getElementById('dni-large-1'),
+      document.getElementById('dni-large-2'), document.getElementById('dni-large-3')
+    ];
+    let isDniAnimating = false;
+
+    for (let i = 0; i < 4; i++) {
+      const s = currentDniState[i];
+      const str = `M ${s[0]},${s[1]} Q ${s[2]},${s[3]} ${s[4]},${s[5]}`;
+      dniPaths[i].setAttribute('d', str);
+      dniLargePaths[i].setAttribute('d', str);
+    }
+
+    function animateDni() {
+      let needsUpdate = false;
+      for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 6; j++) {
+          const diff = targetDniState[i][j] - currentDniState[i][j];
+          if (Math.abs(diff) > 0.05) {
+            currentDniState[i][j] += diff * 0.15; 
+            needsUpdate = true;
+          } else {
+            currentDniState[i][j] = targetDniState[i][j];
+          }
+        }
+        const s = currentDniState[i];
+        const str = `M ${s[0]},${s[1]} Q ${s[2]},${s[3]} ${s[4]},${s[5]}`;
+        dniPaths[i].setAttribute('d', str);
+        dniLargePaths[i].setAttribute('d', str);
+      }
+      
+      if (needsUpdate) {
+        requestAnimationFrame(animateDni);
+      } else {
+        isDniAnimating = false;
+      }
+    }
+
+    // --- Overlay & UI Interaction ---
+    const overlay = document.getElementById('dni-zoom-overlay');
+    
+    document.getElementById('dni-trigger').addEventListener('click', () => {
+      overlay.classList.add('active');
+      volumeSlider.style.opacity = '0';
+      volumeSlider.style.pointerEvents = 'none';
+    });
+    
+    function closeOverlay() {
+      overlay.classList.remove('active');
+      volumeSlider.style.opacity = '1';
+      volumeSlider.style.pointerEvents = 'auto';
+    }
+    
+    document.getElementById('close-overlay').addEventListener('click', closeOverlay);
+    
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeOverlay();
+    });
+
+    document.getElementById('close-caption').addEventListener('click', () => {
+      document.getElementById('caption').style.display = 'none';
+    });
+
+    // --- Video Extraction System ---
+    const sourceVideo = document.getElementById('source-video');
+    const videoToggleBtn = document.getElementById('video-toggle');
+    
+    const videoCanvases = {
+      front: document.createElement('canvas'),
+      back: document.createElement('canvas'),
+      left: document.createElement('canvas'),
+      right: document.createElement('canvas'),
+      top: document.createElement('canvas'),
+      bottom: document.createElement('canvas')
+    };
+
+    const ctxs = {
+      front: videoCanvases.front.getContext('2d', { alpha: false }),
+      back: videoCanvases.back.getContext('2d', { alpha: false }),
+      left: videoCanvases.left.getContext('2d'), // needs alpha for composite wipe
+      right: videoCanvases.right.getContext('2d', { alpha: false }),
+      top: videoCanvases.top.getContext('2d', { alpha: false }),
+      bottom: videoCanvases.bottom.getContext('2d', { alpha: false })
+    };
+
+    let videoRafId = null;
+
+    function updateVideoCanvases() {
+      const W = Math.floor(sourceVideo.videoWidth / 5);
+      const H = Math.floor(sourceVideo.videoHeight / 3);
+
+      if (W === 0 || H === 0) return;
+
+      Object.values(videoCanvases).forEach(c => {
+        if (c.width !== W) c.width = W;
+        if (c.height !== H) c.height = H;
+      });
+
+      // Front, Right, Back
+      ctxs.front.drawImage(sourceVideo, 1 * W, 1 * H, W, H, 0, 0, W, H);
+      ctxs.right.drawImage(sourceVideo, 2 * W, 1 * H, W, H, 0, 0, W, H);
+      ctxs.back.drawImage(sourceVideo, 3 * W, 1 * H, W, H, 0, 0, W, H);
+
+      // Left
+      ctxs.left.clearRect(0, 0, W, H);
+      ctxs.left.drawImage(sourceVideo, 4 * W, 1 * H, W, H, 0, 0, W, H);
+      ctxs.left.globalCompositeOperation = 'destination-out';
+      const grad = ctxs.left.createLinearGradient(0, 0, W, 0);
+      grad.addColorStop(0.25, 'rgba(0,0,0,0)');
+      grad.addColorStop(0.75, 'rgba(0,0,0,1)');
+      ctxs.left.fillStyle = grad;
+      ctxs.left.fillRect(0, 0, W, H);
+      ctxs.left.globalCompositeOperation = 'destination-over';
+      ctxs.left.drawImage(sourceVideo, 0 * W, 1 * H, W, H, 0, 0, W, H);
+      ctxs.left.globalCompositeOperation = 'source-over';
+
+      // Top & Bottom Wedges
+      const drawWedges = (ctx, isTop) => {
+        const cx = W / 2, cy = H / 2;
+        const drawTri = (col, row, rot, pts) => {
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          ctx.lineTo(pts[1].x, pts[1].y);
+          ctx.lineTo(pts[2].x, pts[2].y);
+          ctx.closePath();
+          ctx.clip();
+          
+          ctx.translate(cx, cy);
+          ctx.rotate((rot * Math.PI) / 180);
+          ctx.drawImage(sourceVideo, col * W, row * H, W, H, -cx, -cy, W, H);
+          ctx.restore();
+        };
+
+        if (isTop) {
+          ctx.drawImage(sourceVideo, 1 * W, 0 * H, W, H, 0, 0, W, H);
+          drawTri(3, 0, 180, [{ x: -1, y: -1 }, { x: W + 1, y: -1 }, { x: cx, y: cy }]);
+          drawTri(0, 0, 90,  [{ x: -1, y: -1 }, { x: -1, y: H + 1 }, { x: cx, y: cy }]);
+          drawTri(2, 0, 270, [{ x: W + 1, y: -1 }, { x: W + 1, y: H + 1 }, { x: cx, y: cy }]);
+        } else {
+          ctx.drawImage(sourceVideo, 1 * W, 2 * H, W, H, 0, 0, W, H);
+          drawTri(3, 2, 180, [{ x: -1, y: H + 1 }, { x: W + 1, y: H + 1 }, { x: cx, y: cy }]);
+          drawTri(0, 2, 270, [{ x: -1, y: -1 }, { x: -1, y: H + 1 }, { x: cx, y: cy }]);
+          drawTri(2, 2, 90,  [{ x: W + 1, y: -1 }, { x: W + 1, y: H + 1 }, { x: cx, y: cy }]);
+        }
+      };
+
+      drawWedges(ctxs.top, true);
+      drawWedges(ctxs.bottom, false);
+    }
+
+    function renderVideoLoop() {
+      updateVideoCanvases();
+      // Force Three.js to re-upload the canvas textures to the GPU
+      if (viewer && viewer.renderer && viewer.renderer.mesh && viewer.renderer.mesh.material) {
+        viewer.renderer.mesh.material.forEach(mat => {
+          if (mat.map) mat.map.needsUpdate = true;
+        });
+      }
+      videoRafId = requestAnimationFrame(renderVideoLoop);
+    }
+
+    sourceVideo.addEventListener('play', () => {
+      videoToggleBtn.textContent = '⏸';
+      if (!videoRafId) renderVideoLoop();
+    });
+
+    sourceVideo.addEventListener('pause', () => {
+      videoToggleBtn.textContent = '▶';
+      if (videoRafId) cancelAnimationFrame(videoRafId);
+      videoRafId = null;
+    });
+
+    videoToggleBtn.addEventListener('click', () => {
+      if (sourceVideo.paused) {
+        sourceVideo.play().catch(e => console.warn('Playback blocked', e));
+      } else {
+        sourceVideo.pause();
+      }
+    });
+
+    async function prepareVideo(url) {
+      return new Promise((resolve) => {
+        sourceVideo.src = url;
+        sourceVideo.onloadeddata = () => {
+          // Render the first frame statically so it isn't black when setPanorama runs
+          updateVideoCanvases();
+          resolve(videoCanvases);
+        };
+      });
+    }
+
+    // --- Fullscreen transition overlay ---
+    const transitionScene  = new THREE.Scene();
+    const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    let transitionMesh = null;
+    let rtOld = null;
+    let rtNew = null;
+
+    const VERT = `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position, 1.0);
+      }
+    `;
+
+    // Reverted to regular random block wipe
+    const FRAG_BLOCK = `
+      uniform sampler2D tOld;
+      uniform sampler2D tNew;
+      uniform float uProgress;
+      uniform float uBlockSize;
+      uniform float uAspect;
+      varying vec2 vUv;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+
+      void main() {
+        vec2 correctedUv = vec2(vUv.x * uAspect, vUv.y);
+        vec2 blockUv = floor(correctedUv * uBlockSize) / uBlockSize;
+        
+        float blockOffset = hash(blockUv) * 0.2;
+        float pixelDepth = 1.0 - vUv.y; // Standard top-to-bottom fallback
+        
+        float wipe = uProgress * 1.2;
+        
+        if (wipe > pixelDepth + blockOffset) {
+          gl_FragColor = texture2D(tNew, vUv);
+        } else {
+          gl_FragColor = texture2D(tOld, vUv);
+        }
+      }
+    `;
+
+    const FRAG_FADE = `
+      uniform sampler2D tOld;
+      uniform sampler2D tNew;
+      uniform float uProgress;
+      varying vec2 vUv;
+
+      void main() {
+        vec4 a = texture2D(tOld, vUv);
+        vec4 b = texture2D(tNew, vUv);
+        gl_FragColor = mix(a, b, smoothstep(0.0, 1.0, uProgress));
+      }
+    `;
+
+    // --- Helpers ---
+
+    function getActiveVersions(loc) {
+      return loc.versions.filter(v => {
+        if (v.desktopOnly && isMobile)  return false;
+        if (v.mobileOnly  && !isMobile) return false;
+        return true;
+      });
+    }
+
+    function getCubemap(loc, version) {
+      const s = typeof version === 'string' ? version : (version.suffix || '');
+      const type = (typeof version === 'object' && version.type) ? version.type : loc.type;
+      
+      if (type === 'img-seq') {
+        const b = rawUrl + 'cubemapvr/';
+        return {
+          front:  b + 'IMG_5228.jpeg',
+          bottom: b + 'IMG_5229.jpeg',
+          back:   b + 'IMG_5230.jpeg',
+          left:   b + 'IMG_5231.jpeg', 
+          right:  b + 'IMG_5232.jpeg',  
+          top:    b + 'IMG_5233.jpeg',
+        };
+      }
+      else if (type === 'side-numbered') {
+        return {
+          front:  loc.baseUrl + 'MAWWnodes-8'  + s,
+          bottom: loc.baseUrl + 'MAWWnodes-9'  + s,
+          back:   loc.baseUrl + 'MAWWnodes-10' + s,
+          right:  loc.baseUrl + 'MAWWnodes-11' + s,
+          left:   loc.baseUrl + 'MAWWnodes-12' + s,
+          top:    loc.baseUrl + 'MAWWnodes-13' + s,
+        };
+      } 
+      else if (type === 'voltaic') {
+        return {
+          left:   loc.baseUrl + 'ENCHnodes-281' + s,
+          front:  loc.baseUrl + 'ENCHnodes-277' + s,
+          right:  loc.baseUrl + 'ENCHnodes-280' + s,
+          back:   loc.baseUrl + 'ENCHnodes-279' + s,
+          top:    loc.baseUrl + 'ENCHnodes-282' + s,
+          bottom: loc.baseUrl + 'ENCHnodes-278' + s,
+        };
+      }
+      else {
+        return {
+          left:   loc.baseUrl + 'LEIS665' + s,
+          front:  loc.baseUrl + 'LEIS661' + s,
+          right:  loc.baseUrl + 'LEIS664' + s,
+          back:   loc.baseUrl + 'LEIS663' + s,
+          top:    loc.baseUrl + 'LEIS666' + s,
+          bottom: loc.baseUrl + 'LEIS662' + s,
+        };
+      }
+    }
+
+    function getOrCreateTransitionMesh(mode) {
+      if (transitionMesh && transitionMesh.userData.mode !== mode) {
+        transitionScene.remove(transitionMesh);
+        transitionMesh.geometry.dispose();
+        transitionMesh.material.dispose();
+        transitionMesh = null;
+      }
+
+      if (!transitionMesh) {
+        const uniforms = {
+          tOld:      { value: null },
+          tNew:      { value: null },
+          uProgress: { value: 0 },
+        };
+        if (mode === 'block') {
+          uniforms.uBlockSize = { value: 50.0 };
+          uniforms.uAspect    = { value: window.innerWidth / window.innerHeight };
+        }
+        const mat = new THREE.ShaderMaterial({
+          uniforms,
+          vertexShader:   VERT,
+          fragmentShader: mode === 'block' ? FRAG_BLOCK : FRAG_FADE,
+          depthTest:   false,
+          depthWrite:  false,
+          transparent: false
+        });
+        transitionMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat);
+        transitionMesh.userData.mode = mode;
+        transitionScene.add(transitionMesh);
+      }
+
+      return transitionMesh;
+    }
+
+    function disposeRenderTargets() {
+      if (rtOld) { rtOld.dispose(); rtOld = null; }
+      if (rtNew) { rtNew.dispose(); rtNew = null; }
+    }
+
+    function disposeAll() {
+      disposeRenderTargets();
+      if (transitionMesh) {
+        transitionScene.remove(transitionMesh);
+        transitionMesh.geometry.dispose();
+        transitionMesh.material.dispose();
+        transitionMesh = null;
+      }
+    }
+
+    // --- UI Update ---
+
+    function updateUI() {
+      const locSelect = document.getElementById('location-selector');
+      if (locSelect.options.length === 0) {
+        locations.forEach((loc, i) => {
+          const opt = document.createElement('option');
+          opt.value = i;
+          opt.textContent = loc.name;
+          if (loc === currentLocation) opt.selected = true;
+          locSelect.appendChild(opt);
+        });
+        locSelect.onchange = (e) => {
+          const oldLocation = currentLocation;
+          const oldVersion = getActiveVersions(currentLocation)[currentVersionIndex];
+          const newLocation = locations[e.target.value];
+          const isLocationChange = newLocation !== currentLocation;
+          
+          currentLocation = newLocation;
+          currentVersionIndex = 0;
+          updateUI();
+          
+          loadPanorama(isLocationChange ? 'block' : 'fade', oldLocation, oldVersion);
+        };
+      }
+
+      const activeVersions = getActiveVersions(currentLocation);
+      if (currentVersionIndex >= activeVersions.length) currentVersionIndex = 0;
+
+      const qBar = document.getElementById('quality-buttons');
+      qBar.innerHTML = '';
+      activeVersions.forEach((v, idx) => {
+        const btn = document.createElement('button');
+        btn.textContent = v.label;
+        if (idx === currentVersionIndex) btn.classList.add('active');
+        btn.onclick = () => {
+          if (currentVersionIndex !== idx && !isTransitioning) {
+            const oldLocation = currentLocation;
+            const oldVersion = activeVersions[currentVersionIndex];
+            currentVersionIndex = idx;
+            updateUI();
+            loadPanorama('fade', oldLocation, oldVersion);
+          }
+        };
+        qBar.appendChild(btn);
+      });
+    }
+
+    // --- Panorama loader ---
+
+    async function loadPanorama(mode = 'block', oldLoc = currentLocation, oldVersion = getActiveVersions(currentLocation)[currentVersionIndex]) {
+      if (isTransitioning) return;
+      isTransitioning = true;
+
+      if (typeof viewer.stopAnimation === 'function') {
+        viewer.stopAnimation();
+      }
+
+      if (currentLocation.audio) {
+        playOrCrossfadeAudio(currentLocation.audio);
+      }
+
+      const r   = viewer.renderer.renderer;
+      const sc  = viewer.renderer.scene;
+      const cam = viewer.renderer.camera;
+      
+      const size = r.getDrawingBufferSize(new THREE.Vector2());
+
+      rtOld = new THREE.WebGLRenderTarget(size.x, size.y);
+      r.setRenderTarget(rtOld);
+      r.render(sc, cam);
+      r.setRenderTarget(null);
+
+      const mesh = getOrCreateTransitionMesh(mode);
+      mesh.material.uniforms.tOld.value = rtOld.texture;
+      mesh.material.uniforms.tNew.value = null;
+      mesh.material.uniforms.uProgress.value = 0;
+
+      if (mode === 'block') {
+        mesh.material.uniforms.uAspect.value = size.x / size.y;
+      }
+
+      const activeVersions = getActiveVersions(currentLocation);
+      const targetVersion = activeVersions[currentVersionIndex];
+      let config;
+
+      // Check if we are shifting to a live video map
+      if (targetVersion.type === 'video-5x3') {
+        videoToggleBtn.style.display = 'inline-block';
+        config = await prepareVideo(targetVersion.url);
+      } else {
+        videoToggleBtn.style.display = 'none';
+        sourceVideo.pause(); // Ensure hidden video isn't pulling background CPU
+        config = getCubemap(currentLocation, targetVersion);
+      }
+
+      try {
+        await viewer.setPanorama(config, { transition: false, showLoader: false });
+        applyPixelFiltering();
+
+        rtNew = new THREE.WebGLRenderTarget(size.x, size.y);
+        r.setRenderTarget(rtNew);
+        r.render(sc, cam);
+        r.setRenderTarget(null);
+        mesh.material.uniforms.tNew.value = rtNew.texture;
+
+        const duration  = mode === 'block' ? 1200 : 600;
+        const startTime = performance.now();
+
+        (function animateTransition(now) {
+          if (!isTransitioning) return; 
+
+          const p = Math.min((now - startTime) / duration, 1);
+          mesh.material.uniforms.uProgress.value = p;
+
+          r.setRenderTarget(null);
+          r.clear();
+          r.render(sc, cam);
+          r.autoClear = false;
+          r.render(transitionScene, transitionCamera);
+          r.autoClear = true;
+
+          if (p < 1) {
+            requestAnimationFrame(animateTransition);
+          } else {
+            disposeRenderTargets();
+            isTransitioning = false;
+            applyPixelFiltering();
+          }
+        })(performance.now());
+
+      } catch (err) {
+        console.error('Transition failed:', err);
+        disposeRenderTargets();
+        isTransitioning = false;
+      }
+    }
+
+    function applyPixelFiltering() {
+      if (!viewer.renderer?.mesh) return;
+      const materials = viewer.renderer.mesh.material;
+      (Array.isArray(materials) ? materials : [materials]).forEach(mat => {
+        if (mat.map) {
+          mat.map.magFilter = THREE.NearestFilter;
+          mat.map.minFilter = THREE.LinearMipmapLinearFilter;
+          mat.map.needsUpdate = true;
+        }
+      });
+    }
+
+    function readDevicePitchOnce(timeoutMs = 700) {
+      return new Promise((resolve) => {
+        let done = false;
+        function finish(val) {
+          if (done) return;
+          done = true;
+          window.removeEventListener('deviceorientation', onOri, true);
+          resolve(val);
+        }
+        function onOri(e) {
+          if (typeof e.beta !== 'number') return;
+          const pitchRad = THREE.MathUtils.degToRad(
+            THREE.MathUtils.clamp(e.beta, -85, 85)
+          );
+          finish(-pitchRad);
+        }
+        window.addEventListener('deviceorientation', onOri, true);
+        setTimeout(() => finish(null), timeoutMs);
+      });
+    }
+
+    async function settlePitchToDevice() {
+      const { yaw } = viewer.getPosition();
+      const targetPitch = await readDevicePitchOnce();
+      if (targetPitch == null) return;
+      viewer.animate({ yaw, pitch: targetPitch, speed: 700 });
+    }
+
+    // --- Viewer ---
+    const activeVersions = getActiveVersions(currentLocation);
+
+    const viewer = new Viewer({
+      container: 'viewer',
+      adapter: CubemapAdapter,
+      
+      defaultYaw: "225deg",
+      defaultZoomLvl: 20,
+      zoomSpeed: 0.2,maxPitch:"85deg",minPitch:"-85deg",
+
+      plugins: [
+        [GyroscopePlugin, {
+          moveMode: 'fast',
+          absolutePosition: false, 
+          roll: true              
+        }]
+      ],
+      panorama: getCubemap(currentLocation, activeVersions[currentVersionIndex]),
+      caption: '',
+      loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
+      touchmoveTwoFingers: false,
+      mousewheelCtrlKey: false,
+      minFov: 10,
+      maxFov: 110,
+      
+      navbar: ['zoom', 'move', 'download', 'gyroscope', 'fullscreen']
+    });
+
+    updateUI();
+    
+    viewer.addEventListener('panorama-loaded', applyPixelFiltering);
+
+    viewer.addEventListener('render', () => {
+      if (!isTransitioning || !transitionMesh) return;
+      const renderer = viewer.renderer.renderer;
+      const prev = renderer.autoClear;
+      renderer.autoClear = false;
+      renderer.render(transitionScene, transitionCamera);
+      renderer.autoClear = prev;
+    });
+
+    viewer.addEventListener('ready', () => {
+      const gyro = viewer.getPlugin(GyroscopePlugin);
+      if (!gyro) return;
+      gyro.addEventListener('gyroscope-enabled', settlePitchToDevice);
+    });
+
+    window.addEventListener('resize', () => {
+      disposeAll();
+      isTransitioning = false;
+      document.body.style.height = window.innerHeight + 'px';
+    });
+
+  </script>
+</body>
+</html>

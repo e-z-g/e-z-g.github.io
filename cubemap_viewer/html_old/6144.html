@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cubemap Viewer Demo</title>
+  <style>
+    @import url('https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.css');
+    html, body, #viewer {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      font-family: sans-serif;
+    }
+    #sceneButtons {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 9999;
+    }
+    #sceneButtons button {
+      margin: 2px;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js",
+        "@photo-sphere-viewer/core": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/core@5/index.module.js",
+        "@photo-sphere-viewer/autorotate-plugin": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/autorotate-plugin@5/index.module.js",
+        "@photo-sphere-viewer/cubemap-adapter": "https://cdn.jsdelivr.net/npm/@photo-sphere-viewer/cubemap-adapter@5/index.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="viewer"></div>
+  <div id="sceneButtons">
+    <button data-scene="1">High</button>
+    <button data-scene="2">Medium</button>
+    <button data-scene="3">Low</button>
+  </div>
+  <script type="module">
+    import { Viewer, utils } from '@photo-sphere-viewer/core';
+    import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
+    import { CubemapAdapter } from '@photo-sphere-viewer/cubemap-adapter';
+
+    const baseUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cubemapvr/';
+    // Suffixes for high, medium, and low resolution scenes
+    const suffixes = ['-orig.jpg', '-orig.jpg', '-orig.jpg'];
+
+    const animatedValues = {
+      pitch: { start: -Math.PI / 2, end: 0 },
+      yaw: { start: Math.PI / 2, end: 0 },
+      zoom: { start: 0, end: 50 },
+      maxFov: { start: 130, end: 90 }, // Wider view at start, less distortion after zoom
+      fisheye: { start: 2, end: 0 },
+    };
+
+    let currentScene = 0;
+    let rotationId = null;
+
+    const viewer = new Viewer({
+      container: 'viewer',
+      adapter: CubemapAdapter,
+      defaultPitch: animatedValues.pitch.start,
+      defaultYaw: animatedValues.yaw.start,
+      defaultZoomLvl: animatedValues.zoom.start,
+      maxFov: animatedValues.maxFov.start,
+      fisheye: animatedValues.fisheye.start,
+      panorama: {}, // Panorama is set dynamically by setScene()
+      caption: 'This product was created using artwork by Cyan. Not official or endorsed by Cyan.',
+      loadingImg: 'https://photo-sphere-viewer-data.netlify.app/assets/loader.gif',
+      touchmoveTwoFingers: false,
+      mousewheelCtrlKey: true, // Allow zooming with Ctrl/Cmd + scroll
+      navbar: ['autorotate', 'zoom', 'caption', 'fullscreen'],
+      plugins: [
+        [AutorotatePlugin, { autostartDelay: null, autostartOnIdle: false, autorotatePitch: 0 }],
+      ],
+    });
+
+    /**
+     * Loads a new set of cubemap images into the viewer.
+     * @param {number} sceneIndex - The index for the scene to load.
+     */
+    function setScene(sceneIndex) {
+      currentScene = sceneIndex;
+      const suffix = suffixes[sceneIndex];
+      // The setPanorama method loads the new images
+      viewer.setPanorama({
+        left:   baseUrl + 'LEIS665' + suffix,
+        front:  baseUrl + 'LEIS661' + suffix,
+        right:  baseUrl + 'LEIS664' + suffix,
+        back:   baseUrl + 'LEIS663' + suffix,
+        top:    baseUrl + 'LEIS666' + suffix,
+        bottom: baseUrl + 'LEIS662' + suffix,
+      }, {
+          // Reset the view to the initial zoomed-out and distorted state
+          pitch: animatedValues.pitch.start,
+          yaw: animatedValues.yaw.start,
+          zoom: animatedValues.zoom.start,
+          showLoader: true,
+      }).then(() => {
+          runIntroAnimation();
+      });
+    }
+
+    /**
+     * Runs the full animation sequence: pause, zoom, and rotate.
+     */
+    async function runIntroAnimation() {
+      // Pause at full zoom-out for 1.5 seconds
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Animate fisheye and FoV to reduce distortion
+      new utils.Animation({
+        properties: {
+          maxFov: { start: animatedValues.maxFov.start, end: animatedValues.maxFov.end },
+          fisheye: { start: animatedValues.fisheye.start, end: animatedValues.fisheye.end },
+        },
+        duration: 2000,
+        easing: 'inOutCubic',
+        onTick: (properties) => {
+          viewer.setOptions({ maxFov: properties.maxFov, fisheye: properties.fisheye });
+        },
+      });
+
+      // Animate zoom and position simultaneously
+      await viewer.animate({
+        zoom: animatedValues.zoom.end,
+        pitch: animatedValues.pitch.end,
+        yaw: animatedValues.yaw.end,
+        speed: '2000ms',
+      });
+
+      // Start a slow, continuous rotation
+      startRotationLoop(0.0005);
+      
+      // Re-enable user controls
+      viewer.setOptions({ mousemove: true, mousewheel: true });
+    }
+    
+    /**
+     * Starts a continuous yaw rotation.
+     * @param {number} speed - The rotation speed.
+     */
+    function startRotationLoop(speed) {
+      let yaw = viewer.getPosition().yaw;
+      if (rotationId) cancelAnimationFrame(rotationId);
+
+      function rotate() {
+        yaw += speed;
+        viewer.rotate({ yaw });
+        rotationId = requestAnimationFrame(rotate);
+      }
+      rotate();
+    }
+    
+    /**
+     * Stops the rotation loop.
+     */
+    function stopRotationLoop() {
+      if (rotationId) {
+        cancelAnimationFrame(rotationId);
+        rotationId = null;
+      }
+    }
+
+    // Event listener for the scene switching buttons
+    document.getElementById('sceneButtons').addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') {
+        const sceneIndex = Number(e.target.dataset.scene) - 1;
+        if (sceneIndex !== currentScene) {
+          stopRotationLoop();
+          viewer.stopAnimation();
+          setScene(sceneIndex);
+        }
+      }
+    });
+    
+    // Load the initial scene once the viewer is ready
+    viewer.addEventListener('ready', () => {
+      setScene(0);
+    }, { once: true });
+
+  </script>
+</body>
+</html>
