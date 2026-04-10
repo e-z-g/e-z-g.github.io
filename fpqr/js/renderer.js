@@ -21,8 +21,15 @@ let logoGifFrames = null;
 let logoGifTotalTime = 0;
 let gifTimeMs = 0; 
 
+// Performance Caches
+const domCache = {};
+const mapCache = {
+    color: { img: null, sz: null, data: null },
+    density: { img: null, sz: null, data: null }
+};
+
 const offscreenCanvas = document.createElement('canvas');
-const offscreenCtx = offscreenCanvas.getContext('2d');
+const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
 
 const getHasAnimatedGif = () => customLogoIsGif || colorMapIsGif || densityMapIsGif;
 
@@ -102,7 +109,6 @@ function renderCanvas() {
     const shape = E('data-shape')?.value || 'solid';
     const colorStyle = E('grad-style')?.value || 'linear';
     const densityMapStyle = E('density-map-style')?.value || 'uniform';
-    const needsImageMap = colorStyle === 'image' || densityMapStyle === 'image';
     
     const dB = parseInt(E('data-bevel')?.value || '75');
     const pct = parseInt(E('logo-size')?.value || '25'), padPct = parseInt(E('logo-padding')?.value || '1');
@@ -119,21 +125,34 @@ function renderCanvas() {
     const alignFB = matchFinders ? fB : parseInt(E('align-frame-bevel')?.value || '50');
     const alignPB = matchFinders ? pB : parseInt(E('align-pupil-bevel')?.value || '50');
 
-    const alignSliders = E('align-sliders');
-    if(alignSliders) {
-        alignSliders.style.opacity = matchFinders ? '0.3' : '1';
-        alignSliders.style.pointerEvents = matchFinders ? 'none' : 'auto';
+    // Cached DOM Updates to prevent styling thrash during requestAnimationFrame
+    if (domCache['matchFinders'] !== matchFinders) {
+        const alignSliders = E('align-sliders');
+        if(alignSliders) {
+            alignSliders.style.opacity = matchFinders ? '0.3' : '1';
+            alignSliders.style.pointerEvents = matchFinders ? 'none' : 'auto';
+        }
+        domCache['matchFinders'] = matchFinders;
     }
 
-    safeSetText('frame-bevel-val', fB + '%'); 
-    safeSetText('pupil-bevel-val', pB + '%');
-    safeSetText('align-frame-bevel-val', alignFB + '%'); 
-    safeSetText('align-pupil-bevel-val', alignPB + '%');
-    safeSetText('data-bevel-val', dB + '%'); 
-    safeSetText('logo-size-val', pct + '%'); 
-    safeSetText('logo-padding-val', padPct + '%');
-    safeSetText('grad-angle-val', (E('grad-angle')?.value || '135') + '°');
-    safeSetText('grad-radial-val', (E('grad-radial')?.value || '100') + '%');
+    const updates = {
+        'frame-bevel-val': fB + '%',
+        'pupil-bevel-val': pB + '%',
+        'align-frame-bevel-val': alignFB + '%',
+        'align-pupil-bevel-val': alignPB + '%',
+        'data-bevel-val': dB + '%',
+        'logo-size-val': pct + '%',
+        'logo-padding-val': padPct + '%',
+        'grad-angle-val': (E('grad-angle')?.value || '135') + '°',
+        'grad-radial-val': (E('grad-radial')?.value || '100') + '%'
+    };
+
+    for (const [id, val] of Object.entries(updates)) {
+        if (domCache[id] !== val) {
+            safeSetText(id, val);
+            domCache[id] = val;
+        }
+    }
 
     const renderM = (canId, matrix) => {
         const can = E(canId); if (!can) return;
@@ -143,6 +162,7 @@ function renderCanvas() {
             can.width = can.height = cSz;
         }
         
+        // Fix: Removed willReadFrequently to re-enable iOS GPU hardware acceleration
         const ctx = can.getContext('2d');
         ctx.clearRect(0, 0, cSz, cSz);
         
@@ -193,20 +213,39 @@ function renderCanvas() {
         
         let hMapColor = null, hMapDensity = null;
         
+        // Fix: Implement mapData caching to prevent synchronous getImageData stalls
         if (colorStyle === 'image') {
             let activeImage = colorMapImage;
+            let isDynamic = false;
             if (colorMapIsGif && colorMapGifFrames) {
                 activeImage = getCurrentGifFrame({frames: colorMapGifFrames, totalTime: colorMapGifTotalTime}, gifTimeMs) || colorMapImage;
+                isDynamic = true;
             }
-            if (activeImage) hMapColor = getMapData(activeImage, gSz, offscreenCtx, offscreenCanvas);
+            if (activeImage) {
+                if (isDynamic || mapCache.color.img !== activeImage || mapCache.color.sz !== gSz) {
+                    mapCache.color.data = getMapData(activeImage, gSz, offscreenCtx, offscreenCanvas);
+                    mapCache.color.img = activeImage;
+                    mapCache.color.sz = gSz;
+                }
+                hMapColor = mapCache.color.data;
+            }
         }
 
         if (densityMapStyle === 'image') {
             let activeImage = densityMapImage;
+            let isDynamic = false;
             if (densityMapIsGif && densityMapGifFrames) {
                 activeImage = getCurrentGifFrame({frames: densityMapGifFrames, totalTime: densityMapGifTotalTime}, gifTimeMs) || densityMapImage;
+                isDynamic = true;
             }
-            if (activeImage) hMapDensity = getMapData(activeImage, gSz, offscreenCtx, offscreenCanvas);
+            if (activeImage) {
+                if (isDynamic || mapCache.density.img !== activeImage || mapCache.density.sz !== gSz) {
+                    mapCache.density.data = getMapData(activeImage, gSz, offscreenCtx, offscreenCanvas);
+                    mapCache.density.img = activeImage;
+                    mapCache.density.sz = gSz;
+                }
+                hMapDensity = mapCache.density.data;
+            }
         }
 
         const drawStruct = (r, c, x, y, size, type) => {
