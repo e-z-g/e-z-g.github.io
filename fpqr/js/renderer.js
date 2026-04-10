@@ -143,7 +143,7 @@ function renderCanvas() {
             can.width = can.height = cSz;
         }
         
-        const ctx = can.getContext('2d', { willReadFrequently: true });
+        const ctx = can.getContext('2d');
         ctx.clearRect(0, 0, cSz, cSz);
         
         const bgGrad = createEngineGradient(ctx, cSz, E('color-bg-start')?.value || '#ffffff', E('color-bg-end')?.value || '#ffffff');
