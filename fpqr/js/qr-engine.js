@@ -1,7 +1,7 @@
 // Core DOM Utilities
 const E = id => document.getElementById(id);
 const safeSetText = (id, txt) => { if(E(id)) E(id).textContent = txt; };
-const safeSetHTML = (id, html) => { if(E(id)) E(id).innerHTML = html; };
+const safeSetHTML = (id,``` html) => { if(E(id)) E(id).innerHTML = html; };
 
 // Shared QR Constants
 const AP_LOCATIONS = [[], [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]];
@@ -23,6 +23,11 @@ const validateCanvas = document.createElement('canvas');
 validateCanvas.width = 512; 
 validateCanvas.height = 512;
 const validateCtx = validateCanvas.getContext('2d', { willReadFrequently: true });
+
+// Readability Accumulator Variables
+let animScanAccumulator = 0;
+let animScanCount = 0;
+let lastAnimScanUpdate = Date.now();
 
 function getBits(s, m) { 
     const l = s.length; 
@@ -163,7 +168,6 @@ function analyzeData() {
             E('capacity-bar').style.width = `${Math.min(100, (bytesUsed/capacityBytes)*100)}%`;
         }
 
-        // Trigger global render if renderer is loaded
         if (typeof renderCanvas === 'function') {
             renderCanvas();
         }
@@ -214,9 +218,7 @@ function checkScannability() {
         else if (drawAndTest(null, 'invert(100%) contrast(400%) grayscale(100%)')) { score += 20; }
     }
 
-    scanHistory.push(score);
-    if (scanHistory.length > 5) scanHistory.shift();
-    const smoothedScore = Math.round(scanHistory.reduce((a, b) => a + b, 0) / scanHistory.length);
+    const isAnimated = E('anim-toggle')?.checked || (typeof getHasAnimatedGif === 'function' && getHasAnimatedGif());
 
     const updateBadge = (scoreNum, text, barColorClass, textColorClass) => {
         const bar = E('scan-score-bar');
@@ -237,8 +239,34 @@ function checkScannability() {
         }
     };
 
-    if (smoothedScore >= 85) { updateBadge(smoothedScore, 'EXCELLENT', 'bg-emerald-500', 'text-emerald-400'); } 
-    else if (smoothedScore >= 40) { updateBadge(smoothedScore, 'GOOD', 'bg-blue-500', 'text-blue-400'); } 
-    else if (smoothedScore >= 20) { updateBadge(smoothedScore, 'FRAGILE', 'bg-amber-500', 'text-amber-400'); } 
-    else { updateBadge(smoothedScore, 'UNREADABLE', 'bg-rose-500', 'text-rose-500'); }
+    const applyScore = (s) => {
+        if (s >= 85) { updateBadge(s, 'EXCELLENT', 'bg-emerald-500', 'text-emerald-400'); } 
+        else if (s >= 40) { updateBadge(s, 'GOOD', 'bg-blue-500', 'text-blue-400'); } 
+        else if (s >= 20) { updateBadge(s, 'FRAGILE', 'bg-amber-500', 'text-amber-400'); } 
+        else { updateBadge(s, 'UNREADABLE', 'bg-rose-500', 'text-rose-500'); }
+    };
+
+    if (isAnimated) {
+        animScanAccumulator += score;
+        animScanCount++;
+        const now = Date.now();
+        if (now - lastAnimScanUpdate >= 5000) {
+            const avgScore = Math.round(animScanAccumulator / animScanCount);
+            applyScore(avgScore);
+            lastAnimScanUpdate = now;
+            animScanAccumulator = 0;
+            animScanCount = 0;
+        } else if (E('scan-status-text')?.textContent === 'ANALYZING...') {
+            applyScore(score);
+        }
+    } else {
+        scanHistory.push(score);
+        if (scanHistory.length > 5) scanHistory.shift();
+        const smoothedScore = Math.round(scanHistory.reduce((a, b) => a + b, 0) / scanHistory.length);
+        applyScore(smoothedScore);
+        
+        animScanAccumulator = 0;
+        animScanCount = 0;
+        lastAnimScanUpdate = Date.now();
+    }
 }
