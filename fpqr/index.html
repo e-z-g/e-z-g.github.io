@@ -467,16 +467,16 @@
 
                     <div id="naive-container" class="hidden flex flex-col items-center">
                         <div class="bg-white p-2 rounded-xl shadow-lg">
-                            <canvas id="qr-naive" style="width: 120px; height: 120px;" class="image-rendering-pixelated"></canvas>
+                            <canvas id="qr-naive" style="width: 120px; height: 120px;" class="image-rendering-pixelated animated-element"></canvas>
                         </div>
-                        <span class="text-xs font-bold text-slate-500 mt-3 uppercase tracking-widest">Naive Mode</span>
+                        <span class="text-xs font-bold text-slate-500 mt-3 uppercase tracking-widest">Unoptimized Mode</span>
                         <span id="naive-version" class="text-xs text-slate-600 font-mono mt-1 italic mb-2">--</span>
                     </div>
 
                     <div class="w-full flex items-center gap-4 px-8 my-2">
                         <div class="h-px flex-1 bg-slate-800"></div>
-                        <label class="relative flex items-center cursor-pointer m-0 gap-3">
-                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none mt-[2px]">Compare Naive</span>
+                        <label class="relative flex items-center justify-center cursor-pointer m-0 gap-3">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Compare Naive</span>
                             <input type="checkbox" id="show-naive" class="sr-only peer render-trigger">
                             <div class="w-7 h-3.5 shrink-0 bg-slate-800 rounded-full peer peer-checked:bg-slate-600 after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-slate-400 after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3.5"></div>
                         </label>
@@ -506,7 +506,7 @@
                         </div>
 
                         <div class="bg-white p-3 rounded-2xl shadow-2xl border border-emerald-500/30 relative overflow-hidden flex items-center justify-center w-full max-w-[320px] aspect-square" id="opt-container">
-                            <canvas id="qr-optimal" style="width: 100%; height: 100%;" class="image-rendering-pixelated max-w-full"></canvas>
+                            <canvas id="qr-optimal" style="width: 100%; height: 100%;" class="image-rendering-pixelated max-w-full animated-element"></canvas>
                             
                             <div id="gif-progress" class="hidden absolute inset-0 bg-[#0f111a]/90 backdrop-blur-sm flex flex-col items-center justify-center z-30">
                                 <div class="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-3"></div>
