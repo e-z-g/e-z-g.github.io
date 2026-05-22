@@ -1,6 +1,7 @@
 // Drawing State Globals
 let logoShape = 'square';
 let globalTime = 0;
+window.isExporting = false; // Flag to throttle resolution during live preview vs export
 
 let colorMapImage = null;
 let densityMapImage = null;
@@ -8,12 +9,6 @@ let customLogoImage = null;
 let customModuleImage = null;
 let animLoopId = null;
 let lastAnimTime = 0;
-
-// Readability Accumulator Trackers
-let readabilitySum = 0;
-let readabilityCount = 0;
-let lastUpdateTime = performance.now();
-const UPDATE_INTERVAL_MS = 5000;
 
 // GIF Tracking Variables
 let customLogoIsGif = false;
@@ -131,7 +126,6 @@ function renderCanvas() {
     const alignFB = matchFinders ? fB : parseInt(E('align-frame-bevel')?.value || '50');
     const alignPB = matchFinders ? pB : parseInt(E('align-pupil-bevel')?.value || '50');
 
-    // Cached DOM Updates to prevent styling thrash during requestAnimationFrame
     if (domCache['matchFinders'] !== matchFinders) {
         const alignSliders = E('align-sliders');
         if(alignSliders) {
@@ -162,13 +156,15 @@ function renderCanvas() {
 
     const renderM = (canId, matrix) => {
         const can = E(canId); if (!can) return;
-        const cSz = 2048, marg = 2, gSz = matrix.modules.size, cell = cSz / (gSz + marg*2);
+        
+        // Lower resolution drastically exclusively during live animation previews
+        const cSz = window.isExporting === 'gif' ? 1024 : (window.isExporting ? 2048 : (isAnimated ? 512 : 1024));
+        const marg = 2, gSz = matrix.modules.size, cell = cSz / (gSz + marg*2);
         
         if (can.width !== cSz) {
             can.width = can.height = cSz;
         }
         
-        // Fix: Removed willReadFrequently to re-enable iOS GPU hardware acceleration
         const ctx = can.getContext('2d');
         ctx.clearRect(0, 0, cSz, cSz);
         
@@ -219,7 +215,6 @@ function renderCanvas() {
         
         let hMapColor = null, hMapDensity = null;
         
-        // Fix: Implement mapData caching to prevent synchronous getImageData stalls
         if (colorStyle === 'image') {
             let activeImage = colorMapImage;
             let isDynamic = false;
@@ -489,88 +484,6 @@ function renderCanvas() {
             lastValidateTime = Date.now();
             checkScannability();
         }, 400);
-    }
-}
-
-function checkScannability() {
-    const container = E('scan-container');
-    if (!currentMatrices || !E('live-scan-toggle')?.checked) {
-        if (container) container.classList.add('hidden');
-        return;
-    }
-
-    const optCan = E('qr-optimal');
-    if (!optCan || !container) return;
-
-    const targetStr = currentMatrices.res.finalString;
-    let score = 0;
-    const s = 512;
-
-    const drawAndTest = (transformFn, filterStr = 'none') => {
-        validateCtx.fillStyle = '#ffffff';
-        validateCtx.fillRect(0, 0, s, s);
-        validateCtx.save();
-        
-        if (transformFn) transformFn(validateCtx);
-        
-        validateCtx.filter = filterStr;
-        const pad = 32;
-        validateCtx.drawImage(optCan, pad, pad, s - pad*2, s - pad*2);
-        validateCtx.restore();
-
-        const imgData = validateCtx.getImageData(0, 0, s, s);
-        const code = jsQR(imgData.data, s, s, { inversionAttempts: "attemptBoth" });
-        return (code && code.data === targetStr);
-    };
-
-    if (drawAndTest()) {
-        score += 40; 
-        if (drawAndTest(ctx => { ctx.translate(s/2, s/2); ctx.scale(0.8, 0.8); ctx.translate(-s/2, -s/2); })) score += 15;
-        if (drawAndTest(ctx => { ctx.translate(s/2, s/2); ctx.scale(0.6, 0.6); ctx.translate(-s/2, -s/2); })) score += 15;
-        if (drawAndTest(null, 'blur(0.5px)')) score += 15;
-        if (drawAndTest(null, 'blur(1px)')) score += 15;
-    } else {
-        if (drawAndTest(null, 'contrast(400%) grayscale(100%)')) { score += 20; } 
-        else if (drawAndTest(null, 'brightness(200%) contrast(400%) grayscale(100%)')) { score += 20; } 
-        else if (drawAndTest(null, 'brightness(50%) contrast(400%) grayscale(100%)')) { score += 20; }
-        else if (drawAndTest(null, 'invert(100%) contrast(400%) grayscale(100%)')) { score += 20; }
-    }
-
-    readabilitySum += score;
-    readabilityCount++;
-    const currentTime = performance.now();
-    const isAnimated = E('anim-toggle')?.checked || getHasAnimatedGif();
-
-    if (!isAnimated || (currentTime - lastUpdateTime >= UPDATE_INTERVAL_MS)) {
-        const smoothedScore = isAnimated ? Math.round(readabilitySum / readabilityCount) : score;
-
-        const updateBadge = (scoreNum, text, barColorClass, textColorClass) => {
-            const bar = E('scan-score-bar');
-            const status = E('scan-status-text');
-            const numText = E('scan-score-num');
-            
-            if (bar) {
-                bar.style.width = `${Math.max(5, scoreNum)}%`;
-                bar.className = `h-full ${barColorClass} transition-all duration-300 ease-out`;
-            }
-            if (status) {
-                status.textContent = text;
-                status.className = `text-[10px] font-bold uppercase tracking-widest ${textColorClass}`;
-            }
-            if (numText) {
-                numText.textContent = `${scoreNum}%`;
-                numText.className = `text-xs font-mono ${textColorClass}`;
-            }
-        };
-
-        if (smoothedScore >= 85) { updateBadge(smoothedScore, 'EXCELLENT', 'bg-emerald-500', 'text-emerald-400'); } 
-        else if (smoothedScore >= 40) { updateBadge(smoothedScore, 'GOOD', 'bg-blue-500', 'text-blue-400'); } 
-        else if (smoothedScore >= 20) { updateBadge(smoothedScore, 'FRAGILE', 'bg-amber-500', 'text-amber-400'); } 
-        else { updateBadge(smoothedScore, 'UNREADABLE', 'bg-rose-500', 'text-rose-500'); }
-
-        readabilitySum = 0;
-        readabilityCount = 0;
-        lastUpdateTime = currentTime;
     }
 }
 
