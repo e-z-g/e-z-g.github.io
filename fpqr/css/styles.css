@@ -168,6 +168,10 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 /* Utilities */
+.animated-element {
+    transform: translateZ(0);
+    will-change: transform, opacity;
+}
 .shape-btn.active { 
     background-color: #334155; 
     color: white; 
