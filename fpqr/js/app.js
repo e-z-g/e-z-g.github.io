@@ -60,8 +60,15 @@ window.exportSettings = () => {
 };
 
 function isolateQR(canvasId) {
+    window.isExporting = true;
+    if (typeof renderCanvas === 'function') renderCanvas();
+
     const canvas = E(canvasId), modal = E('isolate-modal'), img = E('isolate-img');
-    if(!canvas || !modal || !img) return;
+    if(!canvas || !modal || !img) {
+        window.isExporting = false;
+        return;
+    }
+    
     img.src = canvas.toDataURL('image/png');
     
     const btnPng = E('modal-download-png');
@@ -88,6 +95,9 @@ function isolateQR(canvasId) {
         };
     }
     
+    window.isExporting = false;
+    if (typeof renderCanvas === 'function') renderCanvas();
+
     modal.classList.remove('hidden'); 
     void modal.offsetWidth; 
     modal.classList.add('opacity-100');
@@ -97,7 +107,6 @@ function isolateQR(canvasId) {
 let gifWorkerUrl = null;
 
 const initApp = () => {
-    // Fetch and initialize GIF.js worker locally to prevent CDN CORS issues
     fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js')
         .then(r => r.text())
         .then(t => { 
@@ -260,7 +269,7 @@ const initApp = () => {
 
     E('live-scan-toggle')?.addEventListener('change', (e) => {
         if (e.target.checked) {
-            lastValidateTime = 0; // Force immediate check
+            lastValidateTime = 0; 
             scanHistory = [];
             renderCanvas();
         } else {
@@ -321,13 +330,11 @@ const initApp = () => {
         }
     }));
 
-    // Initial Trigger
     setTimeout(() => {
         if (typeof analyzeData === 'function') analyzeData();
     }, 100);
 };
 
-// Bootstrap
 if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', initApp);
 } else {
