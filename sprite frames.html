@@ -1,0 +1,140 @@
+```react
+import React, { useState } from 'react';
+
+// Using a robust, self-contained approach. 
+// If the library isn't loaded via the platform, this version will fail gracefully 
+// instead of causing a blank screen.
+
+const App = () => {
+  const [frames, setFrames] = useState([]);
+  const [selectedIndices, setSelectedIndices] = useState(new Set());
+  const [spriteSheetUrl, setSpriteSheetUrl] = useState(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Check if library is available
+    if (!window.parseGIF || !window.decompressFrames) {
+      setError("GIF library not loaded. Please ensure the environment supports external scripts.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+    
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const gif = window.parseGIF(arrayBuffer);
+      const decodedFrames = window.decompressFrames(gif, true);
+      
+      const frameImages = decodedFrames.map((frame, index) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = gif.lsd.width;
+        canvas.height = gif.lsd.height;
+        const ctx = canvas.getContext('2d');
+        const imgData = ctx.createImageData(gif.lsd.width, gif.lsd.height);
+        imgData.data.set(frame.patch);
+        ctx.putImageData(imgData, 0, 0);
+        return { id: index, url: canvas.toDataURL(), width: gif.lsd.width, height: gif.lsd.height };
+      });
+
+      setFrames(frameImages);
+      setSpriteSheetUrl(null);
+      setSelectedIndices(new Set());
+    } catch (err) {
+      setError("Failed to process GIF: " + err.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const toggleFrame = (index) => {
+    const nextSelection = new Set(selectedIndices);
+    if (nextSelection.has(index)) nextSelection.delete(index);
+    else nextSelection.add(index);
+    setSelectedIndices(nextSelection);
+  };
+
+  const generateSpriteSheet = () => {
+    if (selectedIndices.size === 0) return;
+    const selectedFrames = frames.filter((_, idx) => selectedIndices.has(idx));
+    const count = selectedFrames.length;
+    const cols = Math.ceil(Math.sqrt(count));
+    const rows = Math.ceil(count / cols);
+    const frameW = selectedFrames[0].width;
+    const frameH = selectedFrames[0].height;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = cols * frameW;
+    canvas.height = rows * frameH;
+    const ctx = canvas.getContext('2d');
+
+    selectedFrames.forEach((frame, idx) => {
+      const img = new Image();
+      img.src = frame.url;
+      ctx.drawImage(img, (idx % cols) * frameW, Math.floor(idx / cols) * frameH);
+    });
+
+    setSpriteSheetUrl(canvas.toDataURL('image/png'));
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-gray-100 p-6">
+      <h1 className="text-2xl font-bold mb-6 text-indigo-400">GIF Sprite Extractor</h1>
+      
+      {error && <div className="bg-red-900/50 border border-red-700 text-red-200 p-4 mb-4 rounded-lg">{error}</div>}
+
+      <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 mb-6">
+        <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Upload GIF</label>
+        <input type="file" accept="image/gif" onChange={handleFileChange} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" />
+      </div>
+
+      {isProcessing && <p className="text-indigo-400 mb-4 animate-pulse">Processing frames...</p>}
+
+      {frames.length > 0 && (
+        <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 mb-6">
+          <h2 className="text-lg font-semibold mb-4">Click to select frames</h2>
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 mb-6">
+            {frames.map((frame, idx) => (
+              <img 
+                key={idx} 
+                src={frame.url} 
+                onClick={() => toggleFrame(idx)}
+                className={`cursor-pointer border-2 rounded transition ${selectedIndices.has(idx) ? 'border-indigo-400 opacity-100' : 'border-gray-700 opacity-50 hover:opacity-100'}`}
+                alt={`Frame ${idx}`}
+              />
+            ))}
+          </div>
+          <button 
+            onClick={generateSpriteSheet} 
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition"
+            disabled={selectedIndices.size === 0}
+          >
+            Create Sheet ({selectedIndices.size})
+          </button>
+        </div>
+      )}
+
+      {spriteSheetUrl && (
+        <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
+          <h2 className="text-lg font-semibold mb-4">Result</h2>
+          <div className="bg-black border border-gray-700 p-2 rounded-lg inline-block">
+            <img src={spriteSheetUrl} className="max-w-full" alt="Result" />
+          </div>
+          <div className="mt-4">
+            <a href={spriteSheetUrl} download="spritesheet.png" className="text-indigo-400 hover:underline">Download PNG</a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
+
+```
+
+
