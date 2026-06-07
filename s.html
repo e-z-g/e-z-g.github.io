@@ -1,0 +1,102 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIF Sprite Sheet Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #030712; color: #f3f4f6; }
+        .frame-selected { border: 3px solid #6366f1 !important; transform: scale(0.95); }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-indigo-400">GIF Sprite Extractor</h1>
+        
+        <div class="bg-gray-900 p-6 rounded-xl border border-gray-800 mb-6">
+            <input type="file" id="fileInput" accept="image/gif" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-indigo-600 file:text-white cursor-pointer">
+        </div>
+
+        <div id="controls" class="hidden bg-gray-900 p-6 rounded-xl border border-gray-800 mb-6">
+            <h2 class="text-lg font-semibold mb-4" id="status">Select Frames</h2>
+            <div id="frameContainer" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3 mb-6"></div>
+            <button id="generateBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded-lg transition">Generate Sprite Sheet</button>
+        </div>
+
+        <div id="resultArea" class="hidden bg-gray-900 p-6 rounded-xl border border-gray-800">
+            <h2 class="text-lg font-semibold mb-4">Result</h2>
+            <img id="resultImg" class="border border-gray-700 bg-black rounded-lg max-w-full mb-4">
+            <br>
+            <a id="downloadLink" download="spritesheet.png" class="text-indigo-400 hover:underline font-bold">Download Sprite Sheet</a>
+        </div>
+    </div>
+
+    <script type="module">
+        import { parseGIF, decompressFrames } from 'https://cdn.skypack.dev/gifuct-js';
+
+        let allFrames = [];
+        const selectedIndices = new Set();
+
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const buffer = await file.arrayBuffer();
+            const gif = parseGIF(buffer);
+            const frames = decompressFrames(gif, true);
+            
+            allFrames = frames.map(f => {
+                const canvas = document.createElement('canvas');
+                canvas.width = gif.lsd.width;
+                canvas.height = gif.lsd.height;
+                const ctx = canvas.getContext('2d');
+                ctx.putImageData(new ImageData(new Uint8ClampedArray(f.patch), f.dims.width, f.dims.height), f.dims.left, f.dims.top);
+                return { url: canvas.toDataURL(), width: gif.lsd.width, height: gif.lsd.height };
+            });
+
+            const container = document.getElementById('frameContainer');
+            container.innerHTML = '';
+            allFrames.forEach((f, i) => {
+                const img = document.createElement('img');
+                img.src = f.url;
+                img.className = "cursor-pointer border-2 border-gray-700 rounded hover:border-gray-500 transition";
+                img.onclick = () => {
+                    selectedIndices.has(i) ? selectedIndices.delete(i) : selectedIndices.add(i);
+                    img.classList.toggle('frame-selected');
+                };
+                container.appendChild(img);
+            });
+            document.getElementById('controls').classList.remove('hidden');
+        });
+
+        document.getElementById('generateBtn').onclick = () => {
+            const selected = allFrames.filter((_, i) => selectedIndices.has(i));
+            if (!selected.length) return;
+            
+            const cols = Math.ceil(Math.sqrt(selected.length));
+            const rows = Math.ceil(selected.length / cols);
+            const canvas = document.createElement('canvas');
+            canvas.width = cols * selected[0].width;
+            canvas.height = rows * selected[0].height;
+            const ctx = canvas.getContext('2d');
+
+            selected.forEach((f, i) => {
+                const img = new Image();
+                img.src = f.url;
+                img.onload = () => ctx.drawImage(img, (i % cols) * f.width, Math.floor(i / cols) * f.height);
+            });
+
+            setTimeout(() => {
+                const url = canvas.toDataURL();
+                document.getElementById('resultImg').src = url;
+                document.getElementById('downloadLink').href = url;
+                document.getElementById('resultArea').classList.remove('hidden');
+            }, 100);
+        };
+    </script>
+</body>
+</html>
+
+```
