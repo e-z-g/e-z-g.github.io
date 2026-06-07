@@ -789,6 +789,10 @@
     // Each block's reveal threshold = rand_noise + depth_bias * depth_sample.
     // Squares at depth=1 (foreground) reveal last; depth=0 (background) reveal first.
     // uDepthBias=0 gives pure random; uDepthBias=1 gives strong depth ordering.
+    //
+    // KEY: During the tween, the render loop re-renders the live scene into rtNew every frame
+    // so the new scene stays fully animated (parallax, sway, video) while the squares
+    // reveal it. The old scene stays as a static baked snapshot in rtOld.
 
     const transitionScene = new THREE.Scene();
     const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -796,10 +800,6 @@
     let rtOld = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType });
     let rtNew = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType });
 
-    // Depth-aware random squares transition.
-    // - Random hash gives each square an independent reveal order (no sweep direction).
-    // - tDepthNew samples the incoming scene's depth at block center, biasing foreground
-    //   squares to reveal later (they "pop into existence" last, as if materializing).
     const FRAG_BLOCK = `
       uniform sampler2D tOld;
       uniform sampler2D tNew;
@@ -814,26 +814,18 @@
       }
 
       void main() {
-        // grid: 50 cols * aspect so squares are square regardless of viewport ratio
         float gridCols = 50.0;
         float gridRows = floor(gridCols / uAspect);
         vec2 blockId  = floor(vec2(vUv.x * gridCols, vUv.y * gridRows));
-        vec2 blockUv  = blockId / vec2(gridCols, gridRows);
 
-        // Random noise per block
         float noise = hash(blockId);
 
-        // Sample depth of the NEW scene at block centre (averaged to block-level)
         vec2 blockCenter = (blockId + 0.5) / vec2(gridCols, gridRows);
         float depthVal = texture2D(tDepthNew, blockCenter).r;
 
-        // Combine: foreground (high depth) reveals later
-        // threshold in [0,1]; block flips when uProgress > threshold
-        float threshold = mix(noise, 0.2 + noise * 0.8 + depthVal * 0.0, 0.0);
-        // uDepthBias blends pure-random vs depth-weighted
-        float weightedNoise  = noise;
-        float depthWeighted  = noise * (1.0 - uDepthBias) + (noise * 0.5 + depthVal * 0.5) * uDepthBias;
-        threshold = mix(weightedNoise, depthWeighted, uDepthBias);
+        float weightedNoise = noise;
+        float depthWeighted = noise * (1.0 - uDepthBias) + (noise * 0.5 + depthVal * 0.5) * uDepthBias;
+        float threshold = mix(weightedNoise, depthWeighted, uDepthBias);
 
         if (uProgress > threshold) {
           gl_FragColor = texture2D(tNew, vUv);
@@ -860,7 +852,6 @@
       }
     `;
 
-    // Dummy 1x1 black depth texture for transitions without depth maps
     const dummyTransDepthData = new Uint8Array([0, 0, 0, 255]);
     const dummyTransDepthTex  = new THREE.DataTexture(dummyTransDepthData, 1, 1, THREE.RGBAFormat);
     dummyTransDepthTex.needsUpdate = true;
@@ -872,7 +863,7 @@
         tDepthNew: { value: dummyTransDepthTex },
         uProgress: { value: 0 },
         uAspect:   { value: 1.0 },
-        uDepthBias:{ value: 0.6 }   // 0 = pure random, 1 = fully depth-driven
+        uDepthBias:{ value: 0.6 }
       },
       vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
       fragmentShader: FRAG_BLOCK,
@@ -881,10 +872,7 @@
     });
     transitionScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), transitionMat));
 
-    // Render the new scene to a separate flat depth-only RT for the transition shader.
-    // We reuse rtNew's color but blit a depth preview from the current camera angle.
-    // For scenes without a depth map, we use the dummy black texture (all blocks reveal randomly).
-    let pendingTransitionDepth = null;  // set by loadPanorama before animating
+    let pendingTransitionDepth = null;
 
     const textureLoader = new THREE.TextureLoader(); textureLoader.crossOrigin = 'anonymous';
 
@@ -943,17 +931,10 @@
       return [p.left, p.right, p.top, p.bottom, p.back, p.front]; 
     }
 
-    // --- Build a flat equirectangular depth snapshot for the transition ---
-    // We render a quick top-down depth pass of the scene's front face depth texture
-    // into a small offscreen canvas, then use that as tDepthNew in the transition shader.
-    // This gives block reveal order based on what depth looks like looking straight ahead.
     function buildTransitionDepthTex(depthTextures) {
       if (!depthTextures) return dummyTransDepthTex;
-      // Use the front face (index 4 = back face in our six-face order, or pick the "forward" one)
-      // For the transition we just use the first available non-dummy depth tex.
       const frontTex = depthTextures[4] || depthTextures[0];
       if (!frontTex || frontTex === dummyDepthTex || !frontTex.image) return dummyTransDepthTex;
-      // Downscale to 64x64 – plenty of resolution for block-level depth
       const SIZE = 64;
       const canvas = document.createElement('canvas');
       canvas.width = SIZE; canvas.height = SIZE;
@@ -975,8 +956,11 @@
       document.getElementById('loader').style.display = 'block';
       if (currentLocation.audio) playOrCrossfadeAudio(currentLocation.audio);
 
+      // Bake a snapshot of the CURRENT (outgoing) scene into rtOld.
       renderer.setRenderTarget(rtOld); renderer.render(scene, camera); renderer.setRenderTarget(null);
       transitionMat.uniforms.tOld.value = rtOld.texture;
+      // Point tNew at rtNew — the render loop will keep refreshing it every frame.
+      transitionMat.uniforms.tNew.value = rtNew.texture;
       transitionMat.uniforms.uProgress.value = 0;
       transitionMat.fragmentShader = mode === 'block' ? FRAG_BLOCK : FRAG_FADE;
       transitionMat.needsUpdate = true;
@@ -1095,7 +1079,6 @@
             
             [fgC, fgD, bgC, bgD].forEach(t => oldTextures.delete(t));
 
-            // Build depth hint from fg depth for transition
             const fakeDepthArr = fgD !== dummyDepthTex ? [fgD, fgD, fgD, fgD, fgD, fgD] : null;
             pendingTransitionDepth = buildTransitionDepthTex(fakeDepthArr);
             
@@ -1166,9 +1149,6 @@
           return;
       }
 
-      renderer.setRenderTarget(rtNew); renderer.render(scene, camera); renderer.setRenderTarget(null);
-      transitionMat.uniforms.tNew.value = rtNew.texture;
-
       // Attach depth hint for block transition
       if (mode === 'block' && pendingTransitionDepth) {
         transitionMat.uniforms.tDepthNew.value = pendingTransitionDepth;
@@ -1187,7 +1167,6 @@
         if (p < 1) requestAnimationFrame(animateTween);
         else {
           isTransitioning = false;
-          // Dispose the transition depth tex after use
           if (pendingTransitionDepth && pendingTransitionDepth !== dummyTransDepthTex) {
             pendingTransitionDepth.dispose();
             pendingTransitionDepth = null;
@@ -1266,8 +1245,17 @@
       camera.translateX(swayX + (currentMouseX + tiltX) * parallaxStrength);
       camera.translateY(swayY + (currentMouseY + tiltY) * parallaxStrength);
 
-      if (isTransitioning) renderer.render(transitionScene, transitionCamera);
-      else renderer.render(scene, camera);
+      if (isTransitioning) {
+        // Render the live NEW scene into rtNew every frame so the transition
+        // reveals a fully-animated scene rather than a frozen snapshot.
+        renderer.setRenderTarget(rtNew);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(null);
+        // Composite old (static) vs new (live) with the block mask.
+        renderer.render(transitionScene, transitionCamera);
+      } else {
+        renderer.render(scene, camera);
+      }
     }
 
     window.addEventListener('resize', () => {
