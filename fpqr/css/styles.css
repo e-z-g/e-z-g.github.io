@@ -13,7 +13,9 @@ body {
 .panel { 
     background: #1a1d27; 
     border: 1px solid #2d3748; 
-    border-radius: 1rem; 
+    border-radius: 1rem;
+    /* Prevent flex children (e.g. canvas) from blowing out the column */
+    min-width: 0;
 }
 
 /* Timeline Components */
@@ -168,10 +170,36 @@ input[type="color"]::-webkit-color-swatch {
 }
 
 /* Utilities */
-.animated-element {
+
+/*
+ * GPU ACCELERATION — SCOPED TO LEAF ANIMATING ELEMENTS ONLY
+ *
+ * Do NOT apply transform/will-change to structural layout wrappers (.panel,
+ * flex/grid containers). Doing so forces a new containing block and stacking
+ * context, which breaks flex min-width containment (canvas blowout) and
+ * reparents any position:absolute children (scan laser, tooltips, overlays).
+ *
+ * Hardware acceleration is applied here only to the specific nodes that
+ * actually move or fade: the two canvases, the scan readability bar, and
+ * the GIF progress overlay.
+ */
+#qr-optimal,
+#qr-mini-mirror,
+#scan-score-bar,
+#gif-progress {
     transform: translateZ(0);
     will-change: transform, opacity;
 }
+
+/*
+ * .animated-element is kept as a no-op class so any JS that adds it at
+ * runtime does not accidentally promote layout wrappers to composited layers.
+ * If you need to GPU-promote a specific dynamic element, target it by ID above.
+ */
+.animated-element {
+    /* intentionally empty — see comment above */
+}
+
 .shape-btn.active { 
     background-color: #334155; 
     color: white; 
