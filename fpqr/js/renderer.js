@@ -183,9 +183,11 @@ function renderCanvas() {
         const can = E(canId); if (!can) return;
 
         const isCharMode = shape === 'character';
+        // Always render at 1024 — desktop GPUs handle this with no perf issue,
+        // and the higher resolution combined with bilinear CSS scaling (no
+        // image-rendering:pixelated) gives smooth sub-pixel animation movement.
         const cSz = window.isExporting === 'gif' ? 1024
             : window.isExporting ? 2048
-            : (isAnimated || isCharMode) ? 512
             : 1024;
         const marg = 2, gSz = matrix.modules.size, cell = cSz / (gSz + marg * 2);
 
