@@ -32,10 +32,10 @@ const mapCache = {
 const offscreenCanvas = document.createElement('canvas');
 const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
 
-// Character glyph sprite cache — avoids repeated fillText on iOS Safari
+// Character glyph sprite cache -- avoids repeated fillText on iOS Safari
 const glyphCache = {
     canvas: document.createElement('canvas'),
-    key: null   // stores 'char|cellSize|color|bevel' to detect stale cache
+    key: null
 };
 
 const getHasAnimatedGif = () => customLogoIsGif || colorMapIsGif || densityMapIsGif;
@@ -107,21 +107,16 @@ function getMapData(activeImage, gSz, ctx, canvas) {
     return ctx.getImageData(0, 0, gSz, gSz).data;
 }
 
-/**
- * Build (or return cached) a glyph sprite for character mode.
- * The sprite is a square offscreen canvas with the character drawn once at the
- * correct size and color.  Every module then uses drawImage() instead of
- * fillText(), which is dramatically faster on iOS Safari.
- *
- * Cache key encodes: char + cellSize + color + bevel so any change rebuilds.
- */
+// Build (or return cached) a glyph sprite for character mode.
+// Rasterizes the character once onto an offscreen canvas; every module then
+// uses drawImage() instead of fillText(), which is much faster on iOS Safari.
+// Cache key: char + cellSize + color + bevel -- any change triggers a rebuild.
 function getGlyphSprite(char, cell, color, bevel) {
-    const key = `${char}|${Math.round(cell)}|${color}|${bevel}`;
+    const key = char + '|' + Math.round(cell) + '|' + color + '|' + bevel;
     if (glyphCache.key === key) return glyphCache.canvas;
 
     const baseScale = Math.max(0.1, bevel / 100);
     const fontSize = cell * 1.4 * baseScale;
-    // Canvas slightly larger than cell to avoid clipping on tall glyphs
     const sz = Math.ceil(cell * 1.6);
     const gc = glyphCache.canvas;
     gc.width = sz;
@@ -129,7 +124,7 @@ function getGlyphSprite(char, cell, color, bevel) {
     const gCtx = gc.getContext('2d');
     gCtx.clearRect(0, 0, sz, sz);
     gCtx.fillStyle = color;
-    gCtx.font = `800 ${fontSize}px sans-serif`;
+    gCtx.font = '800 ' + fontSize + 'px Inter, sans-serif';
     gCtx.textAlign = 'center';
     gCtx.textBaseline = 'middle';
     gCtx.fillText(char, sz / 2, sz / 2 + (cell * 0.05));
@@ -177,7 +172,7 @@ function renderCanvas() {
         'data-bevel-val': dB + '%',
         'logo-size-val': pct + '%',
         'logo-padding-val': padPct + '%',
-        'grad-angle-val': (E('grad-angle')?.value || '135') + '°',
+        'grad-angle-val': (E('grad-angle')?.value || '135') + '\u00b0',
         'grad-radial-val': (E('grad-radial')?.value || '100') + '%'
     };
     for (const [id, val] of Object.entries(updates)) {
@@ -187,7 +182,6 @@ function renderCanvas() {
     const renderM = (canId, matrix) => {
         const can = E(canId); if (!can) return;
 
-        // Reduce resolution further for character mode on mobile to ease iOS raster budget
         const isCharMode = shape === 'character';
         const cSz = window.isExporting === 'gif' ? 1024
             : window.isExporting ? 2048
@@ -245,9 +239,9 @@ function renderCanvas() {
 
         const setHeatmapColor = (type) => {
             if (!heatmap) { ctx.fillStyle = fgGrad; ctx.strokeStyle = fgGrad; return; }
-            if (type==='finder')    { ctx.fillStyle = '#3b82f6'; ctx.strokeStyle = '#3b82f6'; }
-            else if (type==='alignment') { ctx.fillStyle = '#06b6d4'; ctx.strokeStyle = '#06b6d4'; }
-            else if (type==='data')      { ctx.fillStyle = '#10b981'; ctx.strokeStyle = '#10b981'; }
+            if (type === 'finder')    { ctx.fillStyle = '#3b82f6'; ctx.strokeStyle = '#3b82f6'; }
+            else if (type === 'alignment') { ctx.fillStyle = '#06b6d4'; ctx.strokeStyle = '#06b6d4'; }
+            else if (type === 'data')      { ctx.fillStyle = '#10b981'; ctx.strokeStyle = '#10b981'; }
         };
 
         let hMapColor = null, hMapDensity = null;
@@ -293,7 +287,7 @@ function renderCanvas() {
                 const sC = type === 'finder' ? c + 3 : c + 2;
                 if (colorStyle === 'image' && hMapColor) {
                     const idx = (sR * gSz + sC) * 4;
-                    const cFill = `rgb(${hMapColor[idx]},${hMapColor[idx+1]},${hMapColor[idx+2]})`;
+                    const cFill = 'rgb(' + hMapColor[idx] + ',' + hMapColor[idx+1] + ',' + hMapColor[idx+2] + ')';
                     ctx.fillStyle = cFill; ctx.strokeStyle = cFill;
                 } else {
                     ctx.fillStyle = fgGrad; ctx.strokeStyle = fgGrad;
@@ -314,24 +308,20 @@ function renderCanvas() {
         };
 
         if (!E('native-finders')?.checked) {
-            [[0,0],[gSz-7,0],[0,gSz-7]].forEach(([cx,cy]) => drawStruct(cy, cx, (cx+marg)*cell, (cy+marg)*cell, cell, 'finder'));
+            [[0,0],[gSz-7,0],[0,gSz-7]].forEach(function(p) { var cx=p[0],cy=p[1]; drawStruct(cy, cx, (cx+marg)*cell, (cy+marg)*cell, cell, 'finder'); });
         }
         if (!E('native-alignments')?.checked) {
-            aps.forEach(ax => aps.forEach(ay => {
+            aps.forEach(function(ax) { aps.forEach(function(ay) {
                 if ((ax===6&&ay===6)||(ax===6&&ay===gSz-7)||(ax===gSz-7&&ay===6)) return;
                 drawStruct(ay-2, ax-2, (ax-2+marg)*cell, (ay-2+marg)*cell, cell, 'alignment');
-            }));
+            }); });
         }
 
-        // ── CHARACTER MODE ────────────────────────────────────────────────────────
-        // Rasterize glyph once into an offscreen canvas, then use drawImage per
-        // module.  This avoids repeated fillText calls which are very slow on iOS.
+        // CHARACTER MODE
+        // Rasterize glyph once via getGlyphSprite(), then stamp with drawImage().
+        // Avoids per-module fillText which is very slow on iOS Safari.
         if (isCharMode) {
-            const char = E('module-char')?.value || '★';
-            // For solid color we cache a single white sprite and tint via globalCompositeOperation;
-            // for image-color maps we fall back to per-module tinting via a temp canvas.
-            // Simpler: cache with solid fg color (gradient center approximation) and draw normally.
-            // Cache key uses the fg color string — works for solid/gradient, cheap miss on image map.
+            const char = E('module-char')?.value || '\u2605';
             const fgColor = E('color-start')?.value || '#000000';
             const sprite = getGlyphSprite(char, cell, fgColor, dB);
             const sprSz = sprite.width;
@@ -342,52 +332,39 @@ function renderCanvas() {
                     if (!shouldRenderData(r, c)) continue;
                     const cx = (c+marg)*cell, cy = (r+marg)*cell;
 
-                    // For image color maps, tint the sprite per module via a tiny compositing trick
-                    if (hMapColor && colorStyle === 'image') {
-                        const idx = (r * gSz + c) * 4;
-                        ctx.fillStyle = `rgb(${hMapColor[idx]},${hMapColor[idx+1]},${hMapColor[idx+2]})`;
-                        // Draw sprite as mask: draw color rect then multiply by sprite alpha
+                    let dX = 0, dY = 0, dS = 1.0;
+                    if (isAnimated) {
+                        if (flowType === 'pulse') {
+                            const dist = Math.hypot(c - gSz/2, r - gSz/2);
+                            dS += Math.sin(dist * 0.5 - globalTime) * animMag * 0.6;
+                        } else {
+                            dX = noiseFn(r, c, 1, globalTime) * animMag * cell * 0.5;
+                            dY = noiseFn(r, c, 2, globalTime) * animMag * cell * 0.5;
+                            dS += noiseFn(r, c, 3, globalTime) * animMag * 0.5;
+                        }
+                    }
+                    const safeScale = Math.max(0.01, dS);
+                    if (safeScale !== 1.0) {
                         ctx.save();
-                        ctx.globalCompositeOperation = 'source-over';
-                        ctx.drawImage(sprite, cx + offset, cy + offset, sprSz, sprSz);
+                        ctx.translate(cx + cell/2 + dX, cy + cell/2 + dY);
+                        ctx.scale(safeScale, safeScale);
+                        ctx.drawImage(sprite, -sprSz/2, -sprSz/2, sprSz, sprSz);
                         ctx.restore();
                     } else {
-                        let dX = 0, dY = 0, dS = 1.0;
-                        if (isAnimated) {
-                            if (flowType === 'pulse') {
-                                const dist = Math.hypot(c - gSz/2, r - gSz/2);
-                                dS += Math.sin(dist * 0.5 - globalTime) * animMag * 0.6;
-                            } else {
-                                dX = noiseFn(r, c, 1, globalTime) * animMag * cell * 0.5;
-                                dY = noiseFn(r, c, 2, globalTime) * animMag * cell * 0.5;
-                                dS += noiseFn(r, c, 3, globalTime) * animMag * 0.5;
-                            }
-                        }
-                        const safeScale = Math.max(0.01, dS);
-                        const drawX = cx + offset + dX;
-                        const drawY = cy + offset + dY;
-                        if (safeScale !== 1.0) {
-                            ctx.save();
-                            ctx.translate(cx + cell/2 + dX, cy + cell/2 + dY);
-                            ctx.scale(safeScale, safeScale);
-                            ctx.drawImage(sprite, -sprSz/2, -sprSz/2, sprSz, sprSz);
-                            ctx.restore();
-                        } else {
-                            ctx.drawImage(sprite, drawX, drawY, sprSz, sprSz);
-                        }
+                        ctx.drawImage(sprite, cx + offset + dX, cy + offset + dY, sprSz, sprSz);
                     }
                 }
             }
 
         } else {
-        // ── ALL OTHER SHAPES ──────────────────────────────────────────────────────
+        // ALL OTHER SHAPES
         for (let r = 0; r < gSz; r++) {
             for (let c = 0; c < gSz; c++) {
                 if (!shouldRenderData(r, c)) continue;
                 const cx = (c+marg)*cell, cy = (r+marg)*cell, obscured = isModuleObscured(r, c);
                 if (heatmap) {
-                    if (obscured)             { ctx.fillStyle = '#ef4444'; ctx.strokeStyle = '#ef4444'; }
-                    else if (isFinder(r,c))   setHeatmapColor('finder');
+                    if (obscured)              { ctx.fillStyle = '#ef4444'; ctx.strokeStyle = '#ef4444'; }
+                    else if (isFinder(r,c))    setHeatmapColor('finder');
                     else if (isAlignment(r,c)) setHeatmapColor('alignment');
                     else                       setHeatmapColor('data');
                     ctx.fillRect(cx, cy, cell, cell); continue;
@@ -396,7 +373,7 @@ function renderCanvas() {
                 let currentFill = fgGrad;
                 if (hMapColor && colorStyle === 'image') {
                     const idx = (r * gSz + c) * 4;
-                    currentFill = `rgb(${hMapColor[idx]},${hMapColor[idx+1]},${hMapColor[idx+2]})`;
+                    currentFill = 'rgb(' + hMapColor[idx] + ',' + hMapColor[idx+1] + ',' + hMapColor[idx+2] + ')';
                 }
                 ctx.fillStyle = currentFill;
                 ctx.strokeStyle = currentFill;
@@ -462,7 +439,7 @@ function renderCanvas() {
                 } else if (shape === 'plus' || shape === 'x-matrix') {
                     const lw = cell * Math.max(0.2, Math.min(1.5, dB/100));
                     ctx.lineWidth = lw; ctx.lineCap = shape === 'x-matrix' ? 'butt' : 'round';
-                    if (shape==='plus') {
+                    if (shape === 'plus') {
                         ctx.moveTo(cx+cell/2,cy); ctx.lineTo(cx+cell/2,cy+cell);
                         ctx.moveTo(cx,cy+cell/2); ctx.lineTo(cx+cell,cy+cell/2);
                     } else {
@@ -474,11 +451,11 @@ function renderCanvas() {
                 } else if (shape === 'image') {
                     const baseScale = Math.max(0.1, dB/100);
                     const drawSize = cell * baseScale;
-                    const offset = (cell - drawSize) / 2;
+                    const imgOffset = (cell - drawSize) / 2;
                     if (customModuleImage) {
-                        ctx.drawImage(customModuleImage, cx+offset, cy+offset, drawSize, drawSize);
+                        ctx.drawImage(customModuleImage, cx+imgOffset, cy+imgOffset, drawSize, drawSize);
                     } else {
-                        ctx.fillRect(cx+offset, cy+offset, drawSize, drawSize);
+                        ctx.fillRect(cx+imgOffset, cy+imgOffset, drawSize, drawSize);
                     }
                 }
 
@@ -513,7 +490,7 @@ function renderCanvas() {
                         ctx.fillRect((cSz-sz)/2, (cSz-sz)/2, sz, sz);
                     }
                     ctx.fillStyle = E('color-bg-start')?.value || '#ffffff';
-                    ctx.font = `bold ${sz/4}px sans-serif`;
+                    ctx.font = 'bold ' + (sz/4) + 'px sans-serif';
                     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                     ctx.fillText('LOGO', lC, lC);
                 }
@@ -530,7 +507,6 @@ function renderCanvas() {
         }
     };
 
-    // Skip naive canvas during animation — hidden and doubles work
     if (!isAnimated && !getHasAnimatedGif()) {
         renderM('qr-naive', nData);
     }
@@ -569,7 +545,7 @@ function renderCanvas() {
         setTimeout(checkScannability, 0);
     } else {
         if (validationTimeout) clearTimeout(validationTimeout);
-        validationTimeout = setTimeout(() => {
+        validationTimeout = setTimeout(function() {
             lastValidateTime = Date.now();
             checkScannability();
         }, 400);
