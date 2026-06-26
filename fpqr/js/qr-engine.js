@@ -1,7 +1,7 @@
 // Core DOM Utilities
 const E = id => document.getElementById(id);
 const safeSetText = (id, txt) => { if(E(id)) E(id).textContent = txt; };
-const safeSetHTML = (id,``` html) => { if(E(id)) E(id).innerHTML = html; };
+const safeSetHTML = (id, html) => { if(E(id)) E(id).innerHTML = html; };
 
 // Shared QR Constants
 const AP_LOCATIONS = [[], [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]];
