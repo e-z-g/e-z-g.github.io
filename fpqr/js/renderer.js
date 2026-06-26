@@ -157,7 +157,7 @@ function renderCanvas() {
     const renderM = (canId, matrix) => {
         const can = E(canId); if (!can) return;
         
-        // Lower resolution drastically exclusively during live animation previews
+        // Lower resolution during live animation previews
         const cSz = window.isExporting === 'gif' ? 1024 : (window.isExporting ? 2048 : (isAnimated ? 512 : 1024));
         const marg = 2, gSz = matrix.modules.size, cell = cSz / (gSz + marg*2);
         
@@ -288,6 +288,55 @@ function renderCanvas() {
             aps.forEach(ax => aps.forEach(ay => { if ((ax===6&&ay===6) || (ax===6&&ay===gSz-7) || (ax===gSz-7&&ay===6)) return; drawStruct(ay-2, ax-2, (ax-2+marg)*cell, (ay-2+marg)*cell, cell, 'alignment'); }));
         }
 
+        // Hoist character font setting outside the loop — ctx.font is expensive to set per-module
+        if (shape === 'character') {
+            const char = E('module-char')?.value || '★';
+            const baseScale = Math.max(0.1, dB/100);
+            ctx.font = `800 ${cell * 1.4 * baseScale}px Inter, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for(let r=0; r<gSz; r++) {
+                for(let c=0; c<gSz; c++) {
+                    if (!shouldRenderData(r, c)) continue;
+                    const cx = (c+marg)*cell, cy = (r+marg)*cell;
+
+                    let currentFill = fgGrad;
+                    if (hMapColor && colorStyle === 'image') {
+                        const idx = (r * gSz + c) * 4;
+                        currentFill = `rgb(${hMapColor[idx]}, ${hMapColor[idx+1]}, ${hMapColor[idx+2]})`;
+                    }
+                    ctx.fillStyle = currentFill;
+
+                    let dX = 0, dY = 0, dS = 1.0;
+                    if (isAnimated) {
+                        if (flowType === 'pulse') {
+                            const dist = Math.hypot(c - gSz/2, r - gSz/2);
+                            dS += Math.sin(dist * 0.5 - globalTime) * animMag * 0.6;
+                        } else {
+                            dX = noiseFn(r, c, 1, globalTime) * animMag * cell * 0.5;
+                            dY = noiseFn(r, c, 2, globalTime) * animMag * cell * 0.5;
+                            dS += noiseFn(r, c, 3, globalTime) * animMag * 0.5;
+                        }
+                    }
+
+                    const safeScale = Math.max(0.01, dS);
+                    // For character, apply transform directly via scaled position — no save/restore needed
+                    const drawX = cx + cell/2 + dX;
+                    const drawY = cy + cell/2 + (cell * 0.05) + dY;
+                    if (safeScale !== 1.0) {
+                        ctx.save();
+                        ctx.translate(drawX, drawY);
+                        ctx.scale(safeScale, safeScale);
+                        ctx.fillText(char, 0, 0);
+                        ctx.restore();
+                    } else {
+                        ctx.fillText(char, drawX, drawY);
+                    }
+                }
+            }
+        } else {
+
         for(let r=0; r<gSz; r++) {
             for(let c=0; c<gSz; c++) {
                 if (!shouldRenderData(r, c)) continue;
@@ -378,13 +427,6 @@ function renderCanvas() {
                         ctx.moveTo(cx+cell + ov, cy - ov); ctx.lineTo(cx - ov, cy+cell + ov); 
                     }
                     ctx.stroke();
-                } else if (shape === 'character') {
-                    const char = E('module-char')?.value || '★';
-                    const baseScale = Math.max(0.1, dB/100);
-                    ctx.font = `800 ${cell * 1.4 * baseScale}px Inter, sans-serif`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(char, cx + cell/2, cy + cell/2 + (cell * 0.05));
                 } else if (shape === 'image') {
                     const baseScale = Math.max(0.1, dB/100);
                     const drawSize = cell * baseScale;
@@ -401,6 +443,8 @@ function renderCanvas() {
                 }
             }
         }
+
+        } // end non-character branch
 
         if (logoShape !== 'none') {
             if (!heatmap) {
@@ -441,7 +485,10 @@ function renderCanvas() {
         }
     };
     
-    renderM('qr-naive', nData); 
+    // Skip naive canvas render during animation — it's hidden and doubles the work
+    if (!isAnimated && !getHasAnimatedGif()) {
+        renderM('qr-naive', nData);
+    }
     renderM('qr-optimal', oData);
     
     const mini = E('qr-mini-mirror');
