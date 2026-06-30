@@ -10,6 +10,9 @@ let customModuleImage = null;
 let animLoopId = null;
 let lastAnimTime = 0;
 
+// Gradient cache: avoids recreating gradient objects every frame when colors haven't changed
+const gradCache = { fg: null, bg: null, key: null };
+
 // GIF Tracking Variables
 let customLogoIsGif = false;
 let colorMapIsGif = false;
@@ -196,8 +199,19 @@ function renderCanvas() {
         const ctx = can.getContext('2d');
         ctx.clearRect(0, 0, cSz, cSz);
 
-        const bgGrad = createEngineGradient(ctx, cSz, E('color-bg-start')?.value || '#ffffff', E('color-bg-end')?.value || '#ffffff');
-        const fgGrad = createEngineGradient(ctx, cSz, E('color-start')?.value || '#000000', E('color-end')?.value || '#000000');
+        const bgS = E('color-bg-start')?.value || '#ffffff', bgE = E('color-bg-end')?.value || '#ffffff';
+        const fgS = E('color-start')?.value || '#000000', fgE = E('color-end')?.value || '#000000';
+        const gradStyle2 = E('grad-style')?.value || 'linear';
+        const gradAngle2 = E('grad-angle')?.value || '135';
+        const gradRadial2 = E('grad-radial')?.value || '100';
+        const gradKey = `${bgS}|${bgE}|${fgS}|${fgE}|${gradStyle2}|${gradAngle2}|${gradRadial2}|${cSz}`;
+        if (gradCache.key !== gradKey) {
+            gradCache.bg = createEngineGradient(ctx, cSz, bgS, bgE);
+            gradCache.fg = createEngineGradient(ctx, cSz, fgS, fgE);
+            gradCache.key = gradKey;
+        }
+        const bgGrad = gradCache.bg;
+        const fgGrad = gradCache.fg;
 
         ctx.fillStyle = heatmap ? '#1a1d27' : bgGrad;
         ctx.fillRect(0, 0, cSz, cSz);
@@ -360,6 +374,7 @@ function renderCanvas() {
 
         } else {
         // ALL OTHER SHAPES
+        const solidPath = new Path2D();
         for (let r = 0; r < gSz; r++) {
             for (let c = 0; c < gSz; c++) {
                 if (!shouldRenderData(r, c)) continue;
@@ -413,7 +428,7 @@ function renderCanvas() {
                 }
 
                 if (shape === 'solid') {
-                    roundRectPath(ctx, cx, cy, cell + 0.5, cell + 0.5, Math.max(0, (cell/2)*(dB/100))); ctx.fill();
+                    ctx.beginPath(); roundRectPath(solidPath, cx, cy, cell + 0.5, cell + 0.5, Math.max(0, (cell/2)*(dB/100)));
                 } else if (shape === 'organic') {
                     const rad = Math.max(0, (cell/2)*(dB/100));
                     const t = shouldRenderData(r-1,c), b = shouldRenderData(r+1,c), l = shouldRenderData(r,c-1), ri = shouldRenderData(r,c+1);
@@ -465,6 +480,12 @@ function renderCanvas() {
             }
         }
         } // end shape branch
+
+        // Flush all solid modules in one GPU draw call
+        if (shape === 'solid') {
+            ctx.fillStyle = heatmap ? ctx.fillStyle : fgGrad;
+            ctx.fill(solidPath);
+        }
 
         if (logoShape !== 'none') {
             if (!heatmap) {
@@ -541,17 +562,7 @@ function renderCanvas() {
         E('scan-score-bar').className = 'h-full bg-slate-500 transition-all duration-300 ease-out';
     }
 
-    const now = Date.now();
-    if (now - lastValidateTime > 400) {
-        lastValidateTime = now;
-        setTimeout(checkScannability, 0);
-    } else {
-        if (validationTimeout) clearTimeout(validationTimeout);
-        validationTimeout = setTimeout(function() {
-            lastValidateTime = Date.now();
-            checkScannability();
-        }, 400);
-    }
+    // Scannability is polled independently via setInterval — no per-frame scheduling needed.
 }
 
 function animLoop(timestamp) {
@@ -581,3 +592,6 @@ function startAnimIfNeeded() {
         E('export-gif-btn')?.classList.remove('hidden');
     }
 }
+
+// Poll scannability independently at 500ms — decoupled from the 60fps render loop
+setInterval(checkScannability, 500);
