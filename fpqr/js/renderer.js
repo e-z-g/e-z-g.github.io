@@ -10,8 +10,9 @@ let customModuleImage = null;
 let animLoopId = null;
 let lastAnimTime = 0;
 
-// Gradient cache: avoids recreating gradient objects every frame when colors haven't changed
-const gradCache = { fg: null, bg: null, key: null };
+// Gradient cache: avoids recreating gradient objects every frame when colors haven't changed.
+// ctx is stored so the cache busts automatically when renderM switches to a different canvas.
+const gradCache = { fg: null, bg: null, key: null, ctx: null };
 
 // GIF Tracking Variables
 let customLogoIsGif = false;
@@ -205,10 +206,11 @@ function renderCanvas() {
         const gradAngle2 = E('grad-angle')?.value || '135';
         const gradRadial2 = E('grad-radial')?.value || '100';
         const gradKey = `${bgS}|${bgE}|${fgS}|${fgE}|${gradStyle2}|${gradAngle2}|${gradRadial2}|${cSz}`;
-        if (gradCache.key !== gradKey) {
+        if (gradCache.key !== gradKey || gradCache.ctx !== ctx) {
             gradCache.bg = createEngineGradient(ctx, cSz, bgS, bgE);
             gradCache.fg = createEngineGradient(ctx, cSz, fgS, fgE);
             gradCache.key = gradKey;
+            gradCache.ctx = ctx;
         }
         const bgGrad = gradCache.bg;
         const fgGrad = gradCache.fg;
