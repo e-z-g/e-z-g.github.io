@@ -335,6 +335,8 @@ function renderCanvas() {
             }); });
         }
 
+        const solidPath = new Path2D();
+
         // CHARACTER MODE
         // Rasterize glyph once via getGlyphSprite(), then stamp with drawImage().
         // Avoids per-module fillText which is very slow on iOS Safari.
@@ -376,7 +378,6 @@ function renderCanvas() {
 
         } else {
         // ALL OTHER SHAPES
-        const solidPath = new Path2D();
         for (let r = 0; r < gSz; r++) {
             for (let c = 0; c < gSz; c++) {
                 if (!shouldRenderData(r, c)) continue;
@@ -430,7 +431,7 @@ function renderCanvas() {
                 }
 
                 if (shape === 'solid') {
-                    ctx.beginPath(); roundRectPath(solidPath, cx, cy, cell + 0.5, cell + 0.5, Math.max(0, (cell/2)*(dB/100)));
+                    roundRectPath(solidPath, cx, cy, cell + 0.5, cell + 0.5, Math.max(0, (cell/2)*(dB/100)));
                 } else if (shape === 'organic') {
                     const rad = Math.max(0, (cell/2)*(dB/100));
                     const t = shouldRenderData(r-1,c), b = shouldRenderData(r+1,c), l = shouldRenderData(r,c-1), ri = shouldRenderData(r,c+1);
@@ -481,13 +482,12 @@ function renderCanvas() {
                 if (dS !== 1.0 || dX !== 0 || dY !== 0) ctx.restore();
             }
         }
+            // Flush all solid modules in one GPU draw call
+            if (shape === 'solid') {
+                ctx.fillStyle = heatmap ? ctx.fillStyle : fgGrad;
+                ctx.fill(solidPath);
+            }
         } // end shape branch
-
-        // Flush all solid modules in one GPU draw call
-        if (shape === 'solid') {
-            ctx.fillStyle = heatmap ? ctx.fillStyle : fgGrad;
-            ctx.fill(solidPath);
-        }
 
         if (logoShape !== 'none') {
             if (!heatmap) {
