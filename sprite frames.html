@@ -7,8 +7,217 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/dist/gifuct-js.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Self-contained GIF parser — no CDN dependency -->
+  <script>
+  // Minimal GIF89a decoder.
+  // Exposes window.parseGIFFrames(arrayBuffer) => Array of ImageData
+  (function() {
+    function parseGIFFrames(buffer) {
+      const data = new Uint8Array(buffer);
+      let pos = 0;
+      function read(n) { const s = data.slice(pos, pos+n); pos+=n; return s; }
+      function readByte() { return data[pos++]; }
+      function readWord() { const v=data[pos]|(data[pos+1]<<8); pos+=2; return v; }
+
+      // Header
+      const header = String.fromCharCode(...read(6));
+      if (!header.startsWith('GIF')) throw new Error('Not a GIF');
+
+      const width  = readWord();
+      const height = readWord();
+      const packed = readByte();
+      readByte(); // bg color
+      readByte(); // aspect
+
+      const hasGCT = (packed >> 7) & 1;
+      const gctSize = 2 << (packed & 7);
+      let gct = null;
+      if (hasGCT) { gct = read(gctSize * 3); }
+
+      const frames = [];
+      let gcExt = null; // graphic control extension
+      let canvas = null; // composite canvas
+      let canvasCtx = null;
+
+      function initCanvas() {
+        canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvasCtx = canvas.getContext('2d');
+      }
+      initCanvas();
+
+      function decodeLZW(minCode, data) {
+        const clearCode = 1 << minCode;
+        const eoiCode   = clearCode + 1;
+        let codeSize    = minCode + 1;
+        let dict = [];
+        function initDict() {
+          dict = [];
+          for (let i=0;i<clearCode;i++) dict.push([i]);
+          dict.push([clearCode]); dict.push([eoiCode]);
+          codeSize = minCode + 1;
+        }
+        initDict();
+
+        const out = [];
+        let pos=0, bits=0, buf=0;
+        let prev=null;
+
+        function readCode() {
+          while (bits < codeSize) {
+            if (pos >= data.length) return -1;
+            buf |= data[pos++] << bits;
+            bits += 8;
+          }
+          const code = buf & ((1<<codeSize)-1);
+          buf >>= codeSize; bits -= codeSize;
+          return code;
+        }
+
+        let code;
+        while ((code = readCode()) !== -1) {
+          if (code === clearCode) { initDict(); prev=null; continue; }
+          if (code === eoiCode) break;
+          let entry;
+          if (code < dict.length) {
+            entry = dict[code];
+          } else if (code === dict.length && prev !== null) {
+            entry = prev.concat(prev[0]);
+          } else { break; }
+          out.push(...entry);
+          if (prev !== null) {
+            const newEntry = prev.concat(entry[0]);
+            dict.push(newEntry);
+            if (dict.length === (1<<codeSize) && codeSize < 12) codeSize++;
+          }
+          prev = entry;
+        }
+        return out;
+      }
+
+      function readSubBlocks() {
+        const out = [];
+        let size;
+        while ((size = readByte()) !== 0) {
+          for (let i=0;i<size;i++) out.push(readByte());
+        }
+        return new Uint8Array(out);
+      }
+
+      while (pos < data.length) {
+        const sentinel = readByte();
+        if (sentinel === 0x3B) break; // trailer
+
+        if (sentinel === 0x21) { // extension
+          const label = readByte();
+          if (label === 0xF9) { // graphic control
+            readByte(); // block size (always 4)
+            const epacked = readByte();
+            const delay   = readWord();
+            const transIdx = readByte();
+            readByte(); // block terminator
+            gcExt = {
+              disposal:   (epacked >> 3) & 7,
+              transparent: (epacked & 1) ? transIdx : -1,
+              delay
+            };
+          } else {
+            readSubBlocks(); // skip
+          }
+          continue;
+        }
+
+        if (sentinel === 0x2C) { // image descriptor
+          const left   = readWord();
+          const top    = readWord();
+          const fw     = readWord();
+          const fh     = readWord();
+          const ipacked = readByte();
+          const hasLCT  = (ipacked >> 7) & 1;
+          const interlaced = (ipacked >> 6) & 1;
+          const lctSize = 2 << (ipacked & 7);
+          let ct = gct;
+          if (hasLCT) { ct = read(lctSize * 3); }
+
+          const minCode = readByte();
+          const lzwData = readSubBlocks();
+          const indices = decodeLZW(minCode, lzwData);
+
+          // Handle disposal of previous frame
+          if (gcExt && gcExt.disposal === 2) {
+            canvasCtx.clearRect(0, 0, width, height);
+          }
+
+          // Draw this frame onto composite canvas
+          const frameCanvas = document.createElement('canvas');
+          frameCanvas.width = fw; frameCanvas.height = fh;
+          const fCtx = frameCanvas.getContext('2d');
+          const imgData = fCtx.createImageData(fw, fh);
+          const px = imgData.data;
+          const transIdx = gcExt ? gcExt.transparent : -1;
+
+          // De-interlace if needed
+          let rows;
+          if (interlaced) {
+            rows = new Array(fh);
+            const passes = [
+              {start:0, step:8}, {start:4, step:8},
+              {start:2, step:4}, {start:1, step:2}
+            ];
+            let srcRow = 0;
+            for (const {start, step} of passes) {
+              for (let r=start; r<fh; r+=step) rows[r] = srcRow++;
+            }
+          } else {
+            rows = Array.from({length:fh},(_,i)=>i);
+          }
+
+          for (let r=0; r<fh; r++) {
+            const srcRow = interlaced ? rows.indexOf(r) : r;
+            for (let c=0; c<fw; c++) {
+              const idx = indices[srcRow * fw + c];
+              const d4  = (r * fw + c) * 4;
+              if (idx === transIdx) {
+                px[d4+3] = 0;
+              } else if (ct) {
+                px[d4]   = ct[idx*3];
+                px[d4+1] = ct[idx*3+1];
+                px[d4+2] = ct[idx*3+2];
+                px[d4+3] = 255;
+              }
+            }
+          }
+          fCtx.putImageData(imgData, 0, 0);
+          canvasCtx.drawImage(frameCanvas, left, top);
+
+          // Snapshot composite
+          const snap = document.createElement('canvas');
+          snap.width = width; snap.height = height;
+          snap.getContext('2d').drawImage(canvas, 0, 0);
+          frames.push({ canvas: snap, width, height, delay: gcExt ? gcExt.delay * 10 : 100 });
+
+          // Reset disposal
+          if (gcExt && gcExt.disposal === 3) {
+            // restore to previous — keep existing canvas
+          }
+          gcExt = null;
+          continue;
+        }
+      }
+
+      return frames.map(f => ({
+        url: f.canvas.toDataURL('image/png'),
+        width: f.width,
+        height: f.height,
+        delay: f.delay
+      }));
+    }
+
+    window.parseGIFFrames = parseGIFFrames;
+  })();
+  </script>
 </head>
 <body>
   <div id="root"></div>
@@ -16,81 +225,58 @@
     const { useState } = React;
 
     const App = () => {
-      const [frames, setFrames] = useState([]);
-      const [selectedIndices, setSelectedIndices] = useState(new Set());
-      const [spriteSheetUrl, setSpriteSheetUrl] = useState(null);
-      const [isProcessing, setIsProcessing] = useState(false);
-      const [error, setError] = useState(null);
+      const [frames, setFrames]             = useState([]);
+      const [selectedIndices, setSelected]  = useState(new Set());
+      const [spriteSheetUrl, setSheet]      = useState(null);
+      const [isProcessing, setProcessing]   = useState(false);
+      const [error, setError]               = useState(null);
+      const [columns, setColumns]           = useState(0); // 0 = auto
 
       const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
-        if (!window.parseGIF || !window.decompressFrames) {
-          setError("GIF library not loaded. Please check your internet connection and reload.");
-          return;
-        }
-
-        setIsProcessing(true);
+        setProcessing(true);
         setError(null);
-
+        setSheet(null);
+        setSelected(new Set());
         try {
-          const arrayBuffer = await file.arrayBuffer();
-          const gif = window.parseGIF(arrayBuffer);
-          const decodedFrames = window.decompressFrames(gif, true);
-
-          const frameImages = decodedFrames.map((frame, index) => {
-            const canvas = document.createElement('canvas');
-            canvas.width = gif.lsd.width;
-            canvas.height = gif.lsd.height;
-            const ctx = canvas.getContext('2d');
-            const imgData = ctx.createImageData(gif.lsd.width, gif.lsd.height);
-            imgData.data.set(frame.patch);
-            ctx.putImageData(imgData, 0, 0);
-            return { id: index, url: canvas.toDataURL(), width: gif.lsd.width, height: gif.lsd.height };
-          });
-
-          setFrames(frameImages);
-          setSpriteSheetUrl(null);
-          setSelectedIndices(new Set());
+          const buf = await file.arrayBuffer();
+          const parsed = window.parseGIFFrames(buf);
+          setFrames(parsed);
         } catch (err) {
-          setError("Failed to process GIF: " + err.message);
+          setError('Failed to parse GIF: ' + err.message);
+          setFrames([]);
         } finally {
-          setIsProcessing(false);
+          setProcessing(false);
         }
       };
 
-      const toggleFrame = (index) => {
-        const nextSelection = new Set(selectedIndices);
-        if (nextSelection.has(index)) nextSelection.delete(index);
-        else nextSelection.add(index);
-        setSelectedIndices(nextSelection);
+      const toggle = (i) => {
+        const next = new Set(selectedIndices);
+        next.has(i) ? next.delete(i) : next.add(i);
+        setSelected(next);
       };
+      const selectAll  = () => setSelected(new Set(frames.map((_,i)=>i)));
+      const selectNone = () => setSelected(new Set());
 
-      const selectAll = () => setSelectedIndices(new Set(frames.map((_, i) => i)));
-      const selectNone = () => setSelectedIndices(new Set());
-
-      const generateSpriteSheet = () => {
-        if (selectedIndices.size === 0) return;
-        const selectedFrames = frames.filter((_, idx) => selectedIndices.has(idx));
-        const count = selectedFrames.length;
-        const cols = Math.ceil(Math.sqrt(count));
-        const rows = Math.ceil(count / cols);
-        const frameW = selectedFrames[0].width;
-        const frameH = selectedFrames[0].height;
-
-        const canvas = document.createElement('canvas');
-        canvas.width = cols * frameW;
-        canvas.height = rows * frameH;
-        const ctx = canvas.getContext('2d');
-
-        selectedFrames.forEach((frame, idx) => {
+      const generateSheet = () => {
+        if (!selectedIndices.size) return;
+        const sel   = frames.filter((_,i) => selectedIndices.has(i));
+        const count = sel.length;
+        const cols  = columns > 0 ? columns : Math.ceil(Math.sqrt(count));
+        const rows  = Math.ceil(count / cols);
+        const fw    = sel[0].width;
+        const fh    = sel[0].height;
+        const out   = document.createElement('canvas');
+        out.width   = cols * fw;
+        out.height  = rows * fh;
+        const ctx   = out.getContext('2d');
+        sel.forEach((frame, idx) => {
           const img = new Image();
           img.src = frame.url;
-          ctx.drawImage(img, (idx % cols) * frameW, Math.floor(idx / cols) * frameH);
+          ctx.drawImage(img, (idx % cols) * fw, Math.floor(idx / cols) * fh);
         });
-
-        setSpriteSheetUrl(canvas.toDataURL('image/png'));
+        setSheet(out.toDataURL('image/png'));
       };
 
       return (
@@ -101,59 +287,65 @@
             <div className="bg-red-900/50 border border-red-700 text-red-200 p-4 mb-4 rounded-lg">{error}</div>
           )}
 
+          {/* Upload */}
           <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 mb-6">
             <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Upload GIF</label>
-            <input
-              type="file"
-              accept="image/gif"
-              onChange={handleFileChange}
-              className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
-            />
+            <input type="file" accept="image/gif" onChange={handleFileChange}
+              className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" />
           </div>
 
-          {isProcessing && <p className="text-indigo-400 mb-4 animate-pulse">Processing frames...</p>}
+          {isProcessing && <p className="text-indigo-400 mb-4 animate-pulse">Parsing frames…</p>}
 
+          {/* Frame picker */}
           {frames.length > 0 && (
             <div className="bg-gray-900 p-6 rounded-xl border border-gray-800 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Click to select frames ({frames.length} total)</h2>
-                <div className="flex gap-2">
-                  <button onClick={selectAll} className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded transition">All</button>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg font-semibold">Frames ({frames.length})</h2>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <label htmlFor="cols">Columns:</label>
+                    <input id="cols" type="number" min="0" max="64" value={columns}
+                      onChange={e => setColumns(parseInt(e.target.value)||0)}
+                      className="w-16 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200 text-sm" />
+                    <span className="text-xs text-gray-600">(0 = auto)</span>
+                  </div>
+                  <button onClick={selectAll}  className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded transition">All</button>
                   <button onClick={selectNone} className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded transition">None</button>
                 </div>
               </div>
+
               <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 mb-6">
                 {frames.map((frame, idx) => (
-                  <div key={idx} className="relative cursor-pointer" onClick={() => toggleFrame(idx)}>
-                    <img
-                      src={frame.url}
-                      className={`border-2 rounded transition w-full ${selectedIndices.has(idx) ? 'border-indigo-400 opacity-100' : 'border-gray-700 opacity-50 hover:opacity-100'}`}
-                      alt={`Frame ${idx}`}
-                    />
-                    <span className="absolute bottom-0 right-0 text-[9px] bg-black/60 text-gray-300 px-1 rounded-tl">{idx}</span>
+                  <div key={idx} className="relative cursor-pointer" onClick={() => toggle(idx)}>
+                    <img src={frame.url}
+                      className={`border-2 rounded transition w-full ${
+                        selectedIndices.has(idx)
+                          ? 'border-indigo-400 opacity-100'
+                          : 'border-gray-700 opacity-40 hover:opacity-80'
+                      }`}
+                      alt={`Frame ${idx}`} />
+                    <span className="absolute bottom-0 right-0 text-[9px] bg-black/70 text-gray-300 px-1 rounded-tl select-none">{idx}</span>
                   </div>
                 ))}
               </div>
-              <button
-                onClick={generateSpriteSheet}
-                className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-lg transition"
-                disabled={selectedIndices.size === 0}
-              >
-                Create Sheet ({selectedIndices.size})
+
+              <button onClick={generateSheet} disabled={!selectedIndices.size}
+                className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-lg transition">
+                Create Sheet ({selectedIndices.size} frames)
               </button>
             </div>
           )}
 
+          {/* Result */}
           {spriteSheetUrl && (
             <div className="bg-gray-900 p-6 rounded-xl border border-gray-800">
-              <h2 className="text-lg font-semibold mb-4">Result</h2>
-              <div className="bg-black border border-gray-700 p-2 rounded-lg inline-block">
-                <img src={spriteSheetUrl} className="max-w-full" alt="Sprite Sheet Result" />
+              <h2 className="text-lg font-semibold mb-4">Sprite Sheet</h2>
+              <div className="bg-black border border-gray-700 p-2 rounded-lg inline-block max-w-full overflow-auto">
+                <img src={spriteSheetUrl} className="max-w-full" alt="Sprite Sheet" />
               </div>
               <div className="mt-4">
-                <a href={spriteSheetUrl} download="spritesheet.png" className="text-indigo-400 hover:underline">
-                  Download PNG
-                </a>
+                <a href={spriteSheetUrl} download="spritesheet.png"
+                  className="text-indigo-400 hover:underline text-sm">Download PNG</a>
               </div>
             </div>
           )}
@@ -161,8 +353,7 @@
       );
     };
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
 </html>
