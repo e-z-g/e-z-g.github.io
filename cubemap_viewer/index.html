@@ -456,6 +456,36 @@
     const dummyDepthTex = new THREE.DataTexture(dummyDepthData, 1, 1, THREE.RGBAFormat);
     dummyDepthTex.needsUpdate = true;
 
+    // --- GNOMONIC UV REPROJECTION ---
+    // BoxGeometry face order: 0=right(+X), 1=left(-X), 2=top(+Y), 3=bottom(-Y), 4=front(+Z), 5=back(-Z)
+    // After geometry.scale(-1,1,1): X is flipped, so face 0 becomes -X dominant, face 1 becomes +X dominant.
+    // We derive distortion-free UVs from the normalized sphere position (gnomonic/rectilinear projection)
+    // instead of the original flat box UVs, eliminating the spherical bowing at face edges.
+    const gnomonicUvGlsl = `
+      vec2 gnomonicUV(vec3 p, int face) {
+        // p is the normalized direction vector (position on unit sphere)
+        // face indices match BoxGeometry after scale(-1,1,1):
+        //   0 = -X (left wall),  1 = +X (right wall)
+        //   2 = +Y (ceiling),    3 = -Y (floor)
+        //   4 = +Z (front wall), 5 = -Z (back wall)
+        vec2 uv;
+        if (face == 0) {       // -X dominant
+          uv = vec2(-p.z / abs(p.x), p.y / abs(p.x));
+        } else if (face == 1) { // +X dominant
+          uv = vec2( p.z / abs(p.x), p.y / abs(p.x));
+        } else if (face == 2) { // +Y dominant
+          uv = vec2( p.x / abs(p.y), -p.z / abs(p.y));
+        } else if (face == 3) { // -Y dominant
+          uv = vec2( p.x / abs(p.y),  p.z / abs(p.y));
+        } else if (face == 4) { // +Z dominant
+          uv = vec2( p.x / abs(p.z), p.y / abs(p.z));
+        } else {               // -Z dominant
+          uv = vec2(-p.x / abs(p.z), p.y / abs(p.z));
+        }
+        return uv * 0.5 + 0.5;
+      }
+    `;
+
     // --- UNIFIED MATERIAL ENGINE ---
     const atlasLogic = `
       vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 5.0, (2.0 - row + localUv.y) / 3.0); }
@@ -507,7 +537,7 @@
         const mats = [];
         for (let i = 0; i < 6; i++) {
           const colorSample = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv)` : `texture2D(tColor, vUv)`;
-          const depthSample = depthMode === 'atlas' ? `sampleAtlas(tDepth, uFace, uv)` : `texture2D(tDepth, uv)`;
+          const depthSample = depthMode === 'atlas' ? `sampleAtlas(tDepth, uFace, vUv)` : `texture2D(tDepth, vUv)`;
           const fragDepthSample = depthMode === 'atlas' ? `sampleAtlas(tDepth, uFace, vUv)` : `texture2D(tDepth, vUv)`;
 
           mats.push(new THREE.ShaderMaterial({
@@ -525,9 +555,13 @@
               uniform float uDisplacementScale;
               uniform int uFace;
               varying vec2 vUv;
+              ${gnomonicUvGlsl}
               ${colorMode === 'atlas' || depthMode === 'atlas' ? atlasLogic : ''}
               void main() {
-                vUv = uv;
+                // Gnomonic reprojection: derive UVs from the normalized sphere position
+                // instead of the original flat box UVs, eliminating edge bowing.
+                vec3 dir = normalize(position);
+                vUv = gnomonicUV(dir, uFace);
                 float vDepth = clamp(${depthSample}.r, 0.0, 1.0);
                 vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
