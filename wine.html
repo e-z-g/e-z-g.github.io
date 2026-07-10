@@ -9,48 +9,54 @@
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
     body { font-family: 'Inter', sans-serif; }
     h1, h2, h3, .serif { font-family: 'Playfair Display', serif; }
-    .loader {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #7f1d1d;
-      border-radius: 50%;
-      width: 20px; height: 20px;
-      animation: spin 1s linear infinite;
-      display: inline-block; vertical-align: middle;
+    .loader { border:3px solid #f3f3f3; border-top:3px solid #7f1d1d; border-radius:50%; width:20px; height:20px; animation:spin 1s linear infinite; display:inline-block; vertical-align:middle; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .card-enter { animation:fadeUp 0.25s ease both; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+    /* AR spotlight */
+    .spotlight {
+      position:absolute; border-radius:50%; pointer-events:none;
+      box-shadow: inset 0 0 80px 40px rgba(0,0,0,0.15), 0 0 0 9999px rgba(0,0,0,0.6);
+      transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+      z-index:20;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .card-enter { animation: fadeUp 0.25s ease both; }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    #ar-video { width:100%; height:100%; object-fit:cover; display:block; }
+    .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .type-pill { background:white; color:#6b7280; border-color:#e5e7eb; }
+    .type-pill:hover { background:#f9fafb; }
+    .type-pill.active-pill { background:#7f1d1d; color:white; border-color:#7f1d1d; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800 antialiased min-h-screen">
 
-  <!-- Header -->
+<!-- ═══════════════════════════════════════════════════════ MAIN VIEW ══ -->
+<div id="main-view">
   <header class="bg-red-900 text-white shadow-md sticky top-0 z-30">
     <div class="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-red-200 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v8.5A5.5 5.5 0 0014.5 17H15v3H9v-3h.5A5.5 5.5 0 0015 11.5V3H9z"/>
       </svg>
       <h1 class="text-xl font-bold tracking-tight serif">VinoVision</h1>
-      <span class="ml-auto text-xs text-red-300 font-medium">Powered by Open Food Facts</span>
+      <span class="ml-2 text-xs text-red-300 font-medium hidden sm:inline">Powered by Open Food Facts</span>
+      <button id="open-ar-btn" class="ml-auto bg-red-800 hover:bg-red-700 border border-red-700 text-white text-xs sm:text-sm px-3 py-1.5 rounded-full font-medium transition flex items-center gap-1.5 shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+        AR Finder
+      </button>
     </div>
   </header>
 
   <main class="max-w-5xl mx-auto px-4 py-8 space-y-6">
-
-    <!-- Search bar -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
       <label class="block text-xs uppercase tracking-widest text-gray-400 mb-2 font-semibold">Search wines by name or producer</label>
       <div class="flex gap-2">
         <input id="search-input" type="text" placeholder="e.g. Malbec, Château Margaux, Pinot Noir…"
           class="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400" />
-        <button id="search-btn"
-          class="bg-red-900 hover:bg-red-800 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition flex items-center gap-2 disabled:opacity-50">
+        <button id="search-btn" class="bg-red-900 hover:bg-red-800 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           Search
         </button>
       </div>
-      <!-- Type filter pills -->
-      <div class="flex flex-wrap gap-2 mt-4" id="type-filters">
+      <div class="flex flex-wrap gap-2 mt-4">
         <span class="text-xs text-gray-400 font-medium self-center mr-1">Filter:</span>
         <button data-type="" class="type-pill active-pill px-3 py-1 rounded-full text-xs font-semibold border transition">All</button>
         <button data-type="red" class="type-pill px-3 py-1 rounded-full text-xs font-semibold border transition">🍷 Red</button>
@@ -60,346 +66,440 @@
       </div>
     </div>
 
-    <!-- Status / error -->
     <div id="status-bar" class="hidden text-sm text-center text-gray-500 py-2"></div>
     <div id="error-bar" class="hidden bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm"></div>
 
-    <!-- Results header -->
     <div id="results-header" class="hidden flex items-center justify-between">
       <h2 class="text-lg font-semibold serif text-gray-800">Results <span id="result-count" class="text-sm font-normal text-gray-400"></span></h2>
       <button id="load-more-btn" class="hidden text-sm text-red-700 hover:underline font-medium">Load more</button>
     </div>
 
-    <!-- Results grid -->
     <div id="results-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
 
-    <!-- Empty state -->
     <div id="empty-state" class="hidden text-center py-16 text-gray-400">
       <svg class="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       <p class="font-medium">No wines found</p>
       <p class="text-xs mt-1">Try a different search term</p>
     </div>
 
-    <!-- Landing state -->
     <div id="landing-state" class="text-center py-16 text-gray-400">
       <svg class="w-14 h-14 mx-auto mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v8.5A5.5 5.5 0 0014.5 17H15v3H9v-3h.5A5.5 5.5 0 0015 11.5V3H9z"/>
       </svg>
       <p class="font-medium text-gray-500">Search the Open Food Facts wine database</p>
       <p class="text-xs mt-1 max-w-xs mx-auto">Over 16,000 wines with real producer, origin, ABV, and ingredient data — nothing invented.</p>
+      <p class="text-xs mt-3 text-gray-400">Or use <strong class="text-gray-500">AR Finder</strong> to identify a bottle on a shelf with your camera.</p>
     </div>
-
   </main>
+</div>
 
-  <!-- Detail modal -->
-  <div id="detail-modal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto relative">
-      <button id="close-modal" class="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full p-2 transition">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-      <div id="modal-body" class="p-6"></div>
+<!-- ═══════════════════════════════════════════════════════ AR VIEW ══════ -->
+<div id="ar-view" class="hidden fixed inset-0 z-40 bg-black flex flex-col">
+
+  <!-- Top bar -->
+  <div class="absolute top-0 left-0 right-0 p-4 z-50 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent pt-5 pb-16 pointer-events-none">
+    <button id="close-ar-btn" class="pointer-events-auto bg-white/20 hover:bg-white/30 backdrop-blur text-white px-4 py-2 rounded-full font-medium text-sm flex items-center gap-2 transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      Exit
+    </button>
+    <div id="ar-status" class="pointer-events-none bg-gray-900/80 backdrop-blur text-white px-3 py-1.5 rounded-full text-xs font-medium border border-gray-600 flex items-center gap-2">
+      <span id="ar-status-dot" class="w-2 h-2 rounded-full bg-gray-400"></span>
+      <span id="ar-status-text">Starting camera…</span>
     </div>
   </div>
 
-  <script>
-    const OFF_BASE = 'https://world.openfoodfacts.org';
-    const FIELDS = 'code,product_name,brands,origins,quantity,alcohol_100g,ingredients_text,labels_tags,categories_tags,image_url,image_front_url,countries_tags,product_quantity,nutriments';
-    const PAGE_SIZE = 24;
+  <!-- Camera feed -->
+  <div class="relative flex-grow overflow-hidden">
+    <video id="ar-video" autoplay playsinline muted></video>
+    <div id="ar-spotlight" class="spotlight hidden"></div>
+  </div>
 
-    let currentQuery = '';
-    let currentType = '';
-    let currentPage = 1;
-    let totalCount = 0;
-    let allResults = [];
+  <!-- Bottom panel -->
+  <div class="absolute bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-black via-black/95 to-transparent pt-16 pb-6 px-4">
 
-    // ── Type detection ────────────────────────────────────────────────────────
-    const TYPE_MAP = {
-      red:      ['en:red-wines','en:red-wine'],
-      white:    ['en:white-wines','en:white-wine'],
-      rose:     ['en:rose-wines','en:rosé-wines','en:rose-wine','en:rosé-wine'],
-      sparkling:['en:sparkling-wines','en:champagne','en:prosecco','en:cava','en:crémant']
-    };
-
-    function detectType(cats = []) {
-      for (const [type, tags] of Object.entries(TYPE_MAP)) {
-        if (tags.some(t => cats.includes(t))) return type;
-      }
-      // Fallback: look for plain 'wines' and color hints in string
-      const joined = cats.join(' ');
-      if (joined.includes('red')) return 'red';
-      if (joined.includes('white')) return 'white';
-      if (joined.includes('ros')) return 'rose';
-      if (joined.includes('sparkling') || joined.includes('champagne') || joined.includes('prosecco')) return 'sparkling';
-      return 'wine';
-    }
-
-    const TYPE_LABELS = { red:'Red Wine', white:'White Wine', rose:'Rosé', sparkling:'Sparkling', wine:'Wine' };
-    const TYPE_COLORS = {
-      red:      'bg-red-50 text-red-800 border-red-200',
-      white:    'bg-yellow-50 text-yellow-800 border-yellow-200',
-      rose:     'bg-pink-50 text-pink-800 border-pink-200',
-      sparkling:'bg-amber-50 text-amber-800 border-amber-200',
-      wine:     'bg-gray-100 text-gray-700 border-gray-200'
-    };
-    const TYPE_ICONS = { red:'🍷', white:'🥂', rose:'🌷', sparkling:'🍾', wine:'🍷' };
-
-    // ── Build OFF search URL ──────────────────────────────────────────────────
-    function buildUrl(query, type, page) {
-      const params = new URLSearchParams({
-        fields: FIELDS,
-        page_size: PAGE_SIZE,
-        page,
-        sort_by: 'unique_scans_n'
-      });
-
-      // Always scope to wines
-      params.set('categories_tags_en', 'wines');
-
-      if (query) params.set('search_terms', query);
-
-      // Type sub-filter via categories_tags
-      if (type === 'red')       params.set('categories_tags', 'en:red-wines');
-      if (type === 'white')     params.set('categories_tags', 'en:white-wines');
-      if (type === 'rose')      params.set('categories_tags', 'en:rose-wines');
-      if (type === 'sparkling') params.set('categories_tags', 'en:sparkling-wines');
-
-      return `${OFF_BASE}/api/v2/search?${params}`;
-    }
-
-    // ── Fetch ─────────────────────────────────────────────────────────────────
-    async function fetchWines(query, type, page = 1) {
-      showStatus('Searching…');
-      hideError();
-
-      const url = buildUrl(query, type, page);
-      try {
-        const res = await fetch(url, {
-          headers: { 'User-Agent': 'VinoVision/1.0 (e-z-g.github.io)' }
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        hideStatus();
-        return data;
-      } catch (e) {
-        hideStatus();
-        showError('Could not reach Open Food Facts. Check your connection and try again.');
-        return null;
-      }
-    }
-
-    // ── Render a single card ──────────────────────────────────────────────────
-    function renderCard(p) {
-      const type = detectType(p.categories_tags || []);
-      const name = p.product_name || 'Unknown Wine';
-      const brand = p.brands || '';
-      const origin = p.origins || (p.countries_tags || []).map(c => c.replace('en:','')).filter(Boolean).join(', ') || '';
-      const abv = p.alcohol_100g ? `${parseFloat(p.alcohol_100g).toFixed(1)}% ABV` : null;
-      const qty = p.quantity || '';
-      const img = p.image_front_url || p.image_url || '';
-
-      const labels = (p.labels_tags || [])
-        .map(l => l.replace(/^en:/,'').replace(/-/g,' '))
-        .filter(l => l && l.length < 30)
-        .slice(0, 4);
-
-      const card = document.createElement('div');
-      card.className = 'bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer card-enter flex flex-col overflow-hidden';
-      card.innerHTML = `
-        <div class="bg-gray-50 border-b border-gray-100 h-44 flex items-center justify-center overflow-hidden">
-          ${img
-            ? `<img src="${img}" alt="${name}" class="h-full w-full object-contain p-3" loading="lazy" onerror="this.parentElement.innerHTML='<span class=\\'text-5xl\\'>🍷</span>'">`
-            : `<span class="text-5xl">🍷</span>`}
+    <!-- OFF result card (shown after a successful find) -->
+    <div id="ar-result-card" class="hidden mb-4 bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-4 flex gap-3 items-start">
+      <img id="ar-result-img" src="" class="w-14 h-20 object-contain bg-white/5 rounded-xl flex-shrink-0" onerror="this.style.display='none'">
+      <div class="flex-1 min-w-0">
+        <p id="ar-result-name" class="text-white font-bold text-sm leading-tight serif"></p>
+        <p id="ar-result-brand" class="text-gray-300 text-xs mt-0.5"></p>
+        <div class="flex flex-wrap gap-2 mt-2">
+          <span id="ar-result-type" class="text-xs px-2 py-0.5 rounded-full border font-semibold"></span>
+          <span id="ar-result-abv" class="hidden text-xs bg-white/10 text-white border border-white/20 rounded-full px-2 py-0.5"></span>
+          <span id="ar-result-origin" class="hidden text-xs text-gray-300"></span>
         </div>
-        <div class="p-4 flex flex-col gap-2 flex-1">
-          <div class="flex items-start justify-between gap-2">
-            <div class="flex-1 min-w-0">
-              <h3 class="font-bold text-gray-900 text-sm leading-tight line-clamp-2 serif">${name}</h3>
-              ${brand ? `<p class="text-xs text-gray-500 mt-0.5 truncate">${brand}</p>` : ''}
-            </div>
-            <span class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full border font-semibold ${TYPE_COLORS[type]}">
-              ${TYPE_ICONS[type]} ${TYPE_LABELS[type]}
-            </span>
-          </div>
-          <div class="flex flex-wrap gap-1.5 text-xs text-gray-500 mt-auto pt-1">
-            ${origin ? `<span class="flex items-center gap-1">📍 ${origin}</span>` : ''}
-            ${abv ? `<span class="flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5 font-medium text-gray-600">${abv}</span>` : ''}
-            ${qty ? `<span class="flex items-center gap-1 text-gray-400">${qty}</span>` : ''}
-          </div>
-          ${labels.length ? `<div class="flex flex-wrap gap-1 mt-1">${labels.map(l=>`<span class="text-[10px] bg-green-50 text-green-700 border border-green-100 rounded-full px-2 py-0.5 capitalize">${l}</span>`).join('')}</div>` : ''}
+        <a id="ar-result-link" href="#" target="_blank" rel="noopener" class="inline-block mt-2 text-[10px] text-red-300 hover:underline">View on Open Food Facts ↗</a>
+      </div>
+    </div>
+
+    <!-- Gemini API key notice -->
+    <div id="ar-key-notice" class="hidden mb-3 bg-yellow-900/60 border border-yellow-600/50 rounded-xl px-3 py-2 text-xs text-yellow-200">
+      ⚠️ AR bottle detection requires a Gemini API key.
+      <input id="ar-api-key-input" type="password" placeholder="Paste your Gemini API key here…"
+        class="mt-1.5 w-full bg-white/10 border border-white/20 text-white placeholder-gray-400 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-400" />
+      <p class="mt-1 text-yellow-300/70">Key is stored only in memory for this session. Only used for vision (no wine data is invented).</p>
+    </div>
+
+    <p class="text-white/70 text-xs text-center mb-3">Point at a wine shelf and type the name you're looking for.</p>
+    <div class="flex gap-2">
+      <input id="ar-search-input" type="text" placeholder="e.g. Rombauer, Pinot Grigio…"
+        class="flex-1 bg-white/10 backdrop-blur border border-white/20 text-white placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+      <button id="ar-find-btn" class="bg-red-600 hover:bg-red-500 text-white font-bold px-5 py-3 rounded-xl transition flex items-center gap-2 text-sm">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        Find
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ DETAIL MODAL ═ -->
+<div id="detail-modal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto relative">
+    <button id="close-modal" class="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-full p-2 transition">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+    <div id="modal-body" class="p-6"></div>
+  </div>
+</div>
+
+<script>
+const OFF_BASE = 'https://world.openfoodfacts.org';
+const FIELDS   = 'code,product_name,brands,origins,quantity,alcohol_100g,ingredients_text,labels_tags,categories_tags,image_url,image_front_url,countries_tags';
+const PAGE_SIZE = 24;
+
+let currentQuery = '', currentType = '', currentPage = 1, totalCount = 0, allResults = [];
+
+// ── Types ────────────────────────────────────────────────────────────────────
+const TYPE_MAP = {
+  red:      ['en:red-wines','en:red-wine'],
+  white:    ['en:white-wines','en:white-wine'],
+  rose:     ['en:rose-wines','en:rosé-wines','en:rose-wine','en:rosé-wine'],
+  sparkling:['en:sparkling-wines','en:champagne','en:prosecco','en:cava','en:crémant']
+};
+function detectType(cats=[]) {
+  for (const [type,tags] of Object.entries(TYPE_MAP)) if (tags.some(t=>cats.includes(t))) return type;
+  const j=cats.join(' ');
+  if(j.includes('red'))return'red'; if(j.includes('white'))return'white';
+  if(j.includes('ros'))return'rose'; if(j.includes('sparkling')||j.includes('champagne'))return'sparkling';
+  return 'wine';
+}
+const TYPE_LABELS = {red:'Red Wine',white:'White Wine',rose:'Rosé',sparkling:'Sparkling',wine:'Wine'};
+const TYPE_COLORS = {
+  red:'bg-red-50 text-red-800 border-red-200', white:'bg-yellow-50 text-yellow-800 border-yellow-200',
+  rose:'bg-pink-50 text-pink-800 border-pink-200', sparkling:'bg-amber-50 text-amber-800 border-amber-200',
+  wine:'bg-gray-100 text-gray-700 border-gray-200'
+};
+const TYPE_ICONS = {red:'🍷',white:'🥂',rose:'🌷',sparkling:'🍾',wine:'🍷'};
+
+// ── OFF helpers ──────────────────────────────────────────────────────────────
+function buildUrl(query,type,page) {
+  const p = new URLSearchParams({fields:FIELDS,page_size:PAGE_SIZE,page,sort_by:'unique_scans_n'});
+  p.set('categories_tags_en','wines');
+  if (query) p.set('search_terms',query);
+  if (type==='red')       p.set('categories_tags','en:red-wines');
+  if (type==='white')     p.set('categories_tags','en:white-wines');
+  if (type==='rose')      p.set('categories_tags','en:rose-wines');
+  if (type==='sparkling') p.set('categories_tags','en:sparkling-wines');
+  return `${OFF_BASE}/api/v2/search?${p}`;
+}
+
+async function fetchWines(query,type,page=1) {
+  showStatus('Searching…'); hideError();
+  try {
+    const r = await fetch(buildUrl(query,type,page),{headers:{'User-Agent':'VinoVision/1.0 (e-z-g.github.io)'}});
+    if (!r.ok) throw new Error();
+    hideStatus();
+    return await r.json();
+  } catch(e) { hideStatus(); showError('Could not reach Open Food Facts. Check your connection.'); return null; }
+}
+
+// Single product by barcode
+async function fetchByBarcode(barcode) {
+  const r = await fetch(`${OFF_BASE}/api/v2/product/${barcode}?fields=${FIELDS}`,{headers:{'User-Agent':'VinoVision/1.0 (e-z-g.github.io)'}});
+  if (!r.ok) return null;
+  const d = await r.json();
+  return d.status===1 ? d.product : null;
+}
+
+// First OFF result matching a query
+async function fetchFirstMatch(query) {
+  const p = new URLSearchParams({fields:FIELDS,page_size:1,search_terms:query,categories_tags_en:'wines',sort_by:'unique_scans_n'});
+  try {
+    const r = await fetch(`${OFF_BASE}/api/v2/search?${p}`,{headers:{'User-Agent':'VinoVision/1.0 (e-z-g.github.io)'}});
+    const d = await r.json();
+    return (d.products||[])[0] || null;
+  } catch(e) { return null; }
+}
+
+// ── Cards ────────────────────────────────────────────────────────────────────
+function renderCard(p) {
+  const type=detectType(p.categories_tags||[]);
+  const name=p.product_name||'Unknown Wine';
+  const brand=p.brands||'';
+  const origin=p.origins||(p.countries_tags||[]).map(c=>c.replace('en:','')).filter(Boolean).join(', ')||'';
+  const abv=p.alcohol_100g?`${parseFloat(p.alcohol_100g).toFixed(1)}% ABV`:null;
+  const qty=p.quantity||'';
+  const img=p.image_front_url||p.image_url||'';
+  const labels=(p.labels_tags||[]).map(l=>l.replace(/^en:/,'').replace(/-/g,' ')).filter(l=>l&&l.length<30).slice(0,4);
+  const card=document.createElement('div');
+  card.className='bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer card-enter flex flex-col overflow-hidden';
+  card.innerHTML=`
+    <div class="bg-gray-50 border-b border-gray-100 h-44 flex items-center justify-center overflow-hidden">
+      ${img?`<img src="${img}" alt="" class="h-full w-full object-contain p-3" loading="lazy" onerror="this.parentElement.innerHTML='<span class=text-5xl>🍷</span>'">`:`<span class="text-5xl">🍷</span>`}
+    </div>
+    <div class="p-4 flex flex-col gap-2 flex-1">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <h3 class="font-bold text-gray-900 text-sm leading-tight line-clamp-2 serif">${name}</h3>
+          ${brand?`<p class="text-xs text-gray-500 mt-0.5 truncate">${brand}</p>`:''}
         </div>
-      `;
-      card.addEventListener('click', () => openModal(p));
-      return card;
-    }
+        <span class="flex-shrink-0 text-xs px-2 py-0.5 rounded-full border font-semibold ${TYPE_COLORS[type]}">${TYPE_ICONS[type]} ${TYPE_LABELS[type]}</span>
+      </div>
+      <div class="flex flex-wrap gap-1.5 text-xs text-gray-500 mt-auto pt-1">
+        ${origin?`<span>📍 ${origin}</span>`:''}
+        ${abv?`<span class="bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5 font-medium text-gray-600">${abv}</span>`:''}
+        ${qty?`<span class="text-gray-400">${qty}</span>`:''}
+      </div>
+      ${labels.length?`<div class="flex flex-wrap gap-1 mt-1">${labels.map(l=>`<span class="text-[10px] bg-green-50 text-green-700 border border-green-100 rounded-full px-2 py-0.5 capitalize">${l}</span>`).join('')}</div>`:''}
+    </div>`;
+  card.addEventListener('click',()=>openModal(p));
+  return card;
+}
 
-    // ── Render modal ──────────────────────────────────────────────────────────
-    function openModal(p) {
-      const type = detectType(p.categories_tags || []);
-      const name = p.product_name || 'Unknown Wine';
-      const brand = p.brands || '';
-      const origin = p.origins || (p.countries_tags || []).map(c => c.replace('en:','')).filter(Boolean).join(', ') || '';
-      const abv = p.alcohol_100g ? `${parseFloat(p.alcohol_100g).toFixed(1)}%` : null;
-      const qty = p.quantity || '';
-      const img = p.image_front_url || p.image_url || '';
-      const ingredients = p.ingredients_text || '';
-      const barcode = p.code || '';
+// ── Detail modal ─────────────────────────────────────────────────────────────
+function openModal(p) {
+  const type=detectType(p.categories_tags||[]);
+  const name=p.product_name||'Unknown Wine';
+  const brand=p.brands||'';
+  const origin=p.origins||(p.countries_tags||[]).map(c=>c.replace('en:','')).filter(Boolean).join(', ')||'';
+  const abv=p.alcohol_100g?`${parseFloat(p.alcohol_100g).toFixed(1)}%`:null;
+  const qty=p.quantity||'';
+  const img=p.image_front_url||p.image_url||'';
+  const ingredients=p.ingredients_text||'';
+  const barcode=p.code||'';
+  const labels=(p.labels_tags||[]).map(l=>l.replace(/^[a-z]{2}:/,'').replace(/-/g,' ')).filter(l=>l&&l.length<40);
+  const cats=(p.categories_tags||[]).map(c=>c.replace(/^[a-z]{2}:/,'').replace(/-/g,' ')).filter(c=>!c.toLowerCase().includes('beverage')&&c.length<40).slice(0,6);
+  const rows=[
+    ['Type',`${TYPE_ICONS[type]} ${TYPE_LABELS[type]}`],
+    brand&&['Producer / Brand',brand],origin&&['Origin',origin],
+    abv&&['ABV',abv],qty&&['Volume',qty],barcode&&['Barcode',barcode]
+  ].filter(Boolean);
+  document.getElementById('modal-body').innerHTML=`
+    <div class="flex gap-4 mb-5">
+      ${img?`<div class="w-24 flex-shrink-0 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100 overflow-hidden"><img src="${img}" class="h-28 w-full object-contain p-2" onerror="this.style.display='none'"></div>`:''}
+      <div class="flex-1 min-w-0">
+        <h2 class="font-bold text-gray-900 text-lg leading-tight serif">${name}</h2>
+        ${brand?`<p class="text-sm text-gray-500 mt-1">${brand}</p>`:''}
+      </div>
+    </div>
+    <table class="w-full text-sm mb-4">${rows.map(([k,v])=>`<tr class="border-b border-gray-100 last:border-0"><td class="py-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wider w-32 align-top">${k}</td><td class="py-2 text-gray-800 font-medium">${v}</td></tr>`).join('')}</table>
+    ${cats.length?`<div class="mb-4"><p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Categories</p><div class="flex flex-wrap gap-1.5">${cats.map(c=>`<span class="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full capitalize">${c}</span>`).join('')}</div></div>`:''}
+    ${labels.length?`<div class="mb-4"><p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Labels &amp; Certifications</p><div class="flex flex-wrap gap-1.5">${labels.map(l=>`<span class="text-xs bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-full capitalize">${l}</span>`).join('')}</div></div>`:''}
+    ${ingredients?`<div class="mb-4"><p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Ingredients / Composition</p><p class="text-xs text-gray-600 leading-relaxed">${ingredients}</p></div>`:''}
+    <a href="https://world.openfoodfacts.org/product/${barcode}" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-xs text-red-700 hover:underline font-medium">View full entry on Open Food Facts ↗</a>`;
+  document.getElementById('detail-modal').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+}
+function closeModal(){
+  document.getElementById('detail-modal').classList.add('hidden');
+  document.body.style.overflow='';
+}
+document.getElementById('close-modal').addEventListener('click',closeModal);
+document.getElementById('detail-modal').addEventListener('click',e=>{if(e.target===document.getElementById('detail-modal'))closeModal();});
 
-      const labels = (p.labels_tags || [])
-        .map(l => l.replace(/^[a-z]{2}:/,'').replace(/-/g,' '))
-        .filter(l => l && l.length < 40);
+// ── Search ───────────────────────────────────────────────────────────────────
+async function doSearch(resetPage=true) {
+  const query=document.getElementById('search-input').value.trim();
+  if(resetPage){currentPage=1;allResults=[];currentQuery=query;
+    document.getElementById('results-grid').innerHTML='';
+    document.getElementById('results-header').classList.add('hidden');
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('landing-state').classList.add('hidden');
+  }
+  const data=await fetchWines(currentQuery,currentType,currentPage);
+  if(!data)return;
+  totalCount=data.count||0;
+  const products=(data.products||[]).filter(p=>p.product_name);
+  if(currentPage===1&&products.length===0){document.getElementById('empty-state').classList.remove('hidden');return;}
+  allResults=allResults.concat(products);
+  const grid=document.getElementById('results-grid');
+  products.forEach(p=>grid.appendChild(renderCard(p)));
+  document.getElementById('results-header').classList.remove('hidden');
+  document.getElementById('result-count').textContent=`(${totalCount.toLocaleString()} total, showing ${allResults.length})`;
+  document.getElementById('load-more-btn').classList.toggle('hidden',allResults.length>=totalCount);
+}
+document.getElementById('search-btn').addEventListener('click',()=>doSearch(true));
+document.getElementById('search-input').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch(true);});
+document.getElementById('load-more-btn').addEventListener('click',()=>{currentPage++;doSearch(false);});
+document.querySelectorAll('.type-pill').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.type-pill').forEach(b=>b.classList.remove('active-pill'));
+    btn.classList.add('active-pill'); currentType=btn.dataset.type; doSearch(true);
+  });
+});
 
-      const cats = (p.categories_tags || [])
-        .map(c => c.replace(/^[a-z]{2}:/,'').replace(/-/g,' '))
-        .filter(c => !c.toLowerCase().includes('beverage') && !c.toLowerCase().includes('plant-based') && c.length < 40)
-        .slice(0, 6);
+// ── Status/error helpers ─────────────────────────────────────────────────────
+function showStatus(msg){const el=document.getElementById('status-bar');el.innerHTML=`<span class="loader mr-2"></span>${msg}`;el.classList.remove('hidden');}
+function hideStatus(){document.getElementById('status-bar').classList.add('hidden');}
+function showError(msg){document.getElementById('error-bar').textContent=msg;document.getElementById('error-bar').classList.remove('hidden');}
+function hideError(){document.getElementById('error-bar').classList.add('hidden');}
 
-      const rows = [
-        ['Type',        `${TYPE_ICONS[type]} ${TYPE_LABELS[type]}`],
-        brand      && ['Producer / Brand', brand],
-        origin     && ['Origin',     origin],
-        abv        && ['ABV',         abv],
-        qty        && ['Volume',      qty],
-        barcode    && ['Barcode',     barcode],
-      ].filter(Boolean);
+// ════════════════════════════════════════════════════════════════════════════
+// AR FINDER
+// Camera feed + Gemini vision to locate a bottle spatially.
+// Gemini is ONLY asked "where on screen is this bottle" — no wine data comes
+// from it. All product info (name, ABV, origin etc.) comes from OFF.
+// ════════════════════════════════════════════════════════════════════════════
+let arStream = null;
+let geminiApiKey = '';
 
-      document.getElementById('modal-body').innerHTML = `
-        <div class="flex gap-4 mb-5">
-          ${img ? `<div class="w-24 flex-shrink-0 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100 overflow-hidden"><img src="${img}" class="h-28 w-full object-contain p-2" onerror="this.parentElement.innerHTML='<span class=\\'text-4xl\\'>🍷</span>'"></div>` : ''}
-          <div class="flex-1 min-w-0">
-            <h2 class="font-bold text-gray-900 text-lg leading-tight serif">${name}</h2>
-            ${brand ? `<p class="text-sm text-gray-500 mt-1">${brand}</p>` : ''}
-          </div>
-        </div>
+function arSetStatus(text, color='gray') {
+  document.getElementById('ar-status-text').textContent = text;
+  const dot = document.getElementById('ar-status-dot');
+  dot.className = `w-2 h-2 rounded-full bg-${color}-400`;
+}
 
-        <table class="w-full text-sm mb-4 border-collapse">
-          ${rows.map(([k,v]) => `
-            <tr class="border-b border-gray-100 last:border-0">
-              <td class="py-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wider w-32 align-top">${k}</td>
-              <td class="py-2 text-gray-800 font-medium">${v}</td>
-            </tr>`).join('')}
-        </table>
+// Open AR view
+document.getElementById('open-ar-btn').addEventListener('click', async () => {
+  document.getElementById('main-view').classList.add('hidden');
+  document.getElementById('ar-view').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
 
-        ${cats.length ? `
-          <div class="mb-4">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Categories</p>
-            <div class="flex flex-wrap gap-1.5">${cats.map(c=>`<span class="text-xs bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full capitalize">${c}</span>`).join('')}</div>
-          </div>` : ''}
+  // Show API key notice if no key yet
+  if (!geminiApiKey) document.getElementById('ar-key-notice').classList.remove('hidden');
 
-        ${labels.length ? `
-          <div class="mb-4">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Labels &amp; Certifications</p>
-            <div class="flex flex-wrap gap-1.5">${labels.map(l=>`<span class="text-xs bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 rounded-full capitalize">${l}</span>`).join('')}</div>
-          </div>` : ''}
-
-        ${ingredients ? `
-          <div class="mb-4">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Ingredients / Composition</p>
-            <p class="text-xs text-gray-600 leading-relaxed">${ingredients}</p>
-          </div>` : ''}
-
-        <a href="https://world.openfoodfacts.org/product/${barcode}" target="_blank" rel="noopener"
-           class="inline-flex items-center gap-2 text-xs text-red-700 hover:underline font-medium mt-1">
-          View full entry on Open Food Facts ↗
-        </a>
-      `;
-
-      document.getElementById('detail-modal').classList.remove('hidden');
-      document.body.style.overflow = 'hidden';
-    }
-
-    function closeModal() {
-      document.getElementById('detail-modal').classList.add('hidden');
-      document.body.style.overflow = '';
-    }
-
-    document.getElementById('close-modal').addEventListener('click', closeModal);
-    document.getElementById('detail-modal').addEventListener('click', e => {
-      if (e.target === document.getElementById('detail-modal')) closeModal();
+  arSetStatus('Starting camera…', 'gray');
+  try {
+    arStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1920}, height:{ideal:1080} }
     });
+    document.getElementById('ar-video').srcObject = arStream;
+    arSetStatus('Camera active', 'green');
+  } catch(e) {
+    arSetStatus('Camera denied', 'red');
+  }
+});
 
-    // ── Search & render ───────────────────────────────────────────────────────
-    async function doSearch(resetPage = true) {
-      const query = document.getElementById('search-input').value.trim();
-      if (resetPage) {
-        currentPage = 1;
-        allResults = [];
-        currentQuery = query;
-        document.getElementById('results-grid').innerHTML = '';
-        document.getElementById('results-header').classList.add('hidden');
-        document.getElementById('empty-state').classList.add('hidden');
-        document.getElementById('landing-state').classList.add('hidden');
+// Close AR view
+document.getElementById('close-ar-btn').addEventListener('click', () => {
+  document.getElementById('ar-view').classList.add('hidden');
+  document.getElementById('main-view').classList.remove('hidden');
+  document.body.style.overflow = '';
+  if (arStream) { arStream.getTracks().forEach(t=>t.stop()); arStream=null; }
+  document.getElementById('ar-spotlight').classList.add('hidden');
+  document.getElementById('ar-result-card').classList.add('hidden');
+});
+
+// Capture current video frame as base64 JPEG
+function captureFrame() {
+  const video = document.getElementById('ar-video');
+  const canvas = document.createElement('canvas');
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+}
+
+// Ask Gemini only: "where is [wine] in this image" → bounding box
+// Returns [ymin,xmin,ymax,xmax] in 0-1000 scale, or null
+async function locateBottleWithGemini(base64Frame, wineName, apiKey) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  const prompt = `Look at this image of a wine shelf. Find the bottle of "${wineName}". Return ONLY a JSON object with key "bbox" containing [ymin, xmin, ymax, xmax] as integers from 0-1000 representing the bounding box of that specific bottle. If you cannot find it, return {"bbox": null}. Do not invent or describe anything else.`;
+  const payload = {
+    contents:[{role:'user',parts:[{text:prompt},{inlineData:{mimeType:'image/jpeg',data:base64Frame}}]}],
+    generationConfig:{responseMimeType:'application/json',responseSchema:{
+      type:'OBJECT',properties:{bbox:{type:'ARRAY',items:{type:'NUMBER'}}}
+    }}
+  };
+  const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`);
+  const data = await res.json();
+  let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  text = text.replace(/```json/gi,'').replace(/```/g,'').trim();
+  const parsed = JSON.parse(text);
+  return parsed.bbox || null;
+}
+
+// Draw spotlight over the located bottle
+function showSpotlight(bbox) {
+  const spotlight = document.getElementById('ar-spotlight');
+  const container = spotlight.parentElement;
+  const [ymin,xmin,ymax,xmax] = bbox.map(v=>v/10);
+  const w=xmax-xmin, h=ymax-ymin;
+  const expand=1.5, off=(expand-1)/2;
+  spotlight.style.left   = `${xmin - w*off}%`;
+  spotlight.style.top    = `${ymin - h*off}%`;
+  spotlight.style.width  = `${w*expand}%`;
+  spotlight.style.height = `${h*expand}%`;
+  spotlight.classList.remove('hidden');
+}
+
+// Main AR find handler
+document.getElementById('ar-find-btn').addEventListener('click', async () => {
+  const query = document.getElementById('ar-search-input').value.trim();
+  if (!query) return;
+
+  // Collect API key from input if not set
+  const keyInput = document.getElementById('ar-api-key-input').value.trim();
+  if (keyInput) geminiApiKey = keyInput;
+
+  document.getElementById('ar-result-card').classList.add('hidden');
+  document.getElementById('ar-spotlight').classList.add('hidden');
+
+  // Step 1: Look up in OFF (real data, no AI)
+  arSetStatus('Looking up in Open Food Facts…', 'blue');
+  const product = await fetchFirstMatch(query);
+
+  // Step 2: If we have a Gemini key, locate the bottle on-screen
+  if (geminiApiKey && arStream) {
+    arSetStatus('Locating bottle in camera…', 'yellow');
+    try {
+      const frame = captureFrame();
+      const bbox = await locateBottleWithGemini(frame, query, geminiApiKey);
+      if (bbox) {
+        showSpotlight(bbox);
+        arSetStatus('Bottle found!', 'green');
+      } else {
+        arSetStatus('Bottle not visible in frame', 'red');
       }
-
-      const data = await fetchWines(currentQuery, currentType, currentPage);
-      if (!data) return;
-
-      totalCount = data.count || 0;
-      const products = (data.products || []).filter(p => p.product_name);
-
-      if (currentPage === 1 && products.length === 0) {
-        document.getElementById('empty-state').classList.remove('hidden');
-        return;
-      }
-
-      allResults = allResults.concat(products);
-
-      const grid = document.getElementById('results-grid');
-      products.forEach(p => grid.appendChild(renderCard(p)));
-
-      // Header
-      const header = document.getElementById('results-header');
-      header.classList.remove('hidden');
-      document.getElementById('result-count').textContent = `(${totalCount.toLocaleString()} total, showing ${allResults.length})`;
-
-      // Load more
-      const hasMore = allResults.length < totalCount;
-      const loadMoreBtn = document.getElementById('load-more-btn');
-      loadMoreBtn.classList.toggle('hidden', !hasMore);
+    } catch(e) {
+      arSetStatus(e.message.includes('401')||e.message.includes('400') ? 'Invalid API key' : 'Vision error', 'red');
     }
+  } else if (!geminiApiKey) {
+    document.getElementById('ar-key-notice').classList.remove('hidden');
+    arSetStatus('No API key — showing OFF result only', 'gray');
+  }
 
-    document.getElementById('search-btn').addEventListener('click', () => doSearch(true));
-    document.getElementById('search-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') doSearch(true);
-    });
+  // Step 3: Show OFF data in the result card (whether or not Gemini worked)
+  if (product) {
+    const type = detectType(product.categories_tags||[]);
+    const img  = product.image_front_url||product.image_url||'';
+    const abv  = product.alcohol_100g ? `${parseFloat(product.alcohol_100g).toFixed(1)}% ABV` : '';
+    const origin = product.origins||(product.countries_tags||[]).map(c=>c.replace('en:','')).filter(Boolean).join(', ')||'';
 
-    document.getElementById('load-more-btn').addEventListener('click', async () => {
-      currentPage++;
-      await doSearch(false);
-    });
+    document.getElementById('ar-result-img').src = img;
+    document.getElementById('ar-result-img').style.display = img ? '' : 'none';
+    document.getElementById('ar-result-name').textContent  = product.product_name||'Unknown Wine';
+    document.getElementById('ar-result-brand').textContent = product.brands||'';
 
-    // ── Type filter pills ─────────────────────────────────────────────────────
-    document.querySelectorAll('.type-pill').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.type-pill').forEach(b => b.classList.remove('active-pill'));
-        btn.classList.add('active-pill');
-        currentType = btn.dataset.type;
-        doSearch(true);
-      });
-    });
+    const typeSpan = document.getElementById('ar-result-type');
+    typeSpan.textContent = `${TYPE_ICONS[type]} ${TYPE_LABELS[type]}`;
+    typeSpan.className = `text-xs px-2 py-0.5 rounded-full border font-semibold ${TYPE_COLORS[type]}`;
 
-    // Style active pill via class
-    const style = document.createElement('style');
-    style.textContent = `
-      .type-pill { background: white; color: #6b7280; border-color: #e5e7eb; }
-      .type-pill:hover { background: #f9fafb; }
-      .type-pill.active-pill { background: #7f1d1d; color: white; border-color: #7f1d1d; }
-      .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    `;
-    document.head.appendChild(style);
+    const abvSpan = document.getElementById('ar-result-abv');
+    abvSpan.textContent = abv;
+    abvSpan.classList.toggle('hidden', !abv);
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-    function showStatus(msg) {
-      const el = document.getElementById('status-bar');
-      el.innerHTML = `<span class="loader mr-2"></span>${msg}`;
-      el.classList.remove('hidden');
-    }
-    function hideStatus() { document.getElementById('status-bar').classList.add('hidden'); }
-    function showError(msg) {
-      const el = document.getElementById('error-bar');
-      el.textContent = msg;
-      el.classList.remove('hidden');
-    }
-    function hideError() { document.getElementById('error-bar').classList.add('hidden'); }
-  </script>
+    const originSpan = document.getElementById('ar-result-origin');
+    originSpan.textContent = origin ? `📍 ${origin}` : '';
+    originSpan.classList.toggle('hidden', !origin);
+
+    document.getElementById('ar-result-link').href = `https://world.openfoodfacts.org/product/${product.code}`;
+    document.getElementById('ar-result-card').classList.remove('hidden');
+  } else {
+    arSetStatus('Not found in Open Food Facts', 'red');
+  }
+});
+</script>
 </body>
 </html>
