@@ -15,7 +15,6 @@
     h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
     .subtitle { font-size: 13px; color: #888; margin-bottom: 24px; text-align: center; }
 
-    /* ── Atlas diagram ── */
     .atlas-diagram {
       display: grid; grid-template-columns: repeat(5, 52px); grid-template-rows: repeat(3, 52px);
       gap: 2px; margin-bottom: 28px;
@@ -23,16 +22,14 @@
     .atlas-cell {
       background: #222; border: 1px solid #333; border-radius: 3px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      font-size: 9px; color: #666; line-height: 1.3; text-align: center; cursor: default;
+      font-size: 9px; color: #666; line-height: 1.3; text-align: center;
     }
-    .atlas-cell.active { border-color: #555; color: #aaa; }
-    .atlas-cell.dup   { border-style: dashed; color: #555; }
-    .atlas-cell span.face { font-size: 11px; font-weight: 600; color: #ccc; }
-    .atlas-cell.top-row  { background: #1a1a26; }
-    .atlas-cell.mid-row  { background: #1a261a; }
-    .atlas-cell.bot-row  { background: #26181a; }
+    .atlas-cell span.face { font-size: 10px; font-weight: 700; color: #ccc; }
+    .atlas-cell.top-row  { background: #1a1a26; border-color: #3a3a5a; }
+    .atlas-cell.mid-row  { background: #1a261a; border-color: #3a5a3a; }
+    .atlas-cell.bot-row  { background: #261a1a; border-color: #5a3a3a; }
+    .atlas-cell.dup      { opacity: 0.5; border-style: dashed; }
 
-    /* ── Face upload grid ── */
     .faces-grid {
       display: grid; grid-template-columns: repeat(3, 1fr);
       gap: 12px; width: 100%; max-width: 560px; margin-bottom: 28px;
@@ -44,94 +41,85 @@
     .face-card h3 { font-size: 12px; font-weight: 600; text-transform: uppercase;
       letter-spacing: 0.5px; color: #aaa; }
     .face-preview {
-      width: 100%; aspect-ratio: 1; background: #0d0d0d; border-radius: 4px;
+      width: 100%; aspect-ratio: 1 / 1; background: #0d0d0d; border-radius: 4px;
       overflow: hidden; display: flex; align-items: center; justify-content: center;
-      cursor: pointer; position: relative; border: 1px dashed #333;
-      transition: border-color 0.2s;
+      position: relative; border: 1px dashed #333;
     }
-    .face-preview:hover { border-color: #555; }
-    .face-preview img { width: 100%; height: 100%; object-fit: cover; display: none; }
-    .face-preview .placeholder { font-size: 11px; color: #444; text-align: center; line-height: 1.4; }
-    .face-preview input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .face-preview canvas { width: 100%; height: 100%; display: none; }
+    .face-preview .placeholder { font-size: 11px; color: #444; text-align: center;
+      line-height: 1.5; pointer-events: none; }
+    .face-preview.loaded canvas { display: block; }
     .face-preview.loaded .placeholder { display: none; }
-    .face-preview.loaded img { display: block; }
-    .rot-row { display: flex; gap: 4px; }
-    .rot-btn {
-      background: #2a2a2a; border: 1px solid #3a3a3a; color: #aaa;
-      font-size: 13px; border-radius: 4px; padding: 4px 8px; cursor: pointer;
-      transition: background 0.15s; flex: 1; text-align: center;
+    /* Invisible full-area file trigger */
+    .file-trigger {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0;
     }
-    .rot-btn:hover { background: #383838; color: #fff; }
-    .rot-btn.active { background: #3a4a3a; border-color: #4ade80; color: #4ade80; }
-    .flip-row { display: flex; gap: 4px; }
-    .flip-btn {
-      background: #2a2a2a; border: 1px solid #3a3a3a; color: #888;
-      font-size: 10px; border-radius: 4px; padding: 3px 6px; cursor: pointer;
-      transition: background 0.15s; flex: 1; text-align: center;
-    }
-    .flip-btn:hover { background: #383838; color: #ccc; }
-    .flip-btn.active { background: #3a2a3a; border-color: #c084fc; color: #c084fc; }
 
-    /* ── Controls ── */
+    .rot-row { display: flex; gap: 3px; width: 100%; }
+    .rot-btn {
+      background: #252525; border: 1px solid #383838; color: #999;
+      font-size: 12px; border-radius: 4px; padding: 5px 0; cursor: pointer;
+      flex: 1; text-align: center; -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .rot-btn.active { background: #2a3a2a; border-color: #4ade80; color: #4ade80; }
+
+    .flip-row { display: flex; gap: 6px; width: 100%; }
+    .flip-btn {
+      background: #252525; border: 1px solid #383838; color: #888;
+      font-size: 11px; border-radius: 4px; padding: 4px 0; cursor: pointer;
+      flex: 1; text-align: center; -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .flip-btn.active { background: #2a1a3a; border-color: #c084fc; color: #c084fc; }
+
     .controls {
       width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px;
       margin-bottom: 28px;
     }
-    .ctrl-row { display: flex; align-items: center; gap: 10px; }
+    .ctrl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     label.ctrl-lbl { font-size: 12px; color: #888; text-transform: uppercase;
-      letter-spacing: 0.4px; min-width: 80px; }
+      letter-spacing: 0.4px; min-width: 76px; }
     select, input[type=number] {
       background: #1c1c1c; border: 1px solid #333; color: #e0e0e0;
       border-radius: 4px; padding: 6px 10px; font-size: 13px; outline: none;
     }
     input[type=number] { width: 80px; }
 
-    /* ── Action buttons ── */
-    .action-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .action-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
     .btn {
-      padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 600;
-      cursor: pointer; border: none; transition: background 0.2s, transform 0.1s;
+      padding: 11px 26px; border-radius: 6px; font-size: 14px; font-weight: 600;
+      cursor: pointer; border: none; touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
-    .btn:active { transform: scale(0.97); }
     .btn-primary { background: #4ade80; color: #000; }
-    .btn-primary:hover { background: #22c55e; }
     .btn-primary:disabled { background: #2a3a2a; color: #555; cursor: not-allowed; }
     .btn-secondary { background: #2a2a2a; color: #ccc; border: 1px solid #444; }
-    .btn-secondary:hover { background: #333; }
 
-    /* ── Output canvas ── */
     #output-wrap {
-      width: 100%; max-width: 800px; display: none; flex-direction: column;
-      align-items: center; gap: 12px; margin-top: 8px;
+      width: 100%; max-width: 860px; display: none; flex-direction: column;
+      align-items: center; gap: 14px; margin-top: 8px;
     }
     #output-wrap h2 { font-size: 15px; font-weight: 600; }
-    #output-canvas {
-      width: 100%; border-radius: 6px; border: 1px solid #2a2a2a;
-      image-rendering: pixelated;
-    }
+    #output-canvas { width: 100%; border-radius: 6px; border: 1px solid #2a2a2a; }
     .dl-row { display: flex; gap: 10px; }
 
-    /* ── Status ── */
     #status { font-size: 12px; color: #888; min-height: 18px; text-align: center; }
   </style>
 </head>
 <body>
 
 <h1>Cubemap Face Stitcher</h1>
-<p class="subtitle">Upload 6 faces → get a 5×3 atlas ready for the LDI custom upload slot</p>
+<p class="subtitle">Upload 6 faces → get a 5×3 atlas for the LDI custom upload</p>
 
-<!-- Atlas layout diagram -->
 <div class="atlas-diagram" id="atlas-diagram"></div>
-
-<!-- Face upload cards -->
 <div class="faces-grid" id="faces-grid"></div>
 
-<!-- Global controls -->
 <div class="controls">
   <div class="ctrl-row">
     <label class="ctrl-lbl">Face size</label>
     <input type="number" id="face-size" value="1024" min="64" max="4096" step="64">
-    <span style="font-size:12px;color:#555">px per face (output = 5× wide, 3× tall)</span>
+    <span style="font-size:12px;color:#555">px → output 5× wide, 3× tall</span>
   </div>
   <div class="ctrl-row">
     <label class="ctrl-lbl">Format</label>
@@ -140,8 +128,8 @@
       <option value="image/jpeg">JPEG</option>
       <option value="image/png">PNG (lossless)</option>
     </select>
-    <label class="ctrl-lbl" style="min-width:unset">Quality</label>
-    <input type="number" id="quality" value="92" min="1" max="100" step="1">
+    <label class="ctrl-lbl" style="min-width:unset;margin-left:6px">Quality</label>
+    <input type="number" id="quality" value="92" min="1" max="100">
     <span style="font-size:12px;color:#555">%</span>
   </div>
 </div>
@@ -150,10 +138,8 @@
   <button class="btn btn-primary" id="stitch-btn" disabled>Stitch Atlas</button>
   <button class="btn btn-secondary" id="clear-btn">Clear All</button>
 </div>
-
 <p id="status"></p>
 
-<!-- Output -->
 <div id="output-wrap">
   <h2>Output Atlas (5×3)</h2>
   <canvas id="output-canvas"></canvas>
@@ -163,71 +149,79 @@
 </div>
 
 <script>
-// ─────────────────────────────────────────────
-// Face definitions
-// The 5×3 atlas layout (col 0–4, row 0–2):
+// ================================================================
+// ATLAS LAYOUT
+// Row 0 = top face, rotated to align each cell's bottom edge with
+//         the top edge of the wall face directly below it.
+// Row 1 = equatorial walls: Left | Front | Right | Back | Left(dup)
+// Row 2 = bottom face, rotated to align each cell's top edge with
+//         the bottom edge of the wall face directly above it.
 //
-//  Row 0 (top caps):   [Left↺90  Front      Right↻90  Back↻180  Left↺90 dup]
-//  Row 1 (equator):    [Left      Front      Right     Back      Left dup   ]
-//  Row 2 (bot caps):   [Left↻90  Front      Right↺90  Back↻180  Left↻90 dup]
+// Equatorial strip (viewed inward, CW from left):
+//   Col 0: Left (-X)   Col 1: Front (+Z)   Col 2: Right (+X)
+//   Col 3: Back (-Z)   Col 4: Left dup (seam wrap)
 //
-// This ensures every face edge is contiguous with its neighbour:
-//   • Top face blends: front/left/back/right all share the top edge → rotated to align
-//   • Bottom face blends similarly
-//   • Left col 4 duplicates col 0 so the seam wraps
+// Top-face rotations (base, before user override):
+//   Col 0 (above Left):  -90°  → top face's left edge aligns downward
+//   Col 1 (above Front):   0°  → top face's bottom edge aligns downward  
+//   Col 2 (above Right): +90°  → top face's right edge aligns downward
+//   Col 3 (above Back):  180°  → top face's top edge aligns downward
+//   Col 4 (dup col 0):   -90°
 //
-// The viewer's sampleAtlas() for faces 2 (top) and 3 (bottom) blends
-// four surrounding faces using diagonal weights, so each must be oriented
-// so its "up" edge lines up with the centre of the top/bottom cap.
-// ─────────────────────────────────────────────
+// Bottom-face rotations (mirror of top):
+//   Col 0: +90°  Col 1: 0°  Col 2: -90°  Col 3: 180°  Col 4: +90°
+// ================================================================
 
 const FACES = ['left','front','right','back','top','bottom'];
-const FACE_LABELS = { left:'Left (−X)', front:'Front (+Z)', right:'Right (+X)', back:'Back (−Z)', top:'Top (+Y)', bottom:'Bottom (−Y)' };
+const FACE_LABELS = {
+  left:   'Left (−X)',  front: 'Front (+Z)',
+  right:  'Right (+X)', back:  'Back (−Z)',
+  top:    'Top (+Y)',   bottom:'Bottom (−Y)'
+};
 
-// Atlas cell descriptor: { face, rot° CW, flipH, flipV, label }
-// rot is clockwise degrees applied when drawing into the atlas cell
 const LAYOUT = [
-  // Row 0 – top-cap blending strip
-  { face:'left',   rot: 90, fh:0, fv:0, note:'L ↺90'  },
-  { face:'front',  rot:  0, fh:0, fv:0, note:'Front'  },
-  { face:'right',  rot:-90, fh:0, fv:0, note:'R ↻90'  },
-  { face:'back',   rot:180, fh:0, fv:0, note:'Bk ↻180'},
-  { face:'left',   rot: 90, fh:0, fv:0, note:'L dup'  },  // col 4 wrap
-  // Row 1 – equatorial strip
-  { face:'left',   rot:  0, fh:0, fv:0, note:'Left'   },
-  { face:'front',  rot:  0, fh:0, fv:0, note:'Front'  },
-  { face:'right',  rot:  0, fh:0, fv:0, note:'Right'  },
-  { face:'back',   rot:  0, fh:0, fv:0, note:'Back'   },
-  { face:'left',   rot:  0, fh:0, fv:0, note:'L dup'  },  // col 4 wrap
-  // Row 2 – bottom-cap blending strip
-  { face:'left',   rot:-90, fh:0, fv:0, note:'L ↻90'  },
-  { face:'front',  rot:  0, fh:0, fv:0, note:'Front'  },
-  { face:'right',  rot: 90, fh:0, fv:0, note:'R ↺90'  },
-  { face:'back',   rot:180, fh:0, fv:0, note:'Bk ↻180'},
-  { face:'left',   rot:-90, fh:0, fv:0, note:'L dup'  },  // col 4 wrap
+  // Row 0 – top face at each horizontal position
+  { face:'top',    rot: -90, note:'Top\n-90°' },
+  { face:'top',    rot:   0, note:'Top\n0°'   },
+  { face:'top',    rot:  90, note:'Top\n+90°' },
+  { face:'top',    rot: 180, note:'Top\n180°' },
+  { face:'top',    rot: -90, note:'Top\ndup'   },
+  // Row 1 – equatorial walls
+  { face:'left',   rot:   0, note:'Left'  },
+  { face:'front',  rot:   0, note:'Front' },
+  { face:'right',  rot:   0, note:'Right' },
+  { face:'back',   rot:   0, note:'Back'  },
+  { face:'left',   rot:   0, note:'L dup' },
+  // Row 2 – bottom face at each horizontal position
+  { face:'bottom', rot:  90, note:'Bot\n+90°' },
+  { face:'bottom', rot:   0, note:'Bot\n0°'   },
+  { face:'bottom', rot: -90, note:'Bot\n-90°' },
+  { face:'bottom', rot: 180, note:'Bot\n180°' },
+  { face:'bottom', rot:  90, note:'Bot\ndup'   },
 ];
 
-// User-loaded images + per-face transform overrides
-const faceImages = {};   // face → HTMLImageElement
-const faceRot    = {};   // face → additional rotation (0/90/180/270 CW)
-const faceFlipH  = {};   // face → bool
-const faceFlipV  = {};   // face → bool
+// Per-face user overrides
+const faceImages = {};
+const faceRot    = {}; // 0 / 90 / 180 / 270
+const faceFlipH  = {};
+const faceFlipV  = {};
 FACES.forEach(f => { faceRot[f] = 0; faceFlipH[f] = false; faceFlipV[f] = false; });
 
-// ── Build atlas diagram ──────────────────────
-const diagram = document.getElementById('atlas-diagram');
+// ── Atlas diagram ────────────────────────────────────────────────
 const rowClass = ['top-row','mid-row','bot-row'];
+const diagramEl = document.getElementById('atlas-diagram');
 LAYOUT.forEach((cell, i) => {
-  const row = Math.floor(i / 5);
-  const isDup = (i % 5 === 4);
+  const row = Math.floor(i / 5), col = i % 5;
   const el = document.createElement('div');
-  el.className = `atlas-cell active ${rowClass[row]}${isDup ? ' dup' : ''}`;
-  el.innerHTML = `<span class="face">${cell.note}</span><span>${cell.face.substring(0,3)}</span>`;
-  el.title = `Row ${row}, Col ${i%5}: ${cell.face} rot ${cell.rot}°`;
-  diagram.appendChild(el);
+  el.className = `atlas-cell ${rowClass[row]}${col === 4 ? ' dup' : ''}`;
+  el.innerHTML = cell.note.split('\n').map((l,j) =>
+    j === 0 ? `<span class="face">${l}</span>` : `<span>${l}</span>`
+  ).join('');
+  el.title = `Row ${row}, Col ${col}: ${cell.face} base rot ${cell.rot}°`;
+  diagramEl.appendChild(el);
 });
 
-// ── Build face upload cards ──────────────────
+// ── Face upload cards ────────────────────────────────────────────
 const grid = document.getElementById('faces-grid');
 FACES.forEach(face => {
   const card = document.createElement('div');
@@ -235,154 +229,201 @@ FACES.forEach(face => {
   card.innerHTML = `
     <h3>${FACE_LABELS[face]}</h3>
     <div class="face-preview" id="prev-${face}">
-      <input type="file" accept="image/*" id="file-${face}">
-      <img id="img-${face}" alt="${face}">
-      <div class="placeholder">Click to<br>upload</div>
+      <canvas id="thumb-${face}"></canvas>
+      <div class="placeholder">Tap / click<br>to upload</div>
+      <input type="file" accept="image/*" class="file-trigger" id="file-${face}" tabindex="-1">
     </div>
     <div class="rot-row">
-      <button class="rot-btn" data-face="${face}" data-rot="0" title="No rotation">0°</button>
-      <button class="rot-btn" data-face="${face}" data-rot="90" title="Rotate 90° CW">90°</button>
-      <button class="rot-btn" data-face="${face}" data-rot="180" title="Rotate 180°">180°</button>
-      <button class="rot-btn" data-face="${face}" data-rot="270" title="Rotate 270° CW">270°</button>
+      <button class="rot-btn active" data-face="${face}" data-rot="0">0°</button>
+      <button class="rot-btn" data-face="${face}" data-rot="90">90°</button>
+      <button class="rot-btn" data-face="${face}" data-rot="180">180°</button>
+      <button class="rot-btn" data-face="${face}" data-rot="270">270°</button>
     </div>
     <div class="flip-row">
-      <button class="flip-btn" data-face="${face}" data-flip="h" title="Flip horizontal">⟺ H</button>
-      <button class="flip-btn" data-face="${face}" data-flip="v" title="Flip vertical">⇅ V</button>
+      <button class="flip-btn" data-face="${face}" data-flip="h">⇔ Flip H</button>
+      <button class="flip-btn" data-face="${face}" data-flip="v">⇕ Flip V</button>
     </div>
   `;
   grid.appendChild(card);
 
-  // Set default active rotation button
-  card.querySelector('[data-rot="0"]').classList.add('active');
-
-  // File input handler
+  // File input
   document.getElementById(`file-${face}`).addEventListener('change', e => {
     const file = e.target.files[0]; if (!file) return;
     const url = URL.createObjectURL(file);
-    const img = document.getElementById(`img-${face}`);
+    const img = new Image();
     img.onload = () => {
       faceImages[face] = img;
+      updateThumb(face);
       document.getElementById(`prev-${face}`).classList.add('loaded');
       updateStitchBtn();
+      URL.revokeObjectURL(url);
     };
     img.src = url;
     e.target.value = '';
   });
 });
 
-// Rotation button handlers
+// Rotation buttons – use touchend + click with a guard to avoid double-fire
+function addTapHandler(el, fn) {
+  let touched = false;
+  el.addEventListener('touchend', e => {
+    e.preventDefault(); touched = true; fn(); setTimeout(() => touched = false, 400);
+  });
+  el.addEventListener('click', () => { if (!touched) fn(); });
+}
+
 document.querySelectorAll('.rot-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const face = btn.dataset.face;
-    const rot = parseInt(btn.dataset.rot);
+  addTapHandler(btn, () => {
+    const face = btn.dataset.face, rot = parseInt(btn.dataset.rot);
     faceRot[face] = rot;
     document.querySelectorAll(`.rot-btn[data-face="${face}"]`).forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
+    updateThumb(face);
   });
 });
 
-// Flip button handlers
 document.querySelectorAll('.flip-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const face = btn.dataset.face;
-    const flip = btn.dataset.flip;
-    if (flip === 'h') {
-      faceFlipH[face] = !faceFlipH[face];
-    } else {
-      faceFlipV[face] = !faceFlipV[face];
-    }
+  addTapHandler(btn, () => {
+    const face = btn.dataset.face, flip = btn.dataset.flip;
+    if (flip === 'h') faceFlipH[face] = !faceFlipH[face];
+    else              faceFlipV[face] = !faceFlipV[face];
     btn.classList.toggle('active');
+    updateThumb(face);
   });
 });
 
-// Clear all
-document.getElementById('clear-btn').addEventListener('click', () => {
+addTapHandler(document.getElementById('clear-btn'), () => {
   FACES.forEach(face => {
     delete faceImages[face];
     faceRot[face] = 0; faceFlipH[face] = false; faceFlipV[face] = false;
-    const img = document.getElementById(`img-${face}`);
-    if (img.src) { URL.revokeObjectURL(img.src); img.src = ''; }
     document.getElementById(`prev-${face}`).classList.remove('loaded');
+    const tc = document.getElementById(`thumb-${face}`);
+    const tx = tc.getContext('2d'); tx.clearRect(0,0,tc.width,tc.height);
     document.querySelectorAll(`.rot-btn[data-face="${face}"]`).forEach(b => b.classList.remove('active'));
     document.querySelector(`.rot-btn[data-face="${face}"][data-rot="0"]`).classList.add('active');
     document.querySelectorAll(`.flip-btn[data-face="${face}"]`).forEach(b => b.classList.remove('active'));
   });
   document.getElementById('output-wrap').style.display = 'none';
-  updateStitchBtn();
-  setStatus('');
+  updateStitchBtn(); setStatus('');
 });
 
 function updateStitchBtn() {
-  const loaded = FACES.filter(f => faceImages[f]).length;
-  document.getElementById('stitch-btn').disabled = loaded < 6;
-  setStatus(loaded < 6 ? `${loaded}/6 faces loaded` : 'Ready to stitch!');
+  const n = FACES.filter(f => faceImages[f]).length;
+  document.getElementById('stitch-btn').disabled = n < 6;
+  setStatus(n < 6 ? `${n}/6 faces loaded` : 'All 6 faces ready — tap Stitch!');
+}
+function setStatus(m) { document.getElementById('status').textContent = m; }
+
+// ── Offscreen transform: rotate+flip via a scratch canvas ────────
+// Returns an ImageBitmap or HTMLCanvasElement with the transform applied.
+// This approach works on iOS Safari/Chrome where ctx.rotate() can
+// produce incorrect results when combined with translate().
+function transformedFace(face, totalRotCW, flipH, flipV, size) {
+  const src = faceImages[face];
+  const offscreen = document.createElement('canvas');
+  offscreen.width = size; offscreen.height = size;
+  const oc = offscreen.getContext('2d');
+
+  // Step 1: draw source image at full size into scratch
+  const scratch = document.createElement('canvas');
+  scratch.width = size; scratch.height = size;
+  const sc = scratch.getContext('2d');
+  sc.drawImage(src, 0, 0, size, size);
+  const srcData = sc.getImageData(0, 0, size, size).data;
+
+  // Step 2: pixel-remap according to rotation + flip
+  // We compute for each destination pixel (dx,dy) the source pixel (sx,sy).
+  const dstData = oc.createImageData(size, size);
+  const d = dstData.data;
+  const s = srcData;
+  const n = size;
+
+  // Normalise rotation to 0/90/180/270
+  const rot = ((totalRotCW % 360) + 360) % 360;
+
+  for (let dy = 0; dy < n; dy++) {
+    for (let dx = 0; dx < n; dx++) {
+      // Reverse-map destination → source
+      let sx, sy;
+      // Rotation (CW) → inverse mapping (CCW)
+      if      (rot === 0)   { sx = dx;         sy = dy; }
+      else if (rot === 90)  { sx = dy;         sy = n-1-dx; }
+      else if (rot === 180) { sx = n-1-dx;     sy = n-1-dy; }
+      else                  { sx = n-1-dy;     sy = dx; }      // 270
+
+      // Apply flips after rotation
+      if (flipH) sx = n-1-sx;
+      if (flipV) sy = n-1-sy;
+
+      const dIdx = (dy * n + dx) * 4;
+      const sIdx = (sy * n + sx) * 4;
+      d[dIdx]   = s[sIdx];
+      d[dIdx+1] = s[sIdx+1];
+      d[dIdx+2] = s[sIdx+2];
+      d[dIdx+3] = s[sIdx+3];
+    }
+  }
+  oc.putImageData(dstData, 0, 0);
+  return offscreen;
 }
 
-function setStatus(msg) { document.getElementById('status').textContent = msg; }
-
-// ── Stitch ──────────────────────────────────
-document.getElementById('stitch-btn').addEventListener('click', stitch);
-
-function drawFaceIntoCell(ctx, face, cellX, cellY, cellSize, baseRot) {
-  const img = faceImages[face];
-  if (!img) return;
-
-  const totalRot = ((baseRot + faceRot[face]) % 360 + 360) % 360;
-  const flipH = faceFlipH[face];
-  const flipV = faceFlipV[face];
-
-  ctx.save();
-  // Translate to cell centre
-  ctx.translate(cellX + cellSize / 2, cellY + cellSize / 2);
-  // Apply rotation
-  ctx.rotate(totalRot * Math.PI / 180);
-  // Apply flips
-  ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-  // Draw image centred
-  ctx.drawImage(img, -cellSize / 2, -cellSize / 2, cellSize, cellSize);
-  ctx.restore();
+// Update the small thumbnail preview for a face card
+function updateThumb(face) {
+  const img = faceImages[face]; if (!img) return;
+  const SIZE = 128;
+  const tc = document.getElementById(`thumb-${face}`);
+  tc.width = SIZE; tc.height = SIZE;
+  const totalRot = ((faceRot[face] % 360) + 360) % 360;
+  const transformed = transformedFace(face, totalRot, faceFlipH[face], faceFlipV[face], SIZE);
+  tc.getContext('2d').drawImage(transformed, 0, 0);
 }
+
+// ── Stitch ───────────────────────────────────────────────────────
+addTapHandler(document.getElementById('stitch-btn'), stitch);
 
 function stitch() {
   const faceSize = Math.max(64, Math.min(4096, parseInt(document.getElementById('face-size').value) || 1024));
-  const canvas = document.getElementById('output-canvas');
-  canvas.width  = faceSize * 5;
-  canvas.height = faceSize * 3;
-  const ctx = canvas.getContext('2d');
+  setStatus('Rendering…');
 
-  setStatus('Stitching…');
+  // Use setTimeout so the status text repaints before the heavy work
+  setTimeout(() => {
+    const canvas = document.getElementById('output-canvas');
+    canvas.width  = faceSize * 5;
+    canvas.height = faceSize * 3;
+    const ctx = canvas.getContext('2d');
 
-  LAYOUT.forEach((cell, idx) => {
-    const col = idx % 5;
-    const row = Math.floor(idx / 5);
-    drawFaceIntoCell(ctx, cell.face, col * faceSize, row * faceSize, faceSize, cell.rot);
-  });
+    LAYOUT.forEach((cell, idx) => {
+      const col = idx % 5, row = Math.floor(idx / 5);
+      if (!faceImages[cell.face]) return;
+      const totalRot = ((cell.rot + faceRot[cell.face]) % 360 + 360) % 360;
+      const rendered = transformedFace(cell.face, totalRot, faceFlipH[cell.face], faceFlipV[cell.face], faceSize);
+      ctx.drawImage(rendered, col * faceSize, row * faceSize);
+    });
 
-  const wrap = document.getElementById('output-wrap');
-  wrap.style.display = 'flex';
-  setStatus('Done! ' + canvas.width + '×' + canvas.height + ' px');
+    document.getElementById('output-wrap').style.display = 'flex';
+    setStatus(`Done — ${canvas.width}×${canvas.height} px`);
+  }, 20);
 }
 
-// ── Download ─────────────────────────────────
-document.getElementById('dl-btn').addEventListener('click', () => {
+// ── Download ─────────────────────────────────────────────────────
+addTapHandler(document.getElementById('dl-btn'), () => {
   const canvas = document.getElementById('output-canvas');
   if (!canvas.width) return;
   const fmt = document.getElementById('fmt-select').value;
-  const quality = Math.max(0.01, Math.min(1, parseInt(document.getElementById('quality').value) / 100));
+  const q = Math.max(0.01, Math.min(1, parseInt(document.getElementById('quality').value) / 100));
   const ext = fmt === 'image/png' ? 'png' : fmt === 'image/webp' ? 'webp' : 'jpg';
   setStatus('Encoding…');
   canvas.toBlob(blob => {
-    if (!blob) { setStatus('Encoding failed (try PNG or reduce face size)'); return; }
+    if (!blob) { setStatus('Encoding failed — try PNG or smaller face size'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `cubemap_atlas.${ext}`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     setStatus(`Downloaded cubemap_atlas.${ext} (${(blob.size/1024).toFixed(0)} KB)`);
-  }, fmt, quality);
+  }, fmt, q);
 });
 
-// Format select: hide quality for PNG
 document.getElementById('fmt-select').addEventListener('change', e => {
   document.getElementById('quality').disabled = e.target.value === 'image/png';
 });
