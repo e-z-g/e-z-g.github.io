@@ -442,12 +442,14 @@
     }
     geometry.computeVertexNormals();
     
+    // BG sphere at radius 56 — well outside max fg displacement so there is always
+    // solid bg geometry visible behind any fg tear or displacement gap.
     const bgGeometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128);
     bgGeometry.scale(-1, 1, 1);
     const bgPos = bgGeometry.attributes.position;
     for(let i=0; i<bgPos.count; i++) {
         vTemp.fromBufferAttribute(bgPos, i);
-        vTemp.normalize().multiplyScalar(50.5);
+        vTemp.normalize().multiplyScalar(56);
         bgPos.setXYZ(i, vTemp.x, vTemp.y, vTemp.z);
     }
     bgGeometry.computeVertexNormals();
@@ -457,29 +459,20 @@
     dummyDepthTex.needsUpdate = true;
 
     // --- GNOMONIC UV REPROJECTION ---
-    // BoxGeometry face order: 0=right(+X), 1=left(-X), 2=top(+Y), 3=bottom(-Y), 4=front(+Z), 5=back(-Z)
-    // After geometry.scale(-1,1,1): X is flipped, so face 0 becomes -X dominant, face 1 becomes +X dominant.
-    // We derive distortion-free UVs from the normalized sphere position (gnomonic/rectilinear projection)
-    // instead of the original flat box UVs, eliminating the spherical bowing at face edges.
     const gnomonicUvGlsl = `
       vec2 gnomonicUV(vec3 p, int face) {
-        // p is the normalized direction vector (position on unit sphere)
-        // face indices match BoxGeometry after scale(-1,1,1):
-        //   0 = -X (left wall),  1 = +X (right wall)
-        //   2 = +Y (ceiling),    3 = -Y (floor)
-        //   4 = +Z (front wall), 5 = -Z (back wall)
         vec2 uv;
-        if (face == 0) {       // -X dominant
+        if (face == 0) {
           uv = vec2(-p.z / abs(p.x), p.y / abs(p.x));
-        } else if (face == 1) { // +X dominant
+        } else if (face == 1) {
           uv = vec2( p.z / abs(p.x), p.y / abs(p.x));
-        } else if (face == 2) { // +Y dominant
+        } else if (face == 2) {
           uv = vec2( p.x / abs(p.y), -p.z / abs(p.y));
-        } else if (face == 3) { // -Y dominant
+        } else if (face == 3) {
           uv = vec2( p.x / abs(p.y),  p.z / abs(p.y));
-        } else if (face == 4) { // +Z dominant
+        } else if (face == 4) {
           uv = vec2( p.x / abs(p.z), p.y / abs(p.z));
-        } else {               // -Z dominant
+        } else {
           uv = vec2(-p.x / abs(p.z), p.y / abs(p.z));
         }
         return uv * 0.5 + 0.5;
@@ -533,12 +526,16 @@
       }
     `;
 
-    const createMaterials = (colorMode, depthMode) => {
+    // seamFill=true adds a tBgColor sampler so torn/discarded fg pixels fall back
+    // to the bg colour instead of showing black void.
+    const createMaterials = (colorMode, depthMode, seamFill = false) => {
         const mats = [];
         for (let i = 0; i < 6; i++) {
-          const colorSample = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv)` : `texture2D(tColor, vUv)`;
-          const depthSample = depthMode === 'atlas' ? `sampleAtlas(tDepth, uFace, vUv)` : `texture2D(tDepth, vUv)`;
+          const colorSample     = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv)` : `texture2D(tColor, vUv)`;
+          const depthSample     = depthMode === 'atlas' ? `sampleAtlas(tDepth, uFace, vUv)` : `texture2D(tDepth, vUv)`;
           const fragDepthSample = depthMode === 'atlas' ? `sampleAtlas(tDepth, uFace, vUv)` : `texture2D(tDepth, vUv)`;
+
+          const extraUniforms = seamFill ? { tBgColor: { value: null } } : {};
 
           mats.push(new THREE.ShaderMaterial({
             uniforms: {
@@ -547,7 +544,8 @@
               uDisplacementScale: { value: 0.0 },
               uFace: { value: i },
               uIsForeground: { value: 0 },
-              uTearThreshold: { value: 0.0 }
+              uTearThreshold: { value: 0.0 },
+              ...extraUniforms
             },
             transparent: true, 
             vertexShader: `
@@ -558,8 +556,6 @@
               ${gnomonicUvGlsl}
               ${colorMode === 'atlas' || depthMode === 'atlas' ? atlasLogic : ''}
               void main() {
-                // Gnomonic reprojection: derive UVs from the normalized sphere position
-                // instead of the original flat box UVs, eliminating edge bowing.
                 vec3 dir = normalize(position);
                 vUv = gnomonicUV(dir, uFace);
                 float vDepth = clamp(${depthSample}.r, 0.0, 1.0);
@@ -573,6 +569,7 @@
               uniform int uFace;
               uniform int uIsForeground;
               uniform float uTearThreshold;
+              ${seamFill ? 'uniform sampler2D tBgColor;' : ''}
               varying vec2 vUv;
               ${colorMode === 'atlas' || depthMode === 'atlas' ? atlasLogic : ''}
               void main() {
@@ -597,13 +594,24 @@
                         float dD = clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, uFace, uvD)' : 'texture2D(tDepth, uvD)'}.r, 0.0, 1.0);
                         
                         float texGrad = length(vec2(dR - dL, dU - dD));
-                        
                         float thresh = mix(0.20, 0.01, uTearThreshold);
                         alpha *= 1.0 - smoothstep(thresh * 0.5, thresh, texGrad);
                     }
+
+                    // Seam fill: instead of discarding torn/masked fg pixels to black,
+                    // substitute the bg colour at the same UV so cracks are invisible.
+                    ${seamFill ? `
+                    if (alpha < 0.05) {
+                      vec4 bgCol = sampleAtlas(tBgColor, uFace, vUv);
+                      gl_FragColor = vec4(bgCol.rgb, 1.0);
+                      #include <tonemapping_fragment>
+                      #include <colorspace_fragment>
+                      return;
+                    }
+                    ` : `if (alpha < 0.05) discard;`}
+                } else {
+                  if (alpha < 0.05) discard;
                 }
-                
-                if (alpha < 0.05) discard; 
                 
                 vec4 texColor = ${colorSample};
                 gl_FragColor = vec4(texColor.rgb, texColor.a * alpha);
@@ -619,10 +627,10 @@
     };
 
     const matSets = {
-        standard: createMaterials('standard', 'standard'),
+        standard:      createMaterials('standard', 'standard'),
         atlasStandard: createMaterials('atlas', 'standard'), 
-        atlasFg: createMaterials('atlas', 'atlas'),
-        atlasBg: createMaterials('atlas', 'atlas')
+        atlasFg:       createMaterials('atlas', 'atlas', true),  // seamFill enabled
+        atlasBg:       createMaterials('atlas', 'atlas')
     };
 
     const bgCubeMesh = new THREE.Mesh(bgGeometry, matSets.atlasBg);
@@ -677,9 +685,12 @@
     
     document.getElementById('displacement-slider').addEventListener('input', (e) => {
       const val = parseFloat(e.target.value) / 100.0;
-      Object.values(matSets).forEach(mats => {
-          mats.forEach(m => m.uniforms.uDisplacementScale.value = val * 0.95);
+      const fgScale = val * 0.95;
+      const bgScale = val * 0.95 * 0.5; // BG displaces at half the fg rate
+      ['standard', 'atlasStandard', 'atlasFg'].forEach(k => {
+        matSets[k].forEach(m => m.uniforms.uDisplacementScale.value = fgScale);
       });
+      matSets.atlasBg.forEach(m => m.uniforms.uDisplacementScale.value = bgScale);
     });
     
     document.getElementById('tear-slider').addEventListener('input', (e) => {
@@ -819,15 +830,6 @@
     });
 
     // --- TRANSITION SYSTEM ---
-    // Random-order squares with optional depth-map bias.
-    // Each block's reveal threshold = rand_noise + depth_bias * depth_sample.
-    // Squares at depth=1 (foreground) reveal last; depth=0 (background) reveal first.
-    // uDepthBias=0 gives pure random; uDepthBias=1 gives strong depth ordering.
-    //
-    // KEY: During the tween, the render loop re-renders the live scene into rtNew every frame
-    // so the new scene stays fully animated (parallax, sway, video) while the squares
-    // reveal it. The old scene stays as a static baked snapshot in rtOld.
-
     const transitionScene = new THREE.Scene();
     const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     
@@ -990,10 +992,8 @@
       document.getElementById('loader').style.display = 'block';
       if (currentLocation.audio) playOrCrossfadeAudio(currentLocation.audio);
 
-      // Bake a snapshot of the CURRENT (outgoing) scene into rtOld.
       renderer.setRenderTarget(rtOld); renderer.render(scene, camera); renderer.setRenderTarget(null);
       transitionMat.uniforms.tOld.value = rtOld.texture;
-      // Point tNew at rtNew — the render loop will keep refreshing it every frame.
       transitionMat.uniforms.tNew.value = rtNew.texture;
       transitionMat.uniforms.uProgress.value = 0;
       transitionMat.fragmentShader = mode === 'block' ? FRAG_BLOCK : FRAG_FADE;
@@ -1089,6 +1089,8 @@
             
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
             const currentTearVal = isDualLayer ? (parseFloat(document.getElementById('tear-slider').value) / 100.0) : 0.0;
+            const fgScale = currentSliderVal * 0.95;
+            const bgScale = currentSliderVal * 0.95 * 0.5;
             
             fgCubeMesh.material = matSets.atlasFg;
             bgCubeMesh.material = matSets.atlasBg;
@@ -1097,16 +1099,18 @@
             fgCubeMesh.material.forEach((mat) => {
               mat.uniforms.tColor.value = fgC;
               mat.uniforms.tDepth.value = fgD;
-              mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
+              mat.uniforms.uDisplacementScale.value = fgScale;
               mat.uniforms.uIsForeground.value = isDualLayer ? 1 : 0;
               mat.uniforms.uTearThreshold.value = currentTearVal;
+              // Wire bg colour into the seam-fill sampler
+              if (isDualLayer && mat.uniforms.tBgColor) mat.uniforms.tBgColor.value = bgC;
             });
             
             if (isDualLayer) {
                 bgCubeMesh.material.forEach((mat) => {
                   mat.uniforms.tColor.value = bgC;
                   mat.uniforms.tDepth.value = bgD;
-                  mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
+                  mat.uniforms.uDisplacementScale.value = bgScale;
                   mat.uniforms.uIsForeground.value = 0;
                 });
             }
@@ -1183,7 +1187,6 @@
           return;
       }
 
-      // Attach depth hint for block transition
       if (mode === 'block' && pendingTransitionDepth) {
         transitionMat.uniforms.tDepthNew.value = pendingTransitionDepth;
       } else {
@@ -1280,12 +1283,9 @@
       camera.translateY(swayY + (currentMouseY + tiltY) * parallaxStrength);
 
       if (isTransitioning) {
-        // Render the live NEW scene into rtNew every frame so the transition
-        // reveals a fully-animated scene rather than a frozen snapshot.
         renderer.setRenderTarget(rtNew);
         renderer.render(scene, camera);
         renderer.setRenderTarget(null);
-        // Composite old (static) vs new (live) with the block mask.
         renderer.render(transitionScene, transitionCamera);
       } else {
         renderer.render(scene, camera);
