@@ -7,7 +7,7 @@ let colorMapImage = null;
 let densityMapImage = null;
 let customLogoImage = null;
 let customModuleImage = null;
-let animLoopId = null;
+window.animLoopId = null;
 let lastAnimTime = 0;
 
 // Gradient cache: avoids recreating gradient objects every frame when colors haven't changed.
@@ -571,7 +571,7 @@ function animLoop(timestamp) {
     const isAnimMeshOn = E('anim-toggle')?.checked;
     if (!isAnimMeshOn && !getHasAnimatedGif()) {
         lastAnimTime = 0;
-        animLoopId = null;
+        window.animLoopId = null;
         return;
     }
     if (!lastAnimTime) lastAnimTime = timestamp;
@@ -584,13 +584,13 @@ function animLoop(timestamp) {
         globalTime += (safeDelta * 0.003) * speed;
     }
     renderCanvas();
-    animLoopId = requestAnimationFrame(animLoop);
+    window.animLoopId = requestAnimationFrame(animLoop);
 }
 
 function startAnimIfNeeded() {
-    if ((E('anim-toggle')?.checked || getHasAnimatedGif()) && !animLoopId) {
+    if ((E('anim-toggle')?.checked || getHasAnimatedGif()) && !window.animLoopId) {
         lastAnimTime = 0;
-        animLoopId = requestAnimationFrame(animLoop);
+        window.animLoopId = requestAnimationFrame(animLoop);
         E('export-gif-btn')?.classList.remove('hidden');
     }
 }
