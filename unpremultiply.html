@@ -1,227 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PNG Unpremultiply</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #0a0a0a;
-      color: #e5e5e5;
-      min-height: 100vh;
-      padding: 2rem 1rem;
-    }
-
-    .container { max-width: 860px; margin: 0 auto; }
-
-    h1 {
-      text-align: center;
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-    }
-
-    .subtitle {
-      text-align: center;
-      color: #888;
-      margin-bottom: 2rem;
-      font-size: 1rem;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.25rem;
-      margin-bottom: 1.25rem;
-    }
-
-    @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
-
-    .card {
-      background: #141414;
-      border: 1px solid #2a2a2a;
-      border-radius: 0.75rem;
-      padding: 1.25rem;
-    }
-
-    .card-title {
-      font-size: 1rem;
-      font-weight: 600;
-      margin-bottom: 0.25rem;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .card-desc {
-      font-size: 0.8rem;
-      color: #777;
-      margin-bottom: 1rem;
-    }
-
-    .tab-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-
-    .tab-btn {
-      padding: 0.35rem 0.85rem;
-      border-radius: 0.4rem;
-      border: 1px solid #333;
-      background: transparent;
-      color: #aaa;
-      font-size: 0.82rem;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .tab-btn.active {
-      background: #e5e5e5;
-      color: #0a0a0a;
-      border-color: #e5e5e5;
-    }
-
-    .drop-zone {
-      border: 2px dashed #2a2a2a;
-      border-radius: 0.6rem;
-      padding: 2.5rem 1rem;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.2s;
-      margin-bottom: 1rem;
-    }
-
-    .drop-zone:hover, .drop-zone.drag-over { border-color: #555; }
-
-    .drop-zone svg { width: 3rem; height: 3rem; color: #555; margin-bottom: 0.75rem; }
-    .drop-zone p { font-size: 0.8rem; color: #666; }
-    #file-input { display: none; }
-
-    .url-input {
-      width: 100%;
-      padding: 0.5rem 0.75rem;
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
-      border-radius: 0.4rem;
-      color: #e5e5e5;
-      font-size: 0.85rem;
-      margin-bottom: 1rem;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-
-    .url-input:focus { border-color: #555; }
-
-    .file-name {
-      font-size: 0.78rem;
-      color: #666;
-      margin-bottom: 0.75rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .process-btn {
-      width: 100%;
-      padding: 0.6rem;
-      background: #e5e5e5;
-      color: #0a0a0a;
-      border: none;
-      border-radius: 0.4rem;
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-
-    .process-btn:disabled {
-      background: #2a2a2a;
-      color: #555;
-      cursor: not-allowed;
-    }
-
-    .process-btn:not(:disabled):hover { background: #ccc; }
-
-    .result-placeholder {
-      border: 2px dashed #2a2a2a;
-      border-radius: 0.6rem;
-      padding: 2.5rem 1rem;
-      text-align: center;
-    }
-
-    .result-placeholder svg { width: 3rem; height: 3rem; color: #555; margin-bottom: 0.75rem; }
-    .result-placeholder p { font-size: 0.8rem; color: #666; }
-
-    .result-img-wrap {
-      border: 1px solid #2a2a2a;
-      border-radius: 0.5rem;
-      padding: 0.75rem;
-      background: #1a1a1a;
-      margin-bottom: 0.75rem;
-      display: none;
-    }
-
-    .result-img-wrap img {
-      max-width: 100%;
-      height: auto;
-      display: block;
-      border-radius: 0.25rem;
-    }
-
-    .download-btn {
-      width: 100%;
-      padding: 0.6rem;
-      background: #e5e5e5;
-      color: #0a0a0a;
-      border: none;
-      border-radius: 0.4rem;
-      font-size: 0.88rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: none;
-      transition: background 0.15s;
-    }
-
-    .download-btn:hover { background: #ccc; }
-
-    .api-card { margin-top: 1.25rem; }
-
-    .code-block {
-      background: #111;
-      border: 1px solid #222;
-      border-radius: 0.5rem;
-      padding: 1rem;
-      font-family: 'Courier New', monospace;
-      font-size: 0.78rem;
-      color: #aaa;
-      line-height: 1.6;
-    }
-
-    .code-block strong { color: #e5e5e5; }
-
-    .error-msg {
-      font-size: 0.78rem;
-      color: #f87171;
-      margin-top: 0.5rem;
-      display: none;
-    }
-
-    canvas { display: none; }
-  </style>
-</head>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PNG Alpha Tools</title><style>
+*{box-sizing:border-box}body{margin:0;padding:2rem 1rem;min-height:100vh;background:#0a0a0a;color:#e5e5e5;font-family:system-ui,-apple-system,sans-serif}.container{max-width:860px;margin:auto}h1{text-align:center;font-size:2rem;font-weight:700;margin:0 0 .5rem}.subtitle{text-align:center;color:#888;margin:0 0 2rem;font-size:1rem}.grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem}@media(max-width:600px){.grid{grid-template-columns:1fr}}.card{background:#141414;border:1px solid #2a2a2a;border-radius:.75rem;padding:1.25rem}.card-title{font-size:1rem;font-weight:600;margin-bottom:.25rem;display:flex;align-items:center;gap:.4rem}.card-desc{font-size:.8rem;color:#777;margin-bottom:1rem}.tab-row{display:flex;gap:.5rem;margin-bottom:1rem}.tab-btn{padding:.35rem .85rem;border-radius:.4rem;border:1px solid #333;background:transparent;color:#aaa;font-size:.82rem;cursor:pointer;transition:all .15s}.tab-btn.active{background:#e5e5e5;color:#0a0a0a;border-color:#e5e5e5}.drop-zone{border:2px dashed #2a2a2a;border-radius:.6rem;padding:2.5rem 1rem;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:1rem}.drop-zone:hover,.drop-zone.drag-over{border-color:#555}.drop-zone svg{width:3rem;height:3rem;color:#555;margin-bottom:.75rem}.drop-zone p{font-size:.8rem;color:#666}#file-input{display:none}.url-input{width:100%;padding:.5rem .75rem;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:.4rem;color:#e5e5e5;font-size:.85rem;margin-bottom:1rem;outline:none;transition:border-color .15s}.url-input:focus{border-color:#555}.file-name{font-size:.78rem;color:#666;margin-bottom:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.process-btn{width:100%;padding:.6rem;background:#e5e5e5;color:#0a0a0a;border:none;border-radius:.4rem;font-size:.88rem;font-weight:600;cursor:pointer;transition:background .15s}.process-btn:disabled{background:#2a2a2a;color:#555;cursor:not-allowed}.process-btn:not(:disabled):hover{background:#ccc}.result-placeholder{border:2px dashed #2a2a2a;border-radius:.6rem;padding:2.5rem 1rem;text-align:center}.result-placeholder svg{width:3rem;height:3rem;color:#555;margin-bottom:.75rem}.result-placeholder p{font-size:.8rem;color:#666}.result-img-wrap{border:1px solid #2a2a2a;border-radius:.5rem;padding:.75rem;background:#1a1a1a;margin-bottom:.75rem;display:none}.result-img-wrap img{max-width:100%;height:auto;display:block;border-radius:.25rem}.download-btn{width:100%;padding:.6rem;background:#e5e5e5;color:#0a0a0a;border:none;border-radius:.4rem;font-size:.88rem;font-weight:600;cursor:pointer;display:none;transition:background .15s}.download-btn:hover{background:#ccc}.about-card{margin-top:1.25rem}.code-block{background:#111;border:1px solid #222;border-radius:.5rem;padding:1rem;font-family:'Courier New',monospace;font-size:.78rem;color:#aaa;line-height:1.6}.code-block strong{color:#e5e5e5}.error-msg{font-size:.78rem;color:#f87171;margin-top:.5rem;display:none}canvas{display:none}
+</style></head>
 <body>
 <div class="container">
-  <h1>PNG Unpremultiply</h1>
-  <p class="subtitle">Remove premultiplied alpha from PNG images — fully client-side</p>
+  <h1 id="page-title">PNG Alpha Tools</h1>
+  <p class="subtitle" id="subtitle">Remove premultiplied alpha from PNG images — fully client-side</p>
 
   <div class="grid">
-    <!-- Input card -->
     <div class="card">
       <div class="card-title">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         Upload PNG
       </div>
       <p class="card-desc">Select a PNG image or provide a URL</p>
+
+      <div class="tab-row">
+        <button class="tab-btn active" id="op-unpremultiply" onclick="setOperation('unpremultiply')">Unpremultiply</button>
+        <button class="tab-btn" id="op-premultiply" onclick="setOperation('premultiply')">Premultiply</button>
+      </div>
 
       <div class="tab-row">
         <button class="tab-btn active" id="tab-file" onclick="switchTab('file')">Upload File</button>
@@ -243,16 +40,15 @@
       </div>
 
       <div class="error-msg" id="error-msg"></div>
-      <button class="process-btn" id="process-btn" disabled onclick="processImage()">Process Image</button>
+      <button class="process-btn" id="process-btn" disabled onclick="processImage()">Unpremultiply Image</button>
     </div>
 
-    <!-- Output card -->
     <div class="card">
       <div class="card-title">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Processed Result
       </div>
-      <p class="card-desc">Download your unpremultiplied PNG</p>
+      <p class="card-desc" id="result-desc">Download your unpremultiplied PNG</p>
 
       <div class="result-img-wrap" id="result-img-wrap">
         <img id="result-img" src="" alt="Processed PNG" />
@@ -261,16 +57,14 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
         <p>Processed image will appear here</p>
       </div>
-
       <button class="download-btn" id="download-btn" onclick="downloadResult()">Download Processed PNG</button>
     </div>
   </div>
 
-  <!-- API Usage card (read-only reference) -->
-  <div class="card api-card">
-    <div class="card-title">About</div>
-    <p class="card-desc">How unpremultiplication works</p>
-    <div class="code-block">
+  <div class="card about-card">
+    <div class="card-title" id="about-title">About Unpremultiplication</div>
+    <p class="card-desc" id="about-desc">How the algorithm works</p>
+    <div class="code-block" id="about-body">
       <strong>Unpremultiplication</strong> reverses the premultiplied-alpha transform.<br><br>
       For each pixel where <strong>alpha &gt; 0</strong>:<br>
       &nbsp;&nbsp;R' = clamp(R / (A / 255), 0, 255)<br>
@@ -287,8 +81,38 @@
 
 <script>
   let mode = 'file';
+  let operation = 'unpremultiply';
   let selectedFile = null;
   let resultDataUrl = null;
+
+  const ABOUT = {
+    unpremultiply: {
+      title: 'About Unpremultiplication',
+      body: '<strong>Unpremultiplication</strong> reverses the premultiplied-alpha transform.<br><br>For each pixel where <strong>alpha &gt; 0</strong>:<br>&nbsp;&nbsp;R\' = clamp(R / (A / 255), 0, 255)<br>&nbsp;&nbsp;G\' = clamp(G / (A / 255), 0, 255)<br>&nbsp;&nbsp;B\' = clamp(B / (A / 255), 0, 255)<br><br>Pixels with <strong>alpha = 0</strong> are set to (0, 0, 0, 0).<br>Pixels with <strong>alpha = 255</strong> are passed through unchanged.<br><br>All processing is done locally in your browser — no data is uploaded.'
+    },
+    premultiply: {
+      title: 'About Premultiplication',
+      body: '<strong>Premultiplication</strong> applies alpha to each color channel.<br><br>For each pixel:<br>&nbsp;&nbsp;R\' = round(R &times; A / 255)<br>&nbsp;&nbsp;G\' = round(G &times; A / 255)<br>&nbsp;&nbsp;B\' = round(B &times; A / 255)<br><br>Alpha is preserved unchanged.<br><br>This is the inverse of unpremultiplication. Note that 8-bit rounding makes a premultiply &rarr; unpremultiply round trip lossy for partially transparent pixels.<br><br>All processing is done locally in your browser — no data is uploaded.'
+    }
+  };
+
+  function setOperation(op) {
+    operation = op;
+    document.getElementById('op-unpremultiply').className = 'tab-btn' + (op === 'unpremultiply' ? ' active' : '');
+    document.getElementById('op-premultiply').className = 'tab-btn' + (op === 'premultiply' ? ' active' : '');
+    const label = op === 'unpremultiply' ? 'Unpremultiply' : 'Premultiply';
+    document.getElementById('subtitle').textContent = (op === 'unpremultiply' ? 'Remove' : 'Apply') + ' premultiplied alpha ' + (op === 'unpremultiply' ? 'from' : 'to') + ' PNG images \u2014 fully client-side';
+    document.getElementById('process-btn').textContent = label + ' Image';
+    document.getElementById('result-desc').textContent = 'Download your ' + op + 'd PNG';
+    document.getElementById('download-btn').textContent = 'Download ' + label + 'd PNG';
+    document.getElementById('about-title').textContent = ABOUT[op].title;
+    document.getElementById('about-body').innerHTML = ABOUT[op].body;
+    // Reset result when switching operation
+    document.getElementById('result-img-wrap').style.display = 'none';
+    document.getElementById('result-placeholder').style.display = '';
+    document.getElementById('download-btn').style.display = 'none';
+    resultDataUrl = null;
+  }
 
   function switchTab(tab) {
     mode = tab;
@@ -350,7 +174,7 @@
     clearError();
     const btn = document.getElementById('process-btn');
     btn.disabled = true;
-    btn.textContent = 'Processing…';
+    btn.textContent = 'Processing\u2026';
 
     try {
       let imgBitmap;
@@ -376,17 +200,25 @@
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
 
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
-        if (a === 0) {
-          data[i] = data[i+1] = data[i+2] = data[i+3] = 0;
-        } else if (a < 255) {
-          const af = a / 255;
-          data[i]   = Math.min(255, Math.round(r / af));
-          data[i+1] = Math.min(255, Math.round(g / af));
-          data[i+2] = Math.min(255, Math.round(b / af));
+      if (operation === 'premultiply') {
+        for (let i = 0; i < data.length; i += 4) {
+          const a = data[i + 3];
+          data[i]     = Math.round(data[i]     * a / 255);
+          data[i + 1] = Math.round(data[i + 1] * a / 255);
+          data[i + 2] = Math.round(data[i + 2] * a / 255);
         }
-        // a === 255: pass through
+      } else {
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+          if (a === 0) {
+            data[i] = data[i + 1] = data[i + 2] = data[i + 3] = 0;
+          } else if (a < 255) {
+            const af = a / 255;
+            data[i]     = Math.min(255, Math.round(r / af));
+            data[i + 1] = Math.min(255, Math.round(g / af));
+            data[i + 2] = Math.min(255, Math.round(b / af));
+          }
+        }
       }
 
       ctx.putImageData(imageData, 0, 0);
@@ -400,7 +232,8 @@
       showError(err.message || 'Failed to process image.');
     }
 
-    btn.textContent = 'Process Image';
+    const label = operation === 'unpremultiply' ? 'Unpremultiply' : 'Premultiply';
+    btn.textContent = label + ' Image';
     updateProcessBtn();
   }
 
@@ -408,7 +241,7 @@
     if (!resultDataUrl) return;
     const a = document.createElement('a');
     a.href = resultDataUrl;
-    a.download = 'unpremultiplied.png';
+    a.download = operation + 'd.png';
     a.click();
   }
 
@@ -424,5 +257,4 @@
     el.textContent = '';
   }
 </script>
-</body>
-</html>
+</body></html>
