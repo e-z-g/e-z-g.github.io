@@ -167,6 +167,7 @@ const initApp = () => {
                 
                 if (E('anim-toggle')?.checked) { 
                     E('anim-settings')?.classList.remove('hidden'); 
+                    animLoopId = null;
                     startAnimIfNeeded();
                 } else {
                     E('anim-settings')?.classList.add('hidden'); 
@@ -301,6 +302,7 @@ const initApp = () => {
     E('anim-toggle')?.addEventListener('change', (e) => {
         E('anim-settings')?.classList.toggle('hidden', !e.target.checked);
         if (e.target.checked) {
+            animLoopId = null;
             startAnimIfNeeded();
         } else if (!getHasAnimatedGif()) {
             E('export-gif-btn')?.classList.add('hidden');
@@ -322,11 +324,12 @@ const initApp = () => {
         if (typeof analyzeData === 'function') analyzeData();
     }));
     
-    document.querySelectorAll('.render-trigger').forEach(el => el?.addEventListener('input', (e) => { 
-        if(e.target.id === 'anim-toggle' && e.target.checked) {
+    document.querySelectorAll('.render-trigger').forEach(el => el?.addEventListener('input', (e) => {
+        if (e.target.id === 'anim-toggle' && e.target.checked) {
+            animLoopId = null;
             if (typeof startAnimIfNeeded === 'function') startAnimIfNeeded();
-        } else {
-            if (typeof renderCanvas === 'function') renderCanvas(); 
+        } else if (e.target.id !== 'anim-toggle') {
+            if (typeof renderCanvas === 'function') renderCanvas();
         }
     }));
 
