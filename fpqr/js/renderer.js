@@ -1,5 +1,5 @@
 // Drawing State Globals
-let logoShape = 'square';
+let logoShape = 'none';
 let globalTime = 0;
 window.isExporting = false;
 
@@ -166,14 +166,6 @@ function renderCanvas() {
     const alignFB = matchFinders ? fB : parseInt(E('align-frame-bevel')?.value || '50');
     const alignPB = matchFinders ? pB : parseInt(E('align-pupil-bevel')?.value || '50');
 
-    if (domCache['matchFinders'] !== matchFinders) {
-        const alignSliders = E('align-sliders');
-        if (alignSliders) {
-            alignSliders.style.opacity = matchFinders ? '0.3' : '1';
-            alignSliders.style.pointerEvents = matchFinders ? 'none' : 'auto';
-        }
-        domCache['matchFinders'] = matchFinders;
-    }
 
     const updates = {
         'frame-bevel-val': fB + '%',
@@ -435,6 +427,10 @@ function renderCanvas() {
                     let imgLuma = (hMapDensity[idx]*0.299 + hMapDensity[idx+1]*0.587 + hMapDensity[idx+2]*0.114);
                     if (E('invert-density-map')?.checked) imgLuma = 255 - imgLuma;
                     sizeFactor = imgLuma / 255;
+                } else if (shape === 'halftone' && colorStyle === 'image' && hMapColor) {
+                    const idx = (r * gSz + c) * 4;
+                    const imgLuma = (hMapColor[idx]*0.299 + hMapColor[idx+1]*0.587 + hMapColor[idx+2]*0.114);
+                    sizeFactor = Math.max(0.12, 1 - (imgLuma / 255));
                 }
 
                 let dX = 0, dY = 0, dS = sizeFactor;

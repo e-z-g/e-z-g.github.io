@@ -117,7 +117,7 @@
                         <select id="data-shape" class="w-full bg-[#0f111a] border border-slate-700 rounded-lg px-3 py-2.5 text-sm font-bold text-white outline-none focus:border-indigo-500 render-trigger cursor-pointer">
                             <option value="solid" selected>Solid Blocks</option>
                             <option value="organic">Organic Blocks</option>
-                            <option value="halftone">Radial Scale / Halftone</option>
+                            <option value="halftone">Halftone (Luminance Dots)</option>
                             <option value="leaf">Leaf / Petal</option>
                             <option value="diamond">Diamonds</option>
                             <option value="dots">Circular Dots</option>
@@ -300,7 +300,7 @@
                                         <div class="custom-tooltip tooltip-right">Renders the finders using your chosen data aesthetic instead of standard square blocks.</div>
                                     </div>
                                     <label class="relative inline-flex items-center cursor-pointer m-0">
-                                        <input type="checkbox" id="native-finders" class="sr-only peer render-trigger">
+                                        <input type="checkbox" id="native-finders" class="sr-only peer render-trigger" checked>
                                         <div class="w-7 h-3.5 shrink-0 bg-slate-700 rounded-full peer peer-checked:bg-cyan-500 after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3.5"></div>
                                     </label>
                                 </div>
@@ -355,13 +355,13 @@
                                             <div class="custom-tooltip tooltip-right">Renders alignments using your chosen data aesthetic instead of standard square blocks.</div>
                                         </div>
                                         <label class="relative inline-flex items-center cursor-pointer m-0">
-                                            <input type="checkbox" id="native-alignments" class="sr-only peer render-trigger">
+                                            <input type="checkbox" id="native-alignments" class="sr-only peer render-trigger" checked>
                                             <div class="w-7 h-3.5 shrink-0 bg-slate-700 rounded-full peer peer-checked:bg-indigo-500 after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3.5"></div>
                                         </label>
                                     </div>
                                 </div>
                             </div>
-                            <div id="align-sliders" class="space-y-4 opacity-30 pointer-events-none transition-opacity">
+                            <div id="align-sliders" class="option-reveal is-collapsed space-y-4 opacity-30 pointer-events-none transition-opacity">
                                 <div>
                                     <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Alignment Frame Radius</span><span id="align-frame-bevel-val" class="text-white font-mono">50%</span></div>
                                     <input type="range" id="align-frame-bevel" min="0" max="100" value="50" class="w-full render-trigger">
@@ -429,10 +429,10 @@
                     <div class="flex justify-start items-center gap-4">
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Logo Geometry</span>
                         <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
-                            <button id="shape-none" class="shape-btn p-1.5 rounded-md transition-all text-slate-400 hover:text-white" title="No Logo">
+                            <button id="shape-none" class="shape-btn active p-1.5 rounded-md transition-all text-slate-400 hover:text-white" title="No Logo">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                             </button>
-                            <button id="shape-square" class="shape-btn active p-1.5 rounded-md transition-all text-slate-400 hover:text-white" title="Square Logo">
+                            <button id="shape-square" class="shape-btn p-1.5 rounded-md transition-all text-slate-400 hover:text-white" title="Square Logo">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
                             </button>
                             <button id="shape-circle" class="shape-btn p-1.5 rounded-md transition-all text-slate-400 hover:text-white" title="Circle Logo">
@@ -441,7 +441,7 @@
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-between pt-3 border-t border-slate-800/50">
+                    <div class="logo-options option-reveal is-collapsed flex items-center justify-between pt-3 border-t border-slate-800/50">
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Custom Image</span>
                         <div class="flex items-center gap-3">
                             <span id="logo-filename" class="text-xs text-slate-500 max-w-[100px] truncate">None</span>
@@ -451,18 +451,18 @@
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-5">
+                    <div class="logo-options option-reveal is-collapsed flex items-center gap-5">
                         <span class="text-xs font-bold text-slate-500 uppercase tracking-widest w-16">Scale</span>
                         <input type="range" id="logo-size" min="5" max="50" value="25" class="flex-1 render-trigger">
                         <span id="logo-size-val" class="text-sm font-mono font-bold text-emerald-400 w-10 text-right">25%</span>
                     </div>
-                    <div class="flex items-center gap-5">
+                    <div class="logo-options option-reveal is-collapsed flex items-center gap-5">
                         <span class="text-xs font-bold text-slate-500 uppercase tracking-widest w-16">Buffer</span>
                         <input type="range" id="logo-padding" min="0" max="15" value="1" class="flex-1 render-trigger">
                         <span id="logo-padding-val" class="text-sm font-mono font-bold text-slate-300 w-10 text-right">1%</span>
                     </div>
                     
-                    <div class="flex items-center justify-between pt-3 border-t border-slate-800">
+                    <div class="logo-options option-reveal is-collapsed flex items-center justify-between pt-3 border-t border-slate-800">
                         <div class="flex items-center gap-2">
                             <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Omit Obscured Modules</span>
                             <div class="has-tooltip p-2 -m-2 cursor-help">
