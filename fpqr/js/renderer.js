@@ -597,5 +597,33 @@ function startAnimIfNeeded() {
     }
 }
 
-// Poll scannability independently at 500ms — decoupled from the 60fps render loop
-setInterval(checkScannability, 500);
+// Poll scannability independently from the 60fps render loop. jsQR reads back
+// canvas pixels synchronously, so running it every 500ms while the mesh is
+// animating creates a visible cadence hitch. Static previews keep the fast
+// scan cadence; animated previews scan less often and prefer idle time.
+let scanPollPending = false;
+let lastScanPollTime = 0;
+
+function scheduleScannabilityCheck() {
+    if (scanPollPending || typeof checkScannability !== 'function') return;
+
+    const isAnimatedPreview = E('anim-toggle')?.checked || getHasAnimatedGif();
+    const pollDelay = isAnimatedPreview ? 2500 : 500;
+    const now = performance.now();
+    if (now - lastScanPollTime < pollDelay) return;
+
+    scanPollPending = true;
+    const runScan = () => {
+        scanPollPending = false;
+        lastScanPollTime = performance.now();
+        checkScannability();
+    };
+
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(runScan, { timeout: isAnimatedPreview ? 2000 : 500 });
+    } else {
+        setTimeout(runScan, isAnimatedPreview ? 250 : 0);
+    }
+}
+
+setInterval(scheduleScannabilityCheck, 250);
