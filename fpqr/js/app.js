@@ -210,6 +210,10 @@ const initApp = () => {
         E('density-map-upload-container')?.classList.toggle('hidden', dms !== 'image');
         E('fg-color-container')?.classList.toggle('opacity-30', gs === 'image');
         E('fg-color-container')?.classList.toggle('pointer-events-none', gs === 'image');
+        const isGradient = gs === 'linear' || gs === 'radial';
+        E('color-bg-end')?.classList.toggle('hidden', !isGradient);
+        E('color-end')?.classList.toggle('hidden', !isGradient);
+        document.querySelectorAll('[data-gradient-arrow]').forEach(el => el.classList.toggle('hidden', !isGradient));
         if (gs === 'image' && !colorMapImage) genDefaultImageMap('color');
         if (dms === 'image' && !densityMapImage) genDefaultImageMap('density');
     }
@@ -243,7 +247,7 @@ const initApp = () => {
                 E('module-char-container')?.classList.toggle('hidden', !isChar);
                 E('module-image-container')?.classList.toggle('hidden', !isImg);
                 const gs = E('grad-style')?.value;
-                E('grad-angle-wrapper')?.classList.toggle('hidden', gs === 'radial' || gs === 'image');
+                E('grad-angle-wrapper')?.classList.toggle('hidden', gs !== 'linear');
                 E('grad-radial-wrapper')?.classList.toggle('hidden', gs !== 'radial');
                 updateImageMapVisibility();
                 if (E('anim-toggle')?.checked) {
@@ -366,9 +370,18 @@ const initApp = () => {
         const val = e.target.value;
         const isRadial = val === 'radial';
         const isImage = val === 'image';
-        E('grad-angle-wrapper')?.classList.toggle('hidden', isRadial || isImage);
+        E('grad-angle-wrapper')?.classList.toggle('hidden', val !== 'linear');
         E('grad-radial-wrapper')?.classList.toggle('hidden', !isRadial);
         updateImageMapVisibility();
+        renderCanvas();
+    });
+
+    E('invert-colors')?.addEventListener('click', () => {
+        const bgStart = E('color-bg-start'), bgEnd = E('color-bg-end');
+        const fgStart = E('color-start'), fgEnd = E('color-end');
+        if (!bgStart || !bgEnd || !fgStart || !fgEnd) return;
+        [bgStart.value, fgStart.value] = [fgStart.value, bgStart.value];
+        [bgEnd.value, fgEnd.value] = [fgEnd.value, bgEnd.value];
         renderCanvas();
     });
 

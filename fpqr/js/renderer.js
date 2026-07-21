@@ -77,7 +77,8 @@ function getCurrentGifFrame(gifData, timeMs) {
 }
 
 function createEngineGradient(ctx, cSz, c1, c2) {
-    const gradStyle = E('grad-style')?.value || 'linear';
+    const gradStyle = E('grad-style')?.value || 'solid';
+    if (gradStyle === 'solid' || gradStyle === 'image' || c1 === c2) return c1;
     let grad;
     if (gradStyle === 'radial') {
         const rScale = parseInt(E('grad-radial')?.value || '100') / 100;
@@ -115,8 +116,8 @@ function getMapData(activeImage, gSz, ctx, canvas) {
 // Rasterizes the character once onto an offscreen canvas; every module then
 // uses drawImage() instead of fillText(), which is much faster on iOS Safari.
 // Cache key: char + cellSize + color + bevel -- any change triggers a rebuild.
-function getGlyphSprite(char, cell, color, bevel) {
-    const key = char + '|' + Math.round(cell) + '|' + color + '|' + bevel;
+function getGlyphSprite(char, cell, color, bevel, colorize) {
+    const key = char + '|' + Math.round(cell) + '|' + color + '|' + bevel + '|' + colorize;
     if (glyphCache.key === key) return glyphCache.canvas;
 
     const baseScale = Math.max(0.1, bevel / 100);
@@ -132,6 +133,12 @@ function getGlyphSprite(char, cell, color, bevel) {
     gCtx.textAlign = 'center';
     gCtx.textBaseline = 'middle';
     gCtx.fillText(char, sz / 2, sz / 2 + (cell * 0.05));
+    if (colorize) {
+        gCtx.globalCompositeOperation = 'source-in';
+        gCtx.fillStyle = color;
+        gCtx.fillRect(0, 0, sz, sz);
+        gCtx.globalCompositeOperation = 'source-over';
+    }
 
     glyphCache.key = key;
     return gc;
@@ -141,7 +148,7 @@ function renderCanvas() {
     if (!currentMatrices) return;
     const { nData, oData, oV } = currentMatrices;
     const shape = E('data-shape')?.value || 'solid';
-    const colorStyle = E('grad-style')?.value || 'linear';
+    const colorStyle = E('grad-style')?.value || 'solid';
     const densityMapStyle = E('density-map-style')?.value || 'uniform';
 
     const dB = parseInt(E('data-bevel')?.value || '75');
@@ -202,7 +209,15 @@ function renderCanvas() {
 
         const bgS = E('color-bg-start')?.value || '#ffffff', bgE = E('color-bg-end')?.value || '#ffffff';
         const fgS = E('color-start')?.value || '#000000', fgE = E('color-end')?.value || '#000000';
-        const gradStyle2 = E('grad-style')?.value || 'linear';
+        const optContainer = E('opt-container');
+        const miniRoot = E('mobile-sticky-root');
+        if (optContainer) optContainer.style.background = bgS;
+        if (miniRoot) miniRoot.style.background = bgS;
+        const fgFrame = E('finder-frame-color')?.value || fgS, fgPupil = E('finder-pupil-color')?.value || fgS;
+        const alignFrame = matchFinders ? fgFrame : (E('align-frame-color')?.value || fgFrame);
+        const alignPupil = matchFinders ? fgPupil : (E('align-pupil-color')?.value || fgPupil);
+        const finderPupilMode = E('finder-pupil-mode')?.value || 'big';
+        const gradStyle2 = E('grad-style')?.value || 'solid';
         const gradAngle2 = E('grad-angle')?.value || '135';
         const gradRadial2 = E('grad-radial')?.value || '100';
         const gradKey = `${bgS}|${bgE}|${fgS}|${fgE}|${gradStyle2}|${gradAngle2}|${gradRadial2}|${cSz}`;
@@ -314,13 +329,25 @@ function renderCanvas() {
             if (heatmap) { ctx.fillRect(x, y, (type==='finder'?7:5)*size, (type==='finder'?7:5)*size); return; }
             const structFB = type === 'finder' ? fB : alignFB;
             const structPB = type === 'finder' ? pB : alignPB;
+            const frameFill = type === 'finder' ? fgFrame : alignFrame;
+            const pupilFill = type === 'finder' ? fgPupil : alignPupil;
             if (type === 'finder') {
                 const s = 7*size, rO = (s/2)*(structFB/100), rG = (5*size/2)*(structFB/100), rI = (3*size/2)*(structPB/100);
+                if (!heatmap && colorStyle !== 'image') ctx.fillStyle = frameFill;
                 ctx.beginPath(); roundRectPath(ctx, x, y, s, s, rO); roundRectPath(ctx, x+size, y+size, 5*size, 5*size, rG); ctx.fill('evenodd');
-                ctx.beginPath(); roundRectPath(ctx, x+2*size, y+2*size, 3*size, 3*size, rI); ctx.fill();
+                if (!heatmap && colorStyle !== 'image') ctx.fillStyle = pupilFill;
+                if (finderPupilMode === 'modules') {
+                    for (let pr = 0; pr < 3; pr++) for (let pc = 0; pc < 3; pc++) {
+                        ctx.beginPath(); roundRectPath(ctx, x+(2+pc)*size, y+(2+pr)*size, size, size, (size/2)*(structPB/100)); ctx.fill();
+                    }
+                } else {
+                    ctx.beginPath(); roundRectPath(ctx, x+2*size, y+2*size, 3*size, 3*size, rI); ctx.fill();
+                }
             } else {
                 const s = 5*size, rO = (s/2)*(structFB/100), rG = (3*size/2)*(structFB/100), rI = (size/2)*(structPB/100);
+                if (!heatmap && colorStyle !== 'image') ctx.fillStyle = frameFill;
                 ctx.beginPath(); roundRectPath(ctx, x, y, s, s, rO); roundRectPath(ctx, x+size, y+size, 3*size, 3*size, rG); ctx.fill('evenodd');
+                if (!heatmap && colorStyle !== 'image') ctx.fillStyle = pupilFill;
                 ctx.beginPath(); roundRectPath(ctx, x+2*size, y+2*size, size, size, rI); ctx.fill();
             }
         };
@@ -343,7 +370,7 @@ function renderCanvas() {
         if (isCharMode) {
             const char = E('module-char')?.value || '\u2605';
             const fgColor = E('color-start')?.value || '#000000';
-            const sprite = getGlyphSprite(char, cell, fgColor, dB);
+            const sprite = getGlyphSprite(char, cell, fgColor, dB, E('module-char-colorize')?.checked);
             const sprSz = sprite.width;
             const offset = (cell - sprSz) / 2;
 
