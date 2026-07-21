@@ -335,7 +335,7 @@ function renderCanvas() {
             }); });
         }
 
-        const solidPath = new Path2D();
+        const batchSolidPath = shape === 'solid' && !isAnimated ? new Path2D() : null;
 
         // CHARACTER MODE
         // Rasterize glyph once via getGlyphSprite(), then stamp with drawImage().
@@ -431,7 +431,9 @@ function renderCanvas() {
                 }
 
                 if (shape === 'solid') {
-                    roundRectPath(solidPath, cx, cy, cell + 0.5, cell + 0.5, Math.max(0, (cell/2)*(dB/100)));
+                    const solidTarget = batchSolidPath || ctx;
+                    roundRectPath(solidTarget, cx, cy, cell + 0.5, cell + 0.5, Math.max(0, (cell/2)*(dB/100)));
+                    if (!batchSolidPath) ctx.fill();
                 } else if (shape === 'organic') {
                     const rad = Math.max(0, (cell/2)*(dB/100));
                     const t = shouldRenderData(r-1,c), b = shouldRenderData(r+1,c), l = shouldRenderData(r,c-1), ri = shouldRenderData(r,c+1);
@@ -483,9 +485,9 @@ function renderCanvas() {
             }
         }
             // Flush all solid modules in one GPU draw call
-            if (shape === 'solid') {
+            if (batchSolidPath) {
                 ctx.fillStyle = heatmap ? ctx.fillStyle : fgGrad;
-                ctx.fill(solidPath);
+                ctx.fill(batchSolidPath);
             }
         } // end shape branch
 
@@ -595,5 +597,33 @@ function startAnimIfNeeded() {
     }
 }
 
-// Poll scannability independently at 500ms — decoupled from the 60fps render loop
-setInterval(checkScannability, 500);
+// Poll scannability independently from the 60fps render loop. jsQR reads back
+// canvas pixels synchronously, so running it every 500ms while the mesh is
+// animating creates a visible cadence hitch. Static previews keep the fast
+// scan cadence; animated previews scan less often and prefer idle time.
+let scanPollPending = false;
+let lastScanPollTime = 0;
+
+function scheduleScannabilityCheck() {
+    if (scanPollPending || typeof checkScannability !== 'function') return;
+
+    const isAnimatedPreview = E('anim-toggle')?.checked || getHasAnimatedGif();
+    const pollDelay = isAnimatedPreview ? 2500 : 500;
+    const now = performance.now();
+    if (now - lastScanPollTime < pollDelay) return;
+
+    scanPollPending = true;
+    const runScan = () => {
+        scanPollPending = false;
+        lastScanPollTime = performance.now();
+        checkScannability();
+    };
+
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(runScan, { timeout: isAnimatedPreview ? 2000 : 500 });
+    } else {
+        setTimeout(runScan, isAnimatedPreview ? 250 : 0);
+    }
+}
+
+setInterval(scheduleScannabilityCheck, 250);
