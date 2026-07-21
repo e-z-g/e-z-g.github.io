@@ -225,3 +225,21 @@ input[type="color"]::-webkit-color-swatch {
     pointer-events: none; 
     z-index: -999; 
 }
+
+/* Playful option reveals for feature-specific controls. */
+.option-reveal {
+    max-height: 420px;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    overflow: hidden;
+    transition: max-height 260ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 180ms ease, transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1), margin 260ms ease, padding 260ms ease;
+}
+.option-reveal.is-collapsed {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    pointer-events: none;
+}

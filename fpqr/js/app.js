@@ -210,9 +210,40 @@ const initApp = () => {
         E('density-map-upload-container')?.classList.toggle('hidden', dms !== 'image');
         E('fg-color-container')?.classList.toggle('opacity-30', gs === 'image');
         E('fg-color-container')?.classList.toggle('pointer-events-none', gs === 'image');
+        const isGradient = gs === 'linear' || gs === 'radial';
+        E('color-bg-end')?.classList.toggle('hidden', !isGradient);
+        E('color-end')?.classList.toggle('hidden', !isGradient);
+        document.querySelectorAll('[data-gradient-arrow]').forEach(el => el.classList.toggle('hidden', !isGradient));
         if (gs === 'image' && !colorMapImage) genDefaultImageMap('color');
         if (dms === 'image' && !densityMapImage) genDefaultImageMap('density');
     }
+
+
+    function setOptionExpanded(el, expanded) {
+        if (!el) return;
+        el.classList.toggle('is-collapsed', !expanded);
+    }
+
+    function updateLogoVisibility() {
+        document.querySelectorAll('.logo-options').forEach(el => setOptionExpanded(el, logoShape !== 'none'));
+    }
+
+    function updateStructuralVisibility() {
+        const findersNative = E('native-finders')?.checked;
+        const alignmentsNative = E('native-alignments')?.checked;
+        const alignMatch = E('match-finders')?.checked;
+        document.querySelectorAll('.finder-options').forEach(el => setOptionExpanded(el, !findersNative));
+        const alignSliders = E('align-sliders');
+        if (alignSliders) {
+            const showAlignOptions = !alignmentsNative;
+            setOptionExpanded(alignSliders, showAlignOptions);
+            alignSliders.classList.toggle('opacity-30', showAlignOptions && !!alignMatch);
+            alignSliders.classList.toggle('pointer-events-none', showAlignOptions && !!alignMatch);
+        }
+    }
+
+    updateStructuralVisibility();
+    updateLogoVisibility();
 
     E('show-naive')?.addEventListener('change', (e) => {
         E('naive-container')?.classList.toggle('hidden', !e.target.checked);
@@ -235,6 +266,7 @@ const initApp = () => {
                 if (settings['logoShape']) {
                     logoShape = settings['logoShape'];
                     ['none', 'square', 'circle'].forEach(s => E(`shape-${s}`)?.classList.toggle('active', s === logoShape));
+                    updateLogoVisibility();
                 }
                 const ds = E('data-shape')?.value;
                 const isChar = ds === 'character';
@@ -243,7 +275,7 @@ const initApp = () => {
                 E('module-char-container')?.classList.toggle('hidden', !isChar);
                 E('module-image-container')?.classList.toggle('hidden', !isImg);
                 const gs = E('grad-style')?.value;
-                E('grad-angle-wrapper')?.classList.toggle('hidden', gs === 'radial' || gs === 'image');
+                E('grad-angle-wrapper')?.classList.toggle('hidden', gs !== 'linear');
                 E('grad-radial-wrapper')?.classList.toggle('hidden', gs !== 'radial');
                 updateImageMapVisibility();
                 if (E('anim-toggle')?.checked) {
@@ -255,6 +287,7 @@ const initApp = () => {
                     E('anim-settings')?.classList.add('hidden');
                     if (!getHasAnimatedGif()) E('export-gif-btn')?.classList.add('hidden');
                 }
+                updateStructuralVisibility();
                 if (E('show-naive')) E('naive-container')?.classList.toggle('hidden', !E('show-naive').checked);
                 if (typeof analyzeData === 'function') analyzeData();
                 showToast('Settings applied successfully!');
@@ -357,6 +390,10 @@ const initApp = () => {
         }
     });
 
+    ['native-finders', 'native-alignments', 'match-finders'].forEach(id => {
+        E(id)?.addEventListener('change', () => { updateStructuralVisibility(); renderCanvas(); });
+    });
+
     E('density-map-style')?.addEventListener('change', () => {
         updateImageMapVisibility();
         renderCanvas();
@@ -366,9 +403,18 @@ const initApp = () => {
         const val = e.target.value;
         const isRadial = val === 'radial';
         const isImage = val === 'image';
-        E('grad-angle-wrapper')?.classList.toggle('hidden', isRadial || isImage);
+        E('grad-angle-wrapper')?.classList.toggle('hidden', val !== 'linear');
         E('grad-radial-wrapper')?.classList.toggle('hidden', !isRadial);
         updateImageMapVisibility();
+        renderCanvas();
+    });
+
+    E('invert-colors')?.addEventListener('click', () => {
+        const bgStart = E('color-bg-start'), bgEnd = E('color-bg-end');
+        const fgStart = E('color-start'), fgEnd = E('color-end');
+        if (!bgStart || !bgEnd || !fgStart || !fgEnd) return;
+        [bgStart.value, fgStart.value] = [fgStart.value, bgStart.value];
+        [bgEnd.value, fgEnd.value] = [fgEnd.value, bgEnd.value];
         renderCanvas();
     });
 
@@ -385,9 +431,9 @@ const initApp = () => {
         }
     });
 
-    if(E('shape-none')) E('shape-none').onclick = () => { logoShape = 'none'; E('shape-none')?.classList.add('active'); E('shape-square')?.classList.remove('active'); E('shape-circle')?.classList.remove('active'); renderCanvas(); };
-    if(E('shape-square')) E('shape-square').onclick = () => { logoShape = 'square'; E('shape-square')?.classList.add('active'); E('shape-none')?.classList.remove('active'); E('shape-circle')?.classList.remove('active'); renderCanvas(); };
-    if(E('shape-circle')) E('shape-circle').onclick = () => { logoShape = 'circle'; E('shape-circle')?.classList.add('active'); E('shape-none')?.classList.remove('active'); E('shape-square')?.classList.remove('active'); renderCanvas(); };
+    if(E('shape-none')) E('shape-none').onclick = () => { logoShape = 'none'; E('shape-none')?.classList.add('active'); E('shape-square')?.classList.remove('active'); E('shape-circle')?.classList.remove('active'); updateLogoVisibility(); renderCanvas(); };
+    if(E('shape-square')) E('shape-square').onclick = () => { logoShape = 'square'; E('shape-square')?.classList.add('active'); E('shape-none')?.classList.remove('active'); E('shape-circle')?.classList.remove('active'); updateLogoVisibility(); renderCanvas(); };
+    if(E('shape-circle')) E('shape-circle').onclick = () => { logoShape = 'circle'; E('shape-circle')?.classList.add('active'); E('shape-none')?.classList.remove('active'); E('shape-square')?.classList.remove('active'); updateLogoVisibility(); renderCanvas(); };
 
     E('isolate-modal')?.addEventListener('click', (e) => {
         if (e.target.id === 'isolate-modal' || e.target.closest('#close-modal')) {

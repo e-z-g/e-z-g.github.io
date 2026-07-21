@@ -185,8 +185,9 @@ function checkScannability() {
     if (!optCan || !container) return;
 
     const targetStr = currentMatrices.res.finalString;
+    const isAnimated = E('anim-toggle')?.checked || (typeof getHasAnimatedGif === 'function' && getHasAnimatedGif());
     let score = 0;
-    const s = 512;
+    const s = isAnimated ? 256 : 512;
 
     const drawAndTest = (transformFn, filterStr = 'none') => {
         validateCtx.fillStyle = '#ffffff';
@@ -206,19 +207,20 @@ function checkScannability() {
     };
 
     if (drawAndTest()) {
-        score += 40; 
-        if (drawAndTest(ctx => { ctx.translate(s/2, s/2); ctx.scale(0.8, 0.8); ctx.translate(-s/2, -s/2); })) score += 15;
-        if (drawAndTest(ctx => { ctx.translate(s/2, s/2); ctx.scale(0.6, 0.6); ctx.translate(-s/2, -s/2); })) score += 15;
-        if (drawAndTest(null, 'blur(0.5px)')) score += 15;
-        if (drawAndTest(null, 'blur(1px)')) score += 15;
+        score += isAnimated ? 70 : 40;
+        if (drawAndTest(ctx => { ctx.translate(s/2, s/2); ctx.scale(0.8, 0.8); ctx.translate(-s/2, -s/2); })) score += isAnimated ? 30 : 15;
+        if (!isAnimated) {
+            if (drawAndTest(ctx => { ctx.translate(s/2, s/2); ctx.scale(0.6, 0.6); ctx.translate(-s/2, -s/2); })) score += 15;
+            if (drawAndTest(null, 'blur(0.5px)')) score += 15;
+            if (drawAndTest(null, 'blur(1px)')) score += 15;
+        }
     } else {
-        if (drawAndTest(null, 'contrast(400%) grayscale(100%)')) { score += 20; } 
-        else if (drawAndTest(null, 'brightness(200%) contrast(400%) grayscale(100%)')) { score += 20; } 
-        else if (drawAndTest(null, 'brightness(50%) contrast(400%) grayscale(100%)')) { score += 20; }
-        else if (drawAndTest(null, 'invert(100%) contrast(400%) grayscale(100%)')) { score += 20; }
+        if (drawAndTest(null, 'contrast(400%) grayscale(100%)')) { score += 20; }
+        else if (!isAnimated && drawAndTest(null, 'brightness(200%) contrast(400%) grayscale(100%)')) { score += 20; }
+        else if (!isAnimated && drawAndTest(null, 'brightness(50%) contrast(400%) grayscale(100%)')) { score += 20; }
+        else if (!isAnimated && drawAndTest(null, 'invert(100%) contrast(400%) grayscale(100%)')) { score += 20; }
     }
 
-    const isAnimated = E('anim-toggle')?.checked || (typeof getHasAnimatedGif === 'function' && getHasAnimatedGif());
 
     const updateBadge = (scoreNum, text, barColorClass, textColorClass) => {
         const bar = E('scan-score-bar');
