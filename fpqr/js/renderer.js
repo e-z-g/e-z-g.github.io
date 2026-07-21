@@ -335,7 +335,7 @@ function renderCanvas() {
             }); });
         }
 
-        const solidPath = new Path2D();
+        const batchSolidPath = shape === 'solid' && !isAnimated ? new Path2D() : null;
 
         // CHARACTER MODE
         // Rasterize glyph once via getGlyphSprite(), then stamp with drawImage().
@@ -431,7 +431,9 @@ function renderCanvas() {
                 }
 
                 if (shape === 'solid') {
-                    roundRectPath(solidPath, cx, cy, cell + 0.5, cell + 0.5, Math.max(0, (cell/2)*(dB/100)));
+                    const solidTarget = batchSolidPath || ctx;
+                    roundRectPath(solidTarget, cx, cy, cell + 0.5, cell + 0.5, Math.max(0, (cell/2)*(dB/100)));
+                    if (!batchSolidPath) ctx.fill();
                 } else if (shape === 'organic') {
                     const rad = Math.max(0, (cell/2)*(dB/100));
                     const t = shouldRenderData(r-1,c), b = shouldRenderData(r+1,c), l = shouldRenderData(r,c-1), ri = shouldRenderData(r,c+1);
@@ -483,9 +485,9 @@ function renderCanvas() {
             }
         }
             // Flush all solid modules in one GPU draw call
-            if (shape === 'solid') {
+            if (batchSolidPath) {
                 ctx.fillStyle = heatmap ? ctx.fillStyle : fgGrad;
-                ctx.fill(solidPath);
+                ctx.fill(batchSolidPath);
             }
         } // end shape branch
 
