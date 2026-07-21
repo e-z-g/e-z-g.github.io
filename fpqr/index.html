@@ -128,9 +128,18 @@
                         </select>
 
                         <div id="custom-module-container" class="hidden flex flex-col gap-3 bg-[#13151f] px-3 py-3 rounded-lg border border-dashed border-slate-700">
-                            <div id="module-char-container" class="hidden flex items-center justify-between">
-                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Character / Emoji</span>
-                                <input type="text" id="module-char" value="&#9733;" maxlength="3" class="bg-[#0f111a] border border-slate-700 outline-none rounded text-sm text-white px-2 py-1 w-16 text-center render-trigger">
+                            <div id="module-char-container" class="hidden flex flex-col gap-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Character / Emoji</span>
+                                    <input type="text" id="module-char" value="&#9733;" maxlength="3" class="bg-[#0f111a] border border-slate-700 outline-none rounded text-sm text-white px-2 py-1 w-16 text-center render-trigger">
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span class="text-[10px] font-bold text-slate-500 uppercase">Force foreground color</span>
+                                    <label class="relative inline-flex items-center cursor-pointer m-0">
+                                        <input type="checkbox" id="module-char-colorize" class="sr-only peer render-trigger">
+                                        <div class="w-7 h-3.5 shrink-0 bg-slate-700 rounded-full peer peer-checked:bg-indigo-500 after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-3.5"></div>
+                                    </label>
+                                </div>
                             </div>
                             <div id="module-image-container" class="hidden flex items-center justify-between">
                                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Image Source</span>
@@ -151,24 +160,26 @@
                                     <div class="flex items-center gap-1.5">
                                         <span class="text-[10px] font-bold text-slate-500">BG</span>
                                         <input type="color" id="color-bg-start" value="#ffffff" class="render-trigger">
-                                        <span class="text-slate-600 text-xs">&rarr;</span>
-                                        <input type="color" id="color-bg-end" value="#ffffff" class="render-trigger">
+                                        <span data-gradient-arrow class="text-slate-600 text-xs hidden">&rarr;</span>
+                                        <input type="color" id="color-bg-end" value="#ffffff" class="render-trigger hidden">
                                     </div>
                                     <div class="w-px h-5 bg-slate-700"></div>
                                     <div class="flex items-center gap-1.5 transition-opacity" id="fg-color-container">
                                         <span class="text-[10px] font-bold text-slate-500">FG</span>
                                         <input type="color" id="color-start" value="#000000" class="render-trigger">
-                                        <span class="text-slate-600 text-xs">&rarr;</span>
-                                        <input type="color" id="color-end" value="#000000" class="render-trigger">
+                                        <span data-gradient-arrow class="text-slate-600 text-xs hidden">&rarr;</span>
+                                        <input type="color" id="color-end" value="#000000" class="render-trigger hidden">
                                     </div>
                                 </div>
                             </div>
                             <div class="flex items-center gap-3 mt-1">
                                 <select id="grad-style" class="bg-slate-800 border-none outline-none rounded text-[10px] text-white px-2 py-1.5 font-bold uppercase render-trigger cursor-pointer">
-                                    <option value="linear">Linear</option>
-                                    <option value="radial">Radial</option>
-                                    <option value="image">Image Mask</option>
+                                    <option value="solid" selected>Solid</option>
+                                    <option value="linear">Linear Gradient</option>
+                                    <option value="radial">Radial Gradient</option>
+                                    <option value="image">Image Color Map</option>
                                 </select>
+                                <button id="invert-colors" type="button" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1.5 rounded font-bold uppercase tracking-wider">Invert</button>
                                 <div class="flex items-center gap-2 flex-1 transition-opacity" id="grad-control-container">
                                     <div id="grad-angle-wrapper" class="flex items-center gap-2 flex-1 w-full">
                                         <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
@@ -295,12 +306,23 @@
                                 </div>
                             </div>
                             <div>
-                                <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Outer Curves</span><span id="frame-bevel-val" class="text-white font-mono">50%</span></div>
+                                <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Finder Frame Radius</span><span id="frame-bevel-val" class="text-white font-mono">50%</span></div>
                                 <input type="range" id="frame-bevel" min="0" max="100" value="50" class="w-full render-trigger">
                             </div>
                             <div>
-                                <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Inner Curves</span><span id="pupil-bevel-val" class="text-white font-mono">50%</span></div>
+                                <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Finder Center Radius</span><span id="pupil-bevel-val" class="text-white font-mono">50%</span></div>
                                 <input type="range" id="pupil-bevel" min="0" max="100" value="50" class="w-full render-trigger">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">Frame <input type="color" id="finder-frame-color" value="#000000" class="render-trigger"></label>
+                                <label class="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">Center <input type="color" id="finder-pupil-color" value="#000000" class="render-trigger"></label>
+                            </div>
+                            <div class="flex items-center justify-between border-t border-slate-800 pt-3">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">Center style</span>
+                                <select id="finder-pupil-mode" class="bg-slate-800 border-none outline-none rounded text-[10px] text-white px-2 py-1.5 font-bold uppercase render-trigger cursor-pointer">
+                                    <option value="big" selected>One block</option>
+                                    <option value="modules">3x3 modules</option>
+                                </select>
                             </div>
                         </div>
 
@@ -341,12 +363,16 @@
                             </div>
                             <div id="align-sliders" class="space-y-4 opacity-30 pointer-events-none transition-opacity">
                                 <div>
-                                    <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Outer Curves</span><span id="align-frame-bevel-val" class="text-white font-mono">50%</span></div>
+                                    <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Alignment Frame Radius</span><span id="align-frame-bevel-val" class="text-white font-mono">50%</span></div>
                                     <input type="range" id="align-frame-bevel" min="0" max="100" value="50" class="w-full render-trigger">
                                 </div>
                                 <div>
-                                    <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Inner Curves</span><span id="align-pupil-bevel-val" class="text-white font-mono">50%</span></div>
+                                    <div class="flex justify-between text-[10px] mb-1 font-bold"><span class="text-slate-500 uppercase">Alignment Center Radius</span><span id="align-pupil-bevel-val" class="text-white font-mono">50%</span></div>
                                     <input type="range" id="align-pupil-bevel" min="0" max="100" value="50" class="w-full render-trigger">
+                                </div>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <label class="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">Frame <input type="color" id="align-frame-color" value="#000000" class="render-trigger"></label>
+                                    <label class="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">Center <input type="color" id="align-pupil-color" value="#000000" class="render-trigger"></label>
                                 </div>
                             </div>
                         </div>
@@ -510,7 +536,7 @@
                             </label>
                         </div>
 
-                        <div class="bg-white p-3 rounded-2xl shadow-2xl border border-emerald-500/30 relative overflow-hidden flex items-center justify-center w-full max-w-[320px] aspect-square" id="opt-container">
+                        <div class="bg-white p-1 rounded-2xl shadow-2xl border border-emerald-500/30 relative overflow-hidden flex items-center justify-center w-full max-w-[320px] aspect-square" id="opt-container">
                             <canvas id="qr-optimal" style="width: 100%; height: 100%;" class="max-w-full"></canvas>
                             
                             <div id="gif-progress" class="hidden absolute inset-0 bg-[#0f111a]/90 backdrop-blur-sm flex flex-col items-center justify-center z-30">
