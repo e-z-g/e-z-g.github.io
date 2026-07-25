@@ -51,7 +51,17 @@
             box-sizing: border-box;
         }
 
-        iframe {
+        /* 
+         * Inner scaling target ensures the iframe and overlay canvas 
+         * stay perfectly aligned when transformed 
+         */
+        #scale-target {
+            width: 640px;
+            height: 480px;
+            position: relative;
+        }
+
+        #mac-iframe, #dedither-canvas {
             min-width: 640px !important;
             max-width: 640px !important;
             width: 640px !important;
@@ -60,26 +70,24 @@
             max-height: 480px !important;
             height: 480px !important;
             
+            position: absolute;
+            top: 0;
+            left: 0;
             border: none;
-            display: block;
-            transform-origin: center center;
         }
 
-        .render-crisp {
-            image-rendering: -webkit-optimize-contrast !important;
-            image-rendering: -moz-crisp-edges !important;
-            image-rendering: crisp-edges !important;
-            image-rendering: pixelated !important;
-            filter: none !important;
+        /* Enforce sharp pixels on the base iframe */
+        #mac-iframe {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
         }
 
-        /* 
-         * True Pixel-Level Dedithering
-         * Calls the SVG feConvolveMatrix defined in the HTML body
-         */
-        .render-dedither {
-            image-rendering: auto !important;
-            filter: url(#dedither) !important; 
+        /* Apply the SVG convolution matrix to the local canvas */
+        #dedither-canvas {
+            pointer-events: none; /* Touches pass through to iframe */
+            display: none;        /* Hidden by default */
+            filter: url(#true-dedither); 
         }
 
         .btn-grid {
@@ -146,6 +154,10 @@
         
         .btn-wide { grid-column: 1 / -1; margin-top: 10px; }
 
+        @media (min-aspect-ratio: 4/3) {
+            #scale-target { transform-origin: left center; }
+        }
+
         @media (max-aspect-ratio: 4/3) {
             #app-container { flex-direction: column; }
             #emulator-wrapper {
@@ -156,6 +168,7 @@
                 border-top: 3px solid #C4A464;
                 border-bottom: 3px solid #8B6914;
             }
+            #scale-target { transform-origin: center top; }
             .control-bank {
                 flex-direction: row;
                 border: none;
@@ -167,12 +180,10 @@
 </head>
 <body>
 
-<!-- Hidden SVG Filter for True Dedithering -->
-<!-- The convolution matrix heavily weights the center pixel but pulls exactly enough
-     from the 4 surrounding checkerboard pixels to neutralize the 50/50 dither pattern -->
+<!-- Hidden SVG Filter: Averages center pixel heavily with orthogonal neighbors -->
 <svg width="0" height="0" style="position:absolute;">
   <defs>
-    <filter id="dedither" x="0%" y="0%" width="100%" height="100%">
+    <filter id="true-dedither">
       <feConvolveMatrix order="3 3" kernelMatrix="
         0 1 0 
         1 2 1 
@@ -197,11 +208,14 @@
     </div>
 
     <div id="emulator-wrapper">
-        <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
-            id="mac-iframe"
-            class="render-crisp"
-            allow="cross-origin-isolated"
-            frameborder="0"></iframe>
+        <div id="scale-target">
+            <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                id="mac-iframe"
+                allow="cross-origin-isolated"
+                frameborder="0"></iframe>
+            <!-- The Magic Overlay -->
+            <canvas id="dedither-canvas" width="640" height="480"></canvas>
+        </div>
     </div>
     
     <div class="control-bank" id="right-controls">
@@ -222,16 +236,19 @@
 
 <script>
     const iframe = document.getElementById('mac-iframe');
+    const scaleTarget = document.getElementById('scale-target');
     const wrapper = document.getElementById('emulator-wrapper');
     const buttons = document.querySelectorAll('.btn:not(#filter-toggle)');
     const filterToggle = document.getElementById('filter-toggle');
+    const canvas = document.getElementById('dedither-canvas');
+    const ctx = canvas.getContext('2d', { alpha: false });
 
     function scaleIframe() {
         const wrapperRect = wrapper.getBoundingClientRect();
         const scaleX = wrapperRect.width / 640;
         const scaleY = wrapperRect.height / 480;
         const scale = Math.min(scaleX, scaleY);
-        iframe.style.transform = `scale(${scale})`;
+        scaleTarget.style.transform = `scale(${scale})`;
     }
 
     window.addEventListener('resize', scaleIframe);
@@ -242,25 +259,31 @@
         e.preventDefault();
         isCrisp = !isCrisp;
         
-        iframe.style.display = 'none';
-        iframe.offsetHeight; 
-        
         if (isCrisp) {
-            iframe.classList.remove('render-dedither');
-            iframe.classList.add('render-crisp');
+            iframe.style.opacity = '1';
+            canvas.style.display = 'none';
             filterToggle.textContent = '[ Filter: Crisp ]';
         } else {
-            iframe.classList.remove('render-crisp');
-            iframe.classList.add('render-dedither');
+            // Keep iframe invisible but active so touch events still work perfectly
+            iframe.style.opacity = '0.01'; 
+            canvas.style.display = 'block';
             filterToggle.textContent = '[ Filter: Dedither ]';
         }
-        
-        iframe.style.display = 'block';
+    });
+
+    // Intercept Infinite Mac's raw screen array and paint it to our local canvas
+    window.addEventListener("message", e => {
+        if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
+            // Check that the data size matches a 640x480 RGBA array (1,228,800 bytes)
+            if (e.data.data.length === 1228800) {
+                const imgData = new ImageData(new Uint8ClampedArray(e.data.data), 640, 480);
+                ctx.putImageData(imgData, 0, 0);
+            }
+        }
     });
 
     function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
-        
         iframe.contentWindow.postMessage({
             type: isKeyDown ? 'emulator_key_down' : 'emulator_key_up',
             code: code
