@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Cythera Mobile Player</title>
     <style>
-        /* Reset and prevent mobile scrolling/bouncing */
         body, html {
             margin: 0;
             padding: 0;
@@ -21,22 +20,33 @@
             display: flex;
             width: 100vw;
             height: 100vh;
+            flex-direction: column; /* Default portrait */
         }
 
-        /* Maintain exact 4:3 aspect ratio of the 640x480 resolution */
+        /* 
+         * The wrapper acts as a bounding box for the scaled iframe.
+         * We set overflow hidden so the unscaled edges don't cause scrollbars.
+         */
         #emulator-wrapper {
             flex-shrink: 0;
             background-color: #111;
-            aspect-ratio: 4 / 3;
             position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
         }
 
-        /* CSS forces the iframe to scale up to the wrapper bounds */
+        /* 
+         * The iframe is strictly 640x480. We NEVER let CSS width/height change this, 
+         * otherwise Infinite Mac will resize the emulated desktop.
+         */
         iframe {
-            width: 100%;
-            height: 100%;
+            width: 640px;
+            height: 480px;
             border: none;
             display: block;
+            transform-origin: center center;
         }
 
         #controls-container {
@@ -47,26 +57,26 @@
             background-color: #1a1a1a;
         }
 
-        /* Landscape Mode: Emulator on Left, Controls on Right */
+        /* Landscape orientation rules */
         @media (min-aspect-ratio: 4/3) {
-            #app-container {
-                flex-direction: row; 
-            }
+            #app-container { flex-direction: row; }
             #emulator-wrapper {
                 height: 100vh;
-                width: calc(100vh * (4 / 3));
+                width: calc(100vh * (4 / 3)); /* Fix width to exactly 4:3 of screen height */
+                justify-content: flex-start; /* Left-justify when horizontal */
             }
+            iframe { transform-origin: left center; }
         }
 
-        /* Portrait Mode: Emulator on Top, Controls on Bottom */
+        /* Portrait orientation rules */
         @media (max-aspect-ratio: 4/3) {
-            #app-container {
-                flex-direction: column; 
-            }
+            #app-container { flex-direction: column; }
             #emulator-wrapper {
                 width: 100vw;
-                height: calc(100vw * (3 / 4));
+                height: calc(100vw * (3 / 4)); /* Fix height to exactly 3:4 of screen width */
+                align-items: flex-start; /* Top-justify when vertical */
             }
+            iframe { transform-origin: center top; }
         }
 
         /* D-Pad Layout */
@@ -75,6 +85,7 @@
             grid-template-columns: repeat(3, min(20vw, 80px));
             grid-template-rows: repeat(3, min(20vw, 80px));
             gap: 10px;
+            padding: 20px;
         }
 
         .btn {
@@ -90,15 +101,9 @@
             -webkit-user-select: none;
             cursor: pointer;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            transition: background 0.1s, transform 0.1s;
         }
 
-        .btn:active {
-            background: #555;
-            transform: translateY(2px);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-        }
-
+        .btn:active { background: #555; transform: translateY(2px); }
         .btn-up { grid-column: 2; grid-row: 1; }
         .btn-left { grid-column: 1; grid-row: 2; }
         .btn-right { grid-column: 3; grid-row: 2; }
@@ -109,7 +114,7 @@
 
 <div id="app-container">
     <div id="emulator-wrapper">
-        <iframe src="https://infinitemac.org/embed?disk=Mac+OS+8.5&infinite_hd=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk&machine=Power+Macintosh+9500&ram=32M&screen_update_messages=true"
+        <iframe src="https://infinitemac.org/embed?disk=Mac+OS+8.5&infinite_hd=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk&machine=Power+Macintosh+9500&ram=16M&screen_update_messages=true"
             id="mac-iframe"
             width="640"
             height="480"
@@ -129,42 +134,55 @@
 
 <script>
     const iframe = document.getElementById('mac-iframe');
+    const wrapper = document.getElementById('emulator-wrapper');
     const buttons = document.querySelectorAll('.btn');
 
-    // Helper to send keystrokes to Infinite Mac via postMessage
-    function sendKey(key, type) {
+    // 1. Handle CSS Transform Scaling
+    // We calculate the scale factor required to make the 640x480 iframe fit the wrapper
+    function scaleIframe() {
+        const wrapperRect = wrapper.getBoundingClientRect();
+        
+        // Find the scale factor based on the limiting dimension
+        const scaleX = wrapperRect.width / 640;
+        const scaleY = wrapperRect.height / 480;
+        const scale = Math.min(scaleX, scaleY);
+        
+        iframe.style.transform = `scale(${scale})`;
+    }
+
+    // Run scale calculation on load and window resize
+    window.addEventListener('resize', scaleIframe);
+    // Add slight delay to ensure layout is painted on mobile devices
+    setTimeout(scaleIframe, 100); 
+
+    // 2. Handle Keystrokes via postMessage
+    // Maps standard DOM keys to classic Mac hex codes if necessary, but Infinite Mac accepts string keys
+    function sendKey(key, isKeyDown) {
         if (!iframe.contentWindow) return;
         
         iframe.contentWindow.postMessage({
-            type: type,
-            key: key,
-            code: key,
-            keyCode: getKeyCode(key)
+            type: isKeyDown ? 'keydown' : 'keyup',
+            key: key
         }, '*');
     }
 
-    function getKeyCode(key) {
-        const keyCodes = { 'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39 };
-        return keyCodes[key] || 0;
-    }
-
-    // Bind pointer events (handles both touch on mobile and mouse on desktop)
+    // Bind pointer events
     buttons.forEach(btn => {
         const keyName = btn.getAttribute('data-key');
         
         btn.addEventListener('pointerdown', (e) => {
             e.preventDefault(); 
-            sendKey(keyName, 'keydown');
+            sendKey(keyName, true);
         });
 
         btn.addEventListener('pointerup', (e) => {
             e.preventDefault();
-            sendKey(keyName, 'keyup');
+            sendKey(keyName, false);
         });
 
         btn.addEventListener('pointerleave', (e) => {
             e.preventDefault();
-            sendKey(keyName, 'keyup');
+            sendKey(keyName, false);
         });
     });
 </script>
