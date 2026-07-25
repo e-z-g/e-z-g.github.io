@@ -23,7 +23,7 @@
             height: 100vh;
         }
 
-        /* Maintain exact 4:3 aspect ratio of classic Macs */
+        /* Maintain exact 4:3 aspect ratio of the 640x480 resolution */
         #emulator-wrapper {
             flex-shrink: 0;
             background-color: #111;
@@ -31,6 +31,7 @@
             position: relative;
         }
 
+        /* CSS forces the iframe to scale up to the wrapper bounds */
         iframe {
             width: 100%;
             height: 100%;
@@ -108,8 +109,12 @@
 
 <div id="app-container">
     <div id="emulator-wrapper">
-        <!-- Swap this URL with your custom Infinite Mac &rom= URL -->
-        <iframe id="mac-iframe" src="https://infinitemac.org/embed?def=System%208.5" allow="cross-origin-isolated"></iframe>
+        <iframe src="https://infinitemac.org/embed?disk=Mac+OS+8.5&infinite_hd=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk&machine=Power+Macintosh+9500&ram=16M&screen_update_messages=true"
+            id="mac-iframe"
+            width="640"
+            height="480"
+            allow="cross-origin-isolated"
+            frameborder="0"></iframe>
     </div>
     
     <div id="controls-container">
@@ -131,7 +136,7 @@
         if (!iframe.contentWindow) return;
         
         iframe.contentWindow.postMessage({
-            type: type, // 'keydown' or 'keyup'
+            type: type,
             key: key,
             code: key,
             keyCode: getKeyCode(key)
@@ -148,7 +153,7 @@
         const keyName = btn.getAttribute('data-key');
         
         btn.addEventListener('pointerdown', (e) => {
-            e.preventDefault(); // Prevent text selection/zooming
+            e.preventDefault(); 
             sendKey(keyName, 'keydown');
         });
 
@@ -157,7 +162,6 @@
             sendKey(keyName, 'keyup');
         });
 
-        // Handle case where finger slides off button
         btn.addEventListener('pointerleave', (e) => {
             e.preventDefault();
             sendKey(keyName, 'keyup');
