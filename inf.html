@@ -65,11 +65,7 @@
             transform-origin: center center;
         }
 
-        /* 
-         * Aggressive Rendering Classes 
-         */
         .render-crisp {
-            /* Forces iOS Safari to try and maintain contrast during downscale */
             image-rendering: -webkit-optimize-contrast !important;
             image-rendering: -moz-crisp-edges !important;
             image-rendering: crisp-edges !important;
@@ -77,10 +73,13 @@
             filter: none !important;
         }
 
+        /* 
+         * True Pixel-Level Dedithering
+         * Calls the SVG feConvolveMatrix defined in the HTML body
+         */
         .render-dedither {
-            /* Melts the checkerboard dithering patterns together */
             image-rendering: auto !important;
-            filter: blur(0.6px) contrast(1.1) !important;
+            filter: url(#dedither) !important; 
         }
 
         .btn-grid {
@@ -168,6 +167,21 @@
 </head>
 <body>
 
+<!-- Hidden SVG Filter for True Dedithering -->
+<!-- The convolution matrix heavily weights the center pixel but pulls exactly enough
+     from the 4 surrounding checkerboard pixels to neutralize the 50/50 dither pattern -->
+<svg width="0" height="0" style="position:absolute;">
+  <defs>
+    <filter id="dedither" x="0%" y="0%" width="100%" height="100%">
+      <feConvolveMatrix order="3 3" kernelMatrix="
+        0 1 0 
+        1 2 1 
+        0 1 0" 
+        divisor="6" preserveAlpha="true" />
+    </filter>
+  </defs>
+</svg>
+
 <div id="app-container">
     <div class="control-bank" id="left-controls">
         <div class="btn-grid d-pad-grid">
@@ -228,7 +242,6 @@
         e.preventDefault();
         isCrisp = !isCrisp;
         
-        // Force a DOM reflow so Safari immediately applies the new filter
         iframe.style.display = 'none';
         iframe.offsetHeight; 
         
