@@ -33,11 +33,6 @@
             overflow: hidden;
         }
 
-        /* 
-         * Crucial Fix: Force the iframe to be exactly 640x480 in the DOM.
-         * Using min/max properties prevents mobile browsers from squishing it 
-         * to 393px wide, which stops Infinite Mac from downscaling the monitor.
-         */
         iframe {
             min-width: 640px !important;
             max-width: 640px !important;
@@ -50,6 +45,12 @@
             border: none;
             display: block;
             transform-origin: center center;
+            
+            /* THIS PREVENTS BLURRINESS WHEN SCALING PIXEL ART */
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }
 
         #controls-container {
@@ -60,7 +61,6 @@
             background-color: #1a1a1a;
         }
 
-        /* Landscape */
         @media (min-aspect-ratio: 4/3) {
             #app-container { flex-direction: row; }
             #emulator-wrapper {
@@ -71,7 +71,6 @@
             iframe { transform-origin: left center; }
         }
 
-        /* Portrait */
         @media (max-aspect-ratio: 4/3) {
             #app-container { flex-direction: column; }
             #emulator-wrapper {
@@ -124,10 +123,10 @@
     
     <div id="controls-container">
         <div class="d-pad">
-            <div class="btn btn-up" data-key="ArrowUp">▲</div>
-            <div class="btn btn-left" data-key="ArrowLeft">◄</div>
-            <div class="btn btn-right" data-key="ArrowRight">►</div>
-            <div class="btn btn-down" data-key="ArrowDown">▼</div>
+            <div class="btn btn-up" data-code="ArrowUp">▲</div>
+            <div class="btn btn-left" data-code="ArrowLeft">◄</div>
+            <div class="btn btn-right" data-code="ArrowRight">►</div>
+            <div class="btn btn-down" data-code="ArrowDown">▼</div>
         </div>
     </div>
 </div>
@@ -137,7 +136,6 @@
     const wrapper = document.getElementById('emulator-wrapper');
     const buttons = document.querySelectorAll('.btn');
 
-    // Visually scale the 640x480 iframe back down to fit the phone screen
     function scaleIframe() {
         const wrapperRect = wrapper.getBoundingClientRect();
         const scaleX = wrapperRect.width / 640;
@@ -147,32 +145,35 @@
     }
 
     window.addEventListener('resize', scaleIframe);
-    setTimeout(scaleIframe, 50); // Run slightly after DOM load
+    setTimeout(scaleIframe, 50); 
 
-    function sendKey(key, isKeyDown) {
+    // Send the correct keyboard event structure that Infinite Mac's listener expects
+    function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
+        
         iframe.contentWindow.postMessage({
             type: isKeyDown ? 'keydown' : 'keyup',
-            key: key
+            code: code,
+            key: code.replace('Arrow', '') // Fallback for older handlers
         }, '*');
     }
 
     buttons.forEach(btn => {
-        const keyName = btn.getAttribute('data-key');
+        const keyCode = btn.getAttribute('data-code');
         
         btn.addEventListener('pointerdown', (e) => {
             e.preventDefault(); 
-            sendKey(keyName, true);
+            sendKey(keyCode, true);
         });
 
         btn.addEventListener('pointerup', (e) => {
             e.preventDefault();
-            sendKey(keyName, false);
+            sendKey(keyCode, false);
         });
 
         btn.addEventListener('pointerleave', (e) => {
             e.preventDefault();
-            sendKey(keyName, false);
+            sendKey(keyCode, false);
         });
     });
 </script>
