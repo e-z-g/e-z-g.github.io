@@ -10,27 +10,49 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            background-color: #000;
+            background-color: #050505;
             overflow: hidden;
             touch-action: none;
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: 'Courier New', Courier, monospace;
+            color: #d8d8d8;
         }
 
         #app-container {
             display: flex;
             width: 100vw;
             height: 100vh;
-            flex-direction: column;
+            flex-direction: row; /* Default to landscape for split controls */
         }
 
+        /* 
+         * Left and Right Control Banks
+         */
+        .control-bank {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #111;
+            padding: 10px;
+            gap: 15px;
+            border-left: 2px solid #333;
+            border-right: 2px solid #333;
+        }
+
+        /* 
+         * Emulator Wrapper
+         */
         #emulator-wrapper {
             flex-shrink: 0;
-            background-color: #111;
+            background-color: #000;
             position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            height: 100vh;
+            width: calc(100vh * (4 / 3)); /* Lock to 4:3 ratio of height */
         }
 
         iframe {
@@ -46,74 +68,100 @@
             display: block;
             transform-origin: center center;
             
-            /* THIS PREVENTS BLURRINESS WHEN SCALING PIXEL ART */
             image-rendering: -moz-crisp-edges;
             image-rendering: -webkit-crisp-edges;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
 
-        #controls-container {
-            flex-grow: 1;
+        /* 
+         * Cythera Themed Buttons 
+         * Designed to look like classic Mac OS 8/9 buttons or Ambrosia UI
+         */
+        .btn-grid {
+            display: grid;
+            gap: 8px;
+            width: 100%;
+            max-width: 150px;
+        }
+
+        /* D-Pad specific grid */
+        .d-pad-grid {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+        /* Action buttons specific grid */
+        .action-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .btn {
+            background: linear-gradient(180deg, #dddddd 0%, #aaaaaa 100%);
+            border: 1px solid #000;
+            border-radius: 4px;
+            color: #000;
+            font-size: 1.1rem;
+            font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
-            background-color: #1a1a1a;
+            padding: 12px 5px;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+            box-shadow: inset 1px 1px 0px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.5);
+            text-transform: uppercase;
         }
 
-        @media (min-aspect-ratio: 4/3) {
-            #app-container { flex-direction: row; }
-            #emulator-wrapper {
-                height: 100vh;
-                width: calc(100vh * (4 / 3));
-                justify-content: flex-start;
-            }
-            iframe { transform-origin: left center; }
+        .btn:active { 
+            background: #888;
+            box-shadow: inset 2px 2px 4px rgba(0,0,0,0.5);
+            transform: translate(1px, 1px);
         }
 
+        /* Specific Button Placements */
+        .btn-up { grid-column: 2; grid-row: 1; }
+        .btn-left { grid-column: 1; grid-row: 2; }
+        .btn-right { grid-column: 3; grid-row: 2; }
+        .btn-down { grid-column: 2; grid-row: 3; }
+        
+        .btn-wide { grid-column: 1 / -1; margin-top: 10px; }
+
+        /* Portrait fallback (stacks UI vertically if phone is held upright) */
         @media (max-aspect-ratio: 4/3) {
             #app-container { flex-direction: column; }
             #emulator-wrapper {
                 width: 100vw;
                 height: calc(100vw * (3 / 4));
-                align-items: flex-start;
             }
-            iframe { transform-origin: center top; }
+            .control-bank {
+                flex-direction: row;
+                border: none;
+                border-top: 2px solid #333;
+            }
+            .btn-grid { max-width: none; }
         }
-
-        .d-pad {
-            display: grid;
-            grid-template-columns: repeat(3, min(20vw, 80px));
-            grid-template-rows: repeat(3, min(20vw, 80px));
-            gap: 10px;
-            padding: 20px;
-        }
-
-        .btn {
-            background: #333;
-            border: 2px solid #555;
-            border-radius: 12px;
-            color: white;
-            font-size: 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            user-select: none;
-            -webkit-user-select: none;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-
-        .btn:active { background: #555; transform: translateY(2px); }
-        .btn-up { grid-column: 2; grid-row: 1; }
-        .btn-left { grid-column: 1; grid-row: 2; }
-        .btn-right { grid-column: 3; grid-row: 2; }
-        .btn-down { grid-column: 2; grid-row: 3; }
     </style>
 </head>
 <body>
 
 <div id="app-container">
+    
+    <!-- LEFT BANK: Movement & Spacebar -->
+    <div class="control-bank" id="left-controls">
+        <div class="btn-grid d-pad-grid">
+            <div class="btn btn-up" data-code="ArrowUp">▲</div>
+            <div class="btn btn-left" data-code="ArrowLeft">◄</div>
+            <div class="btn btn-right" data-code="ArrowRight">►</div>
+            <div class="btn btn-down" data-code="ArrowDown">▼</div>
+        </div>
+        <div class="btn-grid">
+            <div class="btn btn-wide" data-code="Space">SPACE</div>
+        </div>
+    </div>
+
+    <!-- CENTER: The Emulator -->
     <div id="emulator-wrapper">
         <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
             id="mac-iframe"
@@ -121,15 +169,21 @@
             frameborder="0"></iframe>
     </div>
     
-    <div id="controls-container">
-        <div class="d-pad">
-            <!-- Data codes must perfectly match JS KeyboardEvent.code properties -->
-            <div class="btn btn-up" data-code="ArrowUp">▲</div>
-            <div class="btn btn-left" data-code="ArrowLeft">◄</div>
-            <div class="btn btn-right" data-code="ArrowRight">►</div>
-            <div class="btn btn-down" data-code="ArrowDown">▼</div>
+    <!-- RIGHT BANK: Cythera Action Hotkeys -->
+    <div class="control-bank" id="right-controls">
+        <div class="btn-grid action-grid">
+            <div class="btn" data-code="KeyG">Get</div>
+            <div class="btn" data-code="KeyT">Talk</div>
+            <div class="btn" data-code="KeyL">Look</div>
+            <div class="btn" data-code="KeyU">Use</div>
+            <div class="btn" data-code="KeyD">Drop</div>
+            <div class="btn" data-code="KeyA">Attck</div>
+        </div>
+        <div class="btn-grid">
+            <div class="btn btn-wide" data-code="KeyC">Cast Spell</div>
         </div>
     </div>
+
 </div>
 
 <script>
@@ -137,6 +191,7 @@
     const wrapper = document.getElementById('emulator-wrapper');
     const buttons = document.querySelectorAll('.btn');
 
+    // Visually scale the 640x480 iframe back down to fit the phone screen
     function scaleIframe() {
         const wrapperRect = wrapper.getBoundingClientRect();
         const scaleX = wrapperRect.width / 640;
@@ -148,7 +203,7 @@
     window.addEventListener('resize', scaleIframe);
     setTimeout(scaleIframe, 50); 
 
-    // FIXED: Use the correct emulator_key_down / emulator_key_up schema
+    // Send emulator_key events
     function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
         
@@ -175,14 +230,6 @@
             e.preventDefault();
             sendKey(keyCode, false);
         });
-    });
-
-    // Optional listener to prepare for the OpenCV screen scraping
-    window.addEventListener("message", e => {
-        if (e.data && e.data.type === "emulator_screen") {
-            // e.data.data contains the Uint8Array RGBA pixel data
-            // Ready for OpenCV template matching
-        }
     });
 </script>
 
