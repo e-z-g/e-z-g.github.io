@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cythera Interactive Viewer</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #3B0000;
+            overflow: hidden;
+            touch-action: none;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            flex-direction: row;
+        }
+
+        .control-bank {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #3B0000;
+            padding: 10px;
+            gap: 15px;
+            box-sizing: border-box;
+        }
+
+        #emulator-wrapper {
+            flex-shrink: 0;
+            background-color: #000;
+            position: relative;
+            overflow: hidden;
+            height: 100vh;
+            width: calc(100vh * (4 / 3));
+        }
+
+        #scale-target {
+            width: 640px;
+            height: 480px;
+            transform-origin: top left;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #mac-iframe, #gl-canvas {
+            width: 640px;
+            height: 480px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            border: none;
+            display: block;
+        }
+
+        #mac-iframe {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+        }
+
+        /* WebGL overlay */
+        #gl-canvas {
+            pointer-events: none; /* Touches pass through */
+            display: none;        /* Hidden by default */
+        }
+
+        .btn-grid {
+            display: grid;
+            gap: 8px;
+            width: 100%;
+            max-width: 160px;
+        }
+
+        .d-pad-grid {
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+        }
+
+        .action-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .btn {
+            background-color: #1E0059;
+            border-top: 2px solid #C4A464;
+            border-left: 2px solid #C4A464;
+            border-bottom: 2px solid #8B6914;
+            border-right: 2px solid #8B6914;
+            color: #FCE688;
+            font-size: 1rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 5px;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .btn:active { 
+            background-color: #150040;
+            border-top: 2px solid #8B6914;
+            border-left: 2px solid #8B6914;
+            border-bottom: 2px solid #C4A464;
+            border-right: 2px solid #C4A464;
+            transform: translate(1px, 1px);
+            box-shadow: none;
+        }
+
+        .btn-utility {
+            font-size: 0.85rem;
+            background-color: #3B0000;
+            border: 1px solid #C4A464;
+            margin-top: auto;
+            color: #FCE688;
+        }
+        
+        .btn-utility:active { background-color: #220000; }
+        .btn-up { grid-column: 2; grid-row: 1; }
+        .btn-left { grid-column: 1; grid-row: 2; }
+        .btn-right { grid-column: 3; grid-row: 2; }
+        .btn-down { grid-column: 2; grid-row: 3; }
+        .btn-wide { grid-column: 1 / -1; margin-top: 10px; }
+
+        @media (min-aspect-ratio: 4/3) {
+            #left-controls { border-right: 3px solid #C4A464; }
+            #right-controls { border-left: 3px solid #8B6914; }
+        }
+
+        @media (max-aspect-ratio: 4/3) {
+            #app-container { flex-direction: column; }
+            #emulator-wrapper {
+                width: 100vw;
+                height: calc(100vw * (3 / 4));
+            }
+            #left-controls { border-bottom: 3px solid #C4A464; }
+            #right-controls { border-top: 3px solid #8B6914; }
+            .control-bank { flex-direction: row; }
+            .btn-grid { max-width: none; }
+            .btn-utility { margin-top: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div class="control-bank" id="left-controls">
+        <div class="btn-grid d-pad-grid">
+            <div class="btn btn-up" data-code="ArrowUp">▲</div>
+            <div class="btn btn-left" data-code="ArrowLeft">◄</div>
+            <div class="btn btn-right" data-code="ArrowRight">►</div>
+            <div class="btn btn-down" data-code="ArrowDown">▼</div>
+        </div>
+        <div class="btn-grid">
+            <div class="btn btn-wide" data-code="Space">SPACE</div>
+            <div class="btn btn-wide btn-utility" id="filter-toggle">[ Filter: Crisp ]</div>
+        </div>
+    </div>
+
+    <div id="emulator-wrapper">
+        <div id="scale-target">
+            <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                id="mac-iframe"
+                allow="cross-origin-isolated"
+                frameborder="0"></iframe>
+            
+            <!-- WebGL Hardware Rendering Canvas -->
+            <canvas id="gl-canvas" width="640" height="480"></canvas>
+        </div>
+    </div>
+    
+    <div class="control-bank" id="right-controls">
+        <div class="btn-grid action-grid">
+            <div class="btn" data-code="KeyG">Get</div>
+            <div class="btn" data-code="KeyT">Talk</div>
+            <div class="btn" data-code="KeyL">Look</div>
+            <div class="btn" data-code="KeyU">Use</div>
+            <div class="btn" data-code="KeyD">Drop</div>
+            <div class="btn" data-code="KeyA">Attck</div>
+        </div>
+        <div class="btn-grid">
+            <div class="btn btn-wide" data-code="KeyC">Cast Spell</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const iframe = document.getElementById('mac-iframe');
+    const scaleTarget = document.getElementById('scale-target');
+    const wrapper = document.getElementById('emulator-wrapper');
+    const buttons = document.querySelectorAll('.btn:not(#filter-toggle)');
+    const filterToggle = document.getElementById('filter-toggle');
+    const glCanvas = document.getElementById('gl-canvas');
+
+    // --- WebGL Setup ---
+    const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
+
+    // Vertex Shader: Simply maps the canvas
+    const vsSource = `
+        attribute vec2 a_position;
+        varying vec2 v_texCoord;
+        void main() {
+            v_texCoord = a_position * 0.5 + 0.5;
+            v_texCoord.y = 1.0 - v_texCoord.y; // Flip Y for WebGL texture orientation
+            gl_Position = vec4(a_position, 0.0, 1.0);
+        }
+    `;
+
+    // Fragment Shader: The Smart Checkerboard Detector
+    const fsSource = `
+        precision mediump float;
+        varying vec2 v_texCoord;
+        uniform sampler2D u_image;
+        uniform vec2 u_texSize;
+
+        void main() {
+            vec2 px = vec2(1.0, 1.0) / u_texSize;
+            
+            vec4 C = texture2D(u_image, v_texCoord);
+            vec4 L = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0));
+            vec4 R = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
+            vec4 U = texture2D(u_image, v_texCoord + vec2(0.0, -px.y));
+            vec4 D = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
+            
+            vec4 TL = texture2D(u_image, v_texCoord + vec2(-px.x, -px.y));
+            vec4 TR = texture2D(u_image, v_texCoord + vec2(px.x, -px.y));
+            vec4 BL = texture2D(u_image, v_texCoord + vec2(-px.x, px.y));
+            vec4 BR = texture2D(u_image, v_texCoord + vec2(px.x, px.y));
+
+            // Sum RGB differences between neighbors
+            float d_diags = dot(abs(C.rgb - TL.rgb) + abs(C.rgb - TR.rgb) + abs(C.rgb - BL.rgb) + abs(C.rgb - BR.rgb), vec3(1.0));
+            float d_cards = dot(abs(L.rgb - R.rgb) + abs(U.rgb - D.rgb), vec3(1.0));
+            float d_center = dot(abs(C.rgb - L.rgb) + abs(C.rgb - R.rgb) + abs(C.rgb - U.rgb) + abs(C.rgb - D.rgb), vec3(1.0));
+
+            // Detector Logic: 
+            // 1. Diagonals match center (low diff)
+            // 2. Opposite cardinals match each other (low diff)
+            // 3. Center differs from cardinals (high diff)
+            if (d_diags < 0.4 && d_cards < 0.4 && d_center > 0.3) {
+                // It's a checkerboard! Blend the center heavily with its cardinals
+                gl_FragColor = vec4((C.rgb * 2.0 + L.rgb + R.rgb + U.rgb + D.rgb) / 6.0, 1.0);
+            } else {
+                // It's a solid line, text edge, or solid color. Preserve perfectly.
+                gl_FragColor = C;
+            }
+        }
+    `;
+
+    function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        return shader;
+    }
+
+    const shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, createShader(gl, gl.VERTEX_SHADER, vsSource));
+    gl.attachShader(shaderProgram, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
+    gl.linkProgram(shaderProgram);
+    gl.useProgram(shaderProgram);
+
+    // Set up full-screen quad
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1.0, -1.0,  1.0, -1.0,  -1.0,  1.0,
+        -1.0,  1.0,  1.0, -1.0,   1.0,  1.0
+    ]), gl.STATIC_DRAW);
+    
+    const positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    // Set up texture parameters
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
+    gl.uniform2f(texSizeLocation, 640.0, 480.0);
+    // --- End WebGL Setup ---
+
+
+    function scaleIframe() {
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const scale = wrapperRect.width / 640;
+        scaleTarget.style.transform = `scale(${scale})`;
+    }
+
+    window.addEventListener('resize', scaleIframe);
+    setTimeout(scaleIframe, 50); 
+
+    let isCrisp = true;
+    filterToggle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        isCrisp = !isCrisp;
+        
+        if (isCrisp) {
+            glCanvas.style.display = 'none';
+            iframe.style.opacity = '1';
+            filterToggle.textContent = '[ Filter: Crisp ]';
+        } else {
+            glCanvas.style.display = 'block';
+            iframe.style.opacity = '0.01'; // Keep iframe active underneath for UI clicks
+            filterToggle.textContent = '[ Smart Dedither ]';
+        }
+    });
+
+    // Feed the raw RGBA array into the WebGL GPU texture buffer
+    window.addEventListener("message", e => {
+        if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
+            try {
+                // Upload raw bytes directly to GPU memory (blazing fast)
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 640, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            } catch (err) {
+                console.error("WebGL dedither error:", err);
+            }
+        }
+    });
+
+    function sendKey(code, isKeyDown) {
+        if (!iframe.contentWindow) return;
+        iframe.contentWindow.postMessage({
+            type: isKeyDown ? 'emulator_key_down' : 'emulator_key_up',
+            code: code
+        }, '*');
+    }
+
+    buttons.forEach(btn => {
+        const keyCode = btn.getAttribute('data-code');
+        
+        btn.addEventListener('pointerdown', (e) => {
+            e.preventDefault(); 
+            sendKey(keyCode, true);
+        });
+
+        btn.addEventListener('pointerup', (e) => {
+            e.preventDefault();
+            sendKey(keyCode, false);
+        });
+
+        btn.addEventListener('pointerleave', (e) => {
+            e.preventDefault();
+            sendKey(keyCode, false);
+        });
+    });
+</script>
+
+</body>
+</html>
