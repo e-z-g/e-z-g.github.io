@@ -32,62 +32,52 @@
             background-color: #3B0000;
             padding: 10px;
             gap: 15px;
-            border-left: 2px solid #220000;
-            border-right: 2px solid #220000;
-        }
-
-        #emulator-wrapper {
-            flex-shrink: 0;
-            background-color: #000;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            height: 100vh;
-            width: calc(100vh * (4 / 3));
-            border-left: 3px solid #C4A464;
-            border-right: 3px solid #8B6914;
             box-sizing: border-box;
         }
 
         /* 
-         * Inner scaling target ensures the iframe and overlay canvas 
-         * stay perfectly aligned when transformed 
+         * No borders on the wrapper itself so the 4:3 math is flawless 
+         */
+        #emulator-wrapper {
+            flex-shrink: 0;
+            background-color: #000;
+            position: relative;
+            overflow: hidden;
+            height: 100vh;
+            width: calc(100vh * (4 / 3));
+        }
+
+        /* 
+         * Scale target anchors to Top-Left, eliminating flex-center math errors
          */
         #scale-target {
             width: 640px;
             height: 480px;
-            position: relative;
+            transform-origin: top left;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
 
         #mac-iframe, #dedither-canvas {
-            min-width: 640px !important;
-            max-width: 640px !important;
-            width: 640px !important;
-            
-            min-height: 480px !important;
-            max-height: 480px !important;
-            height: 480px !important;
-            
+            width: 640px;
+            height: 480px;
             position: absolute;
             top: 0;
             left: 0;
             border: none;
+            display: block;
         }
 
-        /* Enforce sharp pixels on the base iframe */
         #mac-iframe {
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
             image-rendering: pixelated;
         }
 
-        /* Apply the SVG convolution matrix to the local canvas */
         #dedither-canvas {
-            pointer-events: none; /* Touches pass through to iframe */
+            pointer-events: none; /* Touches pass through to the iframe */
             display: none;        /* Hidden by default */
-            filter: url(#true-dedither); 
         }
 
         .btn-grid {
@@ -143,55 +133,36 @@
             color: #FCE688;
         }
         
-        .btn-utility:active {
-            background-color: #220000;
-        }
-
+        .btn-utility:active { background-color: #220000; }
         .btn-up { grid-column: 2; grid-row: 1; }
         .btn-left { grid-column: 1; grid-row: 2; }
         .btn-right { grid-column: 3; grid-row: 2; }
         .btn-down { grid-column: 2; grid-row: 3; }
-        
         .btn-wide { grid-column: 1 / -1; margin-top: 10px; }
 
+        /* Landscape borders */
         @media (min-aspect-ratio: 4/3) {
-            #scale-target { transform-origin: left center; }
+            #left-controls { border-right: 3px solid #C4A464; }
+            #right-controls { border-left: 3px solid #8B6914; }
         }
 
+        /* Portrait borders and stacking */
         @media (max-aspect-ratio: 4/3) {
             #app-container { flex-direction: column; }
             #emulator-wrapper {
                 width: 100vw;
                 height: calc(100vw * (3 / 4));
-                border-left: none;
-                border-right: none;
-                border-top: 3px solid #C4A464;
-                border-bottom: 3px solid #8B6914;
             }
-            #scale-target { transform-origin: center top; }
-            .control-bank {
-                flex-direction: row;
-                border: none;
-            }
+            #left-controls { border-bottom: 3px solid #C4A464; }
+            #right-controls { border-top: 3px solid #8B6914; }
+            
+            .control-bank { flex-direction: row; }
             .btn-grid { max-width: none; }
             .btn-utility { margin-top: 0; }
         }
     </style>
 </head>
 <body>
-
-<!-- Hidden SVG Filter: Averages center pixel heavily with orthogonal neighbors -->
-<svg width="0" height="0" style="position:absolute;">
-  <defs>
-    <filter id="true-dedither">
-      <feConvolveMatrix order="3 3" kernelMatrix="
-        0 1 0 
-        1 2 1 
-        0 1 0" 
-        divisor="6" preserveAlpha="true" />
-    </filter>
-  </defs>
-</svg>
 
 <div id="app-container">
     <div class="control-bank" id="left-controls">
@@ -213,7 +184,7 @@
                 id="mac-iframe"
                 allow="cross-origin-isolated"
                 frameborder="0"></iframe>
-            <!-- The Magic Overlay -->
+            
             <canvas id="dedither-canvas" width="640" height="480"></canvas>
         </div>
     </div>
@@ -231,7 +202,6 @@
             <div class="btn btn-wide" data-code="KeyC">Cast Spell</div>
         </div>
     </div>
-
 </div>
 
 <script>
@@ -242,12 +212,16 @@
     const filterToggle = document.getElementById('filter-toggle');
     const canvas = document.getElementById('dedither-canvas');
     const ctx = canvas.getContext('2d', { alpha: false });
+    
+    // Hidden offscreen canvas for hardware-accelerated pixel processing
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = 640;
+    offCanvas.height = 480;
+    const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
 
     function scaleIframe() {
         const wrapperRect = wrapper.getBoundingClientRect();
-        const scaleX = wrapperRect.width / 640;
-        const scaleY = wrapperRect.height / 480;
-        const scale = Math.min(scaleX, scaleY);
+        const scale = wrapperRect.width / 640;
         scaleTarget.style.transform = `scale(${scale})`;
     }
 
@@ -260,24 +234,36 @@
         isCrisp = !isCrisp;
         
         if (isCrisp) {
-            iframe.style.opacity = '1';
             canvas.style.display = 'none';
             filterToggle.textContent = '[ Filter: Crisp ]';
         } else {
-            // Keep iframe invisible but active so touch events still work perfectly
-            iframe.style.opacity = '0.01'; 
+            // Keep iframe visible underneath so it NEVER goes black
             canvas.style.display = 'block';
             filterToggle.textContent = '[ Filter: Dedither ]';
         }
     });
 
-    // Intercept Infinite Mac's raw screen array and paint it to our local canvas
+    // 1-Pixel Hardware Shift Dedither
     window.addEventListener("message", e => {
         if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
-            // Check that the data size matches a 640x480 RGBA array (1,228,800 bytes)
-            if (e.data.data.length === 1228800) {
-                const imgData = new ImageData(new Uint8ClampedArray(e.data.data), 640, 480);
-                ctx.putImageData(imgData, 0, 0);
+            try {
+                // Read the incoming 640x480 RGBA array from Infinite Mac
+                const w = e.data.width || 640;
+                const h = e.data.height || 480;
+                const imgData = new ImageData(new Uint8ClampedArray(e.data.data), w, h);
+                offCtx.putImageData(imgData, 0, 0);
+
+                // Draw base frame
+                ctx.globalAlpha = 1.0;
+                ctx.drawImage(offCanvas, 0, 0);
+                
+                // Shift 1 pixel right and 1 pixel down to blend checkerboards into solid gradients
+                ctx.globalAlpha = 0.5;
+                ctx.drawImage(offCanvas, 1, 0); 
+                ctx.drawImage(offCanvas, 0, 1);
+                
+            } catch (err) {
+                console.error("Canvas dedither error:", err);
             }
         }
     });
