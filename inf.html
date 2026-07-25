@@ -23,22 +23,27 @@
             flex-direction: column;
         }
 
+        /* 
+         * This forces the wrapper to act as an intrinsic aspect-ratio container
+         */
         #emulator-wrapper {
             flex-shrink: 0;
             background-color: #111;
             position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
         }
 
+        /* 
+         * The iframe uses absolute positioning to fill the aspect-ratio box exactly.
+         * By setting width/height to 100% inside a 4:3 box, Infinite Mac calculates
+         * the bounding box correctly and boots at 640x480.
+         */
         iframe {
-            width: 640px;
-            height: 480px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             border: none;
-            display: block;
-            transform-origin: center center;
         }
 
         #controls-container {
@@ -49,24 +54,24 @@
             background-color: #1a1a1a;
         }
 
+        /* Portrait: Wrapper takes full width, height is calculated via padding */
+        @media (max-aspect-ratio: 4/3) {
+            #app-container { flex-direction: column; }
+            #emulator-wrapper {
+                width: 100vw;
+                padding-top: 75%; /* 3/4 = 75% for 4:3 ratio */
+                height: 0;
+            }
+        }
+
+        /* Landscape: Wrapper takes full height, width is calculated to maintain 4:3 */
         @media (min-aspect-ratio: 4/3) {
             #app-container { flex-direction: row; }
             #emulator-wrapper {
                 height: 100vh;
                 width: calc(100vh * (4 / 3));
-                justify-content: flex-start;
+                padding-top: 0;
             }
-            iframe { transform-origin: left center; }
-        }
-
-        @media (max-aspect-ratio: 4/3) {
-            #app-container { flex-direction: column; }
-            #emulator-wrapper {
-                width: 100vw;
-                height: calc(100vw * (3 / 4));
-                align-items: flex-start;
-            }
-            iframe { transform-origin: center top; }
         }
 
         .d-pad {
@@ -103,10 +108,9 @@
 
 <div id="app-container">
     <div id="emulator-wrapper">
+        <!-- Kept explicit width/height parameters in URL as a fail-safe -->
         <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&screen_width=640&screen_height=480&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
             id="mac-iframe"
-            width="640"
-            height="480"
             allow="cross-origin-isolated"
             frameborder="0"></iframe>
     </div>
@@ -123,19 +127,7 @@
 
 <script>
     const iframe = document.getElementById('mac-iframe');
-    const wrapper = document.getElementById('emulator-wrapper');
     const buttons = document.querySelectorAll('.btn');
-
-    function scaleIframe() {
-        const wrapperRect = wrapper.getBoundingClientRect();
-        const scaleX = wrapperRect.width / 640;
-        const scaleY = wrapperRect.height / 480;
-        const scale = Math.min(scaleX, scaleY);
-        iframe.style.transform = `scale(${scale})`;
-    }
-
-    window.addEventListener('resize', scaleIframe);
-    setTimeout(scaleIframe, 100); 
 
     function sendKey(key, isKeyDown) {
         if (!iframe.contentWindow) return;
