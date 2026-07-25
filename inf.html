@@ -10,7 +10,7 @@
             padding: 0;
             width: 100%;
             height: 100%;
-            background-color: #3B0000; /* Deep maroon from the viewer screenshot */
+            background-color: #3B0000;
             overflow: hidden;
             touch-action: none;
             font-family: 'Courier New', Courier, monospace;
@@ -23,9 +23,6 @@
             flex-direction: row;
         }
 
-        /* 
-         * Match the maroon background for the control banks
-         */
         .control-bank {
             flex: 1;
             display: flex;
@@ -39,9 +36,6 @@
             border-right: 2px solid #220000;
         }
 
-        /* 
-         * Emulator wrapper gets a gold border matching the dialogue box
-         */
         #emulator-wrapper {
             flex-shrink: 0;
             background-color: #000;
@@ -52,8 +46,8 @@
             overflow: hidden;
             height: 100vh;
             width: calc(100vh * (4 / 3));
-            border-left: 3px solid #C4A464; /* Gold bevel */
-            border-right: 3px solid #8B6914; /* Dark gold bevel */
+            border-left: 3px solid #C4A464;
+            border-right: 3px solid #8B6914;
             box-sizing: border-box;
         }
 
@@ -71,11 +65,22 @@
             transform-origin: center center;
         }
 
-        .crisp-scaling {
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-crisp-edges;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
+        /* 
+         * Aggressive Rendering Classes 
+         */
+        .render-crisp {
+            /* Forces iOS Safari to try and maintain contrast during downscale */
+            image-rendering: -webkit-optimize-contrast !important;
+            image-rendering: -moz-crisp-edges !important;
+            image-rendering: crisp-edges !important;
+            image-rendering: pixelated !important;
+            filter: none !important;
+        }
+
+        .render-dedither {
+            /* Melts the checkerboard dithering patterns together */
+            image-rendering: auto !important;
+            filter: blur(0.6px) contrast(1.1) !important;
         }
 
         .btn-grid {
@@ -94,17 +99,13 @@
             grid-template-columns: repeat(2, 1fr);
         }
 
-        /* 
-         * Buttons styled to match the dialogue window aesthetic
-         * Dark purple/blue background with gold borders and text
-         */
         .btn {
-            background-color: #1E0059; /* Deep purple from dialogue box */
+            background-color: #1E0059;
             border-top: 2px solid #C4A464;
             border-left: 2px solid #C4A464;
             border-bottom: 2px solid #8B6914;
             border-right: 2px solid #8B6914;
-            color: #FCE688; /* Gold text */
+            color: #FCE688;
             font-size: 1rem;
             font-weight: bold;
             display: flex;
@@ -129,7 +130,7 @@
 
         .btn-utility {
             font-size: 0.85rem;
-            background-color: #3B0000; /* Match maroon background */
+            background-color: #3B0000;
             border: 1px solid #C4A464;
             margin-top: auto;
             color: #FCE688;
@@ -168,8 +169,6 @@
 <body>
 
 <div id="app-container">
-    
-    <!-- LEFT BANK -->
     <div class="control-bank" id="left-controls">
         <div class="btn-grid d-pad-grid">
             <div class="btn btn-up" data-code="ArrowUp">▲</div>
@@ -179,20 +178,18 @@
         </div>
         <div class="btn-grid">
             <div class="btn btn-wide" data-code="Space">SPACE</div>
-            <div class="btn btn-wide btn-utility" id="filter-toggle">[ Toggle Crisp Filter ]</div>
+            <div class="btn btn-wide btn-utility" id="filter-toggle">[ Filter: Crisp ]</div>
         </div>
     </div>
 
-    <!-- CENTER -->
     <div id="emulator-wrapper">
         <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
             id="mac-iframe"
-            class="crisp-scaling"
+            class="render-crisp"
             allow="cross-origin-isolated"
             frameborder="0"></iframe>
     </div>
     
-    <!-- RIGHT BANK -->
     <div class="control-bank" id="right-controls">
         <div class="btn-grid action-grid">
             <div class="btn" data-code="KeyG">Get</div>
@@ -230,11 +227,22 @@
     filterToggle.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         isCrisp = !isCrisp;
+        
+        // Force a DOM reflow so Safari immediately applies the new filter
+        iframe.style.display = 'none';
+        iframe.offsetHeight; 
+        
         if (isCrisp) {
-            iframe.classList.add('crisp-scaling');
+            iframe.classList.remove('render-dedither');
+            iframe.classList.add('render-crisp');
+            filterToggle.textContent = '[ Filter: Crisp ]';
         } else {
-            iframe.classList.remove('crisp-scaling');
+            iframe.classList.remove('render-crisp');
+            iframe.classList.add('render-dedither');
+            filterToggle.textContent = '[ Filter: Dedither ]';
         }
+        
+        iframe.style.display = 'block';
     });
 
     function sendKey(code, isKeyDown) {
