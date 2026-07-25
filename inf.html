@@ -123,6 +123,7 @@
     
     <div id="controls-container">
         <div class="d-pad">
+            <!-- Data codes must perfectly match JS KeyboardEvent.code properties -->
             <div class="btn btn-up" data-code="ArrowUp">▲</div>
             <div class="btn btn-left" data-code="ArrowLeft">◄</div>
             <div class="btn btn-right" data-code="ArrowRight">►</div>
@@ -147,14 +148,13 @@
     window.addEventListener('resize', scaleIframe);
     setTimeout(scaleIframe, 50); 
 
-    // Send the correct keyboard event structure that Infinite Mac's listener expects
+    // FIXED: Use the correct emulator_key_down / emulator_key_up schema
     function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
         
         iframe.contentWindow.postMessage({
-            type: isKeyDown ? 'keydown' : 'keyup',
-            code: code,
-            key: code.replace('Arrow', '') // Fallback for older handlers
+            type: isKeyDown ? 'emulator_key_down' : 'emulator_key_up',
+            code: code
         }, '*');
     }
 
@@ -175,6 +175,14 @@
             e.preventDefault();
             sendKey(keyCode, false);
         });
+    });
+
+    // Optional listener to prepare for the OpenCV screen scraping
+    window.addEventListener("message", e => {
+        if (e.data && e.data.type === "emulator_screen") {
+            // e.data.data contains the Uint8Array RGBA pixel data
+            // Ready for OpenCV template matching
+        }
     });
 </script>
 
