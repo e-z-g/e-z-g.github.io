@@ -12,14 +12,14 @@
             height: 100%;
             background-color: #3B0000;
             overflow: hidden;
-            touch-action: none;
+            touch-action: none; /* Disables native browser zooming/scrolling */
             font-family: 'Courier New', Courier, monospace;
         }
 
         #app-container {
             display: flex;
             width: 100vw;
-            height: 100vh;
+            height: 100dvh; /* dvh ensures it respects Safari's dynamic address bar */
             flex-direction: row;
         }
 
@@ -30,9 +30,10 @@
             align-items: center;
             justify-content: center;
             background-color: #3B0000;
-            padding: 10px;
-            gap: 15px;
+            padding: min(2vw, 10px);
+            gap: 10px;
             box-sizing: border-box;
+            overflow: hidden;
         }
 
         #emulator-wrapper {
@@ -40,8 +41,16 @@
             background-color: #000;
             position: relative;
             overflow: hidden;
-            height: 100vh;
-            width: calc(100vh * (4 / 3));
+            height: 100dvh;
+            width: calc(100dvh * (4 / 3));
+        }
+
+        /* NEW: Wrapper for custom pinch-to-zoom logic */
+        #pan-zoom-container {
+            width: 100%;
+            height: 100%;
+            transform-origin: center center;
+            will-change: transform;
         }
 
         #scale-target {
@@ -69,15 +78,14 @@
             image-rendering: pixelated;
         }
 
-        /* WebGL overlay */
         #gl-canvas {
-            pointer-events: none; /* Touches pass through */
-            display: none;        /* Hidden by default */
+            pointer-events: none; 
+            display: none;        
         }
 
         .btn-grid {
             display: grid;
-            gap: 8px;
+            gap: 6px;
             width: 100%;
             max-width: 160px;
         }
@@ -98,12 +106,12 @@
             border-bottom: 2px solid #8B6914;
             border-right: 2px solid #8B6914;
             color: #FCE688;
-            font-size: 1rem;
+            font-size: clamp(0.7rem, 2.5vh, 1rem); /* Dynamically shrinks if screen is too small */
             font-weight: bold;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 12px 5px;
+            padding: min(10px, 1.5vh) 2px;
             user-select: none;
             -webkit-user-select: none;
             cursor: pointer;
@@ -121,10 +129,10 @@
         }
 
         .btn-utility {
-            font-size: 0.85rem;
+            font-size: clamp(0.6rem, 2vh, 0.85rem);
             background-color: #3B0000;
             border: 1px solid #C4A464;
-            margin-top: auto;
+            margin-top: 5px;
             color: #FCE688;
         }
         
@@ -133,7 +141,7 @@
         .btn-left { grid-column: 1; grid-row: 2; }
         .btn-right { grid-column: 3; grid-row: 2; }
         .btn-down { grid-column: 2; grid-row: 3; }
-        .btn-wide { grid-column: 1 / -1; margin-top: 10px; }
+        .btn-wide { grid-column: 1 / -1; margin-top: 4px; }
 
         @media (min-aspect-ratio: 4/3) {
             #left-controls { border-right: 3px solid #C4A464; }
@@ -171,14 +179,16 @@
     </div>
 
     <div id="emulator-wrapper">
-        <div id="scale-target">
-            <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
-                id="mac-iframe"
-                allow="cross-origin-isolated"
-                frameborder="0"></iframe>
-            
-            <!-- WebGL Hardware Rendering Canvas -->
-            <canvas id="gl-canvas" width="640" height="480"></canvas>
+        <!-- New container for zoom/pan transforms -->
+        <div id="pan-zoom-container">
+            <div id="scale-target">
+                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                    id="mac-iframe"
+                    allow="cross-origin-isolated"
+                    frameborder="0"></iframe>
+                
+                <canvas id="gl-canvas" width="640" height="480"></canvas>
+            </div>
         </div>
     </div>
     
@@ -200,26 +210,88 @@
 <script>
     const iframe = document.getElementById('mac-iframe');
     const scaleTarget = document.getElementById('scale-target');
+    const panZoomContainer = document.getElementById('pan-zoom-container');
     const wrapper = document.getElementById('emulator-wrapper');
     const buttons = document.querySelectorAll('.btn:not(#filter-toggle)');
     const filterToggle = document.getElementById('filter-toggle');
     const glCanvas = document.getElementById('gl-canvas');
 
-    // --- WebGL Setup ---
+    // --- 1. Pinch To Zoom Logic ---
+    let pzScale = 1;
+    let pzX = 0;
+    let pzY = 0;
+    let isPanning = false;
+    let startX = 0, startY = 0;
+    let startDist = 0;
+    let initialScale = 1;
+
+    wrapper.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            initialScale = pzScale;
+            isPanning = false;
+        } else if (e.touches.length === 1) {
+            isPanning = true;
+            startX = e.touches[0].clientX - pzX;
+            startY = e.touches[0].clientY - pzY;
+        }
+    });
+
+    wrapper.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2) {
+            e.preventDefault(); 
+            const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            pzScale = Math.min(Math.max(1, initialScale * (dist / startDist)), 4); // Max 4x zoom
+            updatePanZoom();
+        } else if (e.touches.length === 1 && isPanning && pzScale > 1) {
+            e.preventDefault();
+            pzX = e.touches[0].clientX - startX;
+            pzY = e.touches[0].clientY - startY;
+            updatePanZoom();
+        }
+    });
+
+    wrapper.addEventListener('touchend', (e) => {
+        if (e.touches.length < 2) startDist = 0;
+        if (e.touches.length === 0) isPanning = false;
+        
+        // Reset pan if zoomed all the way out
+        if (pzScale === 1) {
+            pzX = 0; pzY = 0;
+            updatePanZoom();
+        }
+    });
+
+    function updatePanZoom() {
+        panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
+    }
+
+
+    // --- 2. Base Iframe Scaling ---
+    function scaleIframe() {
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const scale = wrapperRect.width / 640;
+        scaleTarget.style.transform = `scale(${scale})`;
+    }
+
+    window.addEventListener('resize', scaleIframe);
+    setTimeout(scaleIframe, 50); 
+
+
+    // --- 3. WebGL Aggressive Dedither ---
     const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
 
-    // Vertex Shader: Simply maps the canvas
     const vsSource = `
         attribute vec2 a_position;
         varying vec2 v_texCoord;
         void main() {
             v_texCoord = a_position * 0.5 + 0.5;
-            v_texCoord.y = 1.0 - v_texCoord.y; // Flip Y for WebGL texture orientation
+            v_texCoord.y = 1.0 - v_texCoord.y;
             gl_Position = vec4(a_position, 0.0, 1.0);
         }
     `;
 
-    // Fragment Shader: The Smart Checkerboard Detector
+    // AGGRESSIVE SHADER: Much lower thresholds to catch low-contrast dithering
     const fsSource = `
         precision mediump float;
         varying vec2 v_texCoord;
@@ -240,20 +312,15 @@
             vec4 BL = texture2D(u_image, v_texCoord + vec2(-px.x, px.y));
             vec4 BR = texture2D(u_image, v_texCoord + vec2(px.x, px.y));
 
-            // Sum RGB differences between neighbors
-            float d_diags = dot(abs(C.rgb - TL.rgb) + abs(C.rgb - TR.rgb) + abs(C.rgb - BL.rgb) + abs(C.rgb - BR.rgb), vec3(1.0));
-            float d_cards = dot(abs(L.rgb - R.rgb) + abs(U.rgb - D.rgb), vec3(1.0));
-            float d_center = dot(abs(C.rgb - L.rgb) + abs(C.rgb - R.rgb) + abs(C.rgb - U.rgb) + abs(C.rgb - D.rgb), vec3(1.0));
+            float diff_center = length(C.rgb - L.rgb) + length(C.rgb - R.rgb) + length(C.rgb - U.rgb) + length(C.rgb - D.rgb);
+            float diff_cards = length(L.rgb - R.rgb) + length(U.rgb - D.rgb);
 
-            // Detector Logic: 
-            // 1. Diagonals match center (low diff)
-            // 2. Opposite cardinals match each other (low diff)
-            // 3. Center differs from cardinals (high diff)
-            if (d_diags < 0.4 && d_cards < 0.4 && d_center > 0.3) {
-                // It's a checkerboard! Blend the center heavily with its cardinals
-                gl_FragColor = vec4((C.rgb * 2.0 + L.rgb + R.rgb + U.rgb + D.rgb) / 6.0, 1.0);
+            // Extremely aggressive detection: If center oscillates even a little bit (0.05) 
+            // but the orthogonal neighbors are relatively uniform (diff_cards < 1.0), BLEND IT.
+            if (diff_center > 0.05 && diff_cards < 1.0) {
+                // Aggressive 9-pixel Gaussian-style average
+                gl_FragColor = vec4((C.rgb*2.0 + L.rgb + R.rgb + U.rgb + D.rgb + TL.rgb*0.5 + TR.rgb*0.5 + BL.rgb*0.5 + BR.rgb*0.5) / 8.0, 1.0);
             } else {
-                // It's a solid line, text edge, or solid color. Preserve perfectly.
                 gl_FragColor = C;
             }
         }
@@ -272,7 +339,6 @@
     gl.linkProgram(shaderProgram);
     gl.useProgram(shaderProgram);
 
-    // Set up full-screen quad
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -284,7 +350,6 @@
     gl.enableVertexAttribArray(positionLocation);
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-    // Set up texture parameters
     const texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -294,17 +359,6 @@
 
     const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
     gl.uniform2f(texSizeLocation, 640.0, 480.0);
-    // --- End WebGL Setup ---
-
-
-    function scaleIframe() {
-        const wrapperRect = wrapper.getBoundingClientRect();
-        const scale = wrapperRect.width / 640;
-        scaleTarget.style.transform = `scale(${scale})`;
-    }
-
-    window.addEventListener('resize', scaleIframe);
-    setTimeout(scaleIframe, 50); 
 
     let isCrisp = true;
     filterToggle.addEventListener('pointerdown', (e) => {
@@ -317,25 +371,22 @@
             filterToggle.textContent = '[ Filter: Crisp ]';
         } else {
             glCanvas.style.display = 'block';
-            iframe.style.opacity = '0.01'; // Keep iframe active underneath for UI clicks
+            iframe.style.opacity = '0.01'; 
             filterToggle.textContent = '[ Smart Dedither ]';
         }
     });
 
-    // Feed the raw RGBA array into the WebGL GPU texture buffer
     window.addEventListener("message", e => {
         if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
             try {
-                // Upload raw bytes directly to GPU memory (blazing fast)
                 gl.bindTexture(gl.TEXTURE_2D, texture);
                 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 640, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
-            } catch (err) {
-                console.error("WebGL dedither error:", err);
-            }
+            } catch (err) {}
         }
     });
 
+    // --- 4. Emulator Input ---
     function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
         iframe.contentWindow.postMessage({
