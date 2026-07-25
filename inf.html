@@ -1,9 +1,169 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cythera Mobile Player</title>
+    <style>
+        /* Reset and prevent mobile scrolling/bouncing */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            touch-action: none;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
 
-<iframe src="https://infinitemac.org/embed?disk=System+7.1&infinite_hd=true&machine=Quadra+650"
-    width="640"
-    height="480"
-    allow="cross-origin-isolated"
-    frameborder="0"></iframe>
-  
+        #app-container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* Maintain exact 4:3 aspect ratio of classic Macs */
+        #emulator-wrapper {
+            flex-shrink: 0;
+            background-color: #111;
+            aspect-ratio: 4 / 3;
+            position: relative;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        #controls-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #1a1a1a;
+        }
+
+        /* Landscape Mode: Emulator on Left, Controls on Right */
+        @media (min-aspect-ratio: 4/3) {
+            #app-container {
+                flex-direction: row; 
+            }
+            #emulator-wrapper {
+                height: 100vh;
+                width: calc(100vh * (4 / 3));
+            }
+        }
+
+        /* Portrait Mode: Emulator on Top, Controls on Bottom */
+        @media (max-aspect-ratio: 4/3) {
+            #app-container {
+                flex-direction: column; 
+            }
+            #emulator-wrapper {
+                width: 100vw;
+                height: calc(100vw * (3 / 4));
+            }
+        }
+
+        /* D-Pad Layout */
+        .d-pad {
+            display: grid;
+            grid-template-columns: repeat(3, min(20vw, 80px));
+            grid-template-rows: repeat(3, min(20vw, 80px));
+            gap: 10px;
+        }
+
+        .btn {
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 12px;
+            color: white;
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: background 0.1s, transform 0.1s;
+        }
+
+        .btn:active {
+            background: #555;
+            transform: translateY(2px);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        .btn-up { grid-column: 2; grid-row: 1; }
+        .btn-left { grid-column: 1; grid-row: 2; }
+        .btn-right { grid-column: 3; grid-row: 2; }
+        .btn-down { grid-column: 2; grid-row: 3; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <div id="emulator-wrapper">
+        <!-- Swap this URL with your custom Infinite Mac &rom= URL -->
+        <iframe id="mac-iframe" src="https://infinitemac.org/embed?def=System%208.5" allow="cross-origin-isolated"></iframe>
+    </div>
+    
+    <div id="controls-container">
+        <div class="d-pad">
+            <div class="btn btn-up" data-key="ArrowUp">▲</div>
+            <div class="btn btn-left" data-key="ArrowLeft">◄</div>
+            <div class="btn btn-right" data-key="ArrowRight">►</div>
+            <div class="btn btn-down" data-key="ArrowDown">▼</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const iframe = document.getElementById('mac-iframe');
+    const buttons = document.querySelectorAll('.btn');
+
+    // Helper to send keystrokes to Infinite Mac via postMessage
+    function sendKey(key, type) {
+        if (!iframe.contentWindow) return;
+        
+        iframe.contentWindow.postMessage({
+            type: type, // 'keydown' or 'keyup'
+            key: key,
+            code: key,
+            keyCode: getKeyCode(key)
+        }, '*');
+    }
+
+    function getKeyCode(key) {
+        const keyCodes = { 'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39 };
+        return keyCodes[key] || 0;
+    }
+
+    // Bind pointer events (handles both touch on mobile and mouse on desktop)
+    buttons.forEach(btn => {
+        const keyName = btn.getAttribute('data-key');
+        
+        btn.addEventListener('pointerdown', (e) => {
+            e.preventDefault(); // Prevent text selection/zooming
+            sendKey(keyName, 'keydown');
+        });
+
+        btn.addEventListener('pointerup', (e) => {
+            e.preventDefault();
+            sendKey(keyName, 'keyup');
+        });
+
+        // Handle case where finger slides off button
+        btn.addEventListener('pointerleave', (e) => {
+            e.preventDefault();
+            sendKey(keyName, 'keyup');
+        });
+    });
+</script>
+
+</body>
 </html>
