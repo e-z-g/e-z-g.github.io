@@ -20,13 +20,9 @@
             display: flex;
             width: 100vw;
             height: 100vh;
-            flex-direction: column; /* Default portrait */
+            flex-direction: column;
         }
 
-        /* 
-         * The wrapper acts as a bounding box for the scaled iframe.
-         * We set overflow hidden so the unscaled edges don't cause scrollbars.
-         */
         #emulator-wrapper {
             flex-shrink: 0;
             background-color: #111;
@@ -37,10 +33,6 @@
             overflow: hidden;
         }
 
-        /* 
-         * The iframe is strictly 640x480. We NEVER let CSS width/height change this, 
-         * otherwise Infinite Mac will resize the emulated desktop.
-         */
         iframe {
             width: 640px;
             height: 480px;
@@ -57,29 +49,26 @@
             background-color: #1a1a1a;
         }
 
-        /* Landscape orientation rules */
         @media (min-aspect-ratio: 4/3) {
             #app-container { flex-direction: row; }
             #emulator-wrapper {
                 height: 100vh;
-                width: calc(100vh * (4 / 3)); /* Fix width to exactly 4:3 of screen height */
-                justify-content: flex-start; /* Left-justify when horizontal */
+                width: calc(100vh * (4 / 3));
+                justify-content: flex-start;
             }
             iframe { transform-origin: left center; }
         }
 
-        /* Portrait orientation rules */
         @media (max-aspect-ratio: 4/3) {
             #app-container { flex-direction: column; }
             #emulator-wrapper {
                 width: 100vw;
-                height: calc(100vw * (3 / 4)); /* Fix height to exactly 3:4 of screen width */
-                align-items: flex-start; /* Top-justify when vertical */
+                height: calc(100vw * (3 / 4));
+                align-items: flex-start;
             }
             iframe { transform-origin: center top; }
         }
 
-        /* D-Pad Layout */
         .d-pad {
             display: grid;
             grid-template-columns: repeat(3, min(20vw, 80px));
@@ -114,7 +103,7 @@
 
 <div id="app-container">
     <div id="emulator-wrapper">
-        <iframe src="https://infinitemac.org/embed?disk=Mac+OS+8.5&infinite_hd=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk&machine=Power+Macintosh+9500&ram=32M&screen_update_messages=true"
+        <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
             id="mac-iframe"
             width="640"
             height="480"
@@ -137,36 +126,25 @@
     const wrapper = document.getElementById('emulator-wrapper');
     const buttons = document.querySelectorAll('.btn');
 
-    // 1. Handle CSS Transform Scaling
-    // We calculate the scale factor required to make the 640x480 iframe fit the wrapper
     function scaleIframe() {
         const wrapperRect = wrapper.getBoundingClientRect();
-        
-        // Find the scale factor based on the limiting dimension
         const scaleX = wrapperRect.width / 640;
         const scaleY = wrapperRect.height / 480;
         const scale = Math.min(scaleX, scaleY);
-        
         iframe.style.transform = `scale(${scale})`;
     }
 
-    // Run scale calculation on load and window resize
     window.addEventListener('resize', scaleIframe);
-    // Add slight delay to ensure layout is painted on mobile devices
     setTimeout(scaleIframe, 100); 
 
-    // 2. Handle Keystrokes via postMessage
-    // Maps standard DOM keys to classic Mac hex codes if necessary, but Infinite Mac accepts string keys
     function sendKey(key, isKeyDown) {
         if (!iframe.contentWindow) return;
-        
         iframe.contentWindow.postMessage({
             type: isKeyDown ? 'keydown' : 'keyup',
             key: key
         }, '*');
     }
 
-    // Bind pointer events
     buttons.forEach(btn => {
         const keyName = btn.getAttribute('data-key');
         
