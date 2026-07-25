@@ -3,29 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cythera Mobile Player</title>
+    <title>Cythera Interactive Viewer</title>
     <style>
         body, html {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
-            background-color: #050505;
+            background-color: #3B0000; /* Deep maroon from the viewer screenshot */
             overflow: hidden;
             touch-action: none;
             font-family: 'Courier New', Courier, monospace;
-            color: #d8d8d8;
         }
 
         #app-container {
             display: flex;
             width: 100vw;
             height: 100vh;
-            flex-direction: row; /* Default to landscape for split controls */
+            flex-direction: row;
         }
 
         /* 
-         * Left and Right Control Banks
+         * Match the maroon background for the control banks
          */
         .control-bank {
             flex: 1;
@@ -33,15 +32,15 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background-color: #111;
+            background-color: #3B0000;
             padding: 10px;
             gap: 15px;
-            border-left: 2px solid #333;
-            border-right: 2px solid #333;
+            border-left: 2px solid #220000;
+            border-right: 2px solid #220000;
         }
 
         /* 
-         * Emulator Wrapper
+         * Emulator wrapper gets a gold border matching the dialogue box
          */
         #emulator-wrapper {
             flex-shrink: 0;
@@ -52,7 +51,10 @@
             justify-content: center;
             overflow: hidden;
             height: 100vh;
-            width: calc(100vh * (4 / 3)); /* Lock to 4:3 ratio of height */
+            width: calc(100vh * (4 / 3));
+            border-left: 3px solid #C4A464; /* Gold bevel */
+            border-right: 3px solid #8B6914; /* Dark gold bevel */
+            box-sizing: border-box;
         }
 
         iframe {
@@ -67,41 +69,43 @@
             border: none;
             display: block;
             transform-origin: center center;
-            
+        }
+
+        .crisp-scaling {
             image-rendering: -moz-crisp-edges;
             image-rendering: -webkit-crisp-edges;
             image-rendering: pixelated;
             image-rendering: crisp-edges;
         }
 
-        /* 
-         * Cythera Themed Buttons 
-         * Designed to look like classic Mac OS 8/9 buttons or Ambrosia UI
-         */
         .btn-grid {
             display: grid;
             gap: 8px;
             width: 100%;
-            max-width: 150px;
+            max-width: 160px;
         }
 
-        /* D-Pad specific grid */
         .d-pad-grid {
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
         }
 
-        /* Action buttons specific grid */
         .action-grid {
             grid-template-columns: repeat(2, 1fr);
         }
 
+        /* 
+         * Buttons styled to match the dialogue window aesthetic
+         * Dark purple/blue background with gold borders and text
+         */
         .btn {
-            background: linear-gradient(180deg, #dddddd 0%, #aaaaaa 100%);
-            border: 1px solid #000;
-            border-radius: 4px;
-            color: #000;
-            font-size: 1.1rem;
+            background-color: #1E0059; /* Deep purple from dialogue box */
+            border-top: 2px solid #C4A464;
+            border-left: 2px solid #C4A464;
+            border-bottom: 2px solid #8B6914;
+            border-right: 2px solid #8B6914;
+            color: #FCE688; /* Gold text */
+            font-size: 1rem;
             font-weight: bold;
             display: flex;
             align-items: center;
@@ -110,17 +114,31 @@
             user-select: none;
             -webkit-user-select: none;
             cursor: pointer;
-            box-shadow: inset 1px 1px 0px rgba(255,255,255,0.8), 2px 2px 4px rgba(0,0,0,0.5);
-            text-transform: uppercase;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
 
         .btn:active { 
-            background: #888;
-            box-shadow: inset 2px 2px 4px rgba(0,0,0,0.5);
+            background-color: #150040;
+            border-top: 2px solid #8B6914;
+            border-left: 2px solid #8B6914;
+            border-bottom: 2px solid #C4A464;
+            border-right: 2px solid #C4A464;
             transform: translate(1px, 1px);
+            box-shadow: none;
         }
 
-        /* Specific Button Placements */
+        .btn-utility {
+            font-size: 0.85rem;
+            background-color: #3B0000; /* Match maroon background */
+            border: 1px solid #C4A464;
+            margin-top: auto;
+            color: #FCE688;
+        }
+        
+        .btn-utility:active {
+            background-color: #220000;
+        }
+
         .btn-up { grid-column: 2; grid-row: 1; }
         .btn-left { grid-column: 1; grid-row: 2; }
         .btn-right { grid-column: 3; grid-row: 2; }
@@ -128,19 +146,22 @@
         
         .btn-wide { grid-column: 1 / -1; margin-top: 10px; }
 
-        /* Portrait fallback (stacks UI vertically if phone is held upright) */
         @media (max-aspect-ratio: 4/3) {
             #app-container { flex-direction: column; }
             #emulator-wrapper {
                 width: 100vw;
                 height: calc(100vw * (3 / 4));
+                border-left: none;
+                border-right: none;
+                border-top: 3px solid #C4A464;
+                border-bottom: 3px solid #8B6914;
             }
             .control-bank {
                 flex-direction: row;
                 border: none;
-                border-top: 2px solid #333;
             }
             .btn-grid { max-width: none; }
+            .btn-utility { margin-top: 0; }
         }
     </style>
 </head>
@@ -148,7 +169,7 @@
 
 <div id="app-container">
     
-    <!-- LEFT BANK: Movement & Spacebar -->
+    <!-- LEFT BANK -->
     <div class="control-bank" id="left-controls">
         <div class="btn-grid d-pad-grid">
             <div class="btn btn-up" data-code="ArrowUp">▲</div>
@@ -158,18 +179,20 @@
         </div>
         <div class="btn-grid">
             <div class="btn btn-wide" data-code="Space">SPACE</div>
+            <div class="btn btn-wide btn-utility" id="filter-toggle">[ Toggle Crisp Filter ]</div>
         </div>
     </div>
 
-    <!-- CENTER: The Emulator -->
+    <!-- CENTER -->
     <div id="emulator-wrapper">
         <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
             id="mac-iframe"
+            class="crisp-scaling"
             allow="cross-origin-isolated"
             frameborder="0"></iframe>
     </div>
     
-    <!-- RIGHT BANK: Cythera Action Hotkeys -->
+    <!-- RIGHT BANK -->
     <div class="control-bank" id="right-controls">
         <div class="btn-grid action-grid">
             <div class="btn" data-code="KeyG">Get</div>
@@ -189,9 +212,9 @@
 <script>
     const iframe = document.getElementById('mac-iframe');
     const wrapper = document.getElementById('emulator-wrapper');
-    const buttons = document.querySelectorAll('.btn');
+    const buttons = document.querySelectorAll('.btn:not(#filter-toggle)');
+    const filterToggle = document.getElementById('filter-toggle');
 
-    // Visually scale the 640x480 iframe back down to fit the phone screen
     function scaleIframe() {
         const wrapperRect = wrapper.getBoundingClientRect();
         const scaleX = wrapperRect.width / 640;
@@ -203,7 +226,17 @@
     window.addEventListener('resize', scaleIframe);
     setTimeout(scaleIframe, 50); 
 
-    // Send emulator_key events
+    let isCrisp = true;
+    filterToggle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        isCrisp = !isCrisp;
+        if (isCrisp) {
+            iframe.classList.add('crisp-scaling');
+        } else {
+            iframe.classList.remove('crisp-scaling');
+        }
+    });
+
     function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
         
