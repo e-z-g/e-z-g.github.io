@@ -25,7 +25,7 @@
             flex-wrap: wrap;
             gap: 15px;
             align-items: center;
-            max-width: 800px;
+            max-width: 900px;
             width: 100%;
         }
         .control-group {
@@ -55,7 +55,6 @@
             max-width: 100%;
             box-shadow: 0 8px 16px rgba(0,0,0,0.5);
         }
-        /* Fallback for nearest neighbor via CSS if needed */
         .pixelated {
             image-rendering: pixelated;
         }
@@ -70,13 +69,18 @@
         </div>
         
         <div class="control-group">
-            <label for="outWidth">Target Width (px):</label>
-            <input type="number" id="outWidth" value="1280">
+            <label for="outWidth">Width (px):</label>
+            <input type="number" id="outWidth" value="1280" style="width: 80px;">
         </div>
 
         <div class="control-group">
-            <label for="outHeight">Target Height (px):</label>
-            <input type="number" id="outHeight" value="720">
+            <label for="outHeight">Height (px):</label>
+            <input type="number" id="outHeight" value="720" style="width: 80px;">
+        </div>
+
+        <div class="control-group">
+            <label for="targetFps">Target FPS:</label>
+            <input type="number" id="targetFps" value="60" min="1" max="144" style="width: 70px;" title="Set to lower values (e.g. 12 or 15) for a retro feel">
         </div>
 
         <div class="control-group">
@@ -92,24 +96,24 @@
         </div>
     </div>
 
-    <!-- Hidden video element to process the raw file -->
     <video id="sourceVideo" style="display: none;" loop playsinline></video>
-    
-    <!-- Canvas where the resized output is drawn -->
     <canvas id="outputCanvas"></canvas>
 
     <script>
         const videoUpload = document.getElementById('videoUpload');
         const sourceVideo = document.getElementById('sourceVideo');
         const canvas = document.getElementById('outputCanvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // alpha:false optimizes performance
+        const ctx = canvas.getContext('2d', { alpha: false });
         
         const outWidthInput = document.getElementById('outWidth');
         const outHeightInput = document.getElementById('outHeight');
+        const targetFpsInput = document.getElementById('targetFps');
         const algoSelect = document.getElementById('algoSelect');
         const playBtn = document.getElementById('playBtn');
 
         let animationFrameId = null;
+        let lastDrawTime = 0;
+        let fpsInterval = 1000 / 60; // Default to 60fps
 
         // Handle video upload
         videoUpload.addEventListener('change', (e) => {
@@ -120,9 +124,9 @@
             sourceVideo.src = fileURL;
             sourceVideo.load();
             
-            // Auto-play when ready
             sourceVideo.onloadeddata = () => {
                 updateCanvasSize();
+                updateFps();
                 sourceVideo.play();
                 startRenderLoop();
             };
@@ -141,43 +145,64 @@
         outWidthInput.addEventListener('change', updateCanvasSize);
         outHeightInput.addEventListener('change', updateCanvasSize);
         algoSelect.addEventListener('change', applyScalingAlgorithm);
+        targetFpsInput.addEventListener('change', updateFps);
 
         function updateCanvasSize() {
             canvas.width = parseInt(outWidthInput.value, 10);
             canvas.height = parseInt(outHeightInput.value, 10);
-            applyScalingAlgorithm(); // Re-apply when canvas resizes
+            applyScalingAlgorithm(); 
+        }
+
+        function updateFps() {
+            const targetFps = parseInt(targetFpsInput.value, 10);
+            if (targetFps > 0) {
+                fpsInterval = 1000 / targetFps;
+            } else {
+                fpsInterval = 1000 / 60; // Fallback
+            }
+            // Reset draw time so the transition is smooth
+            lastDrawTime = performance.now();
         }
 
         function applyScalingAlgorithm() {
             const algo = algoSelect.value;
             
             if (algo === 'nearest') {
-                // Disable smoothing for Nearest Neighbor
                 ctx.imageSmoothingEnabled = false;
                 canvas.classList.add('pixelated');
             } else {
-                // Enable smoothing (Browser defaults to Bilinear or Bicubic)
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'high';
                 canvas.classList.remove('pixelated');
             }
         }
 
-        // Render loop: draws the video frame to the canvas at 60fps
-        function renderFrame() {
-            if (!sourceVideo.paused && !sourceVideo.ended) {
-                // Draw the video stretched/scaled to the canvas dimensions
-                ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
-            }
+        // Render loop: throttles the draw call based on target FPS
+        function renderFrame(timestamp) {
             animationFrameId = requestAnimationFrame(renderFrame);
+
+            if (!sourceVideo.paused && !sourceVideo.ended) {
+                if (!lastDrawTime) lastDrawTime = timestamp;
+
+                const elapsed = timestamp - lastDrawTime;
+
+                // Only draw a new frame if enough time has passed for our target FPS
+                if (elapsed >= fpsInterval) {
+                    // Adjust lastDrawTime to account for slight overshoots, preventing drift
+                    lastDrawTime = timestamp - (elapsed % fpsInterval);
+                    
+                    ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
+                }
+            }
         }
 
         function startRenderLoop() {
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
             }
+            lastDrawTime = 0; // Reset time tracker
             applyScalingAlgorithm();
-            renderFrame();
+            animationFrameId = requestAnimationFrame(renderFrame);
         }
     </script>
 </body>
