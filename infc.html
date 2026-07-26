@@ -3,64 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cythera Interactive Viewer</title>
+    <title>Cythera Mobile Fullscreen</title>
     <style>
         body, html {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #3B0000;
+            width: 100vw;
+            height: 100dvh;
+            background-color: #000;
             overflow: hidden;
-            touch-action: none;
+            touch-action: none; /* Prevents native iOS pull-to-refresh/zoom */
             font-family: 'Courier New', Courier, monospace;
         }
 
-        /* Enforce Vertical Layout */
         #app-container {
-            display: flex;
             width: 100vw;
             height: 100dvh;
+            position: relative;
+        }
+
+        /* 
+         * TOP LAYER: Floating Movable Windows
+         * These intercept touches so you can interact with the UI
+         */
+        #hud-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; /* Let touches pass through the empty space */
+            z-index: 100;
+        }
+
+        .hud-window {
+            position: absolute;
+            pointer-events: auto; /* Catch touches on the window */
+            background-color: rgba(59, 0, 0, 0.85); /* Translucent maroon */
+            border: 2px solid #8B6914;
+            box-shadow: 4px 4px 10px rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        .hud-header {
+            background-color: #C4A464;
+            color: #3B0000;
+            font-weight: bold;
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            text-align: center;
+            border-bottom: 2px solid #8B6914;
+            touch-action: none;
+        }
+        
+        .hud-header::before {
+            content: '≡'; /* Drag handle visual indicator */
+            float: left;
+            opacity: 0.5;
+        }
+
+        .hud-content {
+            padding: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             flex-direction: column;
         }
 
-        /* Top: Game Window */
+        /* 
+         * BOTTOM LAYER: Full Screen Game & Pan/Zoom
+         */
         #emulator-wrapper {
-            flex-grow: 1;
-            background-color: #000;
-            position: relative;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100dvh;
             overflow: hidden;
-            width: 100vw;
-            border-bottom: 3px solid #C4A464;
-            box-sizing: border-box;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            z-index: 1;
         }
 
         #pan-zoom-container {
-            width: 640px;
-            height: 800px;
-            transform-origin: center center;
+            width: 100%; height: 100%;
+            transform-origin: top left;
             will-change: transform;
             position: absolute;
         }
 
+        /* The dynamic scale target matches the calculated Mac resolution */
         #scale-target {
-            width: 640px;
-            height: 800px;
             transform-origin: top left;
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
         }
 
         #mac-iframe, #gl-canvas, #touch-overlay {
-            width: 640px;
-            height: 800px;
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             border: none;
             display: block;
         }
@@ -71,50 +110,17 @@
             image-rendering: pixelated;
         }
 
-        #gl-canvas {
-            pointer-events: none; 
-            display: none;        
-        }
+        #gl-canvas { pointer-events: none; display: none; }
+        
+        /* Captures all game touch events to handle zoom/pan/taps */
+        #touch-overlay { z-index: 10; touch-action: none; }
 
-        /* Captures touches to manage pan/zoom vs mouse injection */
-        #touch-overlay {
-            z-index: 10;
-            touch-action: none;
-        }
-
-        /* Bottom: Unified Control Panel */
-        #bottom-controls {
-            flex-shrink: 0;
-            height: 32dvh; /* Takes up bottom third of screen */
-            min-height: 220px;
-            display: flex;
-            flex-direction: row;
-            background-color: #3B0000;
-            border-top: 3px solid #8B6914;
-            box-sizing: border-box;
-        }
-
-        .control-bank {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 10px;
-            box-sizing: border-box;
-        }
-
-        #left-controls { border-right: 2px solid #220000; }
-        #right-controls { border-left: 2px solid #5A0000; }
-
+        /* UI Buttons */
         .btn-grid {
             display: grid;
             gap: 6px;
-            width: 100%;
-            height: 100%;
-            max-width: 220px;
-            max-height: 220px;
-            grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(3, 1fr);
+            grid-template-columns: repeat(3, min(12vw, 45px));
+            grid-template-rows: repeat(3, min(12vw, 45px));
         }
 
         .btn {
@@ -124,7 +130,7 @@
             border-bottom: 2px solid #8B6914;
             border-right: 2px solid #8B6914;
             color: #FCE688;
-            font-size: clamp(0.7rem, 2vh, 1.1rem);
+            font-size: 0.75rem;
             font-weight: bold;
             display: flex;
             flex-direction: column;
@@ -133,23 +139,17 @@
             user-select: none;
             -webkit-user-select: none;
             cursor: pointer;
-            box-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            text-align: center;
-            line-height: 1.1;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+            line-height: 1;
         }
 
-        .btn span.emoji {
-            font-size: 1.2em;
-            margin-bottom: 2px;
-        }
-
+        .btn span.emoji { font-size: 1.1rem; margin-bottom: 2px; }
         .btn:active { 
             background-color: #150040;
             border-top: 2px solid #8B6914;
             border-left: 2px solid #8B6914;
             border-bottom: 2px solid #C4A464;
             border-right: 2px solid #C4A464;
-            transform: translate(1px, 1px);
             box-shadow: none;
         }
 
@@ -157,186 +157,216 @@
             background-color: #3B0000;
             border: 1px solid #C4A464;
             color: #FCE688;
-            grid-column: 2 / 4; /* Takes up 2 columns in bottom right */
+            padding: 6px;
+            margin-top: 6px;
+            font-size: 0.8rem;
+            width: 100%;
+            text-align: center;
         }
         
-        .btn-utility:active { background-color: #220000; }
-
-        /* Specific Button Placements (D-Pad) */
-        .btn-nw { grid-column: 1; grid-row: 1; }
-        .btn-n  { grid-column: 2; grid-row: 1; }
-        .btn-ne { grid-column: 3; grid-row: 1; }
-        .btn-w  { grid-column: 1; grid-row: 2; }
-        .btn-c  { grid-column: 2; grid-row: 2; }
-        .btn-e  { grid-column: 3; grid-row: 2; }
-        .btn-sw { grid-column: 1; grid-row: 3; }
-        .btn-s  { grid-column: 2; grid-row: 3; }
-        .btn-se { grid-column: 3; grid-row: 3; }
+        /* Keyboard Input HUD */
+        #keyboard-input {
+            background: #111;
+            color: #FCE688;
+            border: 1px solid #C4A464;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 1rem;
+            width: 140px;
+        }
 
     </style>
 </head>
 <body>
 
 <div id="app-container">
-    
-    <!-- TOP: GAME WINDOW -->
+
+    <!-- BOTTOM LAYER: Emulator -->
     <div id="emulator-wrapper">
         <div id="pan-zoom-container">
             <div id="scale-target">
+                <!-- Size will be injected dynamically by JS to perfectly match phone screen ratio -->
                 <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
-                    id="mac-iframe"
-                    allow="cross-origin-isolated"
-                    frameborder="0"></iframe>
-                
-                <canvas id="gl-canvas" width="640" height="800"></canvas>
-                
-                <!-- Transparent touch receiver overlay -->
+                    id="mac-iframe" allow="cross-origin-isolated" frameborder="0"></iframe>
+                <canvas id="gl-canvas"></canvas>
                 <div id="touch-overlay"></div>
             </div>
         </div>
     </div>
-    
-    <!-- BOTTOM: UNIFIED CONTROLS -->
-    <div id="bottom-controls">
+
+    <!-- TOP LAYER: Floating Windows -->
+    <div id="hud-layer">
         
-        <!-- LEFT: 3x3 NUMPAD + SPACE -->
-        <div class="control-bank" id="left-controls">
-            <div class="btn-grid">
-                <div class="btn btn-nw" data-code="Numpad7">↖️</div>
-                <div class="btn btn-n"  data-code="Numpad8">⬆️</div>
-                <div class="btn btn-ne" data-code="Numpad9">↗️</div>
-                
-                <div class="btn btn-w"  data-code="Numpad4">⬅️</div>
-                <div class="btn btn-c"  data-code="Space">SPACE</div>
-                <div class="btn btn-e"  data-code="Numpad6">➡️</div>
-                
-                <div class="btn btn-sw" data-code="Numpad1">↙️</div>
-                <div class="btn btn-s"  data-code="Numpad2">⬇️</div>
-                <div class="btn btn-se" data-code="Numpad3">↘️</div>
+        <!-- D-PAD WINDOW (Positioned Bottom Left) -->
+        <div class="hud-window" id="hud-dpad" style="left: 10px; bottom: 30px;">
+            <div class="hud-header">MOVEMENT</div>
+            <div class="hud-content">
+                <div class="btn-grid">
+                    <div class="btn" style="grid-column: 1; grid-row: 1;" data-code="Numpad7">↖️</div>
+                    <div class="btn" style="grid-column: 2; grid-row: 1;" data-code="Numpad8">⬆️</div>
+                    <div class="btn" style="grid-column: 3; grid-row: 1;" data-code="Numpad9">↗️</div>
+                    
+                    <div class="btn" style="grid-column: 1; grid-row: 2;" data-code="Numpad4">⬅️</div>
+                    <div class="btn" style="grid-column: 2; grid-row: 2;" data-code="Space">SPC</div>
+                    <div class="btn" style="grid-column: 3; grid-row: 2;" data-code="Numpad6">➡️</div>
+                    
+                    <div class="btn" style="grid-column: 1; grid-row: 3;" data-code="Numpad1">↙️</div>
+                    <div class="btn" style="grid-column: 2; grid-row: 3;" data-code="Numpad2">⬇️</div>
+                    <div class="btn" style="grid-column: 3; grid-row: 3;" data-code="Numpad3">↘️</div>
+                </div>
             </div>
         </div>
 
-        <!-- RIGHT: ACTIONS & FILTER -->
-        <div class="control-bank" id="right-controls">
-            <div class="btn-grid">
-                <div class="btn" data-code="KeyG"><span class="emoji">🖐️</span>Get</div>
-                <div class="btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
-                <div class="btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
-                
-                <div class="btn" data-code="KeyU"><span class="emoji">🔧</span>Use</div>
-                <div class="btn" data-code="KeyD"><span class="emoji">🔽</span>Drop</div>
-                <div class="btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
-                
-                <div class="btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div>
-                <div class="btn btn-utility" id="filter-toggle">[ Filter: Crisp ]</div>
+        <!-- ACTIONS WINDOW (Positioned Bottom Right) -->
+        <div class="hud-window" id="hud-actions" style="right: 10px; bottom: 30px;">
+            <div class="hud-header">ACTIONS</div>
+            <div class="hud-content">
+                <div class="btn-grid">
+                    <div class="btn" style="grid-column: 1; grid-row: 1;" data-code="KeyG"><span class="emoji">🖐️</span>Get</div>
+                    <div class="btn" style="grid-column: 2; grid-row: 1;" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
+                    <div class="btn" style="grid-column: 3; grid-row: 1;" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
+                    
+                    <div class="btn" style="grid-column: 1; grid-row: 2;" data-code="KeyU"><span class="emoji">🔧</span>Use</div>
+                    <div class="btn" style="grid-column: 2; grid-row: 2;" data-code="KeyD"><span class="emoji">🔽</span>Drop</div>
+                    <div class="btn" style="grid-column: 3; grid-row: 2;" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
+                    
+                    <!-- Cast Spell spans full width of bottom row -->
+                    <div class="btn" style="grid-column: 1/4; grid-row: 3; flex-direction: row; gap: 8px;" data-code="KeyC"><span class="emoji">✨</span>Cast Spell</div>
+                </div>
+                <div class="btn-utility" id="filter-toggle">[ Filter: Crisp ]</div>
             </div>
         </div>
-        
+
+        <!-- KEYBOARD WINDOW (Positioned Top Center) -->
+        <div class="hud-window" id="hud-keyboard" style="left: 50%; top: 20px; transform: translateX(-50%);">
+            <div class="hud-header">KEYBOARD INPUT</div>
+            <div class="hud-content">
+                <input type="text" id="keyboard-input" placeholder="Tap to type..." autocomplete="off" spellcheck="false" autocorrect="off">
+            </div>
+        </div>
+
     </div>
+
 </div>
 
 <script>
     const iframe = document.getElementById('mac-iframe');
     const scaleTarget = document.getElementById('scale-target');
     const panZoomContainer = document.getElementById('pan-zoom-container');
-    const wrapper = document.getElementById('emulator-wrapper');
     const touchOverlay = document.getElementById('touch-overlay');
-    const buttons = document.querySelectorAll('.btn:not(#filter-toggle)');
-    const filterToggle = document.getElementById('filter-toggle');
     const glCanvas = document.getElementById('gl-canvas');
 
-    // --- 1. Base Scaling Math ---
-    let baseScale = 1;
-    function scaleIframe() {
-        const wrapperRect = wrapper.getBoundingClientRect();
-        // Fit 640x800 into the dynamic wrapper box
-        baseScale = Math.min(wrapperRect.width / 640, wrapperRect.height / 800);
-        
-        // Apply base scale to the target so it fits
-        scaleTarget.style.transform = `scale(${baseScale})`;
-        
-        // Center it inside the wrapper
-        panZoomContainer.style.left = `${(wrapperRect.width - (640 * baseScale)) / 2}px`;
-        panZoomContainer.style.top = `${(wrapperRect.height - (800 * baseScale)) / 2}px`;
-        
-        updatePanZoom(); // Reapply user pan/zoom limits
-    }
-    window.addEventListener('resize', scaleIframe);
-    setTimeout(scaleIframe, 50);
+    // --- 1. DYNAMIC FULLSCREEN RESOLUTION MATH ---
+    // We establish a comfortable baseline width for the Mac desktop (768px).
+    // We dynamically calculate the height so the ratio matches the phone perfectly.
+    const baseWidth = 768; 
+    const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
+    
+    scaleTarget.style.width = `${baseWidth}px`;
+    scaleTarget.style.height = `${baseHeight}px`;
+    glCanvas.width = baseWidth;
+    glCanvas.height = baseHeight;
 
-    // --- 2. Advanced Pan, Zoom & Mouse Forwarding ---
+    // CSS scaling to fit the generated Mac desktop exactly into the physical phone screen
+    const cssScale = window.innerWidth / baseWidth;
+    scaleTarget.style.transform = `scale(${cssScale})`;
+
+    // --- 2. DRAGGABLE FLOATING WINDOWS (HUDs) ---
+    document.querySelectorAll('.hud-window').forEach(win => {
+        const header = win.querySelector('.hud-header');
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        header.addEventListener('touchstart', e => {
+            isDragging = true;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            const rect = win.getBoundingClientRect();
+            // Store coordinates relative to screen
+            initialLeft = rect.left;
+            initialTop = rect.top;
+            
+            // Bring dragged window to front
+            win.style.zIndex = 1000;
+        });
+
+        header.addEventListener('touchmove', e => {
+            if (!isDragging) return;
+            e.preventDefault(); 
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            
+            // Override transform if it was centered (for keyboard)
+            win.style.transform = 'none'; 
+            win.style.left = `${initialLeft + dx}px`;
+            win.style.top = `${initialTop + dy}px`;
+            win.style.bottom = 'auto';
+            win.style.right = 'auto';
+        });
+
+        header.addEventListener('touchend', () => {
+            isDragging = false;
+            win.style.zIndex = '';
+        });
+    });
+
+    // --- 3. PAN, ZOOM, AND SMART TAPS ---
     let pzScale = 1;
     let pzX = 0, pzY = 0;
     
     let isPanning = false;
-    let startX = 0, startY = 0;
-    let startDist = 0;
+    let startX = 0, startY = 0, startDist = 0;
     let initialPzScale = 1;
-    let initialPzX = 0, initialPzY = 0;
+    
+    // Tap detection variables
+    let touchStartTime = 0;
+    let isClickCandidate = false;
 
-    // Helper: Translate a physical screen touch into absolute emulator coords
-    function getEmulatorCoords(touch) {
+    // Translate physical phone touch to Mac OS absolute coordinate
+    function getEmulatorCoords(clientX, clientY) {
         const rect = touchOverlay.getBoundingClientRect();
-        // Math converts scaled/translated physical pixels back to raw 0-640 / 0-800 space
-        const x = (touch.clientX - rect.left) * (640 / rect.width);
-        const y = (touch.clientY - rect.top) * (800 / rect.height);
+        const x = (clientX - rect.left) * (baseWidth / rect.width);
+        const y = (clientY - rect.top) * (baseHeight / rect.height);
         return { x: Math.round(x), y: Math.round(y) };
     }
 
     touchOverlay.addEventListener('touchstart', (e) => {
         e.preventDefault();
         if (e.touches.length === 2) {
-            // 2 FINGERS: Start Pan & Zoom
+            // PINCH START
             startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             initialPzScale = pzScale;
-            initialPzX = pzX;
-            initialPzY = pzY;
             isPanning = false;
-            
-            // Send a mouse-up just in case 1st finger was dragging
-            if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
+            isClickCandidate = false;
         } 
         else if (e.touches.length === 1) {
-            // 1 FINGER: Start Mouse Injection OR Panning
-            if (pzScale > 1) {
-                // If zoomed in, 1 finger pans the camera
-                isPanning = true;
-                startX = e.touches[0].clientX - pzX;
-                startY = e.touches[0].clientY - pzY;
-            } else {
-                // If fully zoomed out, 1 finger clicks the mouse
-                const coords = getEmulatorCoords(e.touches[0]);
-                if (iframe.contentWindow) {
-                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: coords.x, y: coords.y }, '*');
-                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
-                }
-            }
+            // SINGLE FINGER START
+            isClickCandidate = true;
+            touchStartTime = Date.now();
+            startX = e.touches[0].clientX - pzX;
+            startY = e.touches[0].clientY - pzY;
+            
+            if (pzScale > 1) isPanning = true;
         }
     });
 
     touchOverlay.addEventListener('touchmove', (e) => {
         e.preventDefault(); 
+        isClickCandidate = false; // Finger moved, cancel the tap
+
         if (e.touches.length === 2) {
-            // 2 FINGERS: Execute Pan & Zoom
+            // EXECUTE ZOOM
             const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            // Limit zoom to exactly 1:1 screen resolution (1 / baseScale)
-            const maxZoom = 1.0 / baseScale;
+            // Allow zooming in until the screen is exactly 1:1 pixel resolution
+            const maxZoom = 1.0 / cssScale; 
             pzScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom); 
             updatePanZoom();
         } 
-        else if (e.touches.length === 1) {
-            if (isPanning && pzScale > 1) {
-                // 1 FINGER PANNING
-                pzX = e.touches[0].clientX - startX;
-                pzY = e.touches[0].clientY - startY;
-                updatePanZoom();
-            } else if (pzScale === 1) {
-                // 1 FINGER MOUSE DRAG
-                const coords = getEmulatorCoords(e.touches[0]);
-                if (iframe.contentWindow) {
-                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: coords.x, y: coords.y }, '*');
-                }
-            }
+        else if (e.touches.length === 1 && isPanning && pzScale > 1) {
+            // EXECUTE PAN
+            pzX = e.touches[0].clientX - startX;
+            pzY = e.touches[0].clientY - startY;
+            updatePanZoom();
         }
     });
 
@@ -346,10 +376,21 @@
         
         if (e.touches.length === 0) {
             isPanning = false;
-            // Send mouse up when last finger lifts
-            if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
             
-            // Snap back if unzoomed
+            // EVALUATE SMART TAP
+            if (isClickCandidate && (Date.now() - touchStartTime) < 300) {
+                // User performed a quick tap! Fire a native mouse click at that location.
+                const coords = getEmulatorCoords(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: coords.x, y: coords.y }, '*');
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
+                    setTimeout(() => {
+                        iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
+                    }, 50);
+                }
+            }
+            
+            // Snap back if completely unzoomed
             if (pzScale === 1) {
                 pzX = 0; pzY = 0;
                 updatePanZoom();
@@ -358,16 +399,46 @@
     });
 
     function updatePanZoom() {
-        // Clamp panning so the game doesn't float away
-        // (Simplified bounds checking for user comfort)
-        if (pzScale === 1) {
-            pzX = 0; pzY = 0;
-        }
         panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
     }
 
 
-    // --- 3. WebGL Cardinal-Adjacency Dedither (Unchanged) ---
+    // --- 4. VIRTUAL KEYBOARD INJECTION ---
+    const kbInput = document.getElementById('keyboard-input');
+    
+    // Fallback dictionary for mobile browsers that send bad e.code data
+    const charToCode = {
+        'a':'KeyA', 'b':'KeyB', 'c':'KeyC', 'd':'KeyD', 'e':'KeyE', 'f':'KeyF', 'g':'KeyG', 'h':'KeyH', 
+        'i':'KeyI', 'j':'KeyJ', 'k':'KeyK', 'l':'KeyL', 'm':'KeyM', 'n':'KeyN', 'o':'KeyO', 'p':'KeyP', 
+        'q':'KeyQ', 'r':'KeyR', 's':'KeyS', 't':'KeyT', 'u':'KeyU', 'v':'KeyV', 'w':'KeyW', 'x':'KeyX', 
+        'y':'KeyY', 'z':'KeyZ', '1':'Digit1', '2':'Digit2', '3':'Digit3', '4':'Digit4', '5':'Digit5', 
+        '6':'Digit6', '7':'Digit7', '8':'Digit8', '9':'Digit9', '0':'Digit0', ' ':'Space', 
+        'backspace':'Backspace', 'enter':'Enter'
+    };
+
+    kbInput.addEventListener('keydown', (e) => {
+        let code = e.code;
+        if (!code || code === 'Unidentified' || code === '229') {
+            const char = e.key.toLowerCase();
+            code = charToCode[char];
+        }
+        if (code) sendKey(code, true);
+    });
+
+    kbInput.addEventListener('keyup', (e) => {
+        let code = e.code;
+        if (!code || code === 'Unidentified' || code === '229') {
+            const char = e.key.toLowerCase();
+            code = charToCode[char];
+        }
+        if (code) sendKey(code, false);
+    });
+
+    // Clear input field occasionally so it doesn't get infinitely long
+    kbInput.addEventListener('blur', () => kbInput.value = '');
+
+
+    // --- 5. WEBGL DEDITHER ---
     const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
 
     const vsSource = `
@@ -388,25 +459,18 @@
 
         void main() {
             vec2 px = vec2(1.0, 1.0) / u_texSize;
-            
             vec4 C  = texture2D(u_image, v_texCoord);
             vec4 L  = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0));
             vec4 R  = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
             vec4 U  = texture2D(u_image, v_texCoord + vec2(0.0, -px.y));
             vec4 D  = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
-            
             vec4 TL = texture2D(u_image, v_texCoord + vec2(-px.x, -px.y));
             vec4 TR = texture2D(u_image, v_texCoord + vec2(px.x, -px.y));
             vec4 BL = texture2D(u_image, v_texCoord + vec2(-px.x, px.y));
             vec4 BR = texture2D(u_image, v_texCoord + vec2(px.x, px.y));
 
             float t = 0.08; 
-            
-            bool is_shape = (length(C.rgb - L.rgb) < t || 
-                             length(C.rgb - R.rgb) < t || 
-                             length(C.rgb - U.rgb) < t || 
-                             length(C.rgb - D.rgb) < t);
-            
+            bool is_shape = (length(C.rgb - L.rgb) < t || length(C.rgb - R.rgb) < t || length(C.rgb - U.rgb) < t || length(C.rgb - D.rgb) < t);
             bool match_pos = (length(C.rgb - TL.rgb) < t && length(C.rgb - BR.rgb) < t);
             bool match_neg = (length(C.rgb - TR.rgb) < t && length(C.rgb - BL.rgb) < t);
             bool is_diag_line = (match_pos && !match_neg) || (!match_pos && match_neg);
@@ -449,13 +513,13 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
-    gl.uniform2f(texSizeLocation, 640.0, 800.0);
+    gl.uniform2f(texSizeLocation, baseWidth, baseHeight); // Use the new dynamic dimensions
 
+    const filterToggle = document.getElementById('filter-toggle');
     let isCrisp = true;
     filterToggle.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         isCrisp = !isCrisp;
-        
         if (isCrisp) {
             glCanvas.style.display = 'none';
             iframe.style.opacity = '1';
@@ -470,16 +534,14 @@
     window.addEventListener("message", e => {
         if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
             try {
-                const w = e.data.width || 640;
-                const h = e.data.height || 800;
                 gl.bindTexture(gl.TEXTURE_2D, texture);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, e.data.width||baseWidth, e.data.height||baseHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
             } catch (err) {}
         }
     });
 
-    // --- 4. Controller Key Injection ---
+    // --- 6. CONTROLLER KEY INJECTION ---
     function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
         iframe.contentWindow.postMessage({
@@ -488,23 +550,11 @@
         }, '*');
     }
 
-    buttons.forEach(btn => {
+    document.querySelectorAll('.btn:not(#filter-toggle)').forEach(btn => {
         const keyCode = btn.getAttribute('data-code');
-        
-        btn.addEventListener('pointerdown', (e) => {
-            e.preventDefault(); 
-            sendKey(keyCode, true);
-        });
-
-        btn.addEventListener('pointerup', (e) => {
-            e.preventDefault();
-            sendKey(keyCode, false);
-        });
-
-        btn.addEventListener('pointerleave', (e) => {
-            e.preventDefault();
-            sendKey(keyCode, false);
-        });
+        btn.addEventListener('pointerdown', e => { e.preventDefault(); sendKey(keyCode, true); });
+        btn.addEventListener('pointerup', e => { e.preventDefault(); sendKey(keyCode, false); });
+        btn.addEventListener('pointerleave', e => { e.preventDefault(); sendKey(keyCode, false); });
     });
 </script>
 
