@@ -12,14 +12,14 @@
             height: 100%;
             background-color: #3B0000;
             overflow: hidden;
-            touch-action: none; /* Disables native browser zooming/scrolling */
+            touch-action: none;
             font-family: 'Courier New', Courier, monospace;
         }
 
         #app-container {
             display: flex;
             width: 100vw;
-            height: 100dvh; /* dvh ensures it respects Safari's dynamic address bar */
+            height: 100dvh;
             flex-direction: row;
         }
 
@@ -45,7 +45,6 @@
             width: calc(100dvh * (4 / 3));
         }
 
-        /* NEW: Wrapper for custom pinch-to-zoom logic */
         #pan-zoom-container {
             width: 100%;
             height: 100%;
@@ -106,7 +105,7 @@
             border-bottom: 2px solid #8B6914;
             border-right: 2px solid #8B6914;
             color: #FCE688;
-            font-size: clamp(0.7rem, 2.5vh, 1rem); /* Dynamically shrinks if screen is too small */
+            font-size: clamp(0.7rem, 2.5vh, 1rem);
             font-weight: bold;
             display: flex;
             align-items: center;
@@ -179,7 +178,6 @@
     </div>
 
     <div id="emulator-wrapper">
-        <!-- New container for zoom/pan transforms -->
         <div id="pan-zoom-container">
             <div id="scale-target">
                 <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
@@ -241,7 +239,7 @@
         if (e.touches.length === 2) {
             e.preventDefault(); 
             const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            pzScale = Math.min(Math.max(1, initialScale * (dist / startDist)), 4); // Max 4x zoom
+            pzScale = Math.min(Math.max(1, initialScale * (dist / startDist)), 4); 
             updatePanZoom();
         } else if (e.touches.length === 1 && isPanning && pzScale > 1) {
             e.preventDefault();
@@ -255,7 +253,6 @@
         if (e.touches.length < 2) startDist = 0;
         if (e.touches.length === 0) isPanning = false;
         
-        // Reset pan if zoomed all the way out
         if (pzScale === 1) {
             pzX = 0; pzY = 0;
             updatePanZoom();
@@ -278,7 +275,7 @@
     setTimeout(scaleIframe, 50); 
 
 
-    // --- 3. WebGL Aggressive Dedither ---
+    // --- 3. WebGL Text-Preserving Dedither ---
     const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
 
     const vsSource = `
@@ -291,7 +288,6 @@
         }
     `;
 
-    // AGGRESSIVE SHADER: Much lower thresholds to catch low-contrast dithering
     const fsSource = `
         precision mediump float;
         varying vec2 v_texCoord;
@@ -301,26 +297,52 @@
         void main() {
             vec2 px = vec2(1.0, 1.0) / u_texSize;
             
-            vec4 C = texture2D(u_image, v_texCoord);
-            vec4 L = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0));
-            vec4 R = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
-            vec4 U = texture2D(u_image, v_texCoord + vec2(0.0, -px.y));
-            vec4 D = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
+            vec4 C  = texture2D(u_image, v_texCoord);
+            vec4 L  = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0));
+            vec4 R  = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
+            vec4 U  = texture2D(u_image, v_texCoord + vec2(0.0, -px.y));
+            vec4 D  = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
             
             vec4 TL = texture2D(u_image, v_texCoord + vec2(-px.x, -px.y));
             vec4 TR = texture2D(u_image, v_texCoord + vec2(px.x, -px.y));
             vec4 BL = texture2D(u_image, v_texCoord + vec2(-px.x, px.y));
             vec4 BR = texture2D(u_image, v_texCoord + vec2(px.x, px.y));
 
-            float diff_center = length(C.rgb - L.rgb) + length(C.rgb - R.rgb) + length(C.rgb - U.rgb) + length(C.rgb - D.rgb);
-            float diff_cards = length(L.rgb - R.rgb) + length(U.rgb - D.rgb);
+            float dL = length(C.rgb - L.rgb);
+            float dR = length(C.rgb - R.rgb);
+            float dU = length(C.rgb - U.rgb);
+            float dD = length(C.rgb - D.rgb);
+            
+            float dTL = length(C.rgb - TL.rgb);
+            float dTR = length(C.rgb - TR.rgb);
+            float dBL = length(C.rgb - BL.rgb);
+            float dBR = length(C.rgb - BR.rgb);
 
-            // Extremely aggressive detection: If center oscillates even a little bit (0.05) 
-            // but the orthogonal neighbors are relatively uniform (diff_cards < 1.0), BLEND IT.
-            if (diff_center > 0.05 && diff_cards < 1.0) {
-                // Aggressive 9-pixel Gaussian-style average
-                gl_FragColor = vec4((C.rgb*2.0 + L.rgb + R.rgb + U.rgb + D.rgb + TL.rgb*0.5 + TR.rgb*0.5 + BL.rgb*0.5 + BR.rgb*0.5) / 8.0, 1.0);
+            // DETECT 1: Is it a 1px horizontal or vertical text line?
+            // If the center matches its orthogonal neighbor, it's a solid line stroke.
+            bool is_h_line = (dL < 0.1 || dR < 0.1);
+            bool is_v_line = (dU < 0.1 || dD < 0.1);
+
+            // DETECT 2: Is it a 1px diagonal text stroke? (like 'v' or 'w')
+            // Checks if exactly 2 opposite corners match the center
+            int matching_diags = 0;
+            if (dTL < 0.1) matching_diags++;
+            if (dTR < 0.1) matching_diags++;
+            if (dBL < 0.1) matching_diags++;
+            if (dBR < 0.1) matching_diags++;
+            bool is_diag_line = (matching_diags == 2) && ((dTL < 0.1 && dBR < 0.1) || (dTR < 0.1 && dBL < 0.1));
+
+            // DETECT 3: The Checkerboard Test
+            // A checkerboard has High difference from neighbors, Low difference from corners
+            float avg_ortho = (dL + dR + dU + dD) / 4.0;
+            float avg_diag  = (dTL + dTR + dBL + dBR) / 4.0;
+
+            // Only blur if it's strictly a grid pattern and DEFINITELY not a text stroke
+            if (!is_h_line && !is_v_line && !is_diag_line && (avg_ortho > avg_diag + 0.05)) {
+                // Smooth 3x3 box blend
+                gl_FragColor = vec4((C.rgb*4.0 + L.rgb*2.0 + R.rgb*2.0 + U.rgb*2.0 + D.rgb*2.0 + TL.rgb + TR.rgb + BL.rgb + BR.rgb) / 16.0, 1.0);
             } else {
+                // Text stroke, isolated dot, or solid window. Keep it perfectly sharp.
                 gl_FragColor = C;
             }
         }
