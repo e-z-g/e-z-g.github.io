@@ -82,7 +82,7 @@
 
         #pan-zoom-container {
             width: 100%; height: 100%;
-            transform-origin: top left; /* Changed to top-left for perfect focal math */
+            transform-origin: top left;
             will-change: transform;
             position: absolute;
             top: 0; left: 0;
@@ -100,7 +100,7 @@
             width: 100%; height: 100%;
             border: none;
             display: block;
-            image-rendering: pixelated; /* Forces nearest-neighbor upscaling */
+            image-rendering: pixelated;
         }
 
         #mac-iframe {
@@ -115,8 +115,18 @@
         .btn-grid {
             display: grid;
             gap: 6px;
+            /* 3 columns wide */
             grid-template-columns: repeat(3, min(14vw, 55px));
+        }
+        
+        #hud-dpad .btn-grid {
+            /* D-Pad is 3 rows tall */
             grid-template-rows: repeat(3, min(14vw, 55px));
+        }
+
+        #hud-actions .btn-grid {
+            /* Actions Grid is 4 rows tall to fit new commands */
+            grid-template-rows: repeat(4, min(14vw, 55px));
         }
 
         .btn {
@@ -126,7 +136,7 @@
             border-bottom: 2px solid #8B6914;
             border-right: 2px solid #8B6914;
             color: #FCE688;
-            font-size: 0.75rem;
+            font-size: 0.70rem;
             font-weight: bold;
             display: flex;
             flex-direction: column;
@@ -136,11 +146,11 @@
             -webkit-user-select: none;
             cursor: pointer;
             box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
-            line-height: 1;
+            line-height: 1.1;
             text-align: center;
         }
 
-        .btn span.emoji { font-size: 1.3rem; margin-bottom: 2px; }
+        .btn span.emoji { font-size: 1.25rem; margin-bottom: 2px; }
         .btn:active { 
             background-color: #150040;
             border-top: 2px solid #8B6914;
@@ -149,8 +159,6 @@
             border-right: 2px solid #C4A464;
             box-shadow: none;
         }
-
-        .btn-utility { font-size: 0.65rem; }
 
         /* Hidden Keyboard Input */
         #hidden-keyboard {
@@ -172,7 +180,7 @@
         <div id="pan-zoom-container">
             <div id="scale-target">
                 <!-- Base width is forced to 640. Height adapts automatically. -->
-                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+8.0&infinite_hd=true&machine=Quadra+650&auto_pause=true&screen_update_messages=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A-2%2C%22useMouseDeltas%22%3Atrue%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
                     id="mac-iframe" allow="cross-origin-isolated" frameborder="0"></iframe>
                 <canvas id="gl-canvas"></canvas>
                 <div id="touch-overlay"></div>
@@ -191,9 +199,11 @@
                     <div class="btn" data-code="Numpad7">↖️</div>
                     <div class="btn" data-code="Numpad8">⬆️</div>
                     <div class="btn" data-code="Numpad9">↗️</div>
+                    
                     <div class="btn" data-code="Numpad4">⬅️</div>
                     <div class="btn" data-code="Space"><span class="emoji">⏱️</span>SPC</div>
                     <div class="btn" data-code="Numpad6">➡️</div>
+                    
                     <div class="btn" data-code="Numpad1">↙️</div>
                     <div class="btn" data-code="Numpad2">⬇️</div>
                     <div class="btn" data-code="Numpad3">↘️</div>
@@ -201,20 +211,27 @@
             </div>
         </div>
 
-        <!-- ACTIONS WINDOW -->
+        <!-- ACTIONS WINDOW (Now 3x4) -->
         <div class="hud-window" id="hud-actions" style="right: 10px; bottom: 30px;">
             <div class="hud-header">ACTIONS</div>
             <div class="hud-content">
                 <div class="btn-grid">
+                    <!-- Row 1 -->
                     <div class="btn" data-code="KeyG"><span class="emoji">💰</span>Get</div>
                     <div class="btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
                     <div class="btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
+                    <!-- Row 2 -->
                     <div class="btn" data-code="KeyU"><span class="emoji">🖐️</span>Use</div>
                     <div class="btn" data-code="KeyD"><span class="emoji">🫳</span>Drop</div>
                     <div class="btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
+                    <!-- Row 3 -->
                     <div class="btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div>
                     <div class="btn" id="kb-toggle"><span class="emoji">⌨️</span>Keyb</div>
-                    <div class="btn btn-utility" id="filter-toggle"><span class="emoji">📺</span>Crisp</div>
+                    <div class="btn" id="filter-toggle"><span class="emoji">📺</span>Crisp</div>
+                    <!-- Row 4: New Capabilities -->
+                    <div class="btn" id="rclick-btn"><span class="emoji">🖱️</span>R-Clk</div>
+                    <div class="btn" id="pause-btn"><span class="emoji">⏸️</span>Pause</div>
+                    <div class="btn" data-code="Enter"><span class="emoji">↩️</span>Enter</div>
                 </div>
             </div>
         </div>
@@ -280,7 +297,7 @@
         });
     });
 
-    // --- 3. FOCAL PINCH, ZOOM, AND CLAMPING ---
+    // --- 3. ADVANCED TOUCH & MOUSE INJECTION ---
     let pzScale = 1;
     let pzX = 0, pzY = 0;
     
@@ -294,7 +311,10 @@
     let touchStartTime = 0;
     let isClickCandidate = false;
 
-    // Translates the absolute screen pixel to the underlying 640xBase Mac pixel
+    // Track last known coordinates to calculate mouse deltas
+    let lastEmulatorX = 0;
+    let lastEmulatorY = 0;
+
     function getEmulatorCoords(clientX, clientY) {
         const macX = (clientX - pzX) / (cssScale * pzScale);
         const macY = (clientY - pzY) / (cssScale * pzScale);
@@ -320,6 +340,11 @@
             touchStartTime = Date.now();
             startX = e.touches[0].clientX - pzX;
             startY = e.touches[0].clientY - pzY;
+            
+            const coords = getEmulatorCoords(e.touches[0].clientX, e.touches[0].clientY);
+            lastEmulatorX = coords.x;
+            lastEmulatorY = coords.y;
+
             if (pzScale > 1) isPanning = true;
         }
     });
@@ -330,12 +355,9 @@
 
         if (e.touches.length === 2) {
             const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            
-            // Allow zoom up to 2x physical pixel width (extremely tight zoom for nearest-neighbor)
             const maxZoom = 2.0 / cssScale; 
             const newScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom); 
             
-            // FOCAL MATH: Shift pzX and pzY so the zoom stays perfectly centered under the user's pinch
             const scaleRatio = newScale / initialPzScale;
             pzX = pinchCenterX - (pinchCenterX - initialPzX) * scaleRatio;
             pzY = pinchCenterY - (pinchCenterY - initialPzY) * scaleRatio;
@@ -343,10 +365,30 @@
             
             updatePanZoom();
         } 
-        else if (e.touches.length === 1 && isPanning && pzScale > 1) {
-            pzX = e.touches[0].clientX - startX;
-            pzY = e.touches[0].clientY - startY;
-            updatePanZoom();
+        else if (e.touches.length === 1) {
+            if (isPanning && pzScale > 1) {
+                // Pan the viewport
+                pzX = e.touches[0].clientX - startX;
+                pzY = e.touches[0].clientY - startY;
+                updatePanZoom();
+            } else if (pzScale === 1) {
+                // Inject Absolute AND Delta mouse movements if unzoomed dragging
+                const coords = getEmulatorCoords(e.touches[0].clientX, e.touches[0].clientY);
+                const dX = coords.x - lastEmulatorX;
+                const dY = coords.y - lastEmulatorY;
+
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ 
+                        type: 'emulator_mouse_move', 
+                        x: coords.x, 
+                        y: coords.y,
+                        deltaX: dX,
+                        deltaY: dY 
+                    }, '*');
+                }
+                lastEmulatorX = coords.x;
+                lastEmulatorY = coords.y;
+            }
         }
     });
 
@@ -357,9 +399,10 @@
         if (e.touches.length === 0) {
             isPanning = false;
             if (isClickCandidate && (Date.now() - touchStartTime) < 300) {
+                // It was a quick tap! Fire a click.
                 const coords = getEmulatorCoords(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
                 if (iframe.contentWindow) {
-                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: coords.x, y: coords.y }, '*');
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: coords.x, y: coords.y, deltaX: 0, deltaY: 0 }, '*');
                     iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
                     setTimeout(() => { iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'); }, 50);
                 }
@@ -368,7 +411,6 @@
     });
 
     function updatePanZoom() {
-        // Clamp panning so the game doesn't float away
         const scaledW = window.innerWidth * pzScale;
         const scaledH = window.innerHeight * pzScale;
         
@@ -383,11 +425,33 @@
     }
 
 
-    // --- 4. VIRTUAL KEYBOARD INJECTION ---
+    // --- 4. ADVANCED BUTTONS (Pause, Right-Click, Keyboard) ---
+    
+    // Pause Emulator Toggle
+    let isPaused = false;
+    const pauseBtn = document.getElementById('pause-btn');
+    pauseBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        isPaused = !isPaused;
+        if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: isPaused ? 'emulator_pause' : 'emulator_unpause' }, '*');
+        }
+        pauseBtn.innerHTML = isPaused ? '<span class="emoji">▶️</span>Play' : '<span class="emoji">⏸️</span>Pause';
+    });
+
+    // Contextual Right-Click
+    const rClickBtn = document.getElementById('rclick-btn');
+    rClickBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 2 }, '*');
+            setTimeout(() => { iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 2 }, '*'); }, 50);
+        }
+    });
+
+    // Hidden Keyboard Summoner
     const kbInput = document.getElementById('hidden-keyboard');
     const kbToggle = document.getElementById('kb-toggle');
-    
-    // Must use touchend to successfully summon iOS native keyboard
     kbToggle.addEventListener('touchend', (e) => {
         e.preventDefault();
         kbInput.focus();
@@ -404,25 +468,20 @@
 
     kbInput.addEventListener('keydown', (e) => {
         let code = e.code;
-        if (!code || code === 'Unidentified' || code === '229') {
-            const char = e.key.toLowerCase();
-            code = charToCode[char];
-        }
+        if (!code || code === 'Unidentified' || code === '229') code = charToCode[e.key.toLowerCase()];
         if (code) sendKey(code, true);
     });
 
     kbInput.addEventListener('keyup', (e) => {
         let code = e.code;
-        if (!code || code === 'Unidentified' || code === '229') {
-            const char = e.key.toLowerCase();
-            code = charToCode[char];
-        }
+        if (!code || code === 'Unidentified' || code === '229') code = charToCode[e.key.toLowerCase()];
         if (code) sendKey(code, false);
     });
 
     kbInput.addEventListener('blur', () => kbInput.value = '');
 
-    // --- 5. WEBGL DEDITHER ---
+
+    // --- 5. WEBGL SMART DEDITHER ---
     const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
 
     const vsSource = `
@@ -525,7 +584,7 @@
         }
     });
 
-    // --- 6. CONTROLLER KEY INJECTION ---
+    // --- 6. STANDARD KEY INJECTION ---
     function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
         iframe.contentWindow.postMessage({
@@ -534,7 +593,8 @@
         }, '*');
     }
 
-    document.querySelectorAll('.btn:not(#filter-toggle):not(#kb-toggle)').forEach(btn => {
+    // Attach to all buttons EXCEPT the utility toggles
+    document.querySelectorAll('.btn:not(#filter-toggle):not(#kb-toggle):not(#pause-btn):not(#rclick-btn)').forEach(btn => {
         const keyCode = btn.getAttribute('data-code');
         btn.addEventListener('pointerdown', e => { e.preventDefault(); sendKey(keyCode, true); });
         btn.addEventListener('pointerup', e => { e.preventDefault(); sendKey(keyCode, false); });
