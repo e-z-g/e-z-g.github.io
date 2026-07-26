@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Video Scaler</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .controls {
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            max-width: 800px;
+            width: 100%;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        input, select, button {
+            padding: 8px 12px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #2a2a2a;
+            color: #fff;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0056b3; }
+        canvas {
+            border: 1px solid #333;
+            background-color: #000;
+            max-width: 100%;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+        }
+        /* Fallback for nearest neighbor via CSS if needed */
+        .pixelated {
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="videoUpload">Load Video:</label>
+            <input type="file" id="videoUpload" accept="video/*">
+        </div>
+        
+        <div class="control-group">
+            <label for="outWidth">Target Width (px):</label>
+            <input type="number" id="outWidth" value="1280">
+        </div>
+
+        <div class="control-group">
+            <label for="outHeight">Target Height (px):</label>
+            <input type="number" id="outHeight" value="720">
+        </div>
+
+        <div class="control-group">
+            <label for="algoSelect">Scaling Algorithm:</label>
+            <select id="algoSelect">
+                <option value="smooth">Smooth (Bilinear/Bicubic)</option>
+                <option value="nearest">Nearest Neighbor (Pixelated)</option>
+            </select>
+        </div>
+
+        <div class="control-group" style="flex-direction: row; align-items: flex-end; height: 100%;">
+            <button id="playBtn">Play / Pause</button>
+        </div>
+    </div>
+
+    <!-- Hidden video element to process the raw file -->
+    <video id="sourceVideo" style="display: none;" loop playsinline></video>
+    
+    <!-- Canvas where the resized output is drawn -->
+    <canvas id="outputCanvas"></canvas>
+
+    <script>
+        const videoUpload = document.getElementById('videoUpload');
+        const sourceVideo = document.getElementById('sourceVideo');
+        const canvas = document.getElementById('outputCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // alpha:false optimizes performance
+        
+        const outWidthInput = document.getElementById('outWidth');
+        const outHeightInput = document.getElementById('outHeight');
+        const algoSelect = document.getElementById('algoSelect');
+        const playBtn = document.getElementById('playBtn');
+
+        let animationFrameId = null;
+
+        // Handle video upload
+        videoUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const fileURL = URL.createObjectURL(file);
+            sourceVideo.src = fileURL;
+            sourceVideo.load();
+            
+            // Auto-play when ready
+            sourceVideo.onloadeddata = () => {
+                updateCanvasSize();
+                sourceVideo.play();
+                startRenderLoop();
+            };
+        });
+
+        // Toggle Play/Pause
+        playBtn.addEventListener('click', () => {
+            if (sourceVideo.paused) {
+                sourceVideo.play();
+            } else {
+                sourceVideo.pause();
+            }
+        });
+
+        // Update settings dynamically
+        outWidthInput.addEventListener('change', updateCanvasSize);
+        outHeightInput.addEventListener('change', updateCanvasSize);
+        algoSelect.addEventListener('change', applyScalingAlgorithm);
+
+        function updateCanvasSize() {
+            canvas.width = parseInt(outWidthInput.value, 10);
+            canvas.height = parseInt(outHeightInput.value, 10);
+            applyScalingAlgorithm(); // Re-apply when canvas resizes
+        }
+
+        function applyScalingAlgorithm() {
+            const algo = algoSelect.value;
+            
+            if (algo === 'nearest') {
+                // Disable smoothing for Nearest Neighbor
+                ctx.imageSmoothingEnabled = false;
+                canvas.classList.add('pixelated');
+            } else {
+                // Enable smoothing (Browser defaults to Bilinear or Bicubic)
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                canvas.classList.remove('pixelated');
+            }
+        }
+
+        // Render loop: draws the video frame to the canvas at 60fps
+        function renderFrame() {
+            if (!sourceVideo.paused && !sourceVideo.ended) {
+                // Draw the video stretched/scaled to the canvas dimensions
+                ctx.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height);
+            }
+            animationFrameId = requestAnimationFrame(renderFrame);
+        }
+
+        function startRenderLoop() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            applyScalingAlgorithm();
+            renderFrame();
+        }
+    </script>
+</body>
+</html>
