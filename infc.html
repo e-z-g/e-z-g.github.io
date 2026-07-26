@@ -41,8 +41,9 @@
             background-color: #000;
             position: relative;
             overflow: hidden;
+            /* Landscape fallback: Height is maxed, width adapts to 640/800 ratio */
             height: 100dvh;
-            width: calc(100dvh * (4 / 3));
+            width: calc(100dvh * (640 / 800));
         }
 
         #pan-zoom-container {
@@ -52,9 +53,13 @@
             will-change: transform;
         }
 
+        /* 
+         * VERTICAL MONITOR UPDATE
+         * The base resolution is now 640x800 
+         */
         #scale-target {
             width: 640px;
-            height: 480px;
+            height: 800px;
             transform-origin: top left;
             position: absolute;
             top: 0;
@@ -62,8 +67,14 @@
         }
 
         #mac-iframe, #gl-canvas {
-            width: 640px;
-            height: 480px;
+            min-width: 640px !important;
+            max-width: 640px !important;
+            width: 640px !important;
+            
+            min-height: 800px !important;
+            max-height: 800px !important;
+            height: 800px !important;
+            
             position: absolute;
             top: 0;
             left: 0;
@@ -142,16 +153,17 @@
         .btn-down { grid-column: 2; grid-row: 3; }
         .btn-wide { grid-column: 1 / -1; margin-top: 4px; }
 
-        @media (min-aspect-ratio: 4/3) {
+        @media (min-aspect-ratio: 4/5) {
             #left-controls { border-right: 3px solid #C4A464; }
             #right-controls { border-left: 3px solid #8B6914; }
         }
 
-        @media (max-aspect-ratio: 4/3) {
+        /* Portrait layout adapts to the new taller aspect ratio */
+        @media (max-aspect-ratio: 4/5) {
             #app-container { flex-direction: column; }
             #emulator-wrapper {
                 width: 100vw;
-                height: calc(100vw * (3 / 4));
+                height: calc(100vw * (800 / 640));
             }
             #left-controls { border-bottom: 3px solid #C4A464; }
             #right-controls { border-top: 3px solid #8B6914; }
@@ -180,12 +192,13 @@
     <div id="emulator-wrapper">
         <div id="pan-zoom-container">
             <div id="scale-target">
+                <!-- Infinite Mac will read the new 640x800 iframe bounds and set the virtual resolution accordingly -->
                 <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
                     id="mac-iframe"
                     allow="cross-origin-isolated"
                     frameborder="0"></iframe>
                 
-                <canvas id="gl-canvas" width="640" height="480"></canvas>
+                <canvas id="gl-canvas" width="640" height="800"></canvas>
             </div>
         </div>
     </div>
@@ -262,7 +275,7 @@
     }
 
 
-    // --- 2. Base Iframe Scaling ---
+    // --- 2. Base Iframe Scaling (Updated for 640 width lock) ---
     function scaleIframe() {
         const wrapperRect = wrapper.getBoundingClientRect();
         const scale = wrapperRect.width / 640;
@@ -286,7 +299,6 @@
         }
     `;
 
-    // ULTIMATE SHADER: Protects any pixel that matches a neighbor.
     const fsSource = `
         precision mediump float;
         varying vec2 v_texCoord;
@@ -307,26 +319,20 @@
             vec4 BL = texture2D(u_image, v_texCoord + vec2(-px.x, px.y));
             vec4 BR = texture2D(u_image, v_texCoord + vec2(px.x, px.y));
 
-            float t = 0.08; // Color match threshold
+            float t = 0.08; 
             
-            // Check if the pixel matches ANY of its up/down/left/right neighbors
             bool is_shape = (length(C.rgb - L.rgb) < t || 
                              length(C.rgb - R.rgb) < t || 
                              length(C.rgb - U.rgb) < t || 
                              length(C.rgb - D.rgb) < t);
             
-            // Protect diagonal line strokes (where ONE axis matches, but not BOTH)
             bool match_pos = (length(C.rgb - TL.rgb) < t && length(C.rgb - BR.rgb) < t);
             bool match_neg = (length(C.rgb - TR.rgb) < t && length(C.rgb - BL.rgb) < t);
             bool is_diag_line = (match_pos && !match_neg) || (!match_pos && match_neg);
 
             if (is_shape || is_diag_line) {
-                // If it matches a neighbor, it's a solid block, UI frame, or 1px text line.
-                // Keep it perfectly sharp!
                 gl_FragColor = C;
             } else {
-                // If it matches NONE of its cardinal neighbors, it is a checkerboard pixel.
-                // Apply a perfect Gaussian blur to melt it seamlessly.
                 vec3 blur = (C.rgb*4.0 + L.rgb*2.0 + R.rgb*2.0 + U.rgb*2.0 + D.rgb*2.0 + TL.rgb + TR.rgb + BL.rgb + BR.rgb) / 16.0;
                 gl_FragColor = vec4(blur, 1.0);
             }
@@ -365,7 +371,8 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
-    gl.uniform2f(texSizeLocation, 640.0, 480.0);
+    // WebGL uniform updated for 640x800 height
+    gl.uniform2f(texSizeLocation, 640.0, 800.0);
 
     let isCrisp = true;
     filterToggle.addEventListener('pointerdown', (e) => {
@@ -386,8 +393,11 @@
     window.addEventListener("message", e => {
         if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
             try {
+                // Support dynamic resolution parsing in case Infinite Mac overrides it
+                const w = e.data.width || 640;
+                const h = e.data.height || 800;
                 gl.bindTexture(gl.TEXTURE_2D, texture);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 640, 480, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
                 gl.drawArrays(gl.TRIANGLES, 0, 6);
             } catch (err) {}
         }
