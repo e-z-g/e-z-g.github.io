@@ -16,47 +16,36 @@
             font-family: 'Courier New', Courier, monospace;
         }
 
+        /* Enforce Vertical Layout */
         #app-container {
             display: flex;
             width: 100vw;
             height: 100dvh;
-            flex-direction: row;
-        }
-
-        .control-bank {
-            flex: 1;
-            display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background-color: #3B0000;
-            padding: min(2vw, 10px);
-            gap: 10px;
-            box-sizing: border-box;
-            overflow: hidden;
         }
 
+        /* Top: Game Window */
         #emulator-wrapper {
-            flex-shrink: 0;
+            flex-grow: 1;
             background-color: #000;
             position: relative;
             overflow: hidden;
-            /* Landscape fallback: Height is maxed, width adapts to 640/800 ratio */
-            height: 100dvh;
-            width: calc(100dvh * (640 / 800));
+            width: 100vw;
+            border-bottom: 3px solid #C4A464;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #pan-zoom-container {
-            width: 100%;
-            height: 100%;
+            width: 640px;
+            height: 800px;
             transform-origin: center center;
             will-change: transform;
+            position: absolute;
         }
 
-        /* 
-         * VERTICAL MONITOR UPDATE
-         * The base resolution is now 640x800 
-         */
         #scale-target {
             width: 640px;
             height: 800px;
@@ -66,15 +55,9 @@
             left: 0;
         }
 
-        #mac-iframe, #gl-canvas {
-            min-width: 640px !important;
-            max-width: 640px !important;
-            width: 640px !important;
-            
-            min-height: 800px !important;
-            max-height: 800px !important;
-            height: 800px !important;
-            
+        #mac-iframe, #gl-canvas, #touch-overlay {
+            width: 640px;
+            height: 800px;
             position: absolute;
             top: 0;
             left: 0;
@@ -93,20 +76,45 @@
             display: none;        
         }
 
+        /* Captures touches to manage pan/zoom vs mouse injection */
+        #touch-overlay {
+            z-index: 10;
+            touch-action: none;
+        }
+
+        /* Bottom: Unified Control Panel */
+        #bottom-controls {
+            flex-shrink: 0;
+            height: 32dvh; /* Takes up bottom third of screen */
+            min-height: 220px;
+            display: flex;
+            flex-direction: row;
+            background-color: #3B0000;
+            border-top: 3px solid #8B6914;
+            box-sizing: border-box;
+        }
+
+        .control-bank {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        #left-controls { border-right: 2px solid #220000; }
+        #right-controls { border-left: 2px solid #5A0000; }
+
         .btn-grid {
             display: grid;
             gap: 6px;
             width: 100%;
-            max-width: 160px;
-        }
-
-        .d-pad-grid {
+            height: 100%;
+            max-width: 220px;
+            max-height: 220px;
             grid-template-columns: repeat(3, 1fr);
             grid-template-rows: repeat(3, 1fr);
-        }
-
-        .action-grid {
-            grid-template-columns: repeat(2, 1fr);
         }
 
         .btn {
@@ -116,16 +124,23 @@
             border-bottom: 2px solid #8B6914;
             border-right: 2px solid #8B6914;
             color: #FCE688;
-            font-size: clamp(0.7rem, 2.5vh, 1rem);
+            font-size: clamp(0.7rem, 2vh, 1.1rem);
             font-weight: bold;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: min(10px, 1.5vh) 2px;
             user-select: none;
             -webkit-user-select: none;
             cursor: pointer;
             box-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            text-align: center;
+            line-height: 1.1;
+        }
+
+        .btn span.emoji {
+            font-size: 1.2em;
+            margin-bottom: 2px;
         }
 
         .btn:active { 
@@ -139,82 +154,84 @@
         }
 
         .btn-utility {
-            font-size: clamp(0.6rem, 2vh, 0.85rem);
             background-color: #3B0000;
             border: 1px solid #C4A464;
-            margin-top: 5px;
             color: #FCE688;
+            grid-column: 2 / 4; /* Takes up 2 columns in bottom right */
         }
         
         .btn-utility:active { background-color: #220000; }
-        .btn-up { grid-column: 2; grid-row: 1; }
-        .btn-left { grid-column: 1; grid-row: 2; }
-        .btn-right { grid-column: 3; grid-row: 2; }
-        .btn-down { grid-column: 2; grid-row: 3; }
-        .btn-wide { grid-column: 1 / -1; margin-top: 4px; }
 
-        @media (min-aspect-ratio: 4/5) {
-            #left-controls { border-right: 3px solid #C4A464; }
-            #right-controls { border-left: 3px solid #8B6914; }
-        }
+        /* Specific Button Placements (D-Pad) */
+        .btn-nw { grid-column: 1; grid-row: 1; }
+        .btn-n  { grid-column: 2; grid-row: 1; }
+        .btn-ne { grid-column: 3; grid-row: 1; }
+        .btn-w  { grid-column: 1; grid-row: 2; }
+        .btn-c  { grid-column: 2; grid-row: 2; }
+        .btn-e  { grid-column: 3; grid-row: 2; }
+        .btn-sw { grid-column: 1; grid-row: 3; }
+        .btn-s  { grid-column: 2; grid-row: 3; }
+        .btn-se { grid-column: 3; grid-row: 3; }
 
-        /* Portrait layout adapts to the new taller aspect ratio */
-        @media (max-aspect-ratio: 4/5) {
-            #app-container { flex-direction: column; }
-            #emulator-wrapper {
-                width: 100vw;
-                height: calc(100vw * (800 / 640));
-            }
-            #left-controls { border-bottom: 3px solid #C4A464; }
-            #right-controls { border-top: 3px solid #8B6914; }
-            .control-bank { flex-direction: row; }
-            .btn-grid { max-width: none; }
-            .btn-utility { margin-top: 0; }
-        }
     </style>
 </head>
 <body>
 
 <div id="app-container">
-    <div class="control-bank" id="left-controls">
-        <div class="btn-grid d-pad-grid">
-            <div class="btn btn-up" data-code="ArrowUp">▲</div>
-            <div class="btn btn-left" data-code="ArrowLeft">◄</div>
-            <div class="btn btn-right" data-code="ArrowRight">►</div>
-            <div class="btn btn-down" data-code="ArrowDown">▼</div>
-        </div>
-        <div class="btn-grid">
-            <div class="btn btn-wide" data-code="Space">SPACE</div>
-            <div class="btn btn-wide btn-utility" id="filter-toggle">[ Filter: Crisp ]</div>
-        </div>
-    </div>
-
+    
+    <!-- TOP: GAME WINDOW -->
     <div id="emulator-wrapper">
         <div id="pan-zoom-container">
             <div id="scale-target">
-                <!-- Infinite Mac will read the new 640x800 iframe bounds and set the virtual resolution accordingly -->
                 <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
                     id="mac-iframe"
                     allow="cross-origin-isolated"
                     frameborder="0"></iframe>
                 
                 <canvas id="gl-canvas" width="640" height="800"></canvas>
+                
+                <!-- Transparent touch receiver overlay -->
+                <div id="touch-overlay"></div>
             </div>
         </div>
     </div>
     
-    <div class="control-bank" id="right-controls">
-        <div class="btn-grid action-grid">
-            <div class="btn" data-code="KeyG">Get</div>
-            <div class="btn" data-code="KeyT">Talk</div>
-            <div class="btn" data-code="KeyL">Look</div>
-            <div class="btn" data-code="KeyU">Use</div>
-            <div class="btn" data-code="KeyD">Drop</div>
-            <div class="btn" data-code="KeyA">Attck</div>
+    <!-- BOTTOM: UNIFIED CONTROLS -->
+    <div id="bottom-controls">
+        
+        <!-- LEFT: 3x3 NUMPAD + SPACE -->
+        <div class="control-bank" id="left-controls">
+            <div class="btn-grid">
+                <div class="btn btn-nw" data-code="Numpad7">↖️</div>
+                <div class="btn btn-n"  data-code="Numpad8">⬆️</div>
+                <div class="btn btn-ne" data-code="Numpad9">↗️</div>
+                
+                <div class="btn btn-w"  data-code="Numpad4">⬅️</div>
+                <div class="btn btn-c"  data-code="Space">SPACE</div>
+                <div class="btn btn-e"  data-code="Numpad6">➡️</div>
+                
+                <div class="btn btn-sw" data-code="Numpad1">↙️</div>
+                <div class="btn btn-s"  data-code="Numpad2">⬇️</div>
+                <div class="btn btn-se" data-code="Numpad3">↘️</div>
+            </div>
         </div>
-        <div class="btn-grid">
-            <div class="btn btn-wide" data-code="KeyC">Cast Spell</div>
+
+        <!-- RIGHT: ACTIONS & FILTER -->
+        <div class="control-bank" id="right-controls">
+            <div class="btn-grid">
+                <div class="btn" data-code="KeyG"><span class="emoji">🖐️</span>Get</div>
+                <div class="btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
+                <div class="btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
+                
+                <div class="btn" data-code="KeyU"><span class="emoji">🔧</span>Use</div>
+                <div class="btn" data-code="KeyD"><span class="emoji">🔽</span>Drop</div>
+                <div class="btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
+                
+                <div class="btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div>
+                <div class="btn btn-utility" id="filter-toggle">[ Filter: Crisp ]</div>
+            </div>
         </div>
+        
     </div>
 </div>
 
@@ -223,70 +240,134 @@
     const scaleTarget = document.getElementById('scale-target');
     const panZoomContainer = document.getElementById('pan-zoom-container');
     const wrapper = document.getElementById('emulator-wrapper');
+    const touchOverlay = document.getElementById('touch-overlay');
     const buttons = document.querySelectorAll('.btn:not(#filter-toggle)');
     const filterToggle = document.getElementById('filter-toggle');
     const glCanvas = document.getElementById('gl-canvas');
 
-    // --- 1. Pinch To Zoom Logic ---
+    // --- 1. Base Scaling Math ---
+    let baseScale = 1;
+    function scaleIframe() {
+        const wrapperRect = wrapper.getBoundingClientRect();
+        // Fit 640x800 into the dynamic wrapper box
+        baseScale = Math.min(wrapperRect.width / 640, wrapperRect.height / 800);
+        
+        // Apply base scale to the target so it fits
+        scaleTarget.style.transform = `scale(${baseScale})`;
+        
+        // Center it inside the wrapper
+        panZoomContainer.style.left = `${(wrapperRect.width - (640 * baseScale)) / 2}px`;
+        panZoomContainer.style.top = `${(wrapperRect.height - (800 * baseScale)) / 2}px`;
+        
+        updatePanZoom(); // Reapply user pan/zoom limits
+    }
+    window.addEventListener('resize', scaleIframe);
+    setTimeout(scaleIframe, 50);
+
+    // --- 2. Advanced Pan, Zoom & Mouse Forwarding ---
     let pzScale = 1;
     let pzX = 0, pzY = 0;
+    
     let isPanning = false;
     let startX = 0, startY = 0;
     let startDist = 0;
-    let initialScale = 1;
+    let initialPzScale = 1;
+    let initialPzX = 0, initialPzY = 0;
 
-    wrapper.addEventListener('touchstart', (e) => {
+    // Helper: Translate a physical screen touch into absolute emulator coords
+    function getEmulatorCoords(touch) {
+        const rect = touchOverlay.getBoundingClientRect();
+        // Math converts scaled/translated physical pixels back to raw 0-640 / 0-800 space
+        const x = (touch.clientX - rect.left) * (640 / rect.width);
+        const y = (touch.clientY - rect.top) * (800 / rect.height);
+        return { x: Math.round(x), y: Math.round(y) };
+    }
+
+    touchOverlay.addEventListener('touchstart', (e) => {
+        e.preventDefault();
         if (e.touches.length === 2) {
+            // 2 FINGERS: Start Pan & Zoom
             startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            initialScale = pzScale;
+            initialPzScale = pzScale;
+            initialPzX = pzX;
+            initialPzY = pzY;
             isPanning = false;
-        } else if (e.touches.length === 1) {
-            isPanning = true;
-            startX = e.touches[0].clientX - pzX;
-            startY = e.touches[0].clientY - pzY;
+            
+            // Send a mouse-up just in case 1st finger was dragging
+            if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
+        } 
+        else if (e.touches.length === 1) {
+            // 1 FINGER: Start Mouse Injection OR Panning
+            if (pzScale > 1) {
+                // If zoomed in, 1 finger pans the camera
+                isPanning = true;
+                startX = e.touches[0].clientX - pzX;
+                startY = e.touches[0].clientY - pzY;
+            } else {
+                // If fully zoomed out, 1 finger clicks the mouse
+                const coords = getEmulatorCoords(e.touches[0]);
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: coords.x, y: coords.y }, '*');
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
+                }
+            }
         }
     });
 
-    wrapper.addEventListener('touchmove', (e) => {
+    touchOverlay.addEventListener('touchmove', (e) => {
+        e.preventDefault(); 
         if (e.touches.length === 2) {
-            e.preventDefault(); 
+            // 2 FINGERS: Execute Pan & Zoom
             const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            pzScale = Math.min(Math.max(1, initialScale * (dist / startDist)), 4); 
+            // Limit zoom to exactly 1:1 screen resolution (1 / baseScale)
+            const maxZoom = 1.0 / baseScale;
+            pzScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom); 
             updatePanZoom();
-        } else if (e.touches.length === 1 && isPanning && pzScale > 1) {
-            e.preventDefault();
-            pzX = e.touches[0].clientX - startX;
-            pzY = e.touches[0].clientY - startY;
-            updatePanZoom();
+        } 
+        else if (e.touches.length === 1) {
+            if (isPanning && pzScale > 1) {
+                // 1 FINGER PANNING
+                pzX = e.touches[0].clientX - startX;
+                pzY = e.touches[0].clientY - startY;
+                updatePanZoom();
+            } else if (pzScale === 1) {
+                // 1 FINGER MOUSE DRAG
+                const coords = getEmulatorCoords(e.touches[0]);
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: coords.x, y: coords.y }, '*');
+                }
+            }
         }
     });
 
-    wrapper.addEventListener('touchend', (e) => {
+    touchOverlay.addEventListener('touchend', (e) => {
+        e.preventDefault();
         if (e.touches.length < 2) startDist = 0;
-        if (e.touches.length === 0) isPanning = false;
-        if (pzScale === 1) {
-            pzX = 0; pzY = 0;
-            updatePanZoom();
+        
+        if (e.touches.length === 0) {
+            isPanning = false;
+            // Send mouse up when last finger lifts
+            if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
+            
+            // Snap back if unzoomed
+            if (pzScale === 1) {
+                pzX = 0; pzY = 0;
+                updatePanZoom();
+            }
         }
     });
 
     function updatePanZoom() {
+        // Clamp panning so the game doesn't float away
+        // (Simplified bounds checking for user comfort)
+        if (pzScale === 1) {
+            pzX = 0; pzY = 0;
+        }
         panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
     }
 
 
-    // --- 2. Base Iframe Scaling (Updated for 640 width lock) ---
-    function scaleIframe() {
-        const wrapperRect = wrapper.getBoundingClientRect();
-        const scale = wrapperRect.width / 640;
-        scaleTarget.style.transform = `scale(${scale})`;
-    }
-
-    window.addEventListener('resize', scaleIframe);
-    setTimeout(scaleIframe, 50); 
-
-
-    // --- 3. WebGL Cardinal-Adjacency Dedither ---
+    // --- 3. WebGL Cardinal-Adjacency Dedither (Unchanged) ---
     const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
 
     const vsSource = `
@@ -354,10 +435,7 @@
 
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        -1.0, -1.0,  1.0, -1.0,  -1.0,  1.0,
-        -1.0,  1.0,  1.0, -1.0,   1.0,  1.0
-    ]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
     
     const positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
     gl.enableVertexAttribArray(positionLocation);
@@ -371,7 +449,6 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
-    // WebGL uniform updated for 640x800 height
     gl.uniform2f(texSizeLocation, 640.0, 800.0);
 
     let isCrisp = true;
@@ -393,7 +470,6 @@
     window.addEventListener("message", e => {
         if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
             try {
-                // Support dynamic resolution parsing in case Infinite Mac overrides it
                 const w = e.data.width || 640;
                 const h = e.data.height || 800;
                 gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -403,7 +479,7 @@
         }
     });
 
-    // --- 4. Emulator Input ---
+    // --- 4. Controller Key Injection ---
     function sendKey(code, isKeyDown) {
         if (!iframe.contentWindow) return;
         iframe.contentWindow.postMessage({
