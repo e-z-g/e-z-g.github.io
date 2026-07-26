@@ -12,7 +12,7 @@
             height: 100dvh;
             background-color: #000;
             overflow: hidden;
-            touch-action: none; /* Prevents native iOS pull-to-refresh/zoom */
+            touch-action: none;
             font-family: 'Courier New', Courier, monospace;
         }
 
@@ -23,21 +23,20 @@
         }
 
         /* 
-         * TOP LAYER: Floating Movable Windows
-         * These intercept touches so you can interact with the UI
+         * TOP LAYER: Floating Movable Windows 
          */
         #hud-layer {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            pointer-events: none; /* Let touches pass through the empty space */
+            pointer-events: none; 
             z-index: 100;
         }
 
         .hud-window {
             position: absolute;
-            pointer-events: auto; /* Catch touches on the window */
-            background-color: rgba(59, 0, 0, 0.85); /* Translucent maroon */
+            pointer-events: auto; 
+            background-color: rgba(59, 0, 0, 0.85); 
             border: 2px solid #8B6914;
             box-shadow: 4px 4px 10px rgba(0,0,0,0.7);
             display: flex;
@@ -58,7 +57,7 @@
         }
         
         .hud-header::before {
-            content: '≡'; /* Drag handle visual indicator */
+            content: '≡'; 
             float: left;
             opacity: 0.5;
         }
@@ -68,7 +67,6 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            flex-direction: column;
         }
 
         /* 
@@ -84,12 +82,12 @@
 
         #pan-zoom-container {
             width: 100%; height: 100%;
-            transform-origin: top left;
+            transform-origin: top left; /* Changed to top-left for perfect focal math */
             will-change: transform;
             position: absolute;
+            top: 0; left: 0;
         }
 
-        /* The dynamic scale target matches the calculated Mac resolution */
         #scale-target {
             transform-origin: top left;
             position: absolute;
@@ -102,25 +100,23 @@
             width: 100%; height: 100%;
             border: none;
             display: block;
+            image-rendering: pixelated; /* Forces nearest-neighbor upscaling */
         }
 
         #mac-iframe {
             image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
-            image-rendering: pixelated;
         }
 
         #gl-canvas { pointer-events: none; display: none; }
-        
-        /* Captures all game touch events to handle zoom/pan/taps */
         #touch-overlay { z-index: 10; touch-action: none; }
 
         /* UI Buttons */
         .btn-grid {
             display: grid;
             gap: 6px;
-            grid-template-columns: repeat(3, min(12vw, 45px));
-            grid-template-rows: repeat(3, min(12vw, 45px));
+            grid-template-columns: repeat(3, min(14vw, 55px));
+            grid-template-rows: repeat(3, min(14vw, 55px));
         }
 
         .btn {
@@ -141,9 +137,10 @@
             cursor: pointer;
             box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
             line-height: 1;
+            text-align: center;
         }
 
-        .btn span.emoji { font-size: 1.1rem; margin-bottom: 2px; }
+        .btn span.emoji { font-size: 1.3rem; margin-bottom: 2px; }
         .btn:active { 
             background-color: #150040;
             border-top: 2px solid #8B6914;
@@ -153,26 +150,15 @@
             box-shadow: none;
         }
 
-        .btn-utility {
-            background-color: #3B0000;
-            border: 1px solid #C4A464;
-            color: #FCE688;
-            padding: 6px;
-            margin-top: 6px;
-            font-size: 0.8rem;
-            width: 100%;
-            text-align: center;
-        }
-        
-        /* Keyboard Input HUD */
-        #keyboard-input {
-            background: #111;
-            color: #FCE688;
-            border: 1px solid #C4A464;
-            padding: 8px;
-            font-family: monospace;
-            font-size: 1rem;
-            width: 140px;
+        .btn-utility { font-size: 0.65rem; }
+
+        /* Hidden Keyboard Input */
+        #hidden-keyboard {
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+            opacity: 0;
+            pointer-events: none;
         }
 
     </style>
@@ -185,7 +171,7 @@
     <div id="emulator-wrapper">
         <div id="pan-zoom-container">
             <div id="scale-target">
-                <!-- Size will be injected dynamically by JS to perfectly match phone screen ratio -->
+                <!-- Base width is forced to 640. Height adapts automatically. -->
                 <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.0&machine=Power+Macintosh+G3+%28Blue+%26+White%29&screen_update_messages=true&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
                     id="mac-iframe" allow="cross-origin-isolated" frameborder="0"></iframe>
                 <canvas id="gl-canvas"></canvas>
@@ -197,53 +183,44 @@
     <!-- TOP LAYER: Floating Windows -->
     <div id="hud-layer">
         
-        <!-- D-PAD WINDOW (Positioned Bottom Left) -->
+        <!-- D-PAD WINDOW -->
         <div class="hud-window" id="hud-dpad" style="left: 10px; bottom: 30px;">
             <div class="hud-header">MOVEMENT</div>
             <div class="hud-content">
                 <div class="btn-grid">
-                    <div class="btn" style="grid-column: 1; grid-row: 1;" data-code="Numpad7">↖️</div>
-                    <div class="btn" style="grid-column: 2; grid-row: 1;" data-code="Numpad8">⬆️</div>
-                    <div class="btn" style="grid-column: 3; grid-row: 1;" data-code="Numpad9">↗️</div>
-                    
-                    <div class="btn" style="grid-column: 1; grid-row: 2;" data-code="Numpad4">⬅️</div>
-                    <div class="btn" style="grid-column: 2; grid-row: 2;" data-code="Space">SPC</div>
-                    <div class="btn" style="grid-column: 3; grid-row: 2;" data-code="Numpad6">➡️</div>
-                    
-                    <div class="btn" style="grid-column: 1; grid-row: 3;" data-code="Numpad1">↙️</div>
-                    <div class="btn" style="grid-column: 2; grid-row: 3;" data-code="Numpad2">⬇️</div>
-                    <div class="btn" style="grid-column: 3; grid-row: 3;" data-code="Numpad3">↘️</div>
+                    <div class="btn" data-code="Numpad7">↖️</div>
+                    <div class="btn" data-code="Numpad8">⬆️</div>
+                    <div class="btn" data-code="Numpad9">↗️</div>
+                    <div class="btn" data-code="Numpad4">⬅️</div>
+                    <div class="btn" data-code="Space"><span class="emoji">⏱️</span>SPC</div>
+                    <div class="btn" data-code="Numpad6">➡️</div>
+                    <div class="btn" data-code="Numpad1">↙️</div>
+                    <div class="btn" data-code="Numpad2">⬇️</div>
+                    <div class="btn" data-code="Numpad3">↘️</div>
                 </div>
             </div>
         </div>
 
-        <!-- ACTIONS WINDOW (Positioned Bottom Right) -->
+        <!-- ACTIONS WINDOW -->
         <div class="hud-window" id="hud-actions" style="right: 10px; bottom: 30px;">
             <div class="hud-header">ACTIONS</div>
             <div class="hud-content">
                 <div class="btn-grid">
-                    <div class="btn" style="grid-column: 1; grid-row: 1;" data-code="KeyG"><span class="emoji">🖐️</span>Get</div>
-                    <div class="btn" style="grid-column: 2; grid-row: 1;" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
-                    <div class="btn" style="grid-column: 3; grid-row: 1;" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
-                    
-                    <div class="btn" style="grid-column: 1; grid-row: 2;" data-code="KeyU"><span class="emoji">🔧</span>Use</div>
-                    <div class="btn" style="grid-column: 2; grid-row: 2;" data-code="KeyD"><span class="emoji">🔽</span>Drop</div>
-                    <div class="btn" style="grid-column: 3; grid-row: 2;" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
-                    
-                    <!-- Cast Spell spans full width of bottom row -->
-                    <div class="btn" style="grid-column: 1/4; grid-row: 3; flex-direction: row; gap: 8px;" data-code="KeyC"><span class="emoji">✨</span>Cast Spell</div>
+                    <div class="btn" data-code="KeyG"><span class="emoji">💰</span>Get</div>
+                    <div class="btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
+                    <div class="btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
+                    <div class="btn" data-code="KeyU"><span class="emoji">🖐️</span>Use</div>
+                    <div class="btn" data-code="KeyD"><span class="emoji">🫳</span>Drop</div>
+                    <div class="btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
+                    <div class="btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div>
+                    <div class="btn" id="kb-toggle"><span class="emoji">⌨️</span>Keyb</div>
+                    <div class="btn btn-utility" id="filter-toggle"><span class="emoji">📺</span>Crisp</div>
                 </div>
-                <div class="btn-utility" id="filter-toggle">[ Filter: Crisp ]</div>
             </div>
         </div>
 
-        <!-- KEYBOARD WINDOW (Positioned Top Center) -->
-        <div class="hud-window" id="hud-keyboard" style="left: 50%; top: 20px; transform: translateX(-50%);">
-            <div class="hud-header">KEYBOARD INPUT</div>
-            <div class="hud-content">
-                <input type="text" id="keyboard-input" placeholder="Tap to type..." autocomplete="off" spellcheck="false" autocorrect="off">
-            </div>
-        </div>
+        <!-- Hidden Native Keyboard Trap -->
+        <input type="text" id="hidden-keyboard" autocomplete="off" spellcheck="false" autocorrect="off">
 
     </div>
 
@@ -256,10 +233,8 @@
     const touchOverlay = document.getElementById('touch-overlay');
     const glCanvas = document.getElementById('gl-canvas');
 
-    // --- 1. DYNAMIC FULLSCREEN RESOLUTION MATH ---
-    // We establish a comfortable baseline width for the Mac desktop (768px).
-    // We dynamically calculate the height so the ratio matches the phone perfectly.
-    const baseWidth = 768; 
+    // --- 1. DYNAMIC FULLSCREEN MATH (LOCKED 640 WIDTH) ---
+    const baseWidth = 640; 
     const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
     
     scaleTarget.style.width = `${baseWidth}px`;
@@ -267,11 +242,10 @@
     glCanvas.width = baseWidth;
     glCanvas.height = baseHeight;
 
-    // CSS scaling to fit the generated Mac desktop exactly into the physical phone screen
     const cssScale = window.innerWidth / baseWidth;
     scaleTarget.style.transform = `scale(${cssScale})`;
 
-    // --- 2. DRAGGABLE FLOATING WINDOWS (HUDs) ---
+    // --- 2. DRAGGABLE FLOATING WINDOWS ---
     document.querySelectorAll('.hud-window').forEach(win => {
         const header = win.querySelector('.hud-header');
         let isDragging = false;
@@ -282,11 +256,8 @@
             startX = e.touches[0].clientX;
             startY = e.touches[0].clientY;
             const rect = win.getBoundingClientRect();
-            // Store coordinates relative to screen
             initialLeft = rect.left;
             initialTop = rect.top;
-            
-            // Bring dragged window to front
             win.style.zIndex = 1000;
         });
 
@@ -296,7 +267,6 @@
             const dx = e.touches[0].clientX - startX;
             const dy = e.touches[0].clientY - startY;
             
-            // Override transform if it was centered (for keyboard)
             win.style.transform = 'none'; 
             win.style.left = `${initialLeft + dx}px`;
             win.style.top = `${initialTop + dy}px`;
@@ -310,60 +280,70 @@
         });
     });
 
-    // --- 3. PAN, ZOOM, AND SMART TAPS ---
+    // --- 3. FOCAL PINCH, ZOOM, AND CLAMPING ---
     let pzScale = 1;
     let pzX = 0, pzY = 0;
     
     let isPanning = false;
-    let startX = 0, startY = 0, startDist = 0;
+    let startX = 0, startY = 0;
+    let startDist = 0;
     let initialPzScale = 1;
+    let initialPzX = 0, initialPzY = 0;
+    let pinchCenterX = 0, pinchCenterY = 0;
     
-    // Tap detection variables
     let touchStartTime = 0;
     let isClickCandidate = false;
 
-    // Translate physical phone touch to Mac OS absolute coordinate
+    // Translates the absolute screen pixel to the underlying 640xBase Mac pixel
     function getEmulatorCoords(clientX, clientY) {
-        const rect = touchOverlay.getBoundingClientRect();
-        const x = (clientX - rect.left) * (baseWidth / rect.width);
-        const y = (clientY - rect.top) * (baseHeight / rect.height);
-        return { x: Math.round(x), y: Math.round(y) };
+        const macX = (clientX - pzX) / (cssScale * pzScale);
+        const macY = (clientY - pzY) / (cssScale * pzScale);
+        return { x: Math.round(macX), y: Math.round(macY) };
     }
 
     touchOverlay.addEventListener('touchstart', (e) => {
         e.preventDefault();
         if (e.touches.length === 2) {
-            // PINCH START
             startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             initialPzScale = pzScale;
+            initialPzX = pzX;
+            initialPzY = pzY;
+            pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
             isPanning = false;
             isClickCandidate = false;
+            
+            if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
         } 
         else if (e.touches.length === 1) {
-            // SINGLE FINGER START
             isClickCandidate = true;
             touchStartTime = Date.now();
             startX = e.touches[0].clientX - pzX;
             startY = e.touches[0].clientY - pzY;
-            
             if (pzScale > 1) isPanning = true;
         }
     });
 
     touchOverlay.addEventListener('touchmove', (e) => {
         e.preventDefault(); 
-        isClickCandidate = false; // Finger moved, cancel the tap
+        isClickCandidate = false; 
 
         if (e.touches.length === 2) {
-            // EXECUTE ZOOM
             const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            // Allow zooming in until the screen is exactly 1:1 pixel resolution
-            const maxZoom = 1.0 / cssScale; 
-            pzScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom); 
+            
+            // Allow zoom up to 2x physical pixel width (extremely tight zoom for nearest-neighbor)
+            const maxZoom = 2.0 / cssScale; 
+            const newScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom); 
+            
+            // FOCAL MATH: Shift pzX and pzY so the zoom stays perfectly centered under the user's pinch
+            const scaleRatio = newScale / initialPzScale;
+            pzX = pinchCenterX - (pinchCenterX - initialPzX) * scaleRatio;
+            pzY = pinchCenterY - (pinchCenterY - initialPzY) * scaleRatio;
+            pzScale = newScale;
+            
             updatePanZoom();
         } 
         else if (e.touches.length === 1 && isPanning && pzScale > 1) {
-            // EXECUTE PAN
             pzX = e.touches[0].clientX - startX;
             pzY = e.touches[0].clientY - startY;
             updatePanZoom();
@@ -376,37 +356,43 @@
         
         if (e.touches.length === 0) {
             isPanning = false;
-            
-            // EVALUATE SMART TAP
             if (isClickCandidate && (Date.now() - touchStartTime) < 300) {
-                // User performed a quick tap! Fire a native mouse click at that location.
                 const coords = getEmulatorCoords(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
                 if (iframe.contentWindow) {
                     iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: coords.x, y: coords.y }, '*');
                     iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
-                    setTimeout(() => {
-                        iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
-                    }, 50);
+                    setTimeout(() => { iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'); }, 50);
                 }
-            }
-            
-            // Snap back if completely unzoomed
-            if (pzScale === 1) {
-                pzX = 0; pzY = 0;
-                updatePanZoom();
             }
         }
     });
 
     function updatePanZoom() {
+        // Clamp panning so the game doesn't float away
+        const scaledW = window.innerWidth * pzScale;
+        const scaledH = window.innerHeight * pzScale;
+        
+        if (pzScale <= 1) {
+            pzX = 0; pzY = 0;
+        } else {
+            pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledW));
+            pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledH));
+        }
+        
         panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
     }
 
 
     // --- 4. VIRTUAL KEYBOARD INJECTION ---
-    const kbInput = document.getElementById('keyboard-input');
+    const kbInput = document.getElementById('hidden-keyboard');
+    const kbToggle = document.getElementById('kb-toggle');
     
-    // Fallback dictionary for mobile browsers that send bad e.code data
+    // Must use touchend to successfully summon iOS native keyboard
+    kbToggle.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        kbInput.focus();
+    });
+
     const charToCode = {
         'a':'KeyA', 'b':'KeyB', 'c':'KeyC', 'd':'KeyD', 'e':'KeyE', 'f':'KeyF', 'g':'KeyG', 'h':'KeyH', 
         'i':'KeyI', 'j':'KeyJ', 'k':'KeyK', 'l':'KeyL', 'm':'KeyM', 'n':'KeyN', 'o':'KeyO', 'p':'KeyP', 
@@ -434,9 +420,7 @@
         if (code) sendKey(code, false);
     });
 
-    // Clear input field occasionally so it doesn't get infinitely long
     kbInput.addEventListener('blur', () => kbInput.value = '');
-
 
     // --- 5. WEBGL DEDITHER ---
     const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
@@ -513,7 +497,7 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
-    gl.uniform2f(texSizeLocation, baseWidth, baseHeight); // Use the new dynamic dimensions
+    gl.uniform2f(texSizeLocation, baseWidth, baseHeight); 
 
     const filterToggle = document.getElementById('filter-toggle');
     let isCrisp = true;
@@ -523,11 +507,11 @@
         if (isCrisp) {
             glCanvas.style.display = 'none';
             iframe.style.opacity = '1';
-            filterToggle.textContent = '[ Filter: Crisp ]';
+            filterToggle.innerHTML = '<span class="emoji">📺</span>Crisp';
         } else {
             glCanvas.style.display = 'block';
             iframe.style.opacity = '0.01'; 
-            filterToggle.textContent = '[ Smart Dedither ]';
+            filterToggle.innerHTML = '<span class="emoji">📺</span>Dedith';
         }
     });
 
@@ -550,7 +534,7 @@
         }, '*');
     }
 
-    document.querySelectorAll('.btn:not(#filter-toggle)').forEach(btn => {
+    document.querySelectorAll('.btn:not(#filter-toggle):not(#kb-toggle)').forEach(btn => {
         const keyCode = btn.getAttribute('data-code');
         btn.addEventListener('pointerdown', e => { e.preventDefault(); sendKey(keyCode, true); });
         btn.addEventListener('pointerup', e => { e.preventDefault(); sendKey(keyCode, false); });
