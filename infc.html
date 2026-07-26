@@ -216,8 +216,7 @@
 
     // --- 1. Pinch To Zoom Logic ---
     let pzScale = 1;
-    let pzX = 0;
-    let pzY = 0;
+    let pzX = 0, pzY = 0;
     let isPanning = false;
     let startX = 0, startY = 0;
     let startDist = 0;
@@ -252,7 +251,6 @@
     wrapper.addEventListener('touchend', (e) => {
         if (e.touches.length < 2) startDist = 0;
         if (e.touches.length === 0) isPanning = false;
-        
         if (pzScale === 1) {
             pzX = 0; pzY = 0;
             updatePanZoom();
@@ -275,7 +273,7 @@
     setTimeout(scaleIframe, 50); 
 
 
-    // --- 3. WebGL Text-Preserving Dedither ---
+    // --- 3. WebGL Cardinal-Adjacency Dedither ---
     const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
 
     const vsSource = `
@@ -288,6 +286,7 @@
         }
     `;
 
+    // ULTIMATE SHADER: Protects any pixel that matches a neighbor.
     const fsSource = `
         precision mediump float;
         varying vec2 v_texCoord;
@@ -308,42 +307,28 @@
             vec4 BL = texture2D(u_image, v_texCoord + vec2(-px.x, px.y));
             vec4 BR = texture2D(u_image, v_texCoord + vec2(px.x, px.y));
 
-            float dL = length(C.rgb - L.rgb);
-            float dR = length(C.rgb - R.rgb);
-            float dU = length(C.rgb - U.rgb);
-            float dD = length(C.rgb - D.rgb);
+            float t = 0.08; // Color match threshold
             
-            float dTL = length(C.rgb - TL.rgb);
-            float dTR = length(C.rgb - TR.rgb);
-            float dBL = length(C.rgb - BL.rgb);
-            float dBR = length(C.rgb - BR.rgb);
+            // Check if the pixel matches ANY of its up/down/left/right neighbors
+            bool is_shape = (length(C.rgb - L.rgb) < t || 
+                             length(C.rgb - R.rgb) < t || 
+                             length(C.rgb - U.rgb) < t || 
+                             length(C.rgb - D.rgb) < t);
+            
+            // Protect diagonal line strokes (where ONE axis matches, but not BOTH)
+            bool match_pos = (length(C.rgb - TL.rgb) < t && length(C.rgb - BR.rgb) < t);
+            bool match_neg = (length(C.rgb - TR.rgb) < t && length(C.rgb - BL.rgb) < t);
+            bool is_diag_line = (match_pos && !match_neg) || (!match_pos && match_neg);
 
-            // DETECT 1: Is it a 1px horizontal or vertical text line?
-            // If the center matches its orthogonal neighbor, it's a solid line stroke.
-            bool is_h_line = (dL < 0.1 || dR < 0.1);
-            bool is_v_line = (dU < 0.1 || dD < 0.1);
-
-            // DETECT 2: Is it a 1px diagonal text stroke? (like 'v' or 'w')
-            // Checks if exactly 2 opposite corners match the center
-            int matching_diags = 0;
-            if (dTL < 0.1) matching_diags++;
-            if (dTR < 0.1) matching_diags++;
-            if (dBL < 0.1) matching_diags++;
-            if (dBR < 0.1) matching_diags++;
-            bool is_diag_line = (matching_diags == 2) && ((dTL < 0.1 && dBR < 0.1) || (dTR < 0.1 && dBL < 0.1));
-
-            // DETECT 3: The Checkerboard Test
-            // A checkerboard has High difference from neighbors, Low difference from corners
-            float avg_ortho = (dL + dR + dU + dD) / 4.0;
-            float avg_diag  = (dTL + dTR + dBL + dBR) / 4.0;
-
-            // Only blur if it's strictly a grid pattern and DEFINITELY not a text stroke
-            if (!is_h_line && !is_v_line && !is_diag_line && (avg_ortho > avg_diag + 0.05)) {
-                // Smooth 3x3 box blend
-                gl_FragColor = vec4((C.rgb*4.0 + L.rgb*2.0 + R.rgb*2.0 + U.rgb*2.0 + D.rgb*2.0 + TL.rgb + TR.rgb + BL.rgb + BR.rgb) / 16.0, 1.0);
-            } else {
-                // Text stroke, isolated dot, or solid window. Keep it perfectly sharp.
+            if (is_shape || is_diag_line) {
+                // If it matches a neighbor, it's a solid block, UI frame, or 1px text line.
+                // Keep it perfectly sharp!
                 gl_FragColor = C;
+            } else {
+                // If it matches NONE of its cardinal neighbors, it is a checkerboard pixel.
+                // Apply a perfect Gaussian blur to melt it seamlessly.
+                vec3 blur = (C.rgb*4.0 + L.rgb*2.0 + R.rgb*2.0 + U.rgb*2.0 + D.rgb*2.0 + TL.rgb + TR.rgb + BL.rgb + BR.rgb) / 16.0;
+                gl_FragColor = vec4(blur, 1.0);
             }
         }
     `;
