@@ -1,1018 +1,957 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  >
-  <title>Cythera Mobile Fullscreen</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cythera Mobile Fullscreen</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100dvh;
+            background-color: #000;
+            overflow: hidden;
+            touch-action: none;
+            font-family: 'Courier New', Courier, monospace;
+        }
 
-  <style>
-    :root {
-      --gold: #c4a464;
-      --dark-gold: #8b6914;
-      --panel: rgba(59, 0, 0, 0.86);
-      --purple: #1e0059;
-      --yellow: #fce688;
-    }
+        #app-container {
+            width: 100vw;
+            height: 100dvh;
+            position: relative;
+        }
 
-    html,
-    body {
-      width: 100vw;
-      height: 100dvh;
-      margin: 0;
-      overflow: hidden;
-      background: #000;
-      color: white;
-      font-family: "Courier New", Courier, monospace;
-      touch-action: none;
-    }
+        /* TOP LAYER: HUD & Windows */
+        #hud-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; 
+            z-index: 100;
+        }
 
-    #app-container,
-    #emulator-wrapper,
-    #pan-zoom-container,
-    #scale-target,
-    #mac-iframe,
-    #gl-canvas,
-    #touch-overlay {
-      position: absolute;
-      inset: 0;
-    }
+        .hud-window {
+            position: absolute;
+            pointer-events: auto; 
+            background-color: rgba(59, 0, 0, 0.85); 
+            border: 2px solid #8B6914;
+            box-shadow: 4px 4px 10px rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            transition: opacity 0.2s;
+        }
 
-    #app-container {
-      width: 100vw;
-      height: 100dvh;
-      overflow: hidden;
-    }
+        .hud-header {
+            background-color: #C4A464;
+            color: #3B0000;
+            font-weight: bold;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            text-align: center;
+            border-bottom: 2px solid #8B6914;
+            touch-action: none;
+        }
+        
+        .hud-header::before {
+            content: '≡'; 
+            float: left;
+            opacity: 0.5;
+        }
 
-    #emulator-wrapper {
-      z-index: 1;
-      overflow: hidden;
-    }
+        .hud-content {
+            padding: 6px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-    #pan-zoom-container {
-      transform-origin: top left;
-      will-change: transform;
-    }
+        /* GESTURE MODE OVERLAYS */
+        #gesture-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100dvh;
+            display: flex;
+            z-index: 90;
+            pointer-events: none; /* Hidden by default */
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
 
-    #scale-target {
-      transform-origin: top left;
-      will-change: transform;
-    }
+        #gesture-layer.active {
+            pointer-events: auto;
+            opacity: 1;
+        }
 
-    #mac-iframe,
-    #gl-canvas,
-    #touch-overlay {
-      width: 100%;
-      height: 100%;
-      border: 0;
-      display: block;
-      image-rendering: pixelated;
-    }
+        .gesture-zone {
+            flex: 1;
+            position: relative;
+            height: 100%;
+        }
 
-    #mac-iframe {
-      image-rendering: crisp-edges;
-      image-rendering: -webkit-optimize-contrast;
-    }
+        #move-zone { background: linear-gradient(to right, rgba(0, 50, 255, 0.05), transparent); }
+        #action-zone { background: linear-gradient(to left, rgba(255, 50, 0, 0.05), transparent); }
 
-    #gl-canvas {
-      display: none;
-      pointer-events: none;
-    }
+        /* Virtual Joystick Elements */
+        #joy-base {
+            position: absolute;
+            width: 100px; height: 100px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            pointer-events: none;
+        }
+        #joy-stick {
+            position: absolute;
+            width: 40px; height: 40px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            pointer-events: none;
+        }
 
-    #touch-overlay {
-      z-index: 10;
-      touch-action: none;
-      background: transparent;
-    }
+        #gesture-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+        }
 
-    #hud-layer {
-      position: absolute;
-      inset: 0;
-      z-index: 100;
-      pointer-events: none;
-    }
+        #action-toast {
+            position: absolute;
+            top: 40%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(252, 230, 136, 0.9);
+            color: #3B0000;
+            padding: 10px 20px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border: 2px solid #8B6914;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
 
-    .hud-window {
-      position: absolute;
-      display: flex;
-      flex-direction: column;
-      pointer-events: auto;
-      background: var(--panel);
-      border: 2px solid var(--dark-gold);
-      box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.72);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-    }
+        /* BOTTOM LAYER: Emulator & Screen */
+        #emulator-wrapper {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100dvh;
+            overflow: hidden;
+            z-index: 1;
+        }
 
-    .hud-header {
-      padding: 4px 8px;
-      color: #3b0000;
-      background: var(--gold);
-      border-bottom: 2px solid var(--dark-gold);
-      font-size: 0.75rem;
-      font-weight: bold;
-      text-align: center;
-      touch-action: none;
-      cursor: grab;
-    }
+        #pan-zoom-container {
+            width: 100%; height: 100%;
+            transform-origin: top left;
+            will-change: transform;
+            position: absolute;
+            top: 0; left: 0;
+        }
 
-    .hud-header::before {
-      content: "✥";
-      float: left;
-      opacity: 0.55;
-    }
+        #scale-target {
+            transform-origin: top left;
+            position: absolute;
+            top: 0; left: 0;
+        }
 
-    .hud-content {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 6px;
-      touch-action: none;
-    }
+        #mac-iframe, #gl-canvas, #touch-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: none;
+            display: block;
+            image-rendering: pixelated;
+        }
 
-    .btn-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(12vw, 45px));
-      grid-template-rows: repeat(3, minmax(12vw, 45px));
-      gap: 4px;
-    }
+        #mac-iframe {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
 
-    .btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-width: 0;
-      color: var(--yellow);
-      background: var(--purple);
-      border-top: 2px solid var(--gold);
-      border-right: 2px solid var(--dark-gold);
-      border-bottom: 2px solid var(--dark-gold);
-      border-left: 2px solid var(--gold);
-      box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.55);
-      cursor: pointer;
-      font-size: 0.65rem;
-      font-weight: bold;
-      line-height: 1.1;
-      text-align: center;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-    }
+        #gl-canvas { pointer-events: none; display: none; }
+        #touch-overlay { z-index: 10; touch-action: none; }
 
-    .btn .emoji {
-      margin-bottom: 1px;
-      font-size: 1.1rem;
-      line-height: 1;
-    }
+        /* Shrunken Buttons */
+        .btn-grid {
+            display: grid;
+            gap: 4px;
+            grid-template-columns: repeat(3, min(12vw, 45px));
+            grid-template-rows: repeat(3, min(12vw, 45px));
+        }
 
-    .btn:active,
-    .btn.pressed {
-      background: #150040;
-      border-top-color: var(--dark-gold);
-      border-right-color: var(--gold);
-      border-bottom-color: var(--gold);
-      border-left-color: var(--dark-gold);
-      box-shadow: none;
-    }
+        .btn {
+            background-color: #1E0059;
+            border-top: 2px solid #C4A464;
+            border-left: 2px solid #C4A464;
+            border-bottom: 2px solid #8B6914;
+            border-right: 2px solid #8B6914;
+            color: #FCE688;
+            font-size: 0.65rem;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: pointer;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+            line-height: 1.1;
+            text-align: center;
+            transition: box-shadow 0.1s, background-color 0.1s;
+        }
 
-    .btn.active-action {
-      background: #7a0000 !important;
-      border-color: var(--yellow) !important;
-      box-shadow: 0 0 10px var(--yellow) !important;
-    }
+        .btn span.emoji { font-size: 1.1rem; margin-bottom: 1px; }
+        
+        .btn:active, .btn.active { 
+            background-color: #150040;
+            border-top: 2px solid #8B6914;
+            border-left: 2px solid #8B6914;
+            border-bottom: 2px solid #C4A464;
+            border-right: 2px solid #C4A464;
+            box-shadow: none;
+        }
 
-    .gesture-active {
-      outline: 2px solid rgba(252, 230, 136, 0.85);
-      outline-offset: 2px;
-    }
+        /* Action-Then-Direction Highlight */
+        .active-action {
+            background-color: #7A0000 !important;
+            border-color: #FCE688 !important;
+            box-shadow: 0 0 10px #FCE688 !important;
+        }
 
-    #gesture-feedback {
-      position: absolute;
-      z-index: 2000;
-      top: 13%;
-      left: 50%;
-      padding: 6px 11px;
-      color: white;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(252, 230, 136, 0.65);
-      border-radius: 7px;
-      font-size: 0.86rem;
-      font-weight: bold;
-      letter-spacing: 0.08em;
-      opacity: 0;
-      pointer-events: none;
-      transform: translateX(-50%) translateY(-4px);
-      transition: opacity 110ms ease, transform 110ms ease;
-    }
+        /* Collapsible Settings Drawer */
+        #settings-drawer {
+            position: absolute;
+            bottom: 0; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(59, 0, 0, 0.95);
+            border: 2px solid #8B6914;
+            border-bottom: none;
+            border-radius: 12px 12px 0 0;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            width: 90%;
+            max-width: 450px;
+            backdrop-filter: blur(4px);
+            pointer-events: auto;
+        }
 
-    #gesture-feedback.visible {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
+        #settings-drawer.collapsed {
+            transform: translate(-50%, calc(100% - 28px));
+        }
 
-    #settings-drawer {
-      position: absolute;
-      z-index: 1000;
-      bottom: 0;
-      left: 50%;
-      width: 90%;
-      max-width: 400px;
-      background: rgba(59, 0, 0, 0.95);
-      border: 2px solid var(--dark-gold);
-      border-bottom: 0;
-      border-radius: 12px 12px 0 0;
-      pointer-events: auto;
-      transform: translateX(-50%);
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      touch-action: none;
-    }
+        .settings-handle {
+            height: 28px;
+            color: #FCE688;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+            cursor: pointer;
+            touch-action: none;
+            border-bottom: 1px solid rgba(196, 164, 100, 0.3);
+        }
 
-    #settings-drawer.collapsed {
-      transform: translateX(-50%) translateY(calc(100% - 28px));
-    }
+        .settings-content {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            gap: 8px;
+        }
 
-    #settings-handle {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 28px;
-      color: var(--yellow);
-      border-bottom: 1px solid rgba(196, 164, 100, 0.3);
-      cursor: pointer;
-      font-size: 0.8rem;
-      font-weight: bold;
-      touch-action: none;
-    }
+        .settings-btn {
+            flex: 1;
+            padding: 8px 0;
+            font-size: 0.7rem;
+            height: auto;
+        }
 
-    #settings-content {
-      display: flex;
-      justify-content: space-around;
-      gap: 10px;
-      padding: 10px;
-    }
+        /* Hidden Keyboard Input */
+        #hidden-keyboard {
+            position: absolute;
+            top: -1000px; left: -1000px;
+            opacity: 0; pointer-events: none;
+        }
 
-    .settings-btn {
-      flex: 1;
-      height: 48px;
-      padding: 5px 0;
-      font-size: 0.7rem;
-    }
-
-    #hidden-keyboard {
-      position: absolute;
-      top: -1000px;
-      left: -1000px;
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    @media (max-width: 430px) {
-      .btn-grid {
-        grid-template-columns: repeat(3, minmax(11vw, 41px));
-        grid-template-rows: repeat(3, minmax(11vw, 41px));
-      }
-
-      .hud-content {
-        padding: 4px;
-      }
-    }
-  </style>
+    </style>
 </head>
-
 <body>
-  <div id="app-container">
-    <div id="emulator-wrapper">
-      <div id="pan-zoom-container">
-        <div id="scale-target">
-          <iframe
-            id="mac-iframe"
-            width="640"
-            frameborder="0"
-            allow="cross-origin-isolated"
-            src="https://infinitemac.org/embed?disk=MacOS8.0&infinitehd=true&saved_hd=true&machine=Quadra650&autopause=true&screenupdatemessages=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A-1%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcytherainfinitemac.dsk"
-          ></iframe>
 
-          <canvas id="gl-canvas"></canvas>
-          <div id="touch-overlay"></div>
+<div id="app-container">
+
+    <div id="emulator-wrapper">
+        <div id="pan-zoom-container">
+            <div id="scale-target">
+                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+8.0&infinite_hd=true&machine=Quadra+650&auto_pause=true&screen_update_messages=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A-2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                    width="640" id="mac-iframe" allow="cross-origin-isolated" frameborder="0"></iframe>
+                <canvas id="gl-canvas"></canvas>
+                <div id="touch-overlay"></div>
+            </div>
         </div>
-      </div>
+    </div>
+
+    <!-- NEW GESTURE LAYER -->
+    <div id="gesture-layer">
+        <div id="move-zone" class="gesture-zone">
+            <div id="joy-base"></div>
+            <div id="joy-stick"></div>
+        </div>
+        <div id="action-zone" class="gesture-zone">
+            <canvas id="gesture-canvas"></canvas>
+        </div>
     </div>
 
     <div id="hud-layer">
-      <div id="gesture-feedback" aria-live="polite"></div>
-
-      <div
-        id="hud-dpad"
-        class="hud-window"
-        style="left: 10px; bottom: 45px;"
-      >
-        <div class="hud-header">MOVEMENT</div>
-        <div class="hud-content">
-          <div class="btn-grid">
-            <div class="btn dir-btn" data-code="Numpad7"><span class="emoji">↖️</span></div>
-            <div class="btn dir-btn" data-code="Numpad8"><span class="emoji">⬆️</span></div>
-            <div class="btn dir-btn" data-code="Numpad9"><span class="emoji">↗️</span></div>
-
-            <div class="btn dir-btn" data-code="Numpad4"><span class="emoji">⬅️</span></div>
-            <div class="btn" data-code="Space"><span class="emoji">⏱️</span>SPC</div>
-            <div class="btn dir-btn" data-code="Numpad6"><span class="emoji">➡️</span></div>
-
-            <div class="btn dir-btn" data-code="Numpad1"><span class="emoji">↙️</span></div>
-            <div class="btn dir-btn" data-code="Numpad2"><span class="emoji">⬇️</span></div>
-            <div class="btn dir-btn" data-code="Numpad3"><span class="emoji">↘️</span></div>
-          </div>
+        <!-- D-PAD WINDOW -->
+        <div class="hud-window" id="hud-dpad" style="left: 10px; bottom: 45px;">
+            <div class="hud-header">MOVEMENT</div>
+            <div class="hud-content">
+                <div class="btn-grid">
+                    <div class="btn dir-btn" data-code="Numpad7">↖️</div>
+                    <div class="btn dir-btn" data-code="Numpad8">⬆️</div>
+                    <div class="btn dir-btn" data-code="Numpad9">↗️</div>
+                    <div class="btn dir-btn" data-code="Numpad4">⬅️</div>
+                    <div class="btn" data-code="Space"><span class="emoji">⏱️</span>SPC</div>
+                    <div class="btn dir-btn" data-code="Numpad6">➡️</div>
+                    <div class="btn dir-btn" data-code="Numpad1">↙️</div>
+                    <div class="btn dir-btn" data-code="Numpad2">⬇️</div>
+                    <div class="btn dir-btn" data-code="Numpad3">↘️</div>
+                </div>
+            </div>
         </div>
-      </div>
 
-      <div
-        id="hud-actions"
-        class="hud-window"
-        style="right: 10px; bottom: 45px;"
-      >
-        <div class="hud-header">ACTIONS</div>
-        <div class="hud-content">
-          <div class="btn-grid">
-            <div class="btn action-btn" data-code="KeyG"><span class="emoji">✋</span>Get</div>
-            <div class="btn action-btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
-            <div class="btn action-btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
-
-            <div class="btn action-btn" data-code="KeyU"><span class="emoji">🖐️</span>Use</div>
-            <div class="btn action-btn" data-code="KeyD"><span class="emoji">📥</span>Drop</div>
-            <div class="btn action-btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
-
-            <div class="btn action-btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div>
-            <div class="btn" id="kb-toggle"><span class="emoji">⌨️</span>Keyb</div>
-            <div class="btn" data-code="Enter"><span class="emoji">↩️</span>Ent</div>
-          </div>
+        <!-- ACTIONS WINDOW -->
+        <div class="hud-window" id="hud-actions" style="right: 10px; bottom: 45px;">
+            <div class="hud-header">ACTIONS</div>
+            <div class="hud-content">
+                <div class="btn-grid">
+                    <div class="btn action-btn" data-code="KeyG"><span class="emoji">💰</span>Get</div>
+                    <div class="btn action-btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
+                    <div class="btn action-btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
+                    <div class="btn action-btn" data-code="KeyU"><span class="emoji">🖐️</span>Use</div>
+                    <div class="btn action-btn" data-code="KeyD"><span class="emoji">🫳</span>Drop</div>
+                    <div class="btn action-btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
+                    <div class="btn action-btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div>
+                    <div class="btn" id="kb-toggle"><span class="emoji">⌨️</span>Keyb</div>
+                    <div class="btn" data-code="Enter"><span class="emoji">↩️</span>Ent</div>
+                </div>
+            </div>
         </div>
-      </div>
 
-      <div id="settings-drawer" class="collapsed">
-        <div id="settings-handle">⚙️ SETTINGS ⚙️</div>
-        <div id="settings-content">
-          <div id="trackpad-toggle" class="btn settings-btn">
-            <span class="emoji">☝️</span>Direct
-          </div>
-          <div id="filter-toggle" class="btn settings-btn">
-            <span class="emoji">◫</span>Crisp
-          </div>
-          <div id="pause-btn" class="btn settings-btn">
-            <span class="emoji">⏸️</span>Pause
-          </div>
+        <div id="action-toast"></div>
+
+        <!-- SETTINGS DRAWER -->
+        <div id="settings-drawer" class="collapsed">
+            <div class="settings-handle" id="settings-handle">⚙️ SETTINGS ⚙️</div>
+            <div class="settings-content">
+                <div class="btn settings-btn" id="gesture-toggle"><span class="emoji">🔀</span>Gestures</div>
+                <div class="btn settings-btn" id="trackpad-toggle"><span class="emoji">👆</span>Direct</div>
+                <div class="btn settings-btn" id="filter-toggle"><span class="emoji">📺</span>Crisp</div>
+                <div class="btn settings-btn" id="pause-btn"><span class="emoji">⏸️</span>Pause</div>
+            </div>
         </div>
-      </div>
 
-      <input
-        id="hidden-keyboard"
-        type="text"
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false"
-      >
+        <input type="text" id="hidden-keyboard" autocomplete="off" spellcheck="false" autocorrect="off">
     </div>
-  </div>
 
-  <script>
-    const MAC_ORIGIN = "https://infinitemac.org";
+</div>
 
-    const iframe = document.getElementById("mac-iframe");
-    const scaleTarget = document.getElementById("scale-target");
-    const panZoomContainer = document.getElementById("pan-zoom-container");
-    const touchOverlay = document.getElementById("touch-overlay");
-    const feedback = document.getElementById("gesture-feedback");
+<script>
+    const iframe = document.getElementById('mac-iframe');
+    const scaleTarget = document.getElementById('scale-target');
+    const panZoomContainer = document.getElementById('pan-zoom-container');
+    const touchOverlay = document.getElementById('touch-overlay');
+    const glCanvas = document.getElementById('gl-canvas');
 
-    const moveWindow = document.getElementById("hud-dpad");
-    const actionWindow = document.getElementById("hud-actions");
+    // --- 1. DYNAMIC FULLSCREEN MATH ---
+    const baseWidth = 640; 
+    const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
+    
+    scaleTarget.style.width = `${baseWidth}px`;
+    scaleTarget.style.height = `${baseHeight}px`;
+    glCanvas.width = baseWidth;
+    glCanvas.height = baseHeight;
 
-    const baseWidth = 640;
-    const baseHeight = Math.round(baseWidth * window.innerHeight / window.innerWidth);
+    const cssScale = window.innerWidth / baseWidth;
+    scaleTarget.style.transform = `scale(${cssScale})`;
 
-    let cssScale = 1;
-
-    function updateBaseScale() {
-      cssScale = window.innerWidth / baseWidth;
-
-      scaleTarget.style.width = `${baseWidth}px`;
-      scaleTarget.style.height = `${baseHeight}px`;
-      scaleTarget.style.transform = `scale(${cssScale})`;
-    }
-
-    updateBaseScale();
-    window.addEventListener("resize", updateBaseScale);
-
-    function postToMac(message) {
-      if (!iframe.contentWindow) return;
-      iframe.contentWindow.postMessage(message, MAC_ORIGIN);
-    }
-
+    // --- 2. STANDARD STANDARD INPUT UTILS ---
     function sendKey(code, isKeyDown) {
-      postToMac({
-        type: isKeyDown ? "emulatorkeydown" : "emulatorkeyup",
-        code
-      });
+        if (!iframe.contentWindow) return;
+        iframe.contentWindow.postMessage({ type: isKeyDown ? 'emulator_key_down' : 'emulator_key_up', code: code }, '*');
     }
 
-    function tapKey(code, duration = 42) {
-      sendKey(code, true);
-      window.setTimeout(() => sendKey(code, false), duration);
-    }
-
-    function showFeedback(label) {
-      feedback.textContent = label;
-      feedback.classList.add("visible");
-
-      clearTimeout(showFeedback.timeout);
-      showFeedback.timeout = window.setTimeout(() => {
-        feedback.classList.remove("visible");
-      }, 430);
-
-      if (navigator.vibrate) navigator.vibrate(8);
-    }
-
-    function clearActionHighlight() {
-      document.querySelectorAll(".action-btn").forEach(button => {
-        button.classList.remove("active-action");
-      });
-    }
-
-    function selectAction(code, label) {
-      tapKey(code);
-      clearActionHighlight();
-
-      const button = document.querySelector(`.action-btn[data-code="${code}"]`);
-      if (button) button.classList.add("active-action");
-
-      showFeedback(label);
-    }
-
-    /* Draggable HUD windows */
-
-    document.querySelectorAll(".hud-window").forEach(windowElement => {
-      const header = windowElement.querySelector(".hud-header");
-
-      let dragging = false;
-      let startX = 0;
-      let startY = 0;
-      let initialLeft = 0;
-      let initialTop = 0;
-
-      header.addEventListener("pointerdown", event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        dragging = true;
-        header.setPointerCapture(event.pointerId);
-
-        const rect = windowElement.getBoundingClientRect();
-        startX = event.clientX;
-        startY = event.clientY;
-        initialLeft = rect.left;
-        initialTop = rect.top;
-
-        windowElement.style.zIndex = "1200";
-      });
-
-      header.addEventListener("pointermove", event => {
-        if (!dragging) return;
-
-        event.preventDefault();
-
-        windowElement.style.left = `${initialLeft + event.clientX - startX}px`;
-        windowElement.style.top = `${initialTop + event.clientY - startY}px`;
-        windowElement.style.right = "auto";
-        windowElement.style.bottom = "auto";
-      });
-
-      function stopDragging() {
-        dragging = false;
-        windowElement.style.zIndex = "";
-      }
-
-      header.addEventListener("pointerup", stopDragging);
-      header.addEventListener("pointercancel", stopDragging);
+    // --- 3. GESTURE & JOYSTICK MODE ---
+    let isGestureMode = false;
+    const gestureToggle = document.getElementById('gesture-toggle');
+    const gestureLayer = document.getElementById('gesture-layer');
+    const hudWindows = document.querySelectorAll('.hud-window');
+    
+    gestureToggle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        isGestureMode = !isGestureMode;
+        if (isGestureMode) {
+            gestureToggle.classList.add('active');
+            gestureLayer.classList.add('active');
+            hudWindows.forEach(win => win.style.opacity = '0');
+            setTimeout(() => hudWindows.forEach(win => win.style.pointerEvents = 'none'), 200);
+        } else {
+            gestureToggle.classList.remove('active');
+            gestureLayer.classList.remove('active');
+            hudWindows.forEach(win => { win.style.opacity = '1'; win.style.pointerEvents = 'auto'; });
+        }
     });
 
-    /* Settings */
+    // Virtual Joystick for Movement (Left Zone)
+    const moveZone = document.getElementById('move-zone');
+    const joyBase = document.getElementById('joy-base');
+    const joyStick = document.getElementById('joy-stick');
+    let moveStartX = 0, moveStartY = 0;
+    let currentMoveKey = null;
 
-    const settingsDrawer = document.getElementById("settings-drawer");
-    const settingsHandle = document.getElementById("settings-handle");
-    const trackpadToggle = document.getElementById("trackpad-toggle");
-    const filterToggle = document.getElementById("filter-toggle");
-    const pauseButton = document.getElementById("pause-btn");
+    function applyMovementKey(angleDeg, dist) {
+        if (dist < 20) return null; // Deadzone
 
-    settingsHandle.addEventListener("pointerdown", event => {
-      event.preventDefault();
-      settingsDrawer.classList.toggle("collapsed");
+        let key = null;
+        if (angleDeg >= -22.5 && angleDeg < 22.5) key = 'Numpad6'; // Right
+        else if (angleDeg >= 22.5 && angleDeg < 67.5) key = 'Numpad3'; // Down-Right
+        else if (angleDeg >= 67.5 && angleDeg < 112.5) key = 'Numpad2'; // Down
+        else if (angleDeg >= 112.5 && angleDeg < 157.5) key = 'Numpad1'; // Down-Left
+        else if (angleDeg >= 157.5 || angleDeg < -157.5) key = 'Numpad4'; // Left
+        else if (angleDeg >= -157.5 && angleDeg < -112.5) key = 'Numpad7'; // Up-Left
+        else if (angleDeg >= -112.5 && angleDeg < -67.5) key = 'Numpad8'; // Up
+        else if (angleDeg >= -67.5 && angleDeg < -22.5) key = 'Numpad9'; // Up-Right
+
+        return key;
+    }
+
+    moveZone.addEventListener('touchstart', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const touch = e.touches[0];
+        moveStartX = touch.clientX;
+        moveStartY = touch.clientY;
+        
+        joyBase.style.left = `${moveStartX}px`;
+        joyBase.style.top = `${moveStartY}px`;
+        joyStick.style.left = `${moveStartX}px`;
+        joyStick.style.top = `${moveStartY}px`;
+        joyBase.style.display = 'block';
+        joyStick.style.display = 'block';
+    });
+
+    moveZone.addEventListener('touchmove', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const touch = e.touches[0];
+        
+        let dx = touch.clientX - moveStartX;
+        let dy = touch.clientY - moveStartY;
+        let dist = Math.hypot(dx, dy);
+        let angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+
+        // Visual constraint
+        let displayDist = Math.min(dist, 50);
+        let displayX = moveStartX + Math.cos(Math.atan2(dy, dx)) * displayDist;
+        let displayY = moveStartY + Math.sin(Math.atan2(dy, dx)) * displayDist;
+        joyStick.style.left = `${displayX}px`;
+        joyStick.style.top = `${displayY}px`;
+
+        let newKey = applyMovementKey(angleDeg, dist);
+        
+        if (newKey !== currentMoveKey) {
+            if (currentMoveKey) sendKey(currentMoveKey, false); // release old
+            if (newKey) sendKey(newKey, true); // press hold new
+            currentMoveKey = newKey;
+        }
+    });
+
+    function stopMovement() {
+        if (currentMoveKey) {
+            sendKey(currentMoveKey, false);
+            currentMoveKey = null;
+        }
+        joyBase.style.display = 'none';
+        joyStick.style.display = 'none';
+    }
+
+    moveZone.addEventListener('touchend', stopMovement);
+    moveZone.addEventListener('touchcancel', stopMovement);
+
+
+    // Gesture Recognition for Actions (Right Zone)
+    const actionZone = document.getElementById('action-zone');
+    const gestureCanvas = document.getElementById('gesture-canvas');
+    const gCtx = gestureCanvas.getContext('2d');
+    const actionToast = document.getElementById('action-toast');
+    let gesturePoints = [];
+    
+    function resizeGestureCanvas() {
+        gestureCanvas.width = actionZone.clientWidth;
+        gestureCanvas.height = actionZone.clientHeight;
+    }
+    window.addEventListener('resize', resizeGestureCanvas);
+    resizeGestureCanvas();
+
+    function showToast(text) {
+        actionToast.textContent = text;
+        actionToast.style.opacity = '1';
+        setTimeout(() => actionToast.style.opacity = '0', 600);
+    }
+
+    actionZone.addEventListener('touchstart', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = actionZone.getBoundingClientRect();
+        gesturePoints = [{ x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }];
+        gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
+        gCtx.beginPath();
+        gCtx.moveTo(gesturePoints[0].x, gesturePoints[0].y);
+        gCtx.strokeStyle = '#FCE688';
+        gCtx.lineWidth = 4;
+        gCtx.lineCap = 'round';
+        gCtx.lineJoin = 'round';
+    });
+
+    actionZone.addEventListener('touchmove', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = actionZone.getBoundingClientRect();
+        const pt = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+        gesturePoints.push(pt);
+        gCtx.lineTo(pt.x, pt.y);
+        gCtx.stroke();
+    });
+
+    actionZone.addEventListener('touchend', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
+        
+        // Analyze Path
+        let dirs = "";
+        let currentDir = null;
+        let lastPt = gesturePoints[0];
+
+        for (let i = 1; i < gesturePoints.length; i++) {
+            let pt = gesturePoints[i];
+            let dx = pt.x - lastPt.x;
+            let dy = pt.y - lastPt.y;
+            
+            if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
+                let dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+                if (dir !== currentDir) {
+                    dirs += dir;
+                    currentDir = dir;
+                }
+                lastPt = pt;
+            }
+        }
+
+        let totalDist = Math.hypot(gesturePoints[gesturePoints.length-1].x - gesturePoints[0].x, 
+                                   gesturePoints[gesturePoints.length-1].y - gesturePoints[0].y);
+
+        let actionKey = null;
+        let actionName = "";
+
+        if (gesturePoints.length < 5 && totalDist < 20) {
+            actionKey = 'KeyA'; actionName = "ATTACK (Tap)";
+        } else {
+            // Heuristic Mappings
+            switch (dirs) {
+                case "U": actionKey = 'KeyG'; actionName = "GET (Up)"; break;
+                case "D": actionKey = 'KeyD'; actionName = "DROP (Down)"; break;
+                case "DR": actionKey = 'KeyL'; actionName = "LOOK (L-Shape)"; break;
+                case "DRU": actionKey = 'KeyU'; actionName = "USE (U-Shape)"; break;
+                case "LDR": 
+                case "LD": actionKey = 'KeyC'; actionName = "CAST (C-Shape)"; break;
+                case "RD": actionKey = 'KeyT'; actionName = "TALK (T-Shape)"; break;
+                default:
+                    showToast("UNKNOWN GESTURE");
+                    return;
+            }
+        }
+
+        if (actionKey) {
+            showToast(actionName);
+            sendKey(actionKey, true);
+            setTimeout(() => sendKey(actionKey, false), 50); // Small delay to simulate standard press
+        }
+    });
+
+    // --- 4. DRAGGABLE FLOATING WINDOWS ---
+    document.querySelectorAll('.hud-window').forEach(win => {
+        const header = win.querySelector('.hud-header');
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        header.addEventListener('touchstart', e => {
+            isDragging = true;
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            const rect = win.getBoundingClientRect();
+            initialLeft = rect.left;
+            initialTop = rect.top;
+            win.style.zIndex = 1000;
+        });
+
+        header.addEventListener('touchmove', e => {
+            if (!isDragging) return;
+            e.preventDefault(); 
+            const dx = e.touches[0].clientX - startX;
+            const dy = e.touches[0].clientY - startY;
+            win.style.transform = 'none'; 
+            win.style.left = `${initialLeft + dx}px`;
+            win.style.top = `${initialTop + dy}px`;
+            win.style.bottom = 'auto';
+            win.style.right = 'auto';
+        });
+
+        header.addEventListener('touchend', () => { isDragging = false; win.style.zIndex = ''; });
+    });
+
+    // --- 5. SETTINGS DRAWER & TOGGLES ---
+    const settingsDrawer = document.getElementById('settings-drawer');
+    const settingsHandle = document.getElementById('settings-handle');
+    settingsHandle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        settingsDrawer.classList.toggle('collapsed');
     });
 
     let isTrackpadMode = false;
-
-    trackpadToggle.addEventListener("pointerdown", event => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      isTrackpadMode = !isTrackpadMode;
-      trackpadToggle.innerHTML = isTrackpadMode
-        ? '<span class="emoji">🖱️</span>Trackpad'
-        : '<span class="emoji">☝️</span>Direct';
-
-      showFeedback(isTrackpadMode ? "TRACKPAD" : "DIRECT");
+    const trackpadToggle = document.getElementById('trackpad-toggle');
+    trackpadToggle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        isTrackpadMode = !isTrackpadMode;
+        trackpadToggle.innerHTML = isTrackpadMode ? '<span class="emoji">🖱️</span>Trackpad' : '<span class="emoji">👆</span>Direct';
     });
 
     let isPaused = false;
-
-    pauseButton.addEventListener("pointerdown", event => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      isPaused = !isPaused;
-      postToMac({ type: isPaused ? "emulatorpause" : "emulatorunpause" });
-
-      pauseButton.innerHTML = isPaused
-        ? '<span class="emoji">▶️</span>Play'
-        : '<span class="emoji">⏸️</span>Pause';
-
-      showFeedback(isPaused ? "PAUSED" : "PLAY");
+    const pauseBtn = document.getElementById('pause-btn');
+    pauseBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        isPaused = !isPaused;
+        if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: isPaused ? 'emulator_pause' : 'emulator_unpause' }, '*');
+        pauseBtn.innerHTML = isPaused ? '<span class="emoji">▶️</span>Play' : '<span class="emoji">⏸️</span>Pause';
     });
 
-    /*
-      Direction recognizer
+    // --- 6. ACTION-THEN-DIRECTION UI FEEDBACK ---
+    const actionBtns = document.querySelectorAll('.action-btn');
+    const dirBtns = document.querySelectorAll('.dir-btn');
 
-      Indexes correspond to a clockwise compass beginning at east:
-      E, SE, S, SW, W, NW, N, NE.
-    */
-
-    const DIRECTION_KEYS = [
-      "Numpad6",
-      "Numpad3",
-      "Numpad2",
-      "Numpad1",
-      "Numpad4",
-      "Numpad7",
-      "Numpad8",
-      "Numpad9"
-    ];
-
-    const DIRECTION_LABELS = [
-      "E",
-      "SE",
-      "S",
-      "SW",
-      "W",
-      "NW",
-      "N",
-      "NE"
-    ];
-
-    function directionFromVector(dx, dy) {
-      const angle = Math.atan2(-dy, dx);
-      const octant = Math.round(angle / (Math.PI / 4));
-      const index = (octant + 8) % 8;
-
-      return {
-        index,
-        key: DIRECTION_KEYS[index],
-        label: DIRECTION_LABELS[index]
-      };
-    }
-
-    /*
-      Continuous movement gesture.
-
-      A swipe that crosses the threshold presses and holds the appropriate
-      numpad direction. Sliding the held finger into another octant releases
-      the old direction and holds the new one. Releasing the finger releases
-      the final direction.
-
-      This deliberately uses a real held key rather than rapid repeated
-      key taps. Cythera can therefore apply its own normal key-repeat behavior.
-    */
-
-    function installMovementGesture(windowElement) {
-      const content = windowElement.querySelector(".hud-content");
-      const minDistance = 20;
-
-      let gesture = null;
-
-      function releaseDirection() {
-        if (!gesture || !gesture.currentDirection) return;
-        sendKey(gesture.currentDirection.key, false);
-        gesture.currentDirection = null;
-      }
-
-      function beginDirection(direction) {
-        if (!gesture) return;
-
-        if (
-          gesture.currentDirection &&
-          gesture.currentDirection.index === direction.index
-        ) {
-          return;
-        }
-
-        releaseDirection();
-        gesture.currentDirection = direction;
-
-        sendKey(direction.key, true);
-        showFeedback(direction.label);
-      }
-
-      content.addEventListener("pointerdown", event => {
-        if (event.target.closest(".btn")) return;
-
-        event.preventDefault();
-        event.stopPropagation();
-        content.setPointerCapture(event.pointerId);
-
-        gesture = {
-          pointerId: event.pointerId,
-          startX: event.clientX,
-          startY: event.clientY,
-          currentDirection: null
-        };
-
-        windowElement.classList.add("gesture-active");
-      });
-
-      content.addEventListener("pointermove", event => {
-        if (!gesture || event.pointerId !== gesture.pointerId) return;
-
-        event.preventDefault();
-
-        const dx = event.clientX - gesture.startX;
-        const dy = event.clientY - gesture.startY;
-
-        if (Math.hypot(dx, dy) < minDistance) return;
-
-        beginDirection(directionFromVector(dx, dy));
-      });
-
-      function endMovementGesture(event) {
-        if (!gesture || event.pointerId !== gesture.pointerId) return;
-
-        event.preventDefault();
-        releaseDirection();
-
-        gesture = null;
-        windowElement.classList.remove("gesture-active");
-      }
-
-      content.addEventListener("pointerup", endMovementGesture);
-      content.addEventListener("pointercancel", endMovementGesture);
-      content.addEventListener("lostpointercapture", endMovementGesture);
-    }
-
-    installMovementGesture(moveWindow);
-
-    /*
-      Action gestures.
-
-      These operate only in blank space around the buttons, so the visible
-      buttons remain available and retain their existing direct behavior.
-
-      Tap: Attack
-      Swipe up: Get
-      Swipe down: Drop
-      Swipe left: Look
-      Swipe right: Talk
-      Hold: Use
-      Two-finger tap: Cast
-    */
-
-    function installActionGestures(windowElement) {
-      const content = windowElement.querySelector(".hud-content");
-
-      const tapDistance = 16;
-      const swipeDistance = 30;
-      const holdDelay = 480;
-
-      let gesture = null;
-
-      function endGesture(event) {
-        if (!gesture || event.pointerId !== gesture.pointerId) return;
-
-        event.preventDefault();
-        clearTimeout(gesture.holdTimer);
-
-        const dx = event.clientX - gesture.startX;
-        const dy = event.clientY - gesture.startY;
-        const distance = Math.hypot(dx, dy);
-        const elapsed = performance.now() - gesture.startedAt;
-        const didHold = gesture.didHold;
-
-        gesture = null;
-        windowElement.classList.remove("gesture-active");
-
-        if (didHold) return;
-
-        if (distance <= tapDistance && elapsed < holdDelay) {
-          selectAction("KeyA", "ATTACK");
-          return;
-        }
-
-        if (distance < swipeDistance) return;
-
-        if (Math.abs(dx) > Math.abs(dy)) {
-          if (dx > 0) selectAction("KeyT", "TALK");
-          else selectAction("KeyL", "LOOK");
-        } else if (dy < 0) {
-          selectAction("KeyG", "GET");
-        } else {
-          selectAction("KeyD", "DROP");
-        }
-      }
-
-      content.addEventListener("pointerdown", event => {
-        if (event.target.closest(".btn")) return;
-
-        event.preventDefault();
-        event.stopPropagation();
-        content.setPointerCapture(event.pointerId);
-
-        gesture = {
-          pointerId: event.pointerId,
-          startX: event.clientX,
-          startY: event.clientY,
-          startedAt: performance.now(),
-          didHold: false,
-          holdTimer: null
-        };
-
-        windowElement.classList.add("gesture-active");
-
-        gesture.holdTimer = window.setTimeout(() => {
-          if (!gesture) return;
-          gesture.didHold = true;
-          selectAction("KeyU", "USE");
-        }, holdDelay);
-      });
-
-      content.addEventListener("pointerup", endGesture);
-      content.addEventListener("pointercancel", event => {
-        if (!gesture || event.pointerId !== gesture.pointerId) return;
-        clearTimeout(gesture.holdTimer);
-        gesture = null;
-        windowElement.classList.remove("gesture-active");
-      });
-
-      content.addEventListener("lostpointercapture", event => {
-        if (!gesture || event.pointerId !== gesture.pointerId) return;
-        clearTimeout(gesture.holdTimer);
-        gesture = null;
-        windowElement.classList.remove("gesture-active");
-      });
-
-      content.addEventListener("pointerdown", event => {
-        if (!event.isPrimary && event.pointerType === "touch") {
-          event.preventDefault();
-          event.stopPropagation();
-
-          if (gesture) {
-            clearTimeout(gesture.holdTimer);
-            gesture = null;
-          }
-
-          windowElement.classList.remove("gesture-active");
-          selectAction("KeyC", "CAST");
-        }
-      });
-    }
-
-    installActionGestures(actionWindow);
-
-    /*
-      Regular visible buttons.
-
-      Direction buttons are intentionally held while pressed. The action
-      buttons are tapped once so they select the in-game action before a
-      direction is supplied.
-    */
-
-    document.querySelectorAll(".dir-btn").forEach(button => {
-      let activePointer = null;
-
-      button.addEventListener("pointerdown", event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        activePointer = event.pointerId;
-        button.setPointerCapture(activePointer);
-        button.classList.add("pressed");
-
-        sendKey(button.dataset.code, true);
-        showFeedback(button.dataset.code.replace("Numpad", ""));
-      });
-
-      function releaseButton(event) {
-        if (activePointer === null) return;
-        if (event.pointerId !== activePointer) return;
-
-        sendKey(button.dataset.code, false);
-        button.classList.remove("pressed");
-        activePointer = null;
-      }
-
-      button.addEventListener("pointerup", releaseButton);
-      button.addEventListener("pointercancel", releaseButton);
-      button.addEventListener("lostpointercapture", releaseButton);
+    actionBtns.forEach(btn => {
+        btn.addEventListener('pointerdown', () => {
+            actionBtns.forEach(b => b.classList.remove('active-action'));
+            btn.classList.add('active-action');
+        });
     });
 
-    document.querySelectorAll(".action-btn").forEach(button => {
-      button.addEventListener("pointerdown", event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        const labels = {
-          KeyG: "GET",
-          KeyT: "TALK",
-          KeyL: "LOOK",
-          KeyU: "USE",
-          KeyD: "DROP",
-          KeyA: "ATTACK",
-          KeyC: "CAST"
-        };
-
-        selectAction(button.dataset.code, labels[button.dataset.code]);
-      });
+    dirBtns.forEach(btn => {
+        btn.addEventListener('pointerdown', () => {
+            actionBtns.forEach(b => b.classList.remove('active-action'));
+        });
     });
 
-    document.querySelectorAll(".btn[data-code]:not(.dir-btn):not(.action-btn)").forEach(button => {
-      let activePointer = null;
-
-      button.addEventListener("pointerdown", event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        activePointer = event.pointerId;
-        button.setPointerCapture(activePointer);
-        button.classList.add("pressed");
-
-        sendKey(button.dataset.code, true);
-      });
-
-      function releaseButton(event) {
-        if (activePointer === null) return;
-        if (event.pointerId !== activePointer) return;
-
-        sendKey(button.dataset.code, false);
-        button.classList.remove("pressed");
-        activePointer = null;
-      }
-
-      button.addEventListener("pointerup", releaseButton);
-      button.addEventListener("pointercancel", releaseButton);
-      button.addEventListener("lostpointercapture", releaseButton);
-    });
-
-    /*
-      Touch mouse / pan / zoom / right-click support for the emulator area.
-    */
-
+    // --- 7. ADVANCED TOUCH (PAN, ZOOM, TRACKPAD, R-CLICK) ---
     let pzScale = 1;
-    let pzX = 0;
-    let pzY = 0;
+    let pzX = 0, pzY = 0;
+    
+    // Zoom/Pan State
+    let startDist = 0;
+    let initialPzScale = 1, initialPzX = 0, initialPzY = 0;
+    let pinchCenterX = 0, pinchCenterY = 0;
+    
+    // Tap/Click State
+    let touchStartTime = 0;
+    let isClickCandidate = false;
+    let isTwoFingerTap = false;
 
-    let startDistance = 0;
-    let initialPzScale = 1;
-    let initialPzX = 0;
-    let initialPzY = 0;
-    let pinchCenterX = 0;
-    let pinchCenterY = 0;
-
+    // Virtual Cursor State
     let cursorX = baseWidth / 2;
     let cursorY = baseHeight / 2;
     let lastTouchX = 0;
     let lastTouchY = 0;
 
-    let touchStartTime = 0;
-    let isClickCandidate = false;
-    let isTwoFingerTap = false;
-
-    function getEmulatorCoordinates(clientX, clientY) {
-      return {
-        x: (clientX - pzX) / (cssScale * pzScale),
-        y: (clientY - pzY) / (cssScale * pzScale)
-      };
+    function getEmulatorCoords(clientX, clientY) {
+        const macX = (clientX - pzX) / (cssScale * pzScale);
+        const macY = (clientY - pzY) / (cssScale * pzScale);
+        return { x: macX, y: macY };
     }
 
-    function clampCursor() {
-      cursorX = Math.max(0, Math.min(baseWidth, cursorX));
-      cursorY = Math.max(0, Math.min(baseHeight, cursorY));
-    }
+    touchOverlay.addEventListener('touchstart', (e) => {
+        if(isGestureMode) return; // Prevent interference when in gesture mode
+        e.preventDefault();
+        
+        if (e.touches.length === 2) {
+            startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            initialPzScale = pzScale;
+            initialPzX = pzX;
+            initialPzY = pzY;
+            pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            
+            isClickCandidate = false;
+            isTwoFingerTap = true;
+            touchStartTime = Date.now();
+            
+            if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
+        } 
+        else if (e.touches.length === 1) {
+            isClickCandidate = true;
+            isTwoFingerTap = false;
+            touchStartTime = Date.now();
+            
+            lastTouchX = e.touches[0].clientX;
+            lastTouchY = e.touches[0].clientY;
 
-    function sendMouseMove() {
-      postToMac({
-        type: "emulatormousemove",
-        x: Math.round(cursorX),
-        y: Math.round(cursorY)
-      });
-    }
+            if (!isTrackpadMode) {
+                const coords = getEmulatorCoords(lastTouchX, lastTouchY);
+                cursorX = coords.x;
+                cursorY = coords.y;
+            }
+            
+            if (iframe.contentWindow) {
+                iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
+            }
+        }
+    });
+
+    touchOverlay.addEventListener('touchmove', (e) => {
+        if(isGestureMode) return;
+        e.preventDefault(); 
+        isClickCandidate = false; 
+
+        if (e.touches.length === 2) {
+            const currentPinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const currentPinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            
+            if (Math.abs(dist - startDist) > 15 || Math.hypot(currentPinchCenterX - pinchCenterX, currentPinchCenterY - pinchCenterY) > 15) {
+                isTwoFingerTap = false; 
+            }
+
+            const maxZoom = 2.0 / cssScale; 
+            const newScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom); 
+            const scaleRatio = newScale / initialPzScale;
+            
+            pzX = currentPinchCenterX - (pinchCenterX - initialPzX) * scaleRatio;
+            pzY = currentPinchCenterY - (pinchCenterY - initialPzY) * scaleRatio;
+            pzScale = newScale;
+            
+            updatePanZoom();
+        } 
+        else if (e.touches.length === 1) {
+            const currentTouchX = e.touches[0].clientX;
+            const currentTouchY = e.touches[0].clientY;
+
+            if (isTrackpadMode) {
+                const dX = (currentTouchX - lastTouchX) / (cssScale * pzScale);
+                const dY = (currentTouchY - lastTouchY) / (cssScale * pzScale);
+                cursorX = Math.max(0, Math.min(baseWidth, cursorX + (dX * 1.5)));
+                cursorY = Math.max(0, Math.min(baseHeight, cursorY + (dY * 1.5)));
+            } else {
+                const coords = getEmulatorCoords(currentTouchX, currentTouchY);
+                cursorX = Math.max(0, Math.min(baseWidth, coords.x));
+                cursorY = Math.max(0, Math.min(baseHeight, coords.y));
+            }
+
+            lastTouchX = currentTouchX;
+            lastTouchY = currentTouchY;
+
+            if (iframe.contentWindow) {
+                iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
+            }
+        }
+    });
+
+    touchOverlay.addEventListener('touchend', (e) => {
+        if(isGestureMode) return;
+        e.preventDefault();
+        
+        if (e.touches.length === 0) {
+            const timeElapsed = Date.now() - touchStartTime;
+
+            if (isTwoFingerTap && timeElapsed < 300) {
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 2 }, '*');
+                    setTimeout(() => { iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 2 }, '*'); }, 50);
+                }
+            } 
+            else if (isClickCandidate && timeElapsed < 300) {
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
+                    setTimeout(() => { iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'); }, 50);
+                }
+            }
+            isTwoFingerTap = false;
+        }
+    });
 
     function updatePanZoom() {
-      const scaledWidth = window.innerWidth * pzScale;
-      const scaledHeight = window.innerHeight * pzScale;
-
-      if (pzScale <= 1) {
-        pzScale = 1;
-        pzX = 0;
-        pzY = 0;
-      } else {
-        pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledWidth));
-        pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledHeight));
-      }
-
-      panZoomContainer.style.transform =
-        `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
+        const scaledW = window.innerWidth * pzScale;
+        const scaledH = window.innerHeight * pzScale;
+        
+        if (pzScale <= 1) {
+            pzX = 0; pzY = 0;
+        } else {
+            pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledW));
+            pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledH));
+        }
+        
+        panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
     }
 
-    touchOverlay.addEventListener("touchstart", event => {
-      event.preventDefault();
 
-      if (event.touches.length === 2) {
-        const first = event.touches[0];
-        const second = event.touches[1];
+    // --- 8. VIRTUAL KEYBOARD ---
+    const kbInput = document.getElementById('hidden-keyboard');
+    const kbToggle = document.getElementById('kb-toggle');
+    
+    kbToggle.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        kbInput.focus();
+    });
 
-        startDistance = Math.hypot(
-          first.clientX - second.clientX,
-          first.clientY - second.clientY
-        );
+    const charToCode = {
+        'a':'KeyA', 'b':'KeyB', 'c':'KeyC', 'd':'KeyD', 'e':'KeyE', 'f':'KeyF', 'g':'KeyG', 'h':'KeyH', 
+        'i':'KeyI', 'j':'KeyJ', 'k':'KeyK', 'l':'KeyL', 'm':'KeyM', 'n':'KeyN', 'o':'KeyO', 'p':'KeyP', 
+        'q':'KeyQ', 'r':'KeyR', 's':'KeyS', 't':'KeyT', 'u':'KeyU', 'v':'KeyV', 'w':'KeyW', 'x':'KeyX', 
+        'y':'KeyY', 'z':'KeyZ', '1':'Digit1', '2':'Digit2', '3':'Digit3', '4':'Digit4', '5':'Digit5', 
+        '6':'Digit6', '7':'Digit7', '8':'Digit8', '9':'Digit9', '0':'Digit0', ' ':'Space', 
+        'backspace':'Backspace', 'enter':'Enter'
+    };
 
-        initialPzScale = pzScale;
-        initialPzX = pzX;
-        initialPzY = pzY;
+    kbInput.addEventListener('keydown', (e) => {
+        let code = e.code;
+        if (!code || code === 'Unidentified' || code === '229') code = charToCode[e.key.toLowerCase()];
+        if (code) sendKey(code, true);
+    });
 
-        pinchCenterX = (first.clientX + second.clientX) / 2;
-        pinchCenterY = (first.clientY + second.clientY) / 2;
+    kbInput.addEventListener('keyup', (e) => {
+        let code = e.code;
+        if (!code || code === 'Unidentified' || code === '229') code = charToCode[e.key.toLowerCase()];
+        if (code) sendKey(code, false);
+    });
 
-        isClickCandidate = false;
-        isTwoFingerTap = true;
-        touchStartTime = Date.now();
+    kbInput.addEventListener('blur', () => kbInput.value = '');
 
-        postToMac({ type: "emulatormouseup", button: 0 });
-        return;
-      }
 
-      if (event.touches.length !== 1) return;
+    // --- 9. WEBGL DEDITHER ---
+    const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
 
-      const touch = event.touches[0];
-
-      isClickCandidate = true;
-      isTwoFingerTap = false;
-      touchStartTime = Date.now();
-
-      lastTouchX = touch.clientX;
-      lastTouchY = touch.clientY;
-
-      if (!isTrackpadMode) {
-        const coords = getEmulatorCoordinates(touch.clientX, touch.clientY);
-        cursorX = coords.x;
-        cursorY = coords.y;
-        clampCursor();
-        sendMouseMove();
-      }
-    }, { passive: false });
-
-    touchOverlay.addEventListener("touchmove", event => {
-      event.preventDefault();
-      isClickCandidate = false;
-
-      if (event.touches.length === 2) {
-        const first = event.touches[0];
-        const second = event.touches[1];
-
-        const currentCenterX = (first.clientX + second.clientX) / 2;
-        const currentCenterY = (first.clientY + second.clientY) / 2;
-
-        const distance = Math.hypot(
-          first.clientX - second.clientX,
-          first.clientY - second.clientY
-        );
-
-        if (
-          Math.abs(distance - startDistance) > 15 ||
-          Math.hypot(
-            currentCenterX - pinchCenterX,
-            currentCenterY - pinchCenterY
-          ) > 15
-        ) {
-          isTwoFingerTap = false;
+    const vsSource = `
+        attribute vec2 a_position;
+        varying vec2 v_texCoord;
+        void main() {
+            v_texCoord = a_position * 0.5 + 0.5;
+            v_texCoord.y = 1.0 - v_texCoord.y;
+            gl_Position = vec4(a_position, 0.0, 1.0);
         }
+    `;
 
-        const maxZoom = 2 / cssScale;
-        const nextScale = Math.min(
-          Math.max(1, initialPzScale * distance / startDistance),
-          maxZoom
-        );
+    const fsSource = `
+        precision mediump float;
+        varying vec2 v_texCoord;
+        uniform sampler2D u_image;
+        uniform vec2 u_texSize;
 
-        const ratio = nextScale / initialPzScale;
+        void main() {
+            vec2 px = vec2(1.0, 1.0) / u_texSize;
+            vec4 C  = texture2D(u_image, v_texCoord);
+            vec4 L  = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0));
+            vec4 R  = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
+            vec4 U  = texture2D(u_image, v_texCoord + vec2(0.0, -px.y));
+            vec4 D  = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
+            vec4 TL = texture2D(u_image, v_texCoord + vec2(-px.x, -px.y));
+            vec4 TR = texture2D(u_image, v_texCoord + vec2(px.x, -px.y));
+            vec4 BL = texture2D(u_image, v_texCoord + vec2(-px.x, px.y));
+            vec4 BR = texture2D(u_image, v_texCoord + vec2(px.x, px.y));
 
-        pzX = currentCenterX - pinchCenterX - initialPzX * ratio;
-        p
+            float t = 0.08; 
+            bool is_shape = (length(C.rgb - L.rgb) < t || length(C.rgb - R.rgb) < t || length(C.rgb - U.rgb) < t || length(C.rgb - D.rgb) < t);
+            bool match_pos = (length(C.rgb - TL.rgb) < t && length(C.rgb - BR.rgb) < t);
+            bool match_neg = (length(C.rgb - TR.rgb) < t && length(C.rgb - BL.rgb) < t);
+            bool is_diag_line = (match_pos && !match_neg) || (!match_pos && match_neg);
+
+            if (is_shape || is_diag_line) {
+                gl_FragColor = C;
+            } else {
+                vec3 blur = (C.rgb*4.0 + L.rgb*2.0 + R.rgb*2.0 + U.rgb*2.0 + D.rgb*2.0 + TL.rgb + TR.rgb + BL.rgb + BR.rgb) / 16.0;
+                gl_FragColor = vec4(blur, 1.0);
+            }
+        }
+    `;
+
+    function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        return shader;
+    }
+
+    const shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, createShader(gl, gl.VERTEX_SHADER, vsSource));
+    gl.attachShader(shaderProgram, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
+    gl.linkProgram(shaderProgram);
+    gl.useProgram(shaderProgram);
+
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    
+    const positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
+    gl.uniform2f(texSizeLocation, baseWidth, baseHeight); 
+
+    const filterToggle = document.getElementById('filter-toggle');
+    let isCrisp = true;
+    filterToggle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        isCrisp = !isCrisp;
+        if (isCrisp) {
+            glCanvas.style.display = 'none';
+            iframe.style.opacity = '1';
+            filterToggle.innerHTML = '<span class="emoji">📺</span>Crisp';
+        } else {
+            glCanvas.style.display = 'block';
+            iframe.style.opacity = '0.01'; 
+            filterToggle.innerHTML = '<span class="emoji">📺</span>Dedith';
+        }
+    });
+
+    window.addEventListener("message", e => {
+        if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
+            try {
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, e.data.width||baseWidth, e.data.height||baseHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            } catch (err) {}
+        }
+    });
+
+    // Handle Standard HUD Button Pressing
+    document.querySelectorAll('.btn[data-code]').forEach(btn => {
+        btn.addEventListener('pointerdown', e => { e.preventDefault(); sendKey(btn.getAttribute('data-code'), true); });
+        btn.addEventListener('pointerup', e => { e.preventDefault(); sendKey(btn.getAttribute('data-code'), false); });
+        btn.addEventListener('pointerleave', e => { e.preventDefault(); sendKey(btn.getAttribute('data-code'), false); });
+    });
+</script>
+
+</body>
+</html>
