@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cythera Mobile - Improved Performance</title>
+    <title>Cythera Mobile - System 7.6</title>
     <style>
         body, html {
             margin: 0; padding: 0;
@@ -18,31 +18,6 @@
             width: 100vw; height: 100dvh;
             position: relative;
         }
-
-        /* STARTUP OVERLAY (For iOS Audio Unlock) */
-        #start-overlay {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100vw; height: 100dvh;
-            background: rgba(0, 0, 0, 0.85);
-            color: #FCE688;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 999;
-            pointer-events: none; /* Let the tap pass through to iframe */
-        }
-        #start-overlay-text {
-            border: 2px solid #8B6914;
-            background: rgba(59, 0, 0, 0.9);
-            padding: 20px 40px;
-            text-align: center;
-            border-radius: 12px;
-            pointer-events: none;
-        }
-        #start-overlay h1 { margin: 0 0 10px 0; font-size: 1.5rem; }
-        #start-overlay p { margin: 0; font-size: 0.9rem; opacity: 0.8; }
 
         /* BOTTOM LAYER: Emulator & Screen */
         #emulator-wrapper {
@@ -81,10 +56,14 @@
             image-rendering: pixelated;
         }
 
+        /* Disabled initially so the user can click the iframe's Play button */
         #touch-overlay { 
             z-index: 10; 
             touch-action: none; 
-            pointer-events: none; /* Disabled until initial tap */
+            pointer-events: none; 
+        }
+        #touch-overlay.active {
+            pointer-events: auto;
         }
 
 
@@ -96,7 +75,10 @@
             pointer-events: none; 
             z-index: 100;
             opacity: 0; /* Hidden until initial tap */
-            transition: opacity 0.3s;
+            transition: opacity 0.5s ease-in;
+        }
+        #hud-layer.active {
+            opacity: 1;
         }
 
         .hud-window {
@@ -202,19 +184,11 @@
 
 <div id="app-container">
 
-    <!-- START OVERLAY -->
-    <div id="start-overlay">
-        <div id="start-overlay-text">
-            <h1>TAP SCREEN TO START</h1>
-            <p>Enables Touch Controls & Audio</p>
-        </div>
-    </div>
-
     <div id="emulator-wrapper">
         <div id="pan-zoom-container">
             <div id="scale-target">
-                <!-- screen_update_messages removed for massive performance boost. Speed defaults to 2. -->
-                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+8.0&infinite_hd=true&machine=Quadra+650&auto_pause=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                <!-- Mac OS 7.6, speed defaults to 2, pause=true forces interaction to unlock audio -->
+                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+7.6&infinite_hd=true&machine=Quadra+650&pause=true&auto_pause=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
                     width="640" id="mac-iframe" allow="autoplay; cross-origin-isolated" frameborder="0"></iframe>
                 <div id="touch-overlay"></div>
             </div>
@@ -269,6 +243,8 @@
                 <div class="btn settings-btn" id="touch-mode-toggle"><span class="emoji">👆</span>Direct</div>
                 <div class="btn settings-btn" id="filter-toggle"><span class="emoji">📺</span>Crisp</div>
                 <div class="btn settings-btn" id="pause-btn"><span class="emoji">⏸️</span>Pause</div>
+                <div class="btn settings-btn" id="speed-btn"><span class="emoji">⚡</span>Spd: 2</div>
+                <div class="btn settings-btn" id="mute-btn"><span class="emoji">🔊</span>Audio</div>
             </div>
         </div>
 
@@ -283,29 +259,25 @@
     const panZoomContainer = document.getElementById('pan-zoom-container');
     const touchOverlay = document.getElementById('touch-overlay');
     const hudLayer = document.getElementById('hud-layer');
-    const startOverlay = document.getElementById('start-overlay');
 
-    // --- AUDIO UNLOCK & INITIALIZATION ---
+    // --- AUDIO UNLOCK & UI ACTIVATION ---
+    // The emulator starts paused. When the user taps the native play button inside the iframe, 
+    // the iframe steals window focus (blur event) or finishes loading.
     let hasStarted = false;
-    window.addEventListener('blur', () => {
+    function enableControls() {
         if (!hasStarted) {
             hasStarted = true;
-            startOverlay.style.display = 'none';
-            touchOverlay.style.pointerEvents = 'auto'; // Enable custom touch
-            hudLayer.style.opacity = '1';              // Show UI
-        }
-    });
-    // Fallback if blur doesn't catch it
-    window.addEventListener('touchstart', () => {
-        if (!hasStarted) {
+            // Add a slight delay to let the emulator transition out of the play screen
             setTimeout(() => {
-                hasStarted = true;
-                startOverlay.style.display = 'none';
-                touchOverlay.style.pointerEvents = 'auto';
-                hudLayer.style.opacity = '1';
-            }, 100);
+                touchOverlay.classList.add('active');
+                hudLayer.classList.add('active');
+            }, 300);
         }
-    }, { once: true, capture: true });
+    }
+    window.addEventListener('blur', enableControls);
+    window.addEventListener("message", e => {
+        if (e.data && e.data.type === "emulator_loaded") enableControls();
+    });
 
     // --- DYNAMIC FULLSCREEN MATH ---
     const baseWidth = 640; 
@@ -468,6 +440,7 @@
         else { showToast("?"); }
     });
 
+
     // --- SETTINGS DRAWER BUTTONS ---
     document.getElementById('settings-handle').addEventListener('pointerdown', e => {
         e.preventDefault(); document.getElementById('settings-drawer').classList.toggle('collapsed');
@@ -484,7 +457,6 @@
     const filterToggle = document.getElementById('filter-toggle');
     filterToggle.addEventListener('pointerdown', e => {
         e.preventDefault(); isCrisp = !isCrisp;
-        // Native CSS smoothing completely eliminates the WebGL overhead!
         iframe.style.imageRendering = isCrisp ? 'pixelated' : 'auto'; 
         filterToggle.innerHTML = isCrisp ? '<span class="emoji">📺</span>Crisp' : '<span class="emoji">📺</span>Smooth';
     });
@@ -495,6 +467,40 @@
         e.preventDefault(); isPaused = !isPaused;
         if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: isPaused ? 'emulator_pause' : 'emulator_unpause' }, '*');
         pauseBtn.innerHTML = isPaused ? '<span class="emoji">▶️</span>Play' : '<span class="emoji">⏸️</span>Pause';
+    });
+
+    let currentSpeed = 2;
+    const speedBtn = document.getElementById('speed-btn');
+    speedBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        let speeds = [-2, -1, 0, 1, 2];
+        let newSpeed = speeds[(speeds.indexOf(currentSpeed) + 1) % speeds.length];
+        
+        if(confirm(`Set CPU Speed to ${newSpeed}? \n\nWARNING: This will restart the emulated Mac and you will lose any unsaved progress.`)) {
+            currentSpeed = newSpeed;
+            speedBtn.innerHTML = `<span class="emoji">⚡</span>Spd: ${currentSpeed}`;
+            const settingsObj = { swapControlAndCommand: false, speed: currentSpeed, useMouseDeltas: false, trackpadMode: false };
+            const settingsStr = encodeURIComponent(JSON.stringify(settingsObj));
+            iframe.src = `https://infinitemac.org/embed?disk=Mac+OS+7.6&infinite_hd=true&machine=Quadra+650&pause=true&auto_pause=true&settings=${settingsStr}&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk`;
+            
+            // Re-hide UI so user can click the new play button
+            hasStarted = false;
+            touchOverlay.classList.remove('active');
+            hudLayer.classList.remove('active');
+        }
+    });
+
+    let isMuted = false;
+    const muteBtn = document.getElementById('mute-btn');
+    muteBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        isMuted = !isMuted;
+        muteBtn.innerHTML = isMuted ? '<span class="emoji">🔇</span>Muted' : '<span class="emoji">🔊</span>Audio';
+        
+        if (iframe.contentWindow) {
+            iframe.contentWindow.postMessage({ type: 'emulator_mute', mute: isMuted }, '*');
+            iframe.contentWindow.postMessage({ type: 'emulator_set_volume', volume: isMuted ? 0 : 1 }, '*');
+        }
     });
 
 
