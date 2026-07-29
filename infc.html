@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cythera Mobile - System 7.6</title>
+    <title>Cythera Mobile - Ultimate</title>
     <style>
         body, html {
             margin: 0; padding: 0;
@@ -18,6 +18,49 @@
             width: 100vw; height: 100dvh;
             position: relative;
         }
+
+        /* STARTUP OVERLAY (Fixes Audio & Pause) */
+        #start-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100dvh;
+            background: rgba(0, 0, 0, 0.9);
+            color: #FCE688;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            pointer-events: auto;
+        }
+        #start-overlay-text {
+            border: 2px solid #8B6914;
+            background: rgba(59, 0, 0, 0.9);
+            padding: 30px 50px;
+            text-align: center;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(139, 105, 20, 0.5);
+        }
+        #start-overlay h1 { margin: 0 0 10px 0; font-size: 1.8rem; }
+        #start-overlay p { margin: 0; font-size: 1rem; opacity: 0.8; }
+
+        /* CROSSHAIR (For Pan Mode) */
+        #center-crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 20px; height: 20px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 50;
+            display: none; /* Only visible in Pan Mode */
+        }
+        #center-crosshair::before, #center-crosshair::after {
+            content: ''; position: absolute; background: rgba(252, 230, 136, 0.8);
+        }
+        #center-crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #center-crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+
 
         /* BOTTOM LAYER: Emulator & Screen */
         #emulator-wrapper {
@@ -42,7 +85,7 @@
             top: 0; left: 0;
         }
 
-        #mac-iframe, #touch-overlay {
+        #mac-iframe, #gl-canvas, #touch-overlay {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
@@ -56,15 +99,14 @@
             image-rendering: pixelated;
         }
 
-        /* Disabled initially so the user can click the iframe's Play button */
+        #gl-canvas { pointer-events: none; display: none; }
+        
         #touch-overlay { 
             z-index: 10; 
             touch-action: none; 
             pointer-events: none; 
         }
-        #touch-overlay.active {
-            pointer-events: auto;
-        }
+        #touch-overlay.active { pointer-events: auto; }
 
 
         /* TOP LAYER: HUD & Windows */
@@ -74,12 +116,10 @@
             width: 100%; height: 100%;
             pointer-events: none; 
             z-index: 100;
-            opacity: 0; /* Hidden until initial tap */
+            opacity: 0; 
             transition: opacity 0.5s ease-in;
         }
-        #hud-layer.active {
-            opacity: 1;
-        }
+        #hud-layer.active { opacity: 1; }
 
         .hud-window {
             position: absolute;
@@ -96,16 +136,9 @@
         }
 
         .hud-header {
-            background-color: #C4A464;
-            color: #3B0000;
-            font-weight: bold;
-            font-size: 0.75rem;
-            padding: 4px 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid #8B6914;
-            touch-action: none;
+            background-color: #C4A464; color: #3B0000; font-weight: bold; font-size: 0.75rem;
+            padding: 4px 8px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid #8B6914; touch-action: none;
         }
         
         .drag-handle { flex-grow: 1; cursor: move; }
@@ -184,16 +217,27 @@
 
 <div id="app-container">
 
+    <!-- START OVERLAY -->
+    <div id="start-overlay">
+        <div id="start-overlay-text">
+            <h1>▶ TAP TO START</h1>
+            <p>System 7.6 • Speed 2</p>
+        </div>
+    </div>
+
     <div id="emulator-wrapper">
         <div id="pan-zoom-container">
             <div id="scale-target">
-                <!-- Mac OS 7.6, speed defaults to 2, pause=true forces interaction to unlock audio -->
-                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+7.6&infinite_hd=true&machine=Quadra+650&pause=true&auto_pause=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                <!-- Removed auto_pause=true to prevent tab-switch freezes. Added screen_update_messages for Smart Dedither -->
+                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+7.6&infinite_hd=true&machine=Quadra+650&pause=true&screen_update_messages=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
                     width="640" id="mac-iframe" allow="autoplay; cross-origin-isolated" frameborder="0"></iframe>
+                <canvas id="gl-canvas"></canvas>
                 <div id="touch-overlay"></div>
             </div>
         </div>
     </div>
+    
+    <div id="center-crosshair"></div>
 
     <div id="hud-layer">
         
@@ -259,24 +303,25 @@
     const panZoomContainer = document.getElementById('pan-zoom-container');
     const touchOverlay = document.getElementById('touch-overlay');
     const hudLayer = document.getElementById('hud-layer');
+    const startOverlay = document.getElementById('start-overlay');
+    const glCanvas = document.getElementById('gl-canvas');
+    const centerCrosshair = document.getElementById('center-crosshair');
 
-    // --- AUDIO UNLOCK & UI ACTIVATION ---
-    // The emulator starts paused. When the user taps the native play button inside the iframe, 
-    // the iframe steals window focus (blur event) or finishes loading.
-    let hasStarted = false;
-    function enableControls() {
-        if (!hasStarted) {
-            hasStarted = true;
-            // Add a slight delay to let the emulator transition out of the play screen
-            setTimeout(() => {
-                touchOverlay.classList.add('active');
-                hudLayer.classList.add('active');
-            }, 300);
+    // --- AUDIO UNLOCK & STARTUP LOGIC ---
+    startOverlay.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        startOverlay.style.display = 'none';
+        
+        if (iframe.contentWindow) {
+            // Unpause the emulator explicitly
+            iframe.contentWindow.postMessage({ type: 'emulator_unpause' }, '*');
+            // Trigger audio unlock with a dummy click
+            iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
+            iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
         }
-    }
-    window.addEventListener('blur', enableControls);
-    window.addEventListener("message", e => {
-        if (e.data && e.data.type === "emulator_loaded") enableControls();
+
+        touchOverlay.classList.add('active');
+        hudLayer.classList.add('active');
     });
 
     // --- DYNAMIC FULLSCREEN MATH ---
@@ -284,6 +329,8 @@
     const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
     scaleTarget.style.width = `${baseWidth}px`;
     scaleTarget.style.height = `${baseHeight}px`;
+    glCanvas.width = baseWidth;
+    glCanvas.height = baseHeight;
     const cssScale = window.innerWidth / baseWidth;
     scaleTarget.style.transform = `scale(${cssScale})`;
 
@@ -339,7 +386,7 @@
     });
 
 
-    // --- JOYSTICK LOGIC (Left Window) ---
+    // --- JOYSTICK LOGIC ---
     const moveZone = document.getElementById('move-gesture-zone');
     const joyBase = document.getElementById('joy-base');
     const joyStick = document.getElementById('joy-stick');
@@ -365,7 +412,6 @@
         joyStick.style.left = `${moveStartX}px`; joyStick.style.top = `${moveStartY}px`;
         joyBase.style.display = 'block'; joyStick.style.display = 'block';
     });
-
     moveZone.addEventListener('touchmove', e => {
         const rect = moveZone.getBoundingClientRect();
         let dx = (e.touches[0].clientX - rect.left) - moveStartX; let dy = (e.touches[0].clientY - rect.top) - moveStartY;
@@ -382,7 +428,6 @@
             currentMoveKey = newKey;
         }
     });
-
     function stopMovement() {
         if (currentMoveKey) { sendKey(currentMoveKey, false); currentMoveKey = null; }
         joyBase.style.display = 'none'; joyStick.style.display = 'none';
@@ -391,7 +436,7 @@
     moveZone.addEventListener('touchcancel', stopMovement);
 
 
-    // --- GESTURE LOGIC (Right Window) ---
+    // --- GESTURE LOGIC ---
     const actionZone = document.getElementById('action-gesture-zone');
     const gestureCanvas = document.getElementById('gesture-canvas');
     const gCtx = gestureCanvas.getContext('2d');
@@ -441,6 +486,84 @@
     });
 
 
+    // --- SMART DEDITHER SHADER ---
+    const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
+    const vsSource = `attribute vec2 a_position; varying vec2 v_texCoord; void main() { v_texCoord = a_position * 0.5 + 0.5; v_texCoord.y = 1.0 - v_texCoord.y; gl_Position = vec4(a_position, 0.0, 1.0); }`;
+    
+    // This shader strictly detects checkerboards while preserving solid lines/text.
+    const fsSource = `
+        precision mediump float;
+        varying vec2 v_texCoord;
+        uniform sampler2D u_image;
+        uniform vec2 u_texSize;
+
+        void main() {
+            vec2 px = vec2(1.0, 1.0) / u_texSize;
+            vec4 C = texture2D(u_image, v_texCoord);
+            vec4 L = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0));
+            vec4 R = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
+            vec4 U = texture2D(u_image, v_texCoord + vec2(0.0, -px.y));
+            vec4 D = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
+
+            float thresh = 0.08;
+            bool diffL = distance(C.rgb, L.rgb) > thresh;
+            bool diffR = distance(C.rgb, R.rgb) > thresh;
+            bool diffU = distance(C.rgb, U.rgb) > thresh;
+            bool diffD = distance(C.rgb, D.rgb) > thresh;
+
+            // If a pixel differs from ALL orthogonal neighbors, it is part of a checkerboard or a single dot.
+            if (diffL && diffR && diffU && diffD) {
+                gl_FragColor = (C + L + R + U + D) / 5.0; // Blend it smoothly
+            } else {
+                gl_FragColor = C; // Leave text lines and solid blocks perfectly sharp
+            }
+        }
+    `;
+
+    function createShader(gl, type, source) { const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader); return shader; }
+    const shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, createShader(gl, gl.VERTEX_SHADER, vsSource));
+    gl.attachShader(shaderProgram, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
+    gl.linkProgram(shaderProgram); gl.useProgram(shaderProgram);
+
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    
+    const positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
+    gl.enableVertexAttribArray(positionLocation); gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
+    gl.uniform2f(texSizeLocation, baseWidth, baseHeight); 
+
+    let isCrisp = true;
+    const filterToggle = document.getElementById('filter-toggle');
+    filterToggle.addEventListener('pointerdown', e => {
+        e.preventDefault(); isCrisp = !isCrisp;
+        if (isCrisp) {
+            glCanvas.style.display = 'none'; iframe.style.opacity = '1'; filterToggle.innerHTML = '<span class="emoji">📺</span>Crisp';
+        } else {
+            glCanvas.style.display = 'block'; iframe.style.opacity = '0.01'; filterToggle.innerHTML = '<span class="emoji">📺</span>Dedith';
+        }
+    });
+
+    window.addEventListener("message", e => {
+        if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
+            try {
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, e.data.width||baseWidth, e.data.height||baseHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
+                gl.drawArrays(gl.TRIANGLES, 0, 6);
+            } catch (err) {}
+        }
+    });
+
+
     // --- SETTINGS DRAWER BUTTONS ---
     document.getElementById('settings-handle').addEventListener('pointerdown', e => {
         e.preventDefault(); document.getElementById('settings-drawer').classList.toggle('collapsed');
@@ -448,17 +571,15 @@
 
     let touchMode = 0; // 0: Direct, 1: Trackpad, 2: Pan
     const touchModeToggle = document.getElementById('touch-mode-toggle');
-    const touchModeLabels = ['<span class="emoji">👆</span>Direct', '<span class="emoji">🖱️</span>Trackpad', '<span class="emoji">🖐️</span>Pan View'];
+    const touchModeLabels = ['<span class="emoji">👆</span>Direct', '<span class="emoji">🖱️</span>Trackpad', '<span class="emoji">🎯</span>Pan View'];
     touchModeToggle.addEventListener('pointerdown', (e) => {
-        e.preventDefault(); touchMode = (touchMode + 1) % 3; touchModeToggle.innerHTML = touchModeLabels[touchMode];
-    });
-
-    let isCrisp = true;
-    const filterToggle = document.getElementById('filter-toggle');
-    filterToggle.addEventListener('pointerdown', e => {
-        e.preventDefault(); isCrisp = !isCrisp;
-        iframe.style.imageRendering = isCrisp ? 'pixelated' : 'auto'; 
-        filterToggle.innerHTML = isCrisp ? '<span class="emoji">📺</span>Crisp' : '<span class="emoji">📺</span>Smooth';
+        e.preventDefault(); 
+        touchMode = (touchMode + 1) % 3; 
+        touchModeToggle.innerHTML = touchModeLabels[touchMode];
+        centerCrosshair.style.display = (touchMode === 2) ? 'block' : 'none';
+        
+        // Snap cursor to center if entering Pan Mode
+        if (touchMode === 2) updatePanCursor();
     });
 
     let isPaused = false;
@@ -481,10 +602,9 @@
             speedBtn.innerHTML = `<span class="emoji">⚡</span>Spd: ${currentSpeed}`;
             const settingsObj = { swapControlAndCommand: false, speed: currentSpeed, useMouseDeltas: false, trackpadMode: false };
             const settingsStr = encodeURIComponent(JSON.stringify(settingsObj));
-            iframe.src = `https://infinitemac.org/embed?disk=Mac+OS+7.6&infinite_hd=true&machine=Quadra+650&pause=true&auto_pause=true&settings=${settingsStr}&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk`;
+            iframe.src = `https://infinitemac.org/embed?disk=Mac+OS+7.6&infinite_hd=true&machine=Quadra+650&pause=true&screen_update_messages=true&settings=${settingsStr}&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk`;
             
-            // Re-hide UI so user can click the new play button
-            hasStarted = false;
+            startOverlay.style.display = 'flex';
             touchOverlay.classList.remove('active');
             hudLayer.classList.remove('active');
         }
@@ -496,7 +616,6 @@
         e.preventDefault();
         isMuted = !isMuted;
         muteBtn.innerHTML = isMuted ? '<span class="emoji">🔇</span>Muted' : '<span class="emoji">🔊</span>Audio';
-        
         if (iframe.contentWindow) {
             iframe.contentWindow.postMessage({ type: 'emulator_mute', mute: isMuted }, '*');
             iframe.contentWindow.postMessage({ type: 'emulator_set_volume', volume: isMuted ? 0 : 1 }, '*');
@@ -539,6 +658,16 @@
         return { x: macX, y: macY };
     }
 
+    // Called when in Pan mode to keep emulator cursor strictly on the center crosshair
+    function updatePanCursor() {
+        const centerClientX = window.innerWidth / 2;
+        const centerClientY = window.innerHeight / 2;
+        const coords = getEmulatorCoords(centerClientX, centerClientY);
+        cursorX = coords.x;
+        cursorY = coords.y;
+        if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
+    }
+
     touchOverlay.addEventListener('touchstart', (e) => {
         e.preventDefault();
         if (e.touches.length === 2) {
@@ -551,12 +680,10 @@
             isClickCandidate = true; isTwoFingerTap = false; touchStartTime = Date.now();
             lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
 
-            // PREVENT CURSOR MOVEMENT IN PAN MODE on TouchStart
-            if (touchMode !== 2) { 
-                if (touchMode !== 1) { // Direct mode
-                    const coords = getEmulatorCoords(lastTouchX, lastTouchY);
-                    cursorX = coords.x; cursorY = coords.y;
-                }
+            // Direct mode cursor jump
+            if (touchMode === 0) { 
+                const coords = getEmulatorCoords(lastTouchX, lastTouchY);
+                cursorX = coords.x; cursorY = coords.y;
                 if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
             }
         }
@@ -576,14 +703,16 @@
             pzX = currentPinchCenterX - (pinchCenterX - initialPzX) * scaleRatio;
             pzY = currentPinchCenterY - (pinchCenterY - initialPzY) * scaleRatio;
             pzScale = newScale; updatePanZoom();
+            if(touchMode === 2) updatePanCursor();
         } else if (e.touches.length === 1) {
             const currentTouchX = e.touches[0].clientX;
             const currentTouchY = e.touches[0].clientY;
 
-            if (touchMode === 2) { // PAN MODE (Visual Pan Only, No Mouse Input)
+            if (touchMode === 2) { // PAN MODE
                 pzX += (currentTouchX - lastTouchX);
                 pzY += (currentTouchY - lastTouchY);
                 updatePanZoom();
+                updatePanCursor(); // Keep cursor synced to screen center
             } else if (touchMode === 1) { // TRACKPAD MODE
                 const dX = (currentTouchX - lastTouchX) / (cssScale * pzScale);
                 const dY = (currentTouchY - lastTouchY) / (cssScale * pzScale);
@@ -607,22 +736,10 @@
             if (isTwoFingerTap && timeElapsed < 300) {
                 if (iframe.contentWindow) { iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 2 }, '*'); setTimeout(() => iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 2 }, '*'), 50); }
             } else if (isClickCandidate && timeElapsed < 300) {
-                
-                // If in PAN MODE and tapped, jump cursor to tap location and click
-                if (touchMode === 2) {
-                    const coords = getEmulatorCoords(lastTouchX, lastTouchY);
-                    if (iframe.contentWindow) {
-                        iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(coords.x), y: Math.round(coords.y) }, '*');
-                        setTimeout(() => {
-                            iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
-                            setTimeout(() => iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'), 50);
-                        }, 20); // slight delay ensures OS registers mouse move before down
-                    }
-                } else {
-                    if (iframe.contentWindow) { 
-                        iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*'); 
-                        setTimeout(() => iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'), 50); 
-                    }
+                // Because cursor is pre-synced in all modes, we just send a click
+                if (iframe.contentWindow) { 
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*'); 
+                    setTimeout(() => iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'), 50); 
                 }
             }
             isTwoFingerTap = false;
