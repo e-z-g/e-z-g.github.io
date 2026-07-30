@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cythera Mobile - OS 9.2.2</title>
+    <title>Cythera Mobile - Stable OS 7.6</title>
     <style>
         body, html {
             margin: 0; padding: 0;
@@ -19,7 +19,7 @@
             position: relative;
         }
 
-        /* STARTUP OVERLAY (Fixes Audio & Pause) */
+        /* STARTUP OVERLAY */
         #start-overlay {
             position: absolute;
             top: 0; left: 0;
@@ -45,15 +45,10 @@
         #start-overlay h1 { margin: 0 0 10px 0; font-size: 1.8rem; }
         #start-overlay p { margin: 0; font-size: 1rem; opacity: 0.8; }
 
-        /* CROSSHAIR (For Pan Mode) */
+        /* CROSSHAIR */
         #center-crosshair {
-            position: absolute;
-            top: 50%; left: 50%;
-            width: 20px; height: 20px;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 50;
-            display: none; /* Only visible in Pan Mode */
+            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 50; display: none; 
         }
         #center-crosshair::before, #center-crosshair::after {
             content: ''; position: absolute; background: rgba(252, 230, 136, 0.8);
@@ -62,77 +57,29 @@
         #center-crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
 
 
-        /* BOTTOM LAYER: Emulator & Screen */
-        #emulator-wrapper {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100vw; height: 100dvh;
-            overflow: hidden;
-            z-index: 1;
-        }
-
-        #pan-zoom-container {
-            width: 100%; height: 100%;
-            transform-origin: top left;
-            will-change: transform;
-            position: absolute;
-            top: 0; left: 0;
-        }
-
-        #scale-target {
-            transform-origin: top left;
-            position: absolute;
-            top: 0; left: 0;
-        }
-
-        #mac-iframe, #gl-canvas, #touch-overlay {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            border: none;
-            display: block;
-        }
-
-        #mac-iframe {
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: crisp-edges;
-            image-rendering: pixelated;
-        }
-
+        /* BOTTOM LAYER */
+        #emulator-wrapper { position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; overflow: hidden; z-index: 1; }
+        #pan-zoom-container { width: 100%; height: 100%; transform-origin: top left; will-change: transform; position: absolute; top: 0; left: 0; }
+        #scale-target { transform-origin: top left; position: absolute; top: 0; left: 0; }
+        #mac-iframe, #gl-canvas, #touch-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: block; }
+        #mac-iframe { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
         #gl-canvas { pointer-events: none; display: none; }
-        
-        #touch-overlay { 
-            z-index: 10; 
-            touch-action: none; 
-            pointer-events: none; 
-        }
+        #touch-overlay { z-index: 10; touch-action: none; pointer-events: none; }
         #touch-overlay.active { pointer-events: auto; }
 
 
-        /* TOP LAYER: HUD & Windows */
+        /* TOP LAYER */
         #hud-layer {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none; 
-            z-index: 100;
-            opacity: 0; 
-            transition: opacity 0.5s ease-in;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; 
+            z-index: 100; opacity: 0; transition: opacity 0.5s ease-in;
         }
         #hud-layer.active { opacity: 1; }
 
         .hud-window {
-            position: absolute;
-            pointer-events: auto; 
-            background-color: rgba(59, 0, 0, 0.85); 
-            border: 2px solid #8B6914;
-            box-shadow: 4px 4px 10px rgba(0,0,0,0.7);
-            display: flex;
-            flex-direction: column;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            min-width: 140px;
-            min-height: 140px;
+            position: absolute; pointer-events: auto; background-color: rgba(59, 0, 0, 0.85); 
+            border: 2px solid #8B6914; box-shadow: 4px 4px 10px rgba(0,0,0,0.7); display: flex;
+            flex-direction: column; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            min-width: 140px; min-height: 140px;
         }
 
         .hud-header {
@@ -143,43 +90,15 @@
         
         .drag-handle { flex-grow: 1; cursor: move; }
         .drag-handle::before { content: '≡ '; opacity: 0.7; }
-
-        .mode-toggle {
-            background: #1E0059; color: #FCE688; border: 1px solid #8B6914;
-            font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-family: inherit;
-        }
+        .mode-toggle { background: #1E0059; color: #FCE688; border: 1px solid #8B6914; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-family: inherit; }
         .mode-toggle.active { background: #7A0000; }
+        .hud-content { flex: 1; position: relative; padding: 6px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .resize-handle { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, #C4A464 50%); touch-action: none; }
 
-        .hud-content {
-            flex: 1; position: relative; padding: 6px;
-            display: flex; justify-content: center; align-items: center; overflow: hidden;
-        }
-
-        .resize-handle {
-            position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: se-resize;
-            background: linear-gradient(135deg, transparent 50%, #C4A464 50%); touch-action: none;
-        }
-
-        .btn-grid {
-            display: grid; gap: 4px; width: 100%; height: 100%;
-            grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
-        }
-
-        .gesture-area {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none;
-            background: rgba(255, 230, 136, 0.05); touch-action: none;
-        }
-
-        #joy-base {
-            position: absolute; width: 50%; height: 50%; max-width: 100px; max-height: 100px;
-            border: 2px solid rgba(252, 230, 136, 0.3); border-radius: 50%; transform: translate(-50%, -50%);
-            display: none; pointer-events: none;
-        }
-        #joy-stick {
-            position: absolute; width: 25%; height: 25%; max-width: 40px; max-height: 40px;
-            background: rgba(252, 230, 136, 0.6); border-radius: 50%; transform: translate(-50%, -50%);
-            display: none; pointer-events: none;
-        }
+        .btn-grid { display: grid; gap: 4px; width: 100%; height: 100%; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+        .gesture-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: rgba(255, 230, 136, 0.05); touch-action: none; }
+        #joy-base { position: absolute; width: 50%; height: 50%; max-width: 100px; max-height: 100px; border: 2px solid rgba(252, 230, 136, 0.3); border-radius: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
+        #joy-stick { position: absolute; width: 25%; height: 25%; max-width: 40px; max-height: 40px; background: rgba(252, 230, 136, 0.6); border-radius: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
         #gesture-canvas { width: 100%; height: 100%; pointer-events: none; }
 
         .btn {
@@ -193,10 +112,8 @@
         .active-action { background-color: #7A0000 !important; border-color: #FCE688 !important; }
 
         #settings-drawer {
-            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-            background: rgba(59, 0, 0, 0.95); border: 2px solid #8B6914; border-bottom: none;
-            border-radius: 12px 12px 0 0; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 1000; width: 90%; max-width: 450px; backdrop-filter: blur(4px); pointer-events: auto;
+            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); background: rgba(59, 0, 0, 0.95); border: 2px solid #8B6914; border-bottom: none;
+            border-radius: 12px 12px 0 0; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1000; width: 90%; max-width: 450px; backdrop-filter: blur(4px); pointer-events: auto;
         }
         #settings-drawer.collapsed { transform: translate(-50%, calc(100% - 28px)); }
         .settings-handle { height: 28px; color: #FCE688; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.8rem; cursor: pointer; border-bottom: 1px solid rgba(196, 164, 100, 0.3); }
@@ -204,10 +121,8 @@
         .settings-btn { flex: 1 1 30%; padding: 8px 0; font-size: 0.7rem; height: auto; }
 
         #action-toast {
-            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(252, 230, 136, 0.9); color: #3B0000; padding: 10px 20px;
-            font-size: 1.5rem; font-weight: bold; border: 2px solid #8B6914; border-radius: 8px;
-            opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200;
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); background: rgba(252, 230, 136, 0.9); color: #3B0000; padding: 10px 20px;
+            font-size: 1.5rem; font-weight: bold; border: 2px solid #8B6914; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200;
         }
         #hidden-keyboard { position: absolute; top: -1000px; opacity: 0; pointer-events: none; }
 
@@ -217,19 +132,18 @@
 
 <div id="app-container">
 
-    <!-- START OVERLAY -->
     <div id="start-overlay">
         <div id="start-overlay-text">
             <h1>▶ TAP TO START</h1>
-            <p>System 7.6 (Quadra) • Speed 2</p>
+            <p>Mac OS 7.6 • Speed 2</p>
         </div>
     </div>
 
     <div id="emulator-wrapper">
         <div id="pan-zoom-container">
             <div id="scale-target">
-                <!-- Mac OS 7.6, Quadra 650, No Infinite HD, speed defaults to 2 -->
-                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+7.6&machine=Quadra+650&pause=true&screen_update_messages=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                <!-- Stable OS 7.6 build restored -->
+                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+7.6&infinite_hd=true&machine=Quadra+650&pause=true&screen_update_messages=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
                     width="640" id="mac-iframe" allow="autoplay; cross-origin-isolated" frameborder="0"></iframe>
                 <canvas id="gl-canvas"></canvas>
                 <div id="touch-overlay"></div>
@@ -240,20 +154,13 @@
     <div id="center-crosshair"></div>
 
     <div id="hud-layer">
-        
         <div class="hud-window" id="hud-dpad" style="left: 10px; bottom: 50px; width: 160px; height: 180px;">
             <div class="hud-header"><span class="drag-handle">MOVE</span><button class="mode-toggle">Gestures</button></div>
             <div class="hud-content">
                 <div class="btn-grid">
-                    <div class="btn dir-btn" data-code="Numpad7">↖️</div>
-                    <div class="btn dir-btn" data-code="Numpad8">⬆️</div>
-                    <div class="btn dir-btn" data-code="Numpad9">↗️</div>
-                    <div class="btn dir-btn" data-code="Numpad4">⬅️</div>
-                    <div class="btn" data-code="Space">⏱️</div>
-                    <div class="btn dir-btn" data-code="Numpad6">➡️</div>
-                    <div class="btn dir-btn" data-code="Numpad1">↙️</div>
-                    <div class="btn dir-btn" data-code="Numpad2">⬇️</div>
-                    <div class="btn dir-btn" data-code="Numpad3">↘️</div>
+                    <div class="btn dir-btn" data-code="Numpad7">↖️</div><div class="btn dir-btn" data-code="Numpad8">⬆️</div><div class="btn dir-btn" data-code="Numpad9">↗️</div>
+                    <div class="btn dir-btn" data-code="Numpad4">⬅️</div><div class="btn" data-code="Space">⏱️</div><div class="btn dir-btn" data-code="Numpad6">➡️</div>
+                    <div class="btn dir-btn" data-code="Numpad1">↙️</div><div class="btn dir-btn" data-code="Numpad2">⬇️</div><div class="btn dir-btn" data-code="Numpad3">↘️</div>
                 </div>
                 <div class="gesture-area" id="move-gesture-zone"><div id="joy-base"></div><div id="joy-stick"></div></div>
             </div>
@@ -264,21 +171,14 @@
             <div class="hud-header"><span class="drag-handle">ACTIONS</span><button class="mode-toggle">Gestures</button></div>
             <div class="hud-content">
                 <div class="btn-grid">
-                    <div class="btn action-btn" data-code="KeyG"><span class="emoji">💰</span>Get</div>
-                    <div class="btn action-btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div>
-                    <div class="btn action-btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
-                    <div class="btn action-btn" data-code="KeyU"><span class="emoji">🖐️</span>Use</div>
-                    <div class="btn action-btn" data-code="KeyD"><span class="emoji">🫳</span>Drop</div>
-                    <div class="btn action-btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
-                    <div class="btn action-btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div>
-                    <div class="btn" id="kb-toggle"><span class="emoji">⌨️</span>Keyb</div>
-                    <div class="btn" data-code="Enter"><span class="emoji">↩️</span>Ent</div>
+                    <div class="btn action-btn" data-code="KeyG"><span class="emoji">💰</span>Get</div><div class="btn action-btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div><div class="btn action-btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
+                    <div class="btn action-btn" data-code="KeyU"><span class="emoji">🖐️</span>Use</div><div class="btn action-btn" data-code="KeyD"><span class="emoji">🫳</span>Drop</div><div class="btn action-btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
+                    <div class="btn action-btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div><div class="btn" id="kb-toggle"><span class="emoji">⌨️</span>Keyb</div><div class="btn" data-code="Enter"><span class="emoji">↩️</span>Ent</div>
                 </div>
                 <div class="gesture-area" id="action-gesture-zone"><canvas id="gesture-canvas"></canvas></div>
             </div>
             <div class="resize-handle"></div>
         </div>
-
         <div id="action-toast"></div>
 
         <div id="settings-drawer" class="collapsed">
@@ -291,7 +191,6 @@
                 <div class="btn settings-btn" id="mute-btn"><span class="emoji">🔊</span>Audio</div>
             </div>
         </div>
-
         <input type="text" id="hidden-keyboard" autocomplete="off" spellcheck="false" autocorrect="off">
     </div>
 
@@ -307,30 +206,22 @@
     const glCanvas = document.getElementById('gl-canvas');
     const centerCrosshair = document.getElementById('center-crosshair');
 
-    // --- AUDIO UNLOCK & STARTUP LOGIC ---
     startOverlay.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         startOverlay.style.display = 'none';
-        
         if (iframe.contentWindow) {
-            // Unpause the emulator explicitly
             iframe.contentWindow.postMessage({ type: 'emulator_unpause' }, '*');
-            // Trigger audio unlock with a dummy click
             iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
             iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
         }
-
         touchOverlay.classList.add('active');
         hudLayer.classList.add('active');
     });
 
-    // --- DYNAMIC FULLSCREEN MATH ---
     const baseWidth = 640; 
     const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
-    scaleTarget.style.width = `${baseWidth}px`;
-    scaleTarget.style.height = `${baseHeight}px`;
-    glCanvas.width = baseWidth;
-    glCanvas.height = baseHeight;
+    scaleTarget.style.width = `${baseWidth}px`; scaleTarget.style.height = `${baseHeight}px`;
+    glCanvas.width = baseWidth; glCanvas.height = baseHeight;
     const cssScale = window.innerWidth / baseWidth;
     scaleTarget.style.transform = `scale(${cssScale})`;
 
@@ -339,13 +230,10 @@
         iframe.contentWindow.postMessage({ type: isKeyDown ? 'emulator_key_down' : 'emulator_key_up', code: code }, '*');
     }
 
-    // --- WINDOW DRAGGING, RESIZING, & GESTURE TOGGLES ---
+    // Windows Drag/Resize/Toggles
     document.querySelectorAll('.hud-window').forEach(win => {
-        const dragHandle = win.querySelector('.drag-handle');
-        const resizeHandle = win.querySelector('.resize-handle');
-        const toggleBtn = win.querySelector('.mode-toggle');
-        const btnGrid = win.querySelector('.btn-grid');
-        const gestureArea = win.querySelector('.gesture-area');
+        const dragHandle = win.querySelector('.drag-handle'), resizeHandle = win.querySelector('.resize-handle');
+        const toggleBtn = win.querySelector('.mode-toggle'), btnGrid = win.querySelector('.btn-grid'), gestureArea = win.querySelector('.gesture-area');
         
         let isDragging = false, dragStartX, dragStartY, initialLeft, initialTop;
         dragHandle.addEventListener('touchstart', e => {
@@ -379,48 +267,33 @@
                 if(win.id === 'hud-actions') resizeGestureCanvas();
             } else { btnGrid.style.display = 'grid'; gestureArea.style.display = 'none'; }
         });
-
-        win.addEventListener('touchstart', e => e.stopPropagation());
-        win.addEventListener('touchmove', e => e.stopPropagation());
-        win.addEventListener('touchend', e => e.stopPropagation());
+        win.addEventListener('touchstart', e => e.stopPropagation()); win.addEventListener('touchmove', e => e.stopPropagation()); win.addEventListener('touchend', e => e.stopPropagation());
     });
 
-
-    // --- JOYSTICK LOGIC ---
-    const moveZone = document.getElementById('move-gesture-zone');
-    const joyBase = document.getElementById('joy-base');
-    const joyStick = document.getElementById('joy-stick');
+    // Joystick Logic
+    const moveZone = document.getElementById('move-gesture-zone'), joyBase = document.getElementById('joy-base'), joyStick = document.getElementById('joy-stick');
     let moveStartX = 0, moveStartY = 0, currentMoveKey = null;
-
     function applyMovementKey(angleDeg, dist) {
         if (dist < 15) return null; 
-        if (angleDeg >= -22.5 && angleDeg < 22.5) return 'Numpad6'; 
-        if (angleDeg >= 22.5 && angleDeg < 67.5) return 'Numpad3'; 
-        if (angleDeg >= 67.5 && angleDeg < 112.5) return 'Numpad2'; 
-        if (angleDeg >= 112.5 && angleDeg < 157.5) return 'Numpad1'; 
-        if (angleDeg >= 157.5 || angleDeg < -157.5) return 'Numpad4'; 
-        if (angleDeg >= -157.5 && angleDeg < -112.5) return 'Numpad7'; 
-        if (angleDeg >= -112.5 && angleDeg < -67.5) return 'Numpad8'; 
-        if (angleDeg >= -67.5 && angleDeg < -22.5) return 'Numpad9'; 
+        if (angleDeg >= -22.5 && angleDeg < 22.5) return 'Numpad6'; if (angleDeg >= 22.5 && angleDeg < 67.5) return 'Numpad3'; 
+        if (angleDeg >= 67.5 && angleDeg < 112.5) return 'Numpad2'; if (angleDeg >= 112.5 && angleDeg < 157.5) return 'Numpad1'; 
+        if (angleDeg >= 157.5 || angleDeg < -157.5) return 'Numpad4'; if (angleDeg >= -157.5 && angleDeg < -112.5) return 'Numpad7'; 
+        if (angleDeg >= -112.5 && angleDeg < -67.5) return 'Numpad8'; if (angleDeg >= -67.5 && angleDeg < -22.5) return 'Numpad9'; 
         return null;
     }
-
     moveZone.addEventListener('touchstart', e => {
         const rect = moveZone.getBoundingClientRect();
         moveStartX = e.touches[0].clientX - rect.left; moveStartY = e.touches[0].clientY - rect.top;
-        joyBase.style.left = `${moveStartX}px`; joyBase.style.top = `${moveStartY}px`;
-        joyStick.style.left = `${moveStartX}px`; joyStick.style.top = `${moveStartY}px`;
+        joyBase.style.left = `${moveStartX}px`; joyBase.style.top = `${moveStartY}px`; joyStick.style.left = `${moveStartX}px`; joyStick.style.top = `${moveStartY}px`;
         joyBase.style.display = 'block'; joyStick.style.display = 'block';
     });
     moveZone.addEventListener('touchmove', e => {
         const rect = moveZone.getBoundingClientRect();
-        let dx = (e.touches[0].clientX - rect.left) - moveStartX; let dy = (e.touches[0].clientY - rect.top) - moveStartY;
-        let dist = Math.hypot(dx, dy); let angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
-
+        let dx = (e.touches[0].clientX - rect.left) - moveStartX, dy = (e.touches[0].clientY - rect.top) - moveStartY;
+        let dist = Math.hypot(dx, dy), angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
         let displayDist = Math.min(dist, moveZone.offsetWidth / 3);
         joyStick.style.left = `${moveStartX + Math.cos(angleDeg * Math.PI/180) * displayDist}px`;
         joyStick.style.top = `${moveStartY + Math.sin(angleDeg * Math.PI/180) * displayDist}px`;
-
         let newKey = applyMovementKey(angleDeg, dist);
         if (newKey !== currentMoveKey) {
             if (currentMoveKey) sendKey(currentMoveKey, false);
@@ -432,26 +305,16 @@
         if (currentMoveKey) { sendKey(currentMoveKey, false); currentMoveKey = null; }
         joyBase.style.display = 'none'; joyStick.style.display = 'none';
     }
-    moveZone.addEventListener('touchend', stopMovement);
-    moveZone.addEventListener('touchcancel', stopMovement);
+    moveZone.addEventListener('touchend', stopMovement); moveZone.addEventListener('touchcancel', stopMovement);
 
-
-    // --- GESTURE LOGIC ---
-    const actionZone = document.getElementById('action-gesture-zone');
-    const gestureCanvas = document.getElementById('gesture-canvas');
-    const gCtx = gestureCanvas.getContext('2d');
-    const actionToast = document.getElementById('action-toast');
+    // Gesture Logic
+    const actionZone = document.getElementById('action-gesture-zone'), gestureCanvas = document.getElementById('gesture-canvas'), gCtx = gestureCanvas.getContext('2d'), actionToast = document.getElementById('action-toast');
     let gesturePoints = [];
-    
     function resizeGestureCanvas() { gestureCanvas.width = actionZone.clientWidth; gestureCanvas.height = actionZone.clientHeight; }
     function showToast(text) { actionToast.textContent = text; actionToast.style.opacity = '1'; setTimeout(() => actionToast.style.opacity = '0', 700); }
-
     actionZone.addEventListener('touchstart', e => {
-        const rect = actionZone.getBoundingClientRect();
-        gesturePoints = [{ x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }];
-        gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
-        gCtx.beginPath(); gCtx.moveTo(gesturePoints[0].x, gesturePoints[0].y);
-        gCtx.strokeStyle = '#FCE688'; gCtx.lineWidth = 4; gCtx.lineCap = 'round'; gCtx.lineJoin = 'round';
+        const rect = actionZone.getBoundingClientRect(); gesturePoints = [{ x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }];
+        gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height); gCtx.beginPath(); gCtx.moveTo(gesturePoints[0].x, gesturePoints[0].y); gCtx.strokeStyle = '#FCE688'; gCtx.lineWidth = 4; gCtx.lineCap = 'round'; gCtx.lineJoin = 'round';
     });
     actionZone.addEventListener('touchmove', e => {
         const rect = actionZone.getBoundingClientRect(); const pt = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
@@ -462,123 +325,65 @@
         if(gesturePoints.length === 0) return;
         let dirs = "", currentDir = null, lastPt = gesturePoints[0];
         let totalDist = Math.hypot(gesturePoints[gesturePoints.length-1].x - gesturePoints[0].x, gesturePoints[gesturePoints.length-1].y - gesturePoints[0].y);
-
         for (let i = 1; i < gesturePoints.length; i++) {
             let dx = gesturePoints[i].x - lastPt.x, dy = gesturePoints[i].y - lastPt.y;
             if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
                 let dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
-                if (dir !== currentDir) { dirs += dir; currentDir = dir; }
-                lastPt = gesturePoints[i];
+                if (dir !== currentDir) { dirs += dir; currentDir = dir; } lastPt = gesturePoints[i];
             }
         }
         let actionKey = null, actionName = "";
         if (totalDist < 15 && gesturePoints.length < 10) { actionKey = 'KeyA'; actionName = "ATTACK (Tap)"; }
         else {
-            if (dirs === "U" || dirs === "LU" || dirs === "RU") { actionKey = 'KeyG'; actionName = "GET (Up)"; }
-            else if (dirs === "D" || dirs === "LD" || dirs === "RD") { actionKey = 'KeyD'; actionName = "DROP (Down)"; }
-            else if (dirs.includes("DR")) { actionKey = 'KeyL'; actionName = "LOOK (L)"; }
-            else if (dirs.includes("DRU") || dirs.includes("DLU")) { actionKey = 'KeyU'; actionName = "USE (U)"; }
-            else if (dirs.includes("LDR") || dirs.includes("LD") || dirs.includes("DL")) { actionKey = 'KeyC'; actionName = "CAST (C)"; }
-            else if (dirs.includes("RD") || dirs.includes("RDL")) { actionKey = 'KeyT'; actionName = "TALK (T)"; }
+            if (dirs === "U" || dirs === "LU" || dirs === "RU") { actionKey = 'KeyG'; actionName = "GET (Up)"; } else if (dirs === "D" || dirs === "LD" || dirs === "RD") { actionKey = 'KeyD'; actionName = "DROP (Down)"; }
+            else if (dirs.includes("DR")) { actionKey = 'KeyL'; actionName = "LOOK (L)"; } else if (dirs.includes("DRU") || dirs.includes("DLU")) { actionKey = 'KeyU'; actionName = "USE (U)"; }
+            else if (dirs.includes("LDR") || dirs.includes("LD") || dirs.includes("DL")) { actionKey = 'KeyC'; actionName = "CAST (C)"; } else if (dirs.includes("RD") || dirs.includes("RDL")) { actionKey = 'KeyT'; actionName = "TALK (T)"; }
         }
-        if (actionKey) { showToast(actionName); sendKey(actionKey, true); setTimeout(() => sendKey(actionKey, false), 50); } 
-        else { showToast("?"); }
+        if (actionKey) { showToast(actionName); sendKey(actionKey, true); setTimeout(() => sendKey(actionKey, false), 50); } else { showToast("?"); }
     });
 
-
-    // --- SMART DEDITHER SHADER ---
+    // Smart Shader
     const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
     const vsSource = `attribute vec2 a_position; varying vec2 v_texCoord; void main() { v_texCoord = a_position * 0.5 + 0.5; v_texCoord.y = 1.0 - v_texCoord.y; gl_Position = vec4(a_position, 0.0, 1.0); }`;
-    
-    // This shader strictly detects checkerboards while preserving solid lines/text.
     const fsSource = `
-        precision mediump float;
-        varying vec2 v_texCoord;
-        uniform sampler2D u_image;
-        uniform vec2 u_texSize;
-
+        precision mediump float; varying vec2 v_texCoord; uniform sampler2D u_image; uniform vec2 u_texSize;
         void main() {
-            vec2 px = vec2(1.0, 1.0) / u_texSize;
-            vec4 C = texture2D(u_image, v_texCoord);
-            vec4 L = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0));
-            vec4 R = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
-            vec4 U = texture2D(u_image, v_texCoord + vec2(0.0, -px.y));
-            vec4 D = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
-
-            float thresh = 0.08;
-            bool diffL = distance(C.rgb, L.rgb) > thresh;
-            bool diffR = distance(C.rgb, R.rgb) > thresh;
-            bool diffU = distance(C.rgb, U.rgb) > thresh;
-            bool diffD = distance(C.rgb, D.rgb) > thresh;
-
-            // If a pixel differs from ALL orthogonal neighbors, it is part of a checkerboard or a single dot.
-            if (diffL && diffR && diffU && diffD) {
-                gl_FragColor = (C + L + R + U + D) / 5.0; // Blend it smoothly
-            } else {
-                gl_FragColor = C; // Leave text lines and solid blocks perfectly sharp
-            }
+            vec2 px = vec2(1.0, 1.0) / u_texSize; vec4 C = texture2D(u_image, v_texCoord);
+            vec4 L = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0)); vec4 R = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
+            vec4 U = texture2D(u_image, v_texCoord + vec2(0.0, -px.y)); vec4 D = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
+            float thresh = 0.08; bool diffL = distance(C.rgb, L.rgb) > thresh; bool diffR = distance(C.rgb, R.rgb) > thresh; bool diffU = distance(C.rgb, U.rgb) > thresh; bool diffD = distance(C.rgb, D.rgb) > thresh;
+            if (diffL && diffR && diffU && diffD) { gl_FragColor = (C + L + R + U + D) / 5.0; } else { gl_FragColor = C; }
         }
     `;
-
     function createShader(gl, type, source) { const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader); return shader; }
-    const shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, createShader(gl, gl.VERTEX_SHADER, vsSource));
-    gl.attachShader(shaderProgram, createShader(gl, gl.FRAGMENT_SHADER, fsSource));
-    gl.linkProgram(shaderProgram); gl.useProgram(shaderProgram);
-
-    const positionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
-    
-    const positionLocation = gl.getAttribLocation(shaderProgram, "a_position");
-    gl.enableVertexAttribArray(positionLocation); gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize");
-    gl.uniform2f(texSizeLocation, baseWidth, baseHeight); 
+    const shaderProgram = gl.createProgram(); gl.attachShader(shaderProgram, createShader(gl, gl.VERTEX_SHADER, vsSource)); gl.attachShader(shaderProgram, createShader(gl, gl.FRAGMENT_SHADER, fsSource)); gl.linkProgram(shaderProgram); gl.useProgram(shaderProgram);
+    const positionBuffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+    const positionLocation = gl.getAttribLocation(shaderProgram, "a_position"); gl.enableVertexAttribArray(positionLocation); gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+    const texture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, texture); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize"); gl.uniform2f(texSizeLocation, baseWidth, baseHeight); 
 
     let isCrisp = true;
     const filterToggle = document.getElementById('filter-toggle');
     filterToggle.addEventListener('pointerdown', e => {
         e.preventDefault(); isCrisp = !isCrisp;
-        if (isCrisp) {
-            glCanvas.style.display = 'none'; iframe.style.opacity = '1'; filterToggle.innerHTML = '<span class="emoji">📺</span>Crisp';
-        } else {
-            glCanvas.style.display = 'block'; iframe.style.opacity = '0.01'; filterToggle.innerHTML = '<span class="emoji">📺</span>Dedith';
-        }
+        if (isCrisp) { glCanvas.style.display = 'none'; iframe.style.opacity = '1'; filterToggle.innerHTML = '<span class="emoji">📺</span>Crisp'; } 
+        else { glCanvas.style.display = 'block'; iframe.style.opacity = '0.01'; filterToggle.innerHTML = '<span class="emoji">📺</span>Dedith'; }
     });
-
     window.addEventListener("message", e => {
         if (!isCrisp && e.data && e.data.type === "emulator_screen" && e.data.data) {
-            try {
-                gl.bindTexture(gl.TEXTURE_2D, texture);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, e.data.width||baseWidth, e.data.height||baseHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data));
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-            } catch (err) {}
+            try { gl.bindTexture(gl.TEXTURE_2D, texture); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, e.data.width||baseWidth, e.data.height||baseHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data)); gl.drawArrays(gl.TRIANGLES, 0, 6); } catch (err) {}
         }
     });
 
+    // Settings Drawer Buttons
+    document.getElementById('settings-handle').addEventListener('pointerdown', e => { e.preventDefault(); document.getElementById('settings-drawer').classList.toggle('collapsed'); });
 
-    // --- SETTINGS DRAWER BUTTONS ---
-    document.getElementById('settings-handle').addEventListener('pointerdown', e => {
-        e.preventDefault(); document.getElementById('settings-drawer').classList.toggle('collapsed');
-    });
-
-    let touchMode = 0; // 0: Direct, 1: Trackpad, 2: Pan
+    let touchMode = 0; 
     const touchModeToggle = document.getElementById('touch-mode-toggle');
     const touchModeLabels = ['<span class="emoji">👆</span>Direct', '<span class="emoji">🖱️</span>Trackpad', '<span class="emoji">🎯</span>Pan View'];
     touchModeToggle.addEventListener('pointerdown', (e) => {
-        e.preventDefault(); 
-        touchMode = (touchMode + 1) % 3; 
-        touchModeToggle.innerHTML = touchModeLabels[touchMode];
+        e.preventDefault(); touchMode = (touchMode + 1) % 3; touchModeToggle.innerHTML = touchModeLabels[touchMode];
         centerCrosshair.style.display = (touchMode === 2) ? 'block' : 'none';
-        
-        // Snap cursor to center if entering Pan Mode
         if (touchMode === 2) updatePanCursor();
     });
 
@@ -594,47 +399,32 @@
     const speedBtn = document.getElementById('speed-btn');
     speedBtn.addEventListener('pointerdown', e => {
         e.preventDefault();
-        let speeds = [-2, -1, 0, 1, 2];
-        let newSpeed = speeds[(speeds.indexOf(currentSpeed) + 1) % speeds.length];
-        
+        let speeds = [-2, -1, 0, 1, 2]; let newSpeed = speeds[(speeds.indexOf(currentSpeed) + 1) % speeds.length];
         if(confirm(`Set CPU Speed to ${newSpeed}? \n\nWARNING: This will restart the emulated Mac and you will lose any unsaved progress.`)) {
-            currentSpeed = newSpeed;
-            speedBtn.innerHTML = `<span class="emoji">⚡</span>Spd: ${currentSpeed}`;
+            currentSpeed = newSpeed; speedBtn.innerHTML = `<span class="emoji">⚡</span>Spd: ${currentSpeed}`;
             const settingsObj = { swapControlAndCommand: false, speed: currentSpeed, useMouseDeltas: false, trackpadMode: false };
             const settingsStr = encodeURIComponent(JSON.stringify(settingsObj));
-            iframe.src = `https://infinitemac.org/embed?disk=Mac+OS+7.6&machine=Quadra+650&pause=true&screen_update_messages=true&settings=${settingsStr}&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk`;
-            
-            startOverlay.style.display = 'flex';
-            touchOverlay.classList.remove('active');
-            hudLayer.classList.remove('active');
+            iframe.src = `https://infinitemac.org/embed?disk=Mac+OS+7.6&infinite_hd=true&machine=Quadra+650&pause=true&screen_update_messages=true&settings=${settingsStr}&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk`;
+            startOverlay.style.display = 'flex'; touchOverlay.classList.remove('active'); hudLayer.classList.remove('active');
         }
     });
 
     let isMuted = false;
     const muteBtn = document.getElementById('mute-btn');
     muteBtn.addEventListener('pointerdown', e => {
-        e.preventDefault();
-        isMuted = !isMuted;
-        muteBtn.innerHTML = isMuted ? '<span class="emoji">🔇</span>Muted' : '<span class="emoji">🔊</span>Audio';
-        if (iframe.contentWindow) {
-            iframe.contentWindow.postMessage({ type: 'emulator_mute', mute: isMuted }, '*');
-            iframe.contentWindow.postMessage({ type: 'emulator_set_volume', volume: isMuted ? 0 : 1 }, '*');
-        }
+        e.preventDefault(); isMuted = !isMuted; muteBtn.innerHTML = isMuted ? '<span class="emoji">🔇</span>Muted' : '<span class="emoji">🔊</span>Audio';
+        if (iframe.contentWindow) { iframe.contentWindow.postMessage({ type: 'emulator_mute', mute: isMuted }, '*'); iframe.contentWindow.postMessage({ type: 'emulator_set_volume', volume: isMuted ? 0 : 1 }, '*'); }
     });
 
-
-    // --- BUTTON HIGHLIGHTING & INJECTION ---
-    const actionBtns = document.querySelectorAll('.action-btn');
-    const dirBtns = document.querySelectorAll('.dir-btn');
+    // Keys & Buttons
+    const actionBtns = document.querySelectorAll('.action-btn'), dirBtns = document.querySelectorAll('.dir-btn');
     actionBtns.forEach(btn => btn.addEventListener('pointerdown', () => { actionBtns.forEach(b => b.classList.remove('active-action')); btn.classList.add('active-action'); }));
     dirBtns.forEach(btn => btn.addEventListener('pointerdown', () => actionBtns.forEach(b => b.classList.remove('active-action'))));
-
     document.querySelectorAll('.btn[data-code]').forEach(btn => {
         btn.addEventListener('pointerdown', e => { e.preventDefault(); sendKey(btn.getAttribute('data-code'), true); });
         btn.addEventListener('pointerup', e => { e.preventDefault(); sendKey(btn.getAttribute('data-code'), false); });
         btn.addEventListener('pointerleave', e => { e.preventDefault(); sendKey(btn.getAttribute('data-code'), false); });
     });
-
     const kbInput = document.getElementById('hidden-keyboard');
     document.getElementById('kb-toggle').addEventListener('touchend', (e) => { e.preventDefault(); kbInput.focus(); });
     const charToCode = { 'a':'KeyA', 'b':'KeyB', 'c':'KeyC', 'd':'KeyD', 'e':'KeyE', 'f':'KeyF', 'g':'KeyG', 'h':'KeyH', 'i':'KeyI', 'j':'KeyJ', 'k':'KeyK', 'l':'KeyL', 'm':'KeyM', 'n':'KeyN', 'o':'KeyO', 'p':'KeyP', 'q':'KeyQ', 'r':'KeyR', 's':'KeyS', 't':'KeyT', 'u':'KeyU', 'v':'KeyV', 'w':'KeyW', 'x':'KeyX', 'y':'KeyY', 'z':'KeyZ', '1':'Digit1', '2':'Digit2', '3':'Digit3', '4':'Digit4', '5':'Digit5', '6':'Digit6', '7':'Digit7', '8':'Digit8', '9':'Digit9', '0':'Digit0', ' ':'Space', 'backspace':'Backspace', 'enter':'Enter' };
@@ -643,10 +433,15 @@
     kbInput.addEventListener('blur', () => kbInput.value = '');
 
 
-    // --- ADVANCED TOUCH (PAN, ZOOM, TRACKPAD, DIRECT) ---
+    // --- ENHANCED TOUCH & DRAG LOGIC ---
     let pzScale = 1, pzX = 0, pzY = 0;
     let startDist = 0, initialPzScale = 1, initialPzX = 0, initialPzY = 0, pinchCenterX = 0, pinchCenterY = 0;
-    let touchStartTime = 0, isClickCandidate = false, isTwoFingerTap = false;
+    
+    // Drag control variables
+    let isLeftDown = false;
+    let dragTimer = null;
+    let touchStartTime = 0;
+    let isClickCandidate = false, isTwoFingerTap = false;
     let cursorX = baseWidth / 2, cursorY = baseHeight / 2, lastTouchX = 0, lastTouchY = 0;
 
     function getEmulatorCoords(clientX, clientY) {
@@ -658,71 +453,87 @@
         return { x: macX, y: macY };
     }
 
-    // Called when in Pan mode to keep emulator cursor strictly on the center crosshair
     function updatePanCursor() {
-        const centerClientX = window.innerWidth / 2;
-        const centerClientY = window.innerHeight / 2;
+        const centerClientX = window.innerWidth / 2, centerClientY = window.innerHeight / 2;
         const coords = getEmulatorCoords(centerClientX, centerClientY);
-        cursorX = coords.x;
-        cursorY = coords.y;
+        cursorX = coords.x; cursorY = coords.y;
         if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
     }
 
     touchOverlay.addEventListener('touchstart', (e) => {
         e.preventDefault();
         if (e.touches.length === 2) {
+            // Cancel any active drag
+            if (isLeftDown) {
+                if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
+                isLeftDown = false;
+            }
+            if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
+            
             startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             initialPzScale = pzScale; initialPzX = pzX; initialPzY = pzY;
             pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2; pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
             isClickCandidate = false; isTwoFingerTap = true; touchStartTime = Date.now();
-            if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
         } else if (e.touches.length === 1) {
             isClickCandidate = true; isTwoFingerTap = false; touchStartTime = Date.now();
             lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
 
-            // Direct mode cursor jump
-            if (touchMode === 0) { 
+            if (touchMode === 0) {
+                // DIRECT MODE: 1:1 Touch = Mouse Down immediately (Perfect for drag & drop)
                 const coords = getEmulatorCoords(lastTouchX, lastTouchY);
                 cursorX = coords.x; cursorY = coords.y;
-                if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
+                if (iframe.contentWindow) {
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
+                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
+                }
+                isLeftDown = true;
+                isClickCandidate = false; // Prevent double-trigger on up
+            } else if (touchMode === 1) {
+                // TRACKPAD MODE: Hold finger down for 400ms to start a Drag-Lock
+                dragTimer = setTimeout(() => {
+                    isLeftDown = true;
+                    isClickCandidate = false;
+                    if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*');
+                }, 400);
             }
         }
     });
 
     touchOverlay.addEventListener('touchmove', (e) => {
-        e.preventDefault(); isClickCandidate = false; 
+        e.preventDefault();
         if (e.touches.length === 2) {
-            const currentPinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-            const currentPinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            isClickCandidate = false; 
+            const currentPinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2, currentPinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
             const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
             if (Math.abs(dist - startDist) > 15 || Math.hypot(currentPinchCenterX - pinchCenterX, currentPinchCenterY - pinchCenterY) > 15) isTwoFingerTap = false; 
-            
-            const maxZoom = 2.5 / cssScale; 
-            const newScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom); 
-            const scaleRatio = newScale / initialPzScale;
-            pzX = currentPinchCenterX - (pinchCenterX - initialPzX) * scaleRatio;
-            pzY = currentPinchCenterY - (pinchCenterY - initialPzY) * scaleRatio;
+            const maxZoom = 2.5 / cssScale, newScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom), scaleRatio = newScale / initialPzScale;
+            pzX = currentPinchCenterX - (pinchCenterX - initialPzX) * scaleRatio; pzY = currentPinchCenterY - (pinchCenterY - initialPzY) * scaleRatio;
             pzScale = newScale; updatePanZoom();
             if(touchMode === 2) updatePanCursor();
         } else if (e.touches.length === 1) {
-            const currentTouchX = e.touches[0].clientX;
-            const currentTouchY = e.touches[0].clientY;
+            const currentTouchX = e.touches[0].clientX, currentTouchY = e.touches[0].clientY;
+            const movedDist = Math.hypot(currentTouchX - lastTouchX, currentTouchY - lastTouchY);
 
-            if (touchMode === 2) { // PAN MODE
-                pzX += (currentTouchX - lastTouchX);
-                pzY += (currentTouchY - lastTouchY);
-                updatePanZoom();
-                updatePanCursor(); // Keep cursor synced to screen center
-            } else if (touchMode === 1) { // TRACKPAD MODE
-                const dX = (currentTouchX - lastTouchX) / (cssScale * pzScale);
-                const dY = (currentTouchY - lastTouchY) / (cssScale * pzScale);
-                cursorX = Math.max(0, Math.min(baseWidth, cursorX + (dX * 1.5)));
-                cursorY = Math.max(0, Math.min(baseHeight, cursorY + (dY * 1.5)));
+            if (touchMode === 2) { 
+                // PAN MODE
+                isClickCandidate = false;
+                pzX += (currentTouchX - lastTouchX); pzY += (currentTouchY - lastTouchY);
+                updatePanZoom(); updatePanCursor();
+            } else if (touchMode === 1) { 
+                // TRACKPAD MODE
+                if (dragTimer && movedDist > 5) {
+                    // Finger moved too soon, cancel drag lock detection
+                    clearTimeout(dragTimer); dragTimer = null;
+                }
+                if (!isLeftDown) isClickCandidate = false; // Moving before hold means just hovering, cancel click candidate
+                
+                const dX = (currentTouchX - lastTouchX) / (cssScale * pzScale); const dY = (currentTouchY - lastTouchY) / (cssScale * pzScale);
+                cursorX = Math.max(0, Math.min(baseWidth, cursorX + (dX * 1.5))); cursorY = Math.max(0, Math.min(baseHeight, cursorY + (dY * 1.5)));
                 if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
-            } else { // DIRECT MODE
+            } else if (touchMode === 0) { 
+                // DIRECT MODE
                 const coords = getEmulatorCoords(currentTouchX, currentTouchY);
-                cursorX = Math.max(0, Math.min(baseWidth, coords.x));
-                cursorY = Math.max(0, Math.min(baseHeight, coords.y));
+                cursorX = Math.max(0, Math.min(baseWidth, coords.x)); cursorY = Math.max(0, Math.min(baseHeight, coords.y));
                 if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(cursorX), y: Math.round(cursorY) }, '*');
             }
             lastTouchX = currentTouchX; lastTouchY = currentTouchY;
@@ -731,15 +542,29 @@
 
     touchOverlay.addEventListener('touchend', (e) => {
         e.preventDefault();
+        
+        if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
+
         if (e.touches.length === 0) {
             const timeElapsed = Date.now() - touchStartTime;
-            if (isTwoFingerTap && timeElapsed < 300) {
+            
+            if (isLeftDown) {
+                // If dragging in direct/trackpad mode, release the click
+                if (iframe.contentWindow) iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*');
+                isLeftDown = false;
+            } else if (isTwoFingerTap && timeElapsed < 300) {
+                // Right click
                 if (iframe.contentWindow) { iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 2 }, '*'); setTimeout(() => iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 2 }, '*'), 50); }
             } else if (isClickCandidate && timeElapsed < 300) {
-                // Because cursor is pre-synced in all modes, we just send a click
-                if (iframe.contentWindow) { 
-                    iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*'); 
-                    setTimeout(() => iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'), 50); 
+                // Quick tap for Pan or Trackpad Mode
+                if (touchMode === 2) {
+                    const coords = getEmulatorCoords(lastTouchX, lastTouchY);
+                    if (iframe.contentWindow) {
+                        iframe.contentWindow.postMessage({ type: 'emulator_mouse_move', x: Math.round(coords.x), y: Math.round(coords.y) }, '*');
+                        setTimeout(() => { iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*'); setTimeout(() => iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'), 50); }, 20); 
+                    }
+                } else if (touchMode === 1) {
+                    if (iframe.contentWindow) { iframe.contentWindow.postMessage({ type: 'emulator_mouse_down', button: 0 }, '*'); setTimeout(() => iframe.contentWindow.postMessage({ type: 'emulator_mouse_up', button: 0 }, '*'), 50); }
                 }
             }
             isTwoFingerTap = false;
@@ -748,12 +573,12 @@
 
     function updatePanZoom() {
         const scaledW = window.innerWidth * pzScale; const scaledH = window.innerHeight * pzScale;
-        if (pzScale <= 1) { pzX = 0; pzY = 0; } 
-        else { pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledW)); pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledH)); }
+        if (pzScale <= 1) { pzX = 0; pzY = 0; } else { pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledW)); pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledH)); }
         panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
     }
 
 </script>
 </body>
 </html>
+
 
