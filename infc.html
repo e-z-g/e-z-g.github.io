@@ -221,15 +221,15 @@
     <div id="start-overlay">
         <div id="start-overlay-text">
             <h1>▶ TAP TO START</h1>
-            <p>OS 9.2.2 (G4) • Speed 2</p>
+            <p>System 7.6 (Quadra) • Speed 2</p>
         </div>
     </div>
 
     <div id="emulator-wrapper">
         <div id="pan-zoom-container">
             <div id="scale-target">
-                <!-- Mac OS 9.2.2, Power Macintosh G4 (PCI Graphics), No Infinite HD -->
-                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+9.2.2&machine=Power+Macintosh+G4+%28PCI+Graphics%29&pause=true&screen_update_messages=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
+                <!-- Mac OS 7.6, Quadra 650, No Infinite HD, speed defaults to 2 -->
+                <iframe src="https://infinitemac.org/embed?disk=Mac+OS+7.6&machine=Quadra+650&pause=true&screen_update_messages=true&settings=%7B%22swapControlAndCommand%22%3Afalse%2C%22speed%22%3A2%2C%22useMouseDeltas%22%3Afalse%2C%22trackpadMode%22%3Afalse%7D&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk"
                     width="640" id="mac-iframe" allow="autoplay; cross-origin-isolated" frameborder="0"></iframe>
                 <canvas id="gl-canvas"></canvas>
                 <div id="touch-overlay"></div>
@@ -602,7 +602,7 @@
             speedBtn.innerHTML = `<span class="emoji">⚡</span>Spd: ${currentSpeed}`;
             const settingsObj = { swapControlAndCommand: false, speed: currentSpeed, useMouseDeltas: false, trackpadMode: false };
             const settingsStr = encodeURIComponent(JSON.stringify(settingsObj));
-            iframe.src = `https://infinitemac.org/embed?disk=Mac+OS+9.2.2&machine=Power+Macintosh+G4+%28PCI+Graphics%29&pause=true&screen_update_messages=true&settings=${settingsStr}&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk`;
+            iframe.src = `https://infinitemac.org/embed?disk=Mac+OS+7.6&machine=Quadra+650&pause=true&screen_update_messages=true&settings=${settingsStr}&cdrom=https%3A%2F%2Fgardenmirror.oldapplestuff.com%2Fgames%2Fcythera_infinitemac.dsk`;
             
             startOverlay.style.display = 'flex';
             touchOverlay.classList.remove('active');
@@ -756,5 +756,4 @@
 </script>
 </body>
 </html>
-
 
