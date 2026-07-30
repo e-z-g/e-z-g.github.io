@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Instant Mobile Tester</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0;
+            height: 100dvh; width: 100vw;
+            background-color: #1a1a1a;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        #run-btn {
+            background-color: #C4A464;
+            color: #3B0000;
+            border: none;
+            padding: 15px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        #run-btn:active {
+            background-color: #8B6914;
+        }
+        #code-input {
+            flex: 1;
+            width: 100%;
+            background-color: #0d0d0d;
+            color: #00ff00;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: none;
+            outline: none;
+            resize: none;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="run-btn" onclick="runCode()">🚀 LAUNCH PREVIEW 🚀</button>
+    <textarea id="code-input" placeholder="Paste your HTML code here on your phone..."></textarea>
+
+    <script>
+        function runCode() {
+            const code = document.getElementById('code-input').value;
+            if (!code.trim()) {
+                alert("Please paste some HTML first!");
+                return;
+            }
+            // This completely replaces the current page's DOM and executes the scripts
+            // while retaining your GitHub Pages URL and security headers.
+            document.open();
+            document.write(code);
+            document.close();
+        }
+    </script>
+
+</body>
+</html>
+
