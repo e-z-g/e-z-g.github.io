@@ -6,63 +6,97 @@
     <title>Instant Mobile Tester</title>
     <style>
         body, html {
-            margin: 0; padding: 0;
-            height: 100dvh; width: 100vw;
-            background-color: #1a1a1a;
-            color: #eee;
-            display: flex;
-            flex-direction: column;
+            margin: 0; padding: 0; height: 100dvh; width: 100vw;
+            background-color: #1a1a1a; color: #eee;
+            display: flex; flex-direction: column;
             font-family: system-ui, -apple-system, sans-serif;
         }
-        #run-btn {
-            background-color: #C4A464;
-            color: #3B0000;
-            border: none;
-            padding: 15px;
-            font-size: 1.2rem;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            z-index: 10;
+        .btn {
+            border: none; padding: 20px; font-size: 1.2rem;
+            font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10;
         }
-        #run-btn:active {
-            background-color: #8B6914;
-        }
+        #auto-btn { background-color: #2E8B57; color: #fff; flex: 1; font-size: 1.5rem; }
+        #auto-btn:active { background-color: #1c5e39; }
+        
+        #divider { text-align: center; padding: 10px; font-weight: bold; background: #222; }
+
+        #manual-section { display: flex; flex-direction: column; flex: 1; }
         #code-input {
-            flex: 1;
-            width: 100%;
-            background-color: #0d0d0d;
-            color: #00ff00;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 14px;
-            padding: 10px;
-            border: none;
-            outline: none;
-            resize: none;
-            box-sizing: border-box;
+            flex: 1; width: 100%; background-color: #0d0d0d; color: #00ff00;
+            font-family: 'Courier New', Courier, monospace; font-size: 14px;
+            padding: 10px; border: none; outline: none; resize: none; box-sizing: border-box;
         }
+        #run-btn { background-color: #C4A464; color: #3B0000; }
+        #run-btn:active { background-color: #8B6914; }
     </style>
 </head>
 <body>
 
-    <button id="run-btn" onclick="runCode()">🚀 LAUNCH PREVIEW 🚀</button>
-    <textarea id="code-input" placeholder="Paste your HTML code here on your phone..."></textarea>
+    <button id="auto-btn" class="btn" onclick="autoPaste()">📋 AUTO-PASTE & RUN</button>
+    
+    <div id="divider">OR MANUAL PASTE</div>
+    
+    <div id="manual-section">
+        <textarea id="code-input" placeholder="Paste your HTML code here on your phone..."></textarea>
+        <button id="run-btn" class="btn" onclick="runManual()">🚀 LAUNCH PREVIEW</button>
+    </div>
 
     <script>
-        function runCode() {
+        let lastCode = "";
+
+        // 1. Attempt to Auto-Read clipboard the moment the tab becomes visible
+        document.addEventListener("visibilitychange", async () => {
+            if (document.visibilityState === "visible") {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    
+                    // Check if there is text, it looks like HTML, and it's new
+                    if (text && text.includes("<html") && text !== lastCode) {
+                        if (confirm("New code detected in clipboard! Launch it?")) {
+                            executeCode(text);
+                        }
+                    }
+                } catch (err) {
+                    console.log("Browser blocked background clipboard read. User must tap button.");
+                }
+            }
+        });
+
+        // 2. Giant Auto-Paste Button Logic
+        async function autoPaste() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (!text || !text.includes("<html")) {
+                    alert("Clipboard doesn't contain HTML code!");
+                    return;
+                }
+                executeCode(text);
+            } catch (err) {
+                alert("Clipboard permission denied. Please paste manually into the box below.");
+            }
+        }
+
+        // 3. Standard Manual Paste Logic
+        function runManual() {
             const code = document.getElementById('code-input').value;
             if (!code.trim()) {
                 alert("Please paste some HTML first!");
                 return;
             }
-            // This completely replaces the current page's DOM and executes the scripts
-            // while retaining your GitHub Pages URL and security headers.
+            executeCode(code);
+        }
+
+        // 4. Overwrite Document Function
+        function executeCode(codeStr) {
+            lastCode = codeStr;
             document.open();
-            document.write(code);
+            document.write(codeStr);
             document.close();
         }
     </script>
 
 </body>
 </html>
+
 
