@@ -13,13 +13,17 @@
         }
         .btn {
             border: none; padding: 20px; font-size: 1.2rem;
-            font-weight: bold; cursor: pointer;
+            font-weight: bold; cursor: pointer; text-align: center;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10;
+            display: block; box-sizing: border-box; width: 100%;
         }
-        #auto-btn { background-color: #2E8B57; color: #fff; flex: 1; font-size: 1.5rem; }
+        #auto-btn { background-color: #2E8B57; color: #fff; font-size: 1.5rem; }
         #auto-btn:active { background-color: #1c5e39; }
         
-        #divider { text-align: center; padding: 10px; font-weight: bold; background: #222; }
+        #upload-btn { background-color: #3b5998; color: #fff; font-size: 1.2rem; }
+        #upload-btn:active { background-color: #263961; }
+        
+        .divider { text-align: center; padding: 10px; font-weight: bold; background: #222; }
 
         #manual-section { display: flex; flex-direction: column; flex: 1; }
         #code-input {
@@ -29,13 +33,21 @@
         }
         #run-btn { background-color: #C4A464; color: #3B0000; }
         #run-btn:active { background-color: #8B6914; }
+
+        /* Hide the actual file input, we trigger it via the label styling */
+        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
 
     <button id="auto-btn" class="btn" onclick="autoPaste()">📋 AUTO-PASTE & RUN</button>
     
-    <div id="divider">OR MANUAL PASTE</div>
+    <div class="divider">OR UPLOAD FILE</div>
+    
+    <label for="file-upload" id="upload-btn" class="btn">📁 CHOOSE HTML FILE</label>
+    <input type="file" id="file-upload" accept=".html, .txt, .htm">
+    
+    <div class="divider">OR MANUAL PASTE</div>
     
     <div id="manual-section">
         <textarea id="code-input" placeholder="Paste your HTML code here on your phone..."></textarea>
@@ -45,25 +57,40 @@
     <script>
         let lastCode = "";
 
-        // 1. Attempt to Auto-Read clipboard the moment the tab becomes visible
+        // 1. File Upload Logic
+        document.getElementById('file-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const text = event.target.result;
+                if (!text || !text.includes("<html")) {
+                    alert("This doesn't look like a valid HTML file!");
+                    return;
+                }
+                executeCode(text);
+            };
+            reader.readAsText(file);
+        });
+
+        // 2. Attempt to Auto-Read clipboard the moment the tab becomes visible
         document.addEventListener("visibilitychange", async () => {
             if (document.visibilityState === "visible") {
                 try {
                     const text = await navigator.clipboard.readText();
-                    
-                    // Check if there is text, it looks like HTML, and it's new
                     if (text && text.includes("<html") && text !== lastCode) {
-                        if (confirm("New code detected in clipboard! Launch it?")) {
+                        if (confirm("New HTML code detected in clipboard! Launch it?")) {
                             executeCode(text);
                         }
                     }
                 } catch (err) {
-                    console.log("Browser blocked background clipboard read. User must tap button.");
+                    console.log("Background clipboard read blocked or unavailable.");
                 }
             }
         });
 
-        // 2. Giant Auto-Paste Button Logic
+        // 3. Giant Auto-Paste Button Logic
         async function autoPaste() {
             try {
                 const text = await navigator.clipboard.readText();
@@ -73,11 +100,11 @@
                 }
                 executeCode(text);
             } catch (err) {
-                alert("Clipboard permission denied. Please paste manually into the box below.");
+                alert("Clipboard permission denied. Please use the file upload or paste manually below.");
             }
         }
 
-        // 3. Standard Manual Paste Logic
+        // 4. Standard Manual Paste Logic
         function runManual() {
             const code = document.getElementById('code-input').value;
             if (!code.trim()) {
@@ -87,7 +114,7 @@
             executeCode(code);
         }
 
-        // 4. Overwrite Document Function
+        // 5. Overwrite Document Function
         function executeCode(codeStr) {
             lastCode = codeStr;
             document.open();
