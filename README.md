@@ -12,3 +12,19 @@ A collection of web-based tools and interactive viewers.
 - **[Star/Planet Viewer](https://e-z-g.github.io/ev/)** — Generative space scene with star field and planet image, with PNG export.
 - **[3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html)** — Interlace up to six frames into a printable base plate and sliding barrier grid, with SVG and multi-colour 3MF export.
 - **[FPQR](https://e-z-g.github.io/fpqr/)** — First-person QR experience.
+
+## Local preview
+
+Everything here is static, but the two cubemap pages load their assets relatively
+and share an ES module (`cube/atlas-layout.js`), so they need to be served rather
+than opened from disk:
+
+```
+python3 -m http.server 8000
+```
+
+Then open <http://localhost:8000/cube/>.
+
+`cube/atlas-layout.js` is the single definition of the atlas format the stitcher
+writes and the viewer reads. Both layouts (5×3 and the compact 3×2) are described
+there; changing one side without the other will misalign the pole faces.
