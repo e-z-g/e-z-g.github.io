@@ -467,13 +467,20 @@
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 500); 
     const renderer = new THREE.WebGLRenderer({ antialias: false });
+    // Cap the ratio: at 3x on a phone this shades 9 pixels per CSS pixel across
+    // ~200k triangles per mesh, for no visible gain over 2x.
+    const pixelRatio = Math.min(window.devicePixelRatio, 2);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(pixelRatio);
     container.appendChild(renderer.domElement);
+
+    // Largest texture this GPU will accept. Mobile parts commonly cap at 4096,
+    // where an oversized upload silently fails or drops the context.
+    const maxTextureSize = renderer.capabilities.maxTextureSize;
 
     // --- SPHEREIFIED CUBE GEOMETRY ---
     const geometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128);
-    geometry.scale(-1, 1, 1); 
+    geometry.scale(-1, 1, 1);
     const pos = geometry.attributes.position;
     const vTemp = new THREE.Vector3();
     for(let i=0; i<pos.count; i++) {
@@ -481,19 +488,16 @@
         vTemp.normalize().multiplyScalar(50);
         pos.setXYZ(i, vTemp.x, vTemp.y, vTemp.z);
     }
-    geometry.computeVertexNormals();
-    
+    // The shaders read neither normals nor the built-in uv (vUv is derived from
+    // position via gnomonicUV), so both are dead weight on ~99k vertices per mesh.
+    geometry.deleteAttribute('normal');
+    geometry.deleteAttribute('uv');
+
     // BG sphere at radius 56 — well outside max fg displacement so there is always
     // solid bg geometry visible behind any fg tear or displacement gap.
-    const bgGeometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128);
-    bgGeometry.scale(-1, 1, 1);
-    const bgPos = bgGeometry.attributes.position;
-    for(let i=0; i<bgPos.count; i++) {
-        vTemp.fromBufferAttribute(bgPos, i);
-        vTemp.normalize().multiplyScalar(56);
-        bgPos.setXYZ(i, vTemp.x, vTemp.y, vTemp.z);
-    }
-    bgGeometry.computeVertexNormals();
+    // Cloning and scaling beats re-running the sphereification loop on the CPU.
+    const bgGeometry = geometry.clone();
+    bgGeometry.scale(56 / 50, 56 / 50, 56 / 50);
     
     const dummyDepthData = new Uint8Array([0, 0, 0, 255]); 
     const dummyDepthTex = new THREE.DataTexture(dummyDepthData, 1, 1, THREE.RGBAFormat);
@@ -875,8 +879,13 @@
     const transitionScene = new THREE.Scene();
     const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     
-    let rtOld = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType });
-    let rtNew = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType });
+    // Match the drawing buffer, not the CSS size — otherwise the transition
+    // composites a low-res buffer onto a hi-dpi canvas and looks soft throughout.
+    const rtWidth  = () => Math.floor(window.innerWidth  * pixelRatio);
+    const rtHeight = () => Math.floor(window.innerHeight * pixelRatio);
+
+    let rtOld = new THREE.WebGLRenderTarget(rtWidth(), rtHeight(), { type: THREE.HalfFloatType });
+    let rtNew = new THREE.WebGLRenderTarget(rtWidth(), rtHeight(), { type: THREE.HalfFloatType });
 
     const FRAG_BLOCK = `
       uniform sampler2D tOld;
@@ -928,21 +937,33 @@
       }
     `;
 
-    const transitionMat = new THREE.ShaderMaterial({
-      uniforms: {
-        tOld:      { value: null },
-        tNew:      { value: null },
-        tDepthNew: { value: dummyDepthTex },
-        uProgress: { value: 0 },
-        uAspect:   { value: 1.0 },
-        uDepthBias:{ value: 0.6 }
-      },
-      vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
-      fragmentShader: FRAG_BLOCK,
-      depthTest: false,
-      depthWrite: false
-    });
-    transitionScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), transitionMat));
+    // Two materials sharing one uniforms object, rather than swapping
+    // fragmentShader + needsUpdate on a single material — that forced a shader
+    // recompile at the start of every transition, which stalls on mobile.
+    const transitionUniforms = {
+      tOld:      { value: null },
+      tNew:      { value: null },
+      tDepthNew: { value: dummyDepthTex },
+      uProgress: { value: 0 },
+      uAspect:   { value: 1.0 },
+      uDepthBias:{ value: 0.6 }
+    };
+    const makeTransitionMat = (fragmentShader) => {
+      const m = new THREE.ShaderMaterial({
+        uniforms: transitionUniforms,
+        vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
+        fragmentShader,
+        depthTest: false,
+        depthWrite: false
+      });
+      m.uniforms = transitionUniforms; // share, don't clone
+      return m;
+    };
+    const transitionMats = { block: makeTransitionMat(FRAG_BLOCK), fade: makeTransitionMat(FRAG_FADE) };
+    const setTransitionUniform = (name, value) => { transitionUniforms[name].value = value; };
+
+    const transitionMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), transitionMats.block);
+    transitionScene.add(transitionMesh);
 
     let pendingTransitionDepth = null;
 
@@ -960,29 +981,44 @@
         return toDispose;
     }
 
-    function upscaleDepthTex(dTex, targetWidth, targetHeight) {
-        if (!dTex || dTex === dummyDepthTex || !dTex.image) return dTex;
-        const dImg = dTex.image;
-        if (dImg.width === targetWidth && dImg.height === targetHeight) return dTex;
+    // Downscale anything the GPU won't accept. J'nanin's "6K" faces are 6144px,
+    // which exceeds the 4096 limit common on mobile parts — the upload then fails
+    // silently (black faces) or drops the context. Downscaling is preferable to
+    // either, and is a no-op on desktop GPUs that can take the full size.
+    function fitToGpu(tex) {
+        const img = tex && tex.image;
+        if (!img || (img.width <= maxTextureSize && img.height <= maxTextureSize)) return tex;
 
+        const scale = maxTextureSize / Math.max(img.width, img.height);
         const canvas = document.createElement('canvas');
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
+        canvas.width  = Math.max(1, Math.floor(img.width  * scale));
+        canvas.height = Math.max(1, Math.floor(img.height * scale));
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(dImg, 0, 0, targetWidth, targetHeight);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        console.info(`Downscaled ${img.width}x${img.height} texture to ${canvas.width}x${canvas.height} (GPU limit ${maxTextureSize}).`);
 
-        const newTex = new THREE.CanvasTexture(canvas);
-        newTex.colorSpace = THREE.NoColorSpace;
-        newTex.minFilter = THREE.LinearFilter;
-        newTex.magFilter = THREE.LinearFilter;
-        newTex.wrapS = THREE.ClampToEdgeWrapping;
-        newTex.wrapT = THREE.ClampToEdgeWrapping;
-        newTex.generateMipmaps = false;
+        const fitted = new THREE.CanvasTexture(canvas);
+        fitted.colorSpace = tex.colorSpace;
+        tex.dispose();
+        return fitted;
+    }
 
-        dTex.dispose();
-        return newTex;
+    // Depth is sampled with normalised UVs, so its resolution never had to match
+    // the colour map. This used to resample every depth map onto a canvas at the
+    // colour map's size — a full-size canvas plus a CanvasTexture per face, for
+    // no visual difference. Now we just apply the sampling settings in place.
+    function prepareDepthTex(dTex) {
+        if (!dTex || dTex === dummyDepthTex || !dTex.image) return dTex;
+        dTex.colorSpace = THREE.NoColorSpace;
+        dTex.minFilter = THREE.LinearFilter;
+        dTex.magFilter = THREE.LinearFilter;
+        dTex.wrapS = THREE.ClampToEdgeWrapping;
+        dTex.wrapT = THREE.ClampToEdgeWrapping;
+        dTex.generateMipmaps = false;
+        dTex.needsUpdate = true;
+        return dTex;
     }
 
     function getCubemapUrls(loc, version, fetchDepth = false) {
@@ -1052,11 +1088,10 @@
       playOrCrossfadeAudio(currentLocation.audio);
 
       renderer.setRenderTarget(rtOld); renderer.render(scene, camera); renderer.setRenderTarget(null);
-      transitionMat.uniforms.tOld.value = rtOld.texture;
-      transitionMat.uniforms.tNew.value = rtNew.texture;
-      transitionMat.uniforms.uProgress.value = 0;
-      transitionMat.fragmentShader = mode === 'block' ? FRAG_BLOCK : FRAG_FADE;
-      transitionMat.needsUpdate = true;
+      setTransitionUniform('tOld', rtOld.texture);
+      setTransitionUniform('tNew', rtNew.texture);
+      setTransitionUniform('uProgress', 0);
+      transitionMesh.material = mode === 'block' ? transitionMats.block : transitionMats.fade;
 
       const targetVersion = currentLocation.versions[currentVersionIndex];
       const isVideo = targetVersion.type === 'video-5x3';
@@ -1082,9 +1117,7 @@
                     try { return await textureLoader.loadAsync(url); } 
                     catch(e) { console.warn("Missing depth map:", url); return dummyDepthTex; }
                 }));
-                const faceW = Math.floor(sourceVideo.videoWidth / 5);
-                const faceH = Math.floor(sourceVideo.videoHeight / 3);
-                depthTextures = loadedDepths.map(dTex => upscaleDepthTex(dTex, faceW, faceH));
+                depthTextures = loadedDepths.map(prepareDepthTex);
             }
             
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
@@ -1117,6 +1150,7 @@
             const processAtlasTex = (tex, isColor) => {
                 if (tex === defaultCustomTex || tex === dummyDepthTex) return tex;
                 tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                tex = fitToGpu(tex);
                 tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
                 tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
                 tex.needsUpdate = true;
@@ -1128,17 +1162,8 @@
             const bgC = processAtlasTex(loaded[2], true);
             let bgD = loaded[3];
             
-            if (customMaps.fgColor && customMaps.fgDepth) {
-                const fw = (fgC !== defaultCustomTex && fgC.image) ? fgC.image.width : 1;
-                const fh = (fgC !== defaultCustomTex && fgC.image) ? fgC.image.height : 1;
-                fgD = upscaleDepthTex(fgD, fw, fh);
-            } else { fgD = processAtlasTex(fgD, false); }
-            
-            if (customMaps.bgColor && customMaps.bgDepth) {
-                const bw = (bgC !== defaultCustomTex && bgC.image) ? bgC.image.width : 1;
-                const bh = (bgC !== defaultCustomTex && bgC.image) ? bgC.image.height : 1;
-                bgD = upscaleDepthTex(bgD, bw, bh);
-            } else { bgD = processAtlasTex(bgD, false); }
+            fgD = prepareDepthTex(fgD);
+            bgD = prepareDepthTex(bgD);
 
             if (loadId !== currentLoadId) return;
 
@@ -1198,11 +1223,7 @@
                     catch(e) { console.warn("Missing depth map:", url); return dummyDepthTex; }
                 }));
                 
-                depthTextures = loadedDepths.map((dTex, i) => {
-                    const cw = loadedColors[i].image ? loadedColors[i].image.width : 1024;
-                    const ch = loadedColors[i].image ? loadedColors[i].image.height : 1024;
-                    return upscaleDepthTex(dTex, cw, ch);
-                });
+                depthTextures = loadedDepths.map(prepareDepthTex);
             } else {
                 depthControlsContainer.style.display = 'none';
             }
@@ -1214,8 +1235,8 @@
             bgCubeMesh.visible = false;
             
             fgCubeMesh.material.forEach((mat, i) => {
-              const tex = loadedColors[i];
-              tex.colorSpace = THREE.SRGBColorSpace;
+              loadedColors[i].colorSpace = THREE.SRGBColorSpace;
+              const tex = loadedColors[i] = fitToGpu(loadedColors[i]);
               tex.minFilter = THREE.LinearMipmapLinearFilter;
               tex.magFilter = THREE.LinearFilter;
               tex.generateMipmaps = true;
@@ -1254,9 +1275,9 @@
       }
 
       if (mode === 'block' && pendingTransitionDepth) {
-        transitionMat.uniforms.tDepthNew.value = pendingTransitionDepth;
+        setTransitionUniform('tDepthNew', pendingTransitionDepth);
       } else {
-        transitionMat.uniforms.tDepthNew.value = dummyDepthTex;
+        setTransitionUniform('tDepthNew', dummyDepthTex);
       }
 
       const duration = mode === 'block' ? 1400 : 600;
@@ -1264,7 +1285,7 @@
       function animateTween(now) {
         if (loadId !== currentLoadId) return;
         const p = Math.min((now - startTime) / duration, 1);
-        transitionMat.uniforms.uProgress.value = p;
+        setTransitionUniform('uProgress', p);
         if (p < 1) requestAnimationFrame(animateTween);
         else {
           isTransitioning = false;
@@ -1272,7 +1293,7 @@
             pendingTransitionDepth.dispose();
             pendingTransitionDepth = null;
           }
-          transitionMat.uniforms.tDepthNew.value = dummyDepthTex;
+          setTransitionUniform('tDepthNew', dummyDepthTex);
         }
       }
       requestAnimationFrame(animateTween);
@@ -1359,8 +1380,8 @@
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      rtOld.setSize(window.innerWidth, window.innerHeight); rtNew.setSize(window.innerWidth, window.innerHeight);
-      transitionMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
+      rtOld.setSize(rtWidth(), rtHeight()); rtNew.setSize(rtWidth(), rtHeight());
+      setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
     });
 
     function updateUI() {
@@ -1399,8 +1420,13 @@
       }
     }
 
-    transitionMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
-    updateUI(); loadPanorama('block'); render(); 
+    setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
+    updateUI();
+    // Compile the currently bound programs up front so the shader build doesn't
+    // land inside the first rendered frame.
+    renderer.compile(scene, camera);
+    renderer.compile(transitionScene, transitionCamera);
+    loadPanorama('block'); render();
 
   </script>
 </body>

@@ -118,8 +118,8 @@
 <div class="controls">
   <div class="ctrl-row">
     <label class="ctrl-lbl">Face size</label>
-    <input type="number" id="face-size" value="1024" min="64" max="4096" step="64">
-    <span style="font-size:12px;color:#555">px → output 5× wide, 3× tall</span>
+    <input type="number" id="face-size" value="1024" min="64" max="1024" step="64">
+    <span id="face-size-hint" style="font-size:12px;color:#555">px → output 5× wide, 3× tall</span>
   </div>
   <div class="ctrl-row">
     <label class="ctrl-lbl">Format</label>
@@ -253,6 +253,7 @@ FACES.forEach(face => {
     const img = new Image();
     img.onload = () => {
       faceImages[face] = img;
+      invalidateFace(face);
       updateThumb(face);
       document.getElementById(`prev-${face}`).classList.add('loaded');
       updateStitchBtn();
@@ -280,6 +281,7 @@ document.querySelectorAll('.rot-btn').forEach(btn => {
   addTapHandler(btn, () => {
     const face = btn.dataset.face, rot = parseInt(btn.dataset.rot);
     faceRot[face] = rot;
+    invalidateFace(face);
     document.querySelectorAll(`.rot-btn[data-face="${face}"]`).forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     updateThumb(face);
@@ -291,6 +293,7 @@ document.querySelectorAll('.flip-btn').forEach(btn => {
     const face = btn.dataset.face, flip = btn.dataset.flip;
     if (flip === 'h') faceFlipH[face] = !faceFlipH[face];
     else              faceFlipV[face] = !faceFlipV[face];
+    invalidateFace(face);
     btn.classList.toggle('active');
     updateThumb(face);
   });
@@ -299,6 +302,7 @@ document.querySelectorAll('.flip-btn').forEach(btn => {
 addTapHandler(document.getElementById('clear-btn'), () => {
   FACES.forEach(face => {
     delete faceImages[face];
+    invalidateFace(face);
     faceRot[face] = 0; faceFlipH[face] = false; faceFlipV[face] = false;
     document.getElementById(`prev-${face}`).classList.remove('loaded');
     const tc = document.getElementById(`thumb-${face}`);
@@ -311,6 +315,28 @@ addTapHandler(document.getElementById('clear-btn'), () => {
   updateStitchBtn(); setStatus('');
 });
 
+// ── Canvas size limits ───────────────────────────────────────────
+// A 5×3 atlas is 15 × faceSize² pixels. iOS Safari caps a canvas at roughly
+// 16.7M pixels (and other browsers have their own ceilings), so the input's
+// old max of 4096 promised a 20480×12288 canvas that cannot exist anywhere.
+const MAX_CANVAS_AREA = 16777216;
+const MAX_CANVAS_DIM  = 16384;
+
+function maxFaceSize() {
+  const byArea = Math.floor(Math.sqrt(MAX_CANVAS_AREA / 15));
+  const byDim  = Math.floor(MAX_CANVAS_DIM / 5);
+  return Math.max(64, Math.floor(Math.min(byArea, byDim) / 64) * 64);
+}
+
+function applyFaceSizeLimit() {
+  const input = document.getElementById('face-size');
+  const cap = maxFaceSize();
+  input.max = cap;
+  if (parseInt(input.value) > cap) input.value = cap;
+  document.getElementById('face-size-hint').textContent =
+    `px → output 5× wide, 3× tall (max ${cap})`;
+}
+
 function updateStitchBtn() {
   const n = FACES.filter(f => faceImages[f]).length;
   document.getElementById('stitch-btn').disabled = n < 6;
@@ -319,56 +345,52 @@ function updateStitchBtn() {
 function setStatus(m) { document.getElementById('status').textContent = m; }
 
 // ── Offscreen transform: rotate+flip via a scratch canvas ────────
-// Returns an ImageBitmap or HTMLCanvasElement with the transform applied.
-// This approach works on iOS Safari/Chrome where ctx.rotate() can
-// produce incorrect results when combined with translate().
+// Returns an HTMLCanvasElement with the transform applied.
+//
+// The atlas repeats the pole faces at several rotations, so the same
+// (face, rotation, flip, size) combination is requested more than once per
+// stitch — 15 cells resolve to at most 8 distinct renders. Cache them.
+const transformCache = new Map();
+
 function transformedFace(face, totalRotCW, flipH, flipV, size) {
-  const src = faceImages[face];
-  const offscreen = document.createElement('canvas');
-  offscreen.width = size; offscreen.height = size;
-  const oc = offscreen.getContext('2d');
-
-  // Step 1: draw source image at full size into scratch
-  const scratch = document.createElement('canvas');
-  scratch.width = size; scratch.height = size;
-  const sc = scratch.getContext('2d');
-  sc.drawImage(src, 0, 0, size, size);
-  const srcData = sc.getImageData(0, 0, size, size).data;
-
-  // Step 2: pixel-remap according to rotation + flip
-  // We compute for each destination pixel (dx,dy) the source pixel (sx,sy).
-  const dstData = oc.createImageData(size, size);
-  const d = dstData.data;
-  const s = srcData;
-  const n = size;
-
-  // Normalise rotation to 0/90/180/270
   const rot = ((totalRotCW % 360) + 360) % 360;
+  const key = `${face}|${rot}|${flipH}|${flipV}|${size}`;
+  const hit = transformCache.get(key);
+  if (hit) return hit;
 
-  for (let dy = 0; dy < n; dy++) {
-    for (let dx = 0; dx < n; dx++) {
-      // Reverse-map destination → source
-      let sx, sy;
-      // Rotation (CW) → inverse mapping (CCW)
-      if      (rot === 0)   { sx = dx;         sy = dy; }
-      else if (rot === 90)  { sx = dy;         sy = n-1-dx; }
-      else if (rot === 180) { sx = n-1-dx;     sy = n-1-dy; }
-      else                  { sx = n-1-dy;     sy = dx; }      // 270
+  const src = faceImages[face];
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
-      // Apply flips after rotation
-      if (flipH) sx = n-1-sx;
-      if (flipV) sy = n-1-sy;
-
-      const dIdx = (dy * n + dx) * 4;
-      const sIdx = (sy * n + sx) * 4;
-      d[dIdx]   = s[sIdx];
-      d[dIdx+1] = s[sIdx+1];
-      d[dIdx+2] = s[sIdx+2];
-      d[dIdx+3] = s[sIdx+3];
-    }
+  // Compose flip then rotation as a single affine transform. (This used to be
+  // a per-destination-pixel JS loop, which cost size² iterations per cell —
+  // 15.7M at the default face size and far worse above it.)
+  const n = size;
+  ctx.save();
+  switch (rot) {
+    case 90:  ctx.transform(0, 1, -1, 0, n, 0); break;
+    case 180: ctx.transform(-1, 0, 0, -1, n, n); break;
+    case 270: ctx.transform(0, -1, 1, 0, 0, n); break;
+    default:  break;
   }
-  oc.putImageData(dstData, 0, 0);
-  return offscreen;
+  // Flips are applied in destination space, i.e. after the rotation above.
+  if (flipH) ctx.transform(-1, 0, 0, 1, n, 0);
+  if (flipV) ctx.transform(1, 0, 0, -1, 0, n);
+  ctx.drawImage(src, 0, 0, n, n);
+  ctx.restore();
+
+  transformCache.set(key, canvas);
+  return canvas;
+}
+
+// Any change to a face's image or its rotation/flip invalidates its cached renders.
+function invalidateFace(face) {
+  for (const key of transformCache.keys()) {
+    if (key.startsWith(face + '|')) transformCache.delete(key);
+  }
 }
 
 // Update the small thumbnail preview for a face card
@@ -386,8 +408,14 @@ function updateThumb(face) {
 addTapHandler(document.getElementById('stitch-btn'), stitch);
 
 function stitch() {
-  const faceSize = Math.max(64, Math.min(4096, parseInt(document.getElementById('face-size').value) || 1024));
-  setStatus('Rendering…');
+  const requested = parseInt(document.getElementById('face-size').value) || 1024;
+  const faceSize = Math.max(64, Math.min(maxFaceSize(), requested));
+  if (faceSize < requested) {
+    document.getElementById('face-size').value = faceSize;
+    setStatus(`Face size capped at ${faceSize}px — ${requested}px exceeds the browser's canvas limit.`);
+  } else {
+    setStatus('Rendering…');
+  }
 
   // Use setTimeout so the status text repaints before the heavy work
   setTimeout(() => {
@@ -404,9 +432,27 @@ function stitch() {
       ctx.drawImage(rendered, col * faceSize, row * faceSize);
     });
 
+    // An over-limit canvas doesn't throw — it silently stays blank, and the
+    // failure only used to show up as an empty download. Probe a pixel instead.
+    if (!canvasHasContent(ctx, canvas)) {
+      setStatus(`Browser refused a ${canvas.width}×${canvas.height} canvas — lower the face size.`);
+      document.getElementById('output-wrap').style.display = 'none';
+      return;
+    }
+
     document.getElementById('output-wrap').style.display = 'flex';
     setStatus(`Done — ${canvas.width}×${canvas.height} px`);
   }, 20);
+}
+
+function canvasHasContent(ctx, canvas) {
+  try {
+    // Centre of the front face (row 1, col 1), which is always populated.
+    const d = ctx.getImageData(canvas.width * 0.3, canvas.height * 0.5, 1, 1).data;
+    return d[3] !== 0;
+  } catch (e) {
+    return false;
+  }
 }
 
 // ── Download ─────────────────────────────────────────────────────
@@ -432,6 +478,7 @@ document.getElementById('fmt-select').addEventListener('change', e => {
   document.getElementById('quality').disabled = e.target.value === 'image/png';
 });
 
+applyFaceSizeLimit();
 updateStitchBtn();
 </script>
 </body>
