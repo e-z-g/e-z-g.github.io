@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Anachronism Machine</title>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --panel: #151515;
+    --panel-2: #1c1c1c;
+    --line: #2a2a2a;
+    --fg: #e0e0e0;
+    --dim: #8a8a8a;
+    --accent: #7eb8f7;
+    --ok: #6fcf97;
+    --warn: #e0b25c;
+    --err: #e07a7a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 14px;
+  }
+  header {
+    padding: 22px 24px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  header h1 { margin: 0 0 4px; font-size: 1.25rem; font-weight: 600; color: #fff; }
+  header p { margin: 0; color: var(--dim); font-size: 0.85rem; max-width: 70ch; }
+  header a { color: var(--accent); }
+  .app {
+    display: grid;
+    grid-template-columns: 380px minmax(0, 1fr);
+    gap: 0;
+    align-items: start;
+  }
+  aside {
+    padding: 18px 20px 60px;
+    border-right: 1px solid var(--line);
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+  }
+  main { padding: 18px 20px 60px; min-width: 0; }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    aside { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--line); }
+  }
+  fieldset {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 14px 14px;
+    margin: 0 0 14px;
+    background: var(--panel);
+  }
+  legend { padding: 0 6px; color: var(--dim); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  label { display: block; margin: 10px 0 4px; font-size: 0.78rem; color: var(--dim); }
+  label:first-of-type { margin-top: 2px; }
+  input[type=text], input[type=password], select, textarea {
+    width: 100%;
+    padding: 7px 9px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--fg);
+    font: inherit;
+    font-size: 0.85rem;
+  }
+  textarea { resize: vertical; line-height: 1.45; }
+  input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; min-width: 0; }
+  .check { display: flex; align-items: center; gap: 7px; margin-top: 9px; color: var(--dim); font-size: 0.78rem; }
+  .check input { accent-color: var(--accent); }
+  button {
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--fg);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary {
+    background: #1e3a5f;
+    border-color: #2f5f96;
+    color: #fff;
+    font-weight: 600;
+    width: 100%;
+    padding: 10px;
+  }
+  .btnbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .hint { color: #6e6e6e; font-size: 0.72rem; margin: 6px 0 0; line-height: 1.5; }
+  .hint code { color: #9a9a9a; }
+  #steps { list-style: none; padding: 0; margin: 10px 0 0; font-size: 0.78rem; }
+  #steps li { display: flex; gap: 8px; padding: 3px 0; color: var(--dim); }
+  #steps li .dot { width: 1.2em; flex: none; text-align: center; }
+  #steps li.run { color: var(--fg); }
+  #steps li.done { color: var(--ok); }
+  #steps li.fail { color: var(--err); }
+  #steps li.skip { color: #666; }
+  #msg { margin: 10px 0 0; font-size: 0.8rem; line-height: 1.5; }
+  #msg.err { color: var(--err); }
+  #msg.warn { color: var(--warn); }
+  #msg.ok { color: var(--ok); }
+  .stage {
+    background: #111;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px;
+    display: flex;
+    justify-content: center;
+  }
+  #poster { max-width: 100%; height: auto; box-shadow: 0 12px 40px rgba(0,0,0,0.6); border-radius: 2px; }
+  .edit-grid label { margin-top: 12px; }
+  details summary { cursor: pointer; color: var(--dim); font-size: 0.8rem; padding: 4px 0; }
+  details[open] summary { color: var(--fg); }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .toolbar .spacer { flex: 1; }
+  .badge { font-size: 0.7rem; color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Anachronism Machine</h1>
+  <p>Reimagine a modern object as if it had been invented in another era, then save the finished
+  advertisement as a PNG. Runs entirely in your browser — text via the Claude API and artwork via
+  fal.ai, both with your own keys, or fully offline with built-in era templates.</p>
+</header>
+
+<div class="app">
+<aside>
+  <fieldset>
+    <legend>The idea</legend>
+    <label for="thing">What modern thing would you like to be invented in another era?</label>
+    <input type="text" id="thing" value="Fidget spinners" />
+    <label for="era">Choose an era</label>
+    <select id="era"></select>
+    <div id="customEraWrap" style="display:none">
+      <label for="customEra">Custom era</label>
+      <input type="text" id="customEra" placeholder="e.g. Bronze Age Anatolia (3300-1200 BCE)" />
+    </div>
+    <div class="btnbar" style="margin-top:12px;margin-bottom:0">
+      <button type="button" id="surprise">Surprise me</button>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Text generation</legend>
+    <label for="textMode">Source</label>
+    <select id="textMode">
+      <option value="claude">Claude API (your key)</option>
+      <option value="offline">Offline templates (no key)</option>
+    </select>
+    <div id="claudeOpts">
+      <label for="model">Model</label>
+      <select id="model">
+        <option value="claude-opus-5">Claude Opus 5</option>
+        <option value="claude-sonnet-5">Claude Sonnet 5</option>
+        <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+      </select>
+      <label for="anthropicKey">Anthropic API key</label>
+      <input type="password" id="anthropicKey" placeholder="sk-ant-..." autocomplete="off" />
+      <p class="hint">Sent directly from this page to <code>api.anthropic.com</code>. Anyone with
+      access to this browser profile can read a remembered key — prefer a scoped, disposable key.</p>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Illustration</legend>
+    <label for="imgMode">Source</label>
+    <select id="imgMode">
+      <option value="fal">fal.ai FLUX (your key)</option>
+      <option value="upload">Upload an image</option>
+      <option value="none">Drawn placeholder (no key)</option>
+    </select>
+    <div id="falOpts">
+      <label for="falKey">fal.ai API key</label>
+      <input type="password" id="falKey" placeholder="key_id:key_secret" autocomplete="off" />
+    </div>
+    <div id="uploadOpts" style="display:none">
+      <label for="imgFile">Image file</label>
+      <input type="file" id="imgFile" accept="image/*" />
+    </div>
+    <div class="check">
+      <input type="checkbox" id="remember" />
+      <label for="remember" style="margin:0">Remember keys in this browser</label>
+    </div>
+  </fieldset>
+
+  <button class="primary" id="go">Generate poster</button>
+  <ul id="steps"></ul>
+  <p id="msg"></p>
+</aside>
+
+<main>
+  <div class="toolbar">
+    <button id="download">Download PNG</button>
+    <select id="scale" style="width:auto;flex:none">
+      <option value="1">1× (1240px)</option>
+      <option value="2" selected>2× (2480px)</option>
+      <option value="3">3× (3720px)</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="badge" id="dims">—</span>
+  </div>
+
+  <div class="stage"><canvas id="poster" width="1240" height="900"></canvas></div>
+
+  <details style="margin-top:16px">
+    <summary>Edit the copy (re-renders as you type)</summary>
+    <div class="edit-grid">
+      <label for="e_name">Historical name</label>
+      <input type="text" id="e_name" data-field="name" />
+      <label for="e_desc">Description</label>
+      <textarea id="e_desc" rows="4" data-field="description"></textarea>
+      <div class="row">
+        <div><label for="e_f1">Feature 1</label><input type="text" id="e_f1" data-field="feature1" /></div>
+        <div><label for="e_f2">Feature 2</label><input type="text" id="e_f2" data-field="feature2" /></div>
+        <div><label for="e_f3">Feature 3</label><input type="text" id="e_f3" data-field="feature3" /></div>
+      </div>
+      <div class="row">
+        <div><label for="e_w1">Warning 1</label><textarea id="e_w1" rows="2" data-field="warning1"></textarea></div>
+        <div><label for="e_w2">Warning 2</label><textarea id="e_w2" rows="2" data-field="warning2"></textarea></div>
+      </div>
+      <label for="e_agency">Certifying agency</label>
+      <input type="text" id="e_agency" data-field="agency" />
+      <div class="row" style="margin-top:12px">
+        <div><label for="e_primary">Primary colour</label><input type="text" id="e_primary" data-field="primary_color" /></div>
+        <div><label for="e_secondary">Accent colour</label><input type="text" id="e_secondary" data-field="secondary_color" /></div>
+        <div><label for="e_bg">Background</label><input type="text" id="e_bg" data-field="background_color" /></div>
+        <div><label for="e_text">Text colour</label><input type="text" id="e_text" data-field="text_color" /></div>
+      </div>
+    </div>
+  </details>
+
+  <details style="margin-top:8px">
+    <summary>Image prompt / raw style JSON</summary>
+    <label for="e_imgprompt">Image prompt</label>
+    <textarea id="e_imgprompt" rows="4"></textarea>
+    <div class="btnbar" style="margin-top:10px">
+      <button id="regenImage">Regenerate illustration only</button>
+    </div>
+    <label for="rawstyle">Style JSON</label>
+    <textarea id="rawstyle" rows="8" readonly></textarea>
+  </details>
+</main>
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Era catalogue: palette + typography fallbacks, plus offline copy.
+ * ------------------------------------------------------------------ */
+
+const ERAS = [
+  {
+    label: "Prehistory (2.5 million BCE - 3500 BCE)",
+    style: {
+      primary_font: "Cinzel", secondary_font: "Gudea",
+      primary_color: "#8B4A2B", secondary_color: "#C97B3C",
+      text_color: "#3A2A1D", background_color: "#E8DCC8",
+      texture_description: "ochre pigment daubed on rough cave stone"
+    },
+    texture: "stone",
+    agency: "Council of Sharp Things",
+    nameA: ["Great", "Round", "Restless", "Whirling"],
+    nameB: ["Spinning Stone", "Turning Bone", "Hand Wheel", "Twirl-Rock"],
+    desc: "Behold the {name}. Carved from river stone and knuckle bone, it turns and turns while the hands stay busy and the mind stays calm. Good for long nights. Good for waiting out the rain. The tribe over the hill does not have one.",
+    features: ["Carved from a single river stone", "Bone spindle greased with animal fat", "Spins for the length of one long breath"],
+    warnings: ["Do not spin near the fire. Sparks find hair.", "If swallowed, the shaman charges two pelts."]
+  },
+  {
+    label: "Ancient Egypt (3000 BCE - 30 BCE)",
+    style: {
+      primary_font: "Cinzel", secondary_font: "Lato",
+      primary_color: "#B8912F", secondary_color: "#2E6E8E",
+      text_color: "#2B2118", background_color: "#EFE3C6",
+      texture_description: "painted papyrus and gilded cedar"
+    },
+    texture: "papyrus",
+    agency: "Bureau of Idle Hands",
+    nameA: ["Sacred", "Eternal", "Blessed"],
+    nameB: ["Disc of Khepri", "Turning Scarab", "Wheel of the Sun Boat"],
+    desc: "The {name}, turned upon a copper pin and blessed by the scribes of Memphis. It rolls as the sun rolls, without beginning and without end. Favoured by those who count grain, measure fields, and wait upon the flood.",
+    features: ["Copper pin set in cedar, oiled with balsam", "Three vanes cut in the sign of the scarab", "Balanced against a feather by temple scribes"],
+    warnings: ["Not to be placed in a tomb without the proper rites.", "The cat will take it. The cat always takes it."]
+  },
+  {
+    label: "Ancient Greece (800 BCE - 146 BCE)",
+    style: {
+      primary_font: "Cormorant Garamond", secondary_font: "Lato",
+      primary_color: "#1F4E79", secondary_color: "#B23A2E",
+      text_color: "#22303B", background_color: "#F2EDE3",
+      texture_description: "red-figure pottery glaze over pale marble"
+    },
+    texture: "marble",
+    agency: "Office of Unproductive Motion",
+    nameA: ["Perfect", "Rational", "Harmonic"],
+    nameB: ["Trochos", "Turning Form", "Circle of Three Arms"],
+    desc: "The {name}: three arms about one still centre, the moving image of a fixed idea. The Academy debates whether it teaches patience or merely postpones it. The agora has already sold out twice.",
+    features: ["Three arms in exact geometric proportion", "Bronze bearing turned on a lathe", "Demonstrates motion without displacement"],
+    warnings: ["Excessive use has been observed to encourage philosophy.", "Not to be brought into the assembly during a vote."]
+  },
+  {
+    label: "Ancient Rome (753 BCE - 476 CE)",
+    style: {
+      primary_font: "Cinzel", secondary_font: "EB Garamond",
+      primary_color: "#7B1E1E", secondary_color: "#B08D3F",
+      text_color: "#2A2320", background_color: "#EDE6D6",
+      texture_description: "carved travertine and hammered bronze"
+    },
+    texture: "stone",
+    agency: "Prefecture of Small Amusements",
+    nameA: ["Imperial", "Legionary", "Civic"],
+    nameB: ["Rota Manualis", "Hand Wheel", "Turning Fascis"],
+    desc: "The {name}, issued to officers of good standing. Bronze upon bronze, it turns without complaint through a full watch. Carried from Britannia to Judaea. Approved for use in the baths, the forum, and the long wait before battle.",
+    features: ["Cast bronze bearing, rated for one full watch", "Three arms in the pattern of the legion standard", "Fits within the closed fist of a standard-issue glove"],
+    warnings: ["Do not operate while holding the standard.", "Loss on campaign is deducted from your salt."]
+  },
+  {
+    label: "Medieval China (618-1279)",
+    style: {
+      primary_font: "Noto Serif", secondary_font: "Noto Sans",
+      primary_color: "#7A2E2E", secondary_color: "#1F5C4A",
+      text_color: "#2B2622", background_color: "#F0E7D8",
+      texture_description: "ink and mineral pigment on mounted silk"
+    },
+    texture: "silk",
+    agency: "Ministry of Restless Fingers",
+    nameA: ["Cloud-Turning", "Still-Centre", "Nine-Cycle"],
+    nameB: ["Jade Whorl", "Hand Mill", "Lacquered Turning Disc"],
+    desc: "The {name}, lacquered in nine coats and turned upon a jade collar. The examination candidate steadies his hand with it; the poet times a line by it. It makes no sound, which is its finest quality.",
+    features: ["Jade collar over a hardened steel pin", "Nine coats of lacquer, polished between each", "Silent in operation, as required in the examination hall"],
+    warnings: ["Silence is required in the hall. This device complies. You may not.", "Not to be lacquered again by the owner. Ruinous."]
+  },
+  {
+    label: "Middle Ages (476 - 1450)",
+    style: {
+      primary_font: "Cinzel", secondary_font: "EB Garamond",
+      primary_color: "#6B1F2E", secondary_color: "#B8912F",
+      text_color: "#2B2119", background_color: "#EFE6D2",
+      texture_description: "illuminated vellum with gold leaf and iron-gall ink"
+    },
+    texture: "vellum",
+    agency: "Guild of Idle Hands",
+    nameA: ["Blessed", "Most Excellent", "Wondrous"],
+    nameB: ["Whirlygigge of Saint Vitus", "Turning Trine", "Hand Rota"],
+    desc: "Presenting the {name}, wrought by the guild at great labour. Three arms of hammered iron upon a bearing of polished bone, that a man may occupy his hands through the longest sermon and yet appear devout. Blessed at Candlemas. Sold at the fair.",
+    features: ["Three arms of hammered iron on a bone bearing", "Turns through the length of a full psalm", "Small enough to conceal within the sleeve"],
+    warnings: ["Not to be spun during the Elevation of the Host.", "The physician advises against use by those of choleric humour."]
+  },
+  {
+    label: "Renaissance (1400-1600)",
+    style: {
+      primary_font: "Cormorant Garamond", secondary_font: "EB Garamond",
+      primary_color: "#7A3E2A", secondary_color: "#2F5D62",
+      text_color: "#241F1A", background_color: "#F3EADA",
+      texture_description: "oil glaze on prepared wood panel"
+    },
+    texture: "panel",
+    agency: "Academy of Superfluous Devices",
+    nameA: ["Ingenious", "Most Perfect", "Anatomical"],
+    nameB: ["Rotante", "Turning Engine", "Instrument of Three Arms"],
+    desc: "The {name}, drawn from first principles and executed by the workshop in brass and pearwood. The proportions follow the figure inscribed in the circle. It is at once a demonstration, an ornament, and a remedy for the wandering mind.",
+    features: ["Proportioned by the figure inscribed in a circle", "Brass bearing turned true on the workshop lathe", "Pearwood arms, oiled and polished by hand"],
+    warnings: ["The patron's likeness must not be engraved upon the arms while in motion.", "Prolonged study of the spin has been known to delay commissions."]
+  },
+  {
+    label: "Victorian Era (1837-1901)",
+    style: {
+      primary_font: "Playfair Display", secondary_font: "Libre Baskerville",
+      primary_color: "#3E2723", secondary_color: "#8C6B2F",
+      text_color: "#2B2321", background_color: "#EFE7DA",
+      texture_description: "steel engraving on cream laid paper"
+    },
+    texture: "engraving",
+    agency: "Board of Wholesome Diversion",
+    nameA: ["Patent", "Improved", "Registered"],
+    nameB: ["Digital Gyrating Apparatus", "Perpetual Trifler", "Gentleman's Rotary Amusement"],
+    desc: "The {name}. Manufactured in Birmingham of the finest gunmetal, upon jewelled pivots of the watchmaker's pattern. Recommended by physicians for the nervous complaint, and by clergymen for the restless child. Post free upon receipt of two shillings.",
+    features: ["Jewelled pivots after the watchmaker's pattern", "Gunmetal arms, hand-finished and lacquered", "Revolutions in excess of nine hundred per minute"],
+    warnings: ["Not to be operated by ladies whilst corseted.", "The proprietors accept no liability for gyration of the moustache."]
+  },
+  {
+    label: "Roaring 20s (1920-1929)",
+    style: {
+      primary_font: "Josefin Sans", secondary_font: "Karla",
+      primary_color: "#1B1B1B", secondary_color: "#C6A15B",
+      text_color: "#23201C", background_color: "#F2ECE0",
+      texture_description: "gilt inlay on black lacquer, deco sunburst"
+    },
+    texture: "lacquer",
+    agency: "Bureau of Modern Leisure",
+    nameA: ["Deluxe", "Manhattan", "Streamline"],
+    nameB: ["Whirl-O-Matic", "Jazz Spinner", "Chrome Twirler"],
+    desc: "The {name} — the last word in pocket amusement. Chromium plate over solid brass, three arms in the modern manner, spinning smooth as a saxophone line. Every smart set has one. Ask for it by name at better drugstores.",
+    features: ["Chromium plate over solid brass", "Three-arm sunburst in the modern manner", "Fits the waistcoat pocket without a bulge"],
+    warnings: ["Not responsible for spins occurring during a raid.", "Keep away from the bathtub gin. It dulls the finish."]
+  },
+  {
+    label: "Mid-Century Modern (1945-1969)",
+    style: {
+      primary_font: "Oswald", secondary_font: "Work Sans",
+      primary_color: "#D9642A", secondary_color: "#2C7873",
+      text_color: "#2A2724", background_color: "#F1E9DC",
+      texture_description: "atomic-age laminate with starburst inlay"
+    },
+    texture: "laminate",
+    agency: "Department of Wholesome Recreation",
+    nameA: ["Atomic", "Space-Age", "Family"],
+    nameB: ["Spin-a-Matic", "Orbit Wheel", "Tri-Star Twirler"],
+    desc: "The {name} brings tomorrow into today's living room. Moulded in genuine polystyrene with a precision steel core, it spins a full sixty seconds — tested in our laboratories. One for Dad. One for the kids. One for the rumpus room.",
+    features: ["Precision steel core in moulded polystyrene", "Laboratory-tested sixty-second spin", "Available in Sunset Orange and Turquoise"],
+    warnings: ["Do not operate inside the fallout shelter without adult supervision.", "Colours may fade under sustained atomic sunshine."]
+  },
+  {
+    label: "Retro Era (1970-1999)",
+    style: {
+      primary_font: "Archivo", secondary_font: "IBM Plex Sans",
+      primary_color: "#B0342C", secondary_color: "#2B6CB0",
+      text_color: "#1F2328", background_color: "#EDE8E0",
+      texture_description: "four-colour screen print on coated card"
+    },
+    texture: "print",
+    agency: "Office of Recreational Standards",
+    nameA: ["Turbo", "Extreme", "Mega"],
+    nameB: ["Spin Master 3000", "Rad Rotor", "Hyper Twirl"],
+    desc: "The {name} is here and it does not quit. Injection-moulded ABS, ball-bearing core, glow-in-the-dark arms. Batteries not required because it does not need them. Collect all six. As seen on television.",
+    features: ["Sealed ball-bearing core, zero maintenance", "Glow-in-the-dark arms charge under any lamp", "Six collectible colourways, each numbered"],
+    warnings: ["Not a toy for children under three. Also not really a toy.", "Do not spin near the tape deck. Static eats mixtapes."]
+  },
+  {
+    label: "Cyberpunk Future (2080s)",
+    style: {
+      primary_font: "Orbitron", secondary_font: "Rajdhani",
+      primary_color: "#00E5FF", secondary_color: "#FF2E88",
+      text_color: "#DCEBF5", background_color: "#0C1016",
+      texture_description: "wet neon reflected on black machined acrylic"
+    },
+    texture: "neon",
+    agency: "Bureau of Nonproductive Motion",
+    nameA: ["Kinetic", "Chrome", "Neural"],
+    nameB: ["Idle-Loop Unit", "Dopamine Rotor", "Handspin//NULL"],
+    desc: "The {name}. Magnetic levitation core, zero friction, zero downtime. Logs every revolution to your dermal implant and sells the telemetry back to you at a discount. Certified compliant. Attention is a resource. Spend it here.",
+    features: ["Maglev core — no bearing, no wear, no service", "Revolution telemetry streamed to dermal implant", "Subscription-free for the first ninety days"],
+    warnings: ["Unauthorised spinning may void your citizenship tier.", "Telemetry is retained indefinitely. This is in the agreement."]
+  },
+  {
+    label: "Solarpunk Future (3000+)",
+    style: {
+      primary_font: "Quicksand", secondary_font: "Nunito Sans",
+      primary_color: "#2E7D5B", secondary_color: "#E0A33E",
+      text_color: "#22302A", background_color: "#F2F7EE",
+      texture_description: "grown rattan lattice set with solar glass"
+    },
+    texture: "woven",
+    agency: "Commons Office for Gentle Motion",
+    nameA: ["Grown", "Tidal", "Sunlit"],
+    nameB: ["Rest Wheel", "Living Whorl", "Quiet Turning"],
+    desc: "The {name} is grown, not made — a rattan lattice cured over nine days and set with a bearing of pressed seed-glass. It turns on the warmth of your hand. When you are done with it, plant it. The commons library has one for every household.",
+    features: ["Rattan lattice grown to shape over nine days", "Bearing of pressed seed-glass, fully compostable", "Turns on hand-warmth alone; no charge required"],
+    warnings: ["Please return to the commons library within one season.", "Will sprout if left in damp soil. This is not a defect."]
+  }
+];
+
+const THINGS = [
+  "Fidget spinners", "Smartphones", "Espresso machines", "Air fryers", "Roombas",
+  "Noise-cancelling headphones", "Electric scooters", "Podcasts", "Dating apps",
+  "Standing desks", "Selfie sticks", "Bubble tea", "Fitness trackers", "Bluetooth speakers"
+];
+
+/* ------------------------------------------------------------------ *
+ * State
+ * ------------------------------------------------------------------ */
+
+const DEFAULT_STYLE = ERAS[5].style;
+
+const state = {
+  era: ERAS[5].label,
+  thing: "Fidget spinners",
+  name: "",
+  description: "",
+  feature1: "", feature2: "", feature3: "",
+  warning1: "", warning2: "",
+  agency: "",
+  style: Object.assign({}, DEFAULT_STYLE),
+  texture: ERAS[5].texture,
+  imagePrompt: "",
+  image: null,
+  // True while the copy is still built from the built-in era templates, so
+  // switching era can refresh it. Cleared once real generated copy lands.
+  copyFromTemplate: true
+};
+
+const $ = (id) => document.getElementById(id);
+
+/* ------------------------------------------------------------------ *
+ * Google Fonts loading
+ * ------------------------------------------------------------------ */
+
+const requestedFonts = new Set();
+const fontStatus = new Map();
+
+function requestFont(family) {
+  if (!family || requestedFonts.has(family)) return;
+  requestedFonts.add(family);
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=" +
+    encodeURIComponent(family).replace(/%20/g, "+") + ":wght@400;700&display=swap";
+  document.head.appendChild(link);
+}
+
+async function ensureFont(family) {
+  if (!family) return false;
+  if (fontStatus.has(family)) return fontStatus.get(family);
+  requestFont(family);
+  let ok = false;
+  try {
+    const a = await document.fonts.load('700 40px "' + family + '"');
+    const b = await document.fonts.load('400 20px "' + family + '"');
+    ok = (a.length + b.length) > 0;
+  } catch (e) { ok = false; }
+  fontStatus.set(family, ok);
+  return ok;
+}
+
+/* ------------------------------------------------------------------ *
+ * Colour helpers
+ * ------------------------------------------------------------------ */
+
+function parseColor(c, fallback) {
+  if (typeof c !== "string") return fallback;
+  const s = c.trim();
+  let m = /^#([0-9a-f]{3})$/i.exec(s);
+  if (m) {
+    const h = m[1];
+    return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)];
+  }
+  m = /^#([0-9a-f]{6})$/i.exec(s);
+  if (m) {
+    const h = m[1];
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
+  m = /^rgba?\(([^)]+)\)$/i.exec(s);
+  if (m) {
+    const p = m[1].split(",").map((v) => parseFloat(v));
+    if (p.length >= 3 && p.every((v) => !isNaN(v))) return [p[0], p[1], p[2]];
+  }
+  return fallback;
+}
+
+const hex = (rgb) => "#" + rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+const rgba = (rgb, a) => "rgba(" + Math.round(rgb[0]) + "," + Math.round(rgb[1]) + "," + Math.round(rgb[2]) + "," + a + ")";
+const luma = (rgb) => (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+
+function mix(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function contrastOn(bg, fg) {
+  // Nudge fg away from bg until it is legible.
+  const lb = luma(bg);
+  let out = fg.slice();
+  let guard = 0;
+  while (Math.abs(luma(out) - lb) < 0.35 && guard++ < 24) {
+    out = mix(out, lb > 0.5 ? [0, 0, 0] : [255, 255, 255], 0.12);
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * Canvas text helpers
+ * ------------------------------------------------------------------ */
+
+function fontSpec(size, family, weight, italic) {
+  const fam = '"' + (family || "Georgia") + '", Georgia, "Times New Roman", serif';
+  return (italic ? "italic " : "") + (weight || 400) + " " + size + "px " + fam;
+}
+
+function wrap(ctx, text, maxWidth) {
+  const out = [];
+  const paras = String(text == null ? "" : text).split(/\n+/);
+  for (const para of paras) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length) { continue; }
+    let line = "";
+    for (const w of words) {
+      const test = line ? line + " " + w : w;
+      if (ctx.measureText(test).width <= maxWidth || !line) {
+        line = test;
+      } else {
+        out.push(line);
+        line = w;
+      }
+    }
+    if (line) out.push(line);
+  }
+  return out.length ? out : [""];
+}
+
+function drawLines(ctx, lines, x, y, lineHeight, align, width) {
+  ctx.textAlign = align || "left";
+  ctx.textBaseline = "alphabetic";
+  const cx = align === "center" ? x + width / 2 : x;
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], cx, y + lineHeight * (i + 0.78));
+  }
+  ctx.textAlign = "left";
+  return lines.length * lineHeight;
+}
+
+/* ------------------------------------------------------------------ *
+ * Procedural texture + placeholder art
+ * ------------------------------------------------------------------ */
+
+let grainPattern = null;
+function grain() {
+  if (grainPattern) return grainPattern;
+  const c = document.createElement("canvas");
+  c.width = c.height = 180;
+  const g = c.getContext("2d");
+  const img = g.createImageData(180, 180);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = 120 + Math.random() * 135;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  grainPattern = c;
+  return c;
+}
+
+function drawTexture(ctx, W, H, texture, pal) {
+  const dark = luma(pal.bg) < 0.5;
+  ctx.save();
+  const pat = ctx.createPattern(grain(), "repeat");
+  ctx.globalAlpha = dark ? 0.05 : 0.09;
+  ctx.globalCompositeOperation = dark ? "screen" : "multiply";
+  ctx.fillStyle = pat;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  if (texture === "engraving" || texture === "print" || texture === "papyrus" || texture === "vellum") {
+    ctx.strokeStyle = hex(pal.primary);
+    ctx.lineWidth = 0.6;
+    for (let y = 0; y < H; y += 4) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  } else if (texture === "neon") {
+    ctx.strokeStyle = hex(pal.primary);
+    ctx.lineWidth = 1;
+    for (let y = 0; y < H; y += 3) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  } else if (texture === "woven" || texture === "silk" || texture === "laminate") {
+    ctx.strokeStyle = hex(pal.secondary);
+    ctx.lineWidth = 0.8;
+    for (let x = 0; x < W + H; x += 16) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x - H, H); ctx.stroke();
+    }
+  } else if (texture === "stone" || texture === "marble" || texture === "panel") {
+    ctx.strokeStyle = hex(pal.text);
+    ctx.lineWidth = 1.4;
+    for (let i = 0; i < 26; i++) {
+      const y = (i * 97 % H);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.bezierCurveTo(W * 0.3, y + 22, W * 0.7, y - 22, W, y + 6);
+      ctx.globalAlpha = 0.03;
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+
+  // vignette
+  ctx.save();
+  const g2 = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+  g2.addColorStop(0, "rgba(0,0,0,0)");
+  g2.addColorStop(1, dark ? "rgba(0,0,0,0.45)" : "rgba(60,40,20,0.16)");
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+function drawPlaceholderArt(ctx, x, y, size, pal, texture) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = rgba(mix(pal.bg, pal.primary, 0.08), 1);
+  ctx.fillRect(0, 0, size, size);
+
+  const cx = size / 2, cy = size / 2;
+  ctx.strokeStyle = rgba(pal.primary, 0.35);
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 10; i++) {
+    const s = size * i / 10;
+    ctx.beginPath(); ctx.moveTo(s, 0); ctx.lineTo(s, size); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, s); ctx.lineTo(size, s); ctx.stroke();
+  }
+
+  // Schematic "device": three lobes around a hub
+  ctx.strokeStyle = hex(pal.primary);
+  ctx.lineWidth = 3;
+  const R = size * 0.30;
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 - Math.PI / 2;
+    const lx = cx + Math.cos(a) * R, ly = cy + Math.sin(a) * R;
+    ctx.beginPath(); ctx.arc(lx, ly, size * 0.115, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(lx, ly); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, size * 0.10, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, size * 0.05, 0, Math.PI * 2);
+  ctx.fillStyle = hex(pal.secondary); ctx.fill();
+
+  // motion arcs + dimension marks
+  ctx.strokeStyle = rgba(pal.secondary, 0.75);
+  ctx.lineWidth = 2;
+  ctx.setLineDash([7, 7]);
+  ctx.beginPath(); ctx.arc(cx, cy, R + size * 0.16, -0.2, Math.PI * 1.1); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle = rgba(pal.text, 0.6);
+  ctx.lineWidth = 1.5;
+  const my = size * 0.9;
+  ctx.beginPath(); ctx.moveTo(size * 0.18, my); ctx.lineTo(size * 0.82, my); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(size * 0.18, my - 7); ctx.lineTo(size * 0.18, my + 7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(size * 0.82, my - 7); ctx.lineTo(size * 0.82, my + 7); ctx.stroke();
+
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------------ *
+ * Poster renderer
+ * ------------------------------------------------------------------ */
+
+const POSTER_W = 1240;
+const measureCanvas = document.createElement("canvas");
+measureCanvas.width = measureCanvas.height = 8;
+const measureCtx = measureCanvas.getContext("2d");
+
+function palette(style) {
+  const bg = parseColor(style.background_color, [239, 230, 210]);
+  let primary = parseColor(style.primary_color, [107, 31, 46]);
+  let secondary = parseColor(style.secondary_color, [184, 145, 47]);
+  let text = parseColor(style.text_color, [43, 33, 25]);
+  primary = contrastOn(bg, primary);
+  secondary = contrastOn(bg, secondary);
+  text = contrastOn(bg, text);
+  const dark = luma(bg) < 0.5;
+  return { bg: bg, primary: primary, secondary: secondary, text: text, dark: dark,
+           panel: dark ? [255, 255, 255] : [255, 255, 255], panelAlpha: dark ? 0.05 : 0.42 };
+}
+
+function fitTitle(ctx, text, maxWidth, family, maxSize, minSize, maxLines) {
+  let size = maxSize;
+  while (size > minSize) {
+    ctx.font = fontSpec(size, family, 700, false);
+    const lines = wrap(ctx, text, maxWidth);
+    if (lines.length <= maxLines) return { size: size, lines: lines };
+    size -= 2;
+  }
+  ctx.font = fontSpec(minSize, family, 700, false);
+  return { size: minSize, lines: wrap(ctx, text, maxWidth) };
+}
+
+// Single pass renderer. When `draw` is false nothing visible is produced,
+// but the returned height is identical, so we can size the canvas first.
+function paint(ctx, D, pal, fonts, draw) {
+  const W = POSTER_W;
+  const pad = 62;
+  const inner = W - pad * 2;
+  const F1 = fonts.primary, F2 = fonts.secondary;
+  let y = pad + 26;
+
+  const setFill = (c) => { if (draw) ctx.fillStyle = c; };
+  const setStroke = (c) => { if (draw) ctx.strokeStyle = c; };
+
+  // ---- header ----
+  ctx.font = fontSpec(20, F2, 400, true);
+  setFill(hex(pal.secondary));
+  const eraLines = wrap(ctx, D.era, inner - 220);
+  if (draw) drawLines(ctx, eraLines, pad, y, 28, "center", inner);
+  y += eraLines.length * 28 + 8;
+
+  const title = fitTitle(measureCtx, (D.name || "Untitled Device").toUpperCase(), inner - 200, F1, 62, 30, 3);
+  ctx.font = fontSpec(title.size, F1, 700, false);
+  setFill(hex(pal.primary));
+  if (draw) {
+    ctx.save();
+    ctx.shadowColor = rgba(pal.primary, pal.dark ? 0.5 : 0.18);
+    ctx.shadowBlur = pal.dark ? 18 : 6;
+    ctx.shadowOffsetY = pal.dark ? 0 : 2;
+    drawLines(ctx, title.lines, pad, y, title.size * 1.18, "center", inner);
+    ctx.restore();
+  }
+  y += title.lines.length * title.size * 1.18 + 6;
+
+  ctx.font = fontSpec(17, F2, 400, true);
+  setFill(rgba(pal.text, 0.85));
+  const sub = "(Historical reimagining of " + (D.thing || "a modern thing") + ")";
+  const subLines = wrap(ctx, sub, inner - 220);
+  if (draw) drawLines(ctx, subLines, pad, y, 24, "center", inner);
+  y += subLines.length * 24 + 22;
+
+  if (draw) {
+    ctx.save();
+    ctx.strokeStyle = hex(pal.primary);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad, y + 5); ctx.lineTo(W - pad, y + 5); ctx.stroke();
+    ctx.restore();
+  }
+  y += 34;
+
+  // ---- main row: illustration + description ----
+  const imgSize = 500;
+  const gap = 34;
+  const rightX = pad + imgSize + gap;
+  const rightW = inner - imgSize - gap;
+  const descPad = 24;
+
+  ctx.font = fontSpec(19.5, F2, 400, false);
+  const descLines = wrap(ctx, D.description || "", rightW - descPad * 2);
+  const descH = descLines.length * 30 + descPad * 2;
+  const rowH = Math.max(imgSize, descH);
+
+  if (draw) {
+    // illustration
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.28)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 8;
+    ctx.fillStyle = rgba(pal.bg, 1);
+    ctx.fillRect(pad, y, imgSize, imgSize);
+    ctx.restore();
+
+    if (D.image) {
+      const iw = D.image.width, ih = D.image.height;
+      const s = Math.max(imgSize / iw, imgSize / ih);
+      const dw = iw * s, dh = ih * s;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(pad, y, imgSize, imgSize); ctx.clip();
+      ctx.drawImage(D.image, pad + (imgSize - dw) / 2, y + (imgSize - dh) / 2, dw, dh);
+      ctx.restore();
+    } else {
+      drawPlaceholderArt(ctx, pad, y, imgSize, pal, D.texture);
+    }
+    ctx.strokeStyle = hex(pal.primary);
+    ctx.lineWidth = 6;
+    ctx.strokeRect(pad + 3, y + 3, imgSize - 6, imgSize - 6);
+    ctx.strokeStyle = rgba(pal.secondary, 0.9);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pad + 9, y + 9, imgSize - 18, imgSize - 18);
+
+    // description panel
+    ctx.fillStyle = rgba(pal.panel, pal.panelAlpha);
+    ctx.fillRect(rightX, y, rightW, rowH);
+    ctx.strokeStyle = rgba(pal.primary, 0.75);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(rightX + 0.75, y + 0.75, rightW - 1.5, rowH - 1.5);
+
+    ctx.font = fontSpec(19.5, F2, 400, false);
+    ctx.fillStyle = hex(pal.text);
+    const startY = y + Math.max(descPad, (rowH - descLines.length * 30) / 2) - 4;
+    drawLines(ctx, descLines, rightX + descPad, startY, 30, "left", rightW);
+  }
+  y += rowH + 30;
+
+  // ---- features ----
+  const feats = [D.feature1, D.feature2, D.feature3].filter((f) => f && String(f).trim());
+  if (feats.length) {
+    const fPad = 24;
+    const numCol = 54;
+    const featW = inner - fPad * 2 - numCol;
+    ctx.font = fontSpec(19, F2, 400, false);
+    const featLines = feats.map((f) => wrap(ctx, f, featW));
+    const rowHeights = featLines.map((l) => Math.max(40, l.length * 28));
+    const boxH = rowHeights.reduce((a, b) => a + b, 0) + (feats.length - 1) * 14 + fPad * 2;
+
+    if (draw) {
+      ctx.fillStyle = rgba(pal.primary, pal.dark ? 0.12 : 0.07);
+      ctx.fillRect(pad, y, inner, boxH);
+      ctx.strokeStyle = rgba(pal.primary, 0.8);
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(pad + 0.75, y + 0.75, inner - 1.5, boxH - 1.5);
+
+      let fy = y + fPad;
+      for (let i = 0; i < feats.length; i++) {
+        const h = rowHeights[i];
+        const cy = fy + h / 2;
+        ctx.beginPath();
+        ctx.arc(pad + fPad + 17, cy, 17, 0, Math.PI * 2);
+        ctx.strokeStyle = hex(pal.secondary);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.font = fontSpec(17, F1, 700, false);
+        ctx.fillStyle = hex(pal.secondary);
+        ctx.textAlign = "center";
+        ctx.fillText(String(i + 1), pad + fPad + 17, cy + 6);
+        ctx.textAlign = "left";
+
+        ctx.font = fontSpec(19, F2, 400, false);
+        ctx.fillStyle = hex(pal.text);
+        const ty = cy - (featLines[i].length * 28) / 2;
+        drawLines(ctx, featLines[i], pad + fPad + numCol, ty, 28, "left", featW);
+        fy += h + 14;
+      }
+    }
+    y += boxH + 26;
+  }
+
+  // ---- warnings ----
+  const warns = [D.warning1, D.warning2].filter((w) => w && String(w).trim());
+  if (warns.length) {
+    const wPad = 24;
+    ctx.font = fontSpec(24, F1, 700, false);
+    const headH = 40;
+    ctx.font = fontSpec(18, F2, 400, true);
+    const wLines = warns.map((w) => wrap(ctx, w, inner - wPad * 2 - 22));
+    const wH = wLines.reduce((a, l) => a + l.length * 27 + 16, 0);
+    const boxH = headH + wH + wPad * 2 - 8;
+
+    if (draw) {
+      ctx.fillStyle = rgba(pal.bg, pal.dark ? 0.5 : 0.55);
+      ctx.fillRect(pad, y, inner, boxH);
+      ctx.save();
+      ctx.setLineDash([9, 7]);
+      ctx.strokeStyle = hex(pal.secondary);
+      ctx.lineWidth = 2;
+      ctx.strokeRect(pad + 1, y + 1, inner - 2, boxH - 2);
+      ctx.restore();
+
+      ctx.font = fontSpec(24, F1, 700, false);
+      ctx.fillStyle = hex(pal.secondary);
+      ctx.textAlign = "center";
+      ctx.fillText("IMPORTANT NOTICES", pad + inner / 2, y + wPad + 22);
+      ctx.textAlign = "left";
+
+      let wy = y + wPad + headH - 6;
+      ctx.font = fontSpec(18, F2, 400, true);
+      for (let i = 0; i < warns.length; i++) {
+        const h = wLines[i].length * 27;
+        ctx.strokeStyle = hex(pal.secondary);
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(pad + wPad, wy + 4);
+        ctx.lineTo(pad + wPad, wy + h + 2);
+        ctx.stroke();
+        ctx.fillStyle = hex(pal.text);
+        drawLines(ctx, wLines[i], pad + wPad + 16, wy, 27, "left", inner - wPad * 2 - 22);
+        wy += h + 16;
+      }
+    }
+    y += boxH + 24;
+  }
+
+  // ---- footer ----
+  if (draw) {
+    ctx.font = fontSpec(13, F2, 400, false);
+    ctx.fillStyle = rgba(pal.text, 0.55);
+    ctx.textAlign = "center";
+    ctx.fillText("Anachronism Machine", pad + inner / 2, y + 14);
+    ctx.textAlign = "left";
+  }
+  y += 30;
+
+  const H = Math.round(y + pad - 26);
+
+  // ---- overlays that do not affect flow ----
+  if (draw) {
+    // frame
+    ctx.strokeStyle = hex(pal.primary);
+    ctx.lineWidth = 10;
+    ctx.strokeRect(5, 5, W - 10, H - 10);
+    ctx.strokeStyle = rgba(pal.secondary, 0.85);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(19, 19, W - 38, H - 38);
+
+    // certification stamp
+    const agency = (D.agency || "").trim();
+    if (agency) {
+      const sx = W - pad - 22, sy = pad + 62;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(-14 * Math.PI / 180);
+      ctx.beginPath(); ctx.arc(0, 0, 62, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(pal.primary, pal.dark ? 0.16 : 0.09);
+      ctx.fill();
+      ctx.strokeStyle = hex(pal.primary);
+      ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 55, 0, Math.PI * 2);
+      ctx.lineWidth = 1; ctx.stroke();
+
+      ctx.font = fontSpec(10, F2, 700, false);
+      ctx.fillStyle = hex(pal.primary);
+      ctx.textAlign = "center";
+      ctx.fillText("CERTIFIED BY", 0, -30);
+      ctx.font = fontSpec(11.5, F2, 700, false);
+      const aLines = wrap(ctx, agency.toUpperCase(), 96).slice(0, 4);
+      const startY = -(aLines.length * 14) / 2 + 12;
+      for (let i = 0; i < aLines.length; i++) ctx.fillText(aLines[i], 0, startY + i * 14);
+      ctx.textAlign = "left";
+      ctx.restore();
+    }
+  }
+
+  return H;
+}
+
+let currentH = 900;
+
+async function render() {
+  const st = state.style;
+  const pal = palette(st);
+  const okP = await ensureFont(st.primary_font);
+  const okS = await ensureFont(st.secondary_font);
+  const fallbackEra = ERAS.find((e) => e.label === state.era);
+  const fonts = {
+    primary: okP ? st.primary_font : (fallbackEra ? fallbackEra.style.primary_font : "Cinzel"),
+    secondary: okS ? st.secondary_font : (fallbackEra ? fallbackEra.style.secondary_font : "EB Garamond")
+  };
+  if (!okP) await ensureFont(fonts.primary);
+  if (!okS) await ensureFont(fonts.secondary);
+
+  const D = {
+    era: state.era, thing: state.thing, name: state.name,
+    description: state.description,
+    feature1: state.feature1, feature2: state.feature2, feature3: state.feature3,
+    warning1: state.warning1, warning2: state.warning2,
+    agency: state.agency, image: state.image, texture: state.texture
+  };
+
+  measureCtx.setTransform(1, 0, 0, 1, 0, 0);
+  const H = paint(measureCtx, D, pal, fonts, false);
+  currentH = H;
+
+  const scale = parseFloat($("scale").value) || 2;
+  const canvas = $("poster");
+  canvas.width = Math.round(POSTER_W * scale);
+  canvas.height = Math.round(H * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.fillStyle = hex(pal.bg);
+  ctx.fillRect(0, 0, POSTER_W, H);
+  drawTexture(ctx, POSTER_W, H, D.texture, pal);
+  paint(ctx, D, pal, fonts, true);
+
+  $("dims").textContent = canvas.width + " × " + canvas.height + " px";
+  $("rawstyle").value = JSON.stringify(state.style, null, 2);
+}
+
+/* ------------------------------------------------------------------ *
+ * Offline copy generator
+ * ------------------------------------------------------------------ */
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+function offlineCopy(eraDef, thing) {
+  const name = pick(eraDef.nameA) + " " + pick(eraDef.nameB);
+  return {
+    name: name,
+    description: eraDef.desc.replace(/\{name\}/g, name).replace(/\{thing\}/g, thing),
+    feature1: eraDef.features[0],
+    feature2: eraDef.features[1],
+    feature3: eraDef.features[2],
+    warning1: eraDef.warnings[0],
+    warning2: eraDef.warnings[1],
+    agency: eraDef.agency
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Claude API
+ * ------------------------------------------------------------------ */
+
+function claudeBody(model, system, prompt, schema, maxTokens) {
+  const body = {
+    model: model,
+    max_tokens: maxTokens || 1024,
+    system: system,
+    messages: [{ role: "user", content: prompt }]
+  };
+  // Haiku 4.5 does not accept the effort parameter.
+  const oc = {};
+  if (model !== "claude-haiku-4-5") {
+    oc.effort = "low";
+    body.thinking = { type: "disabled" };
+  }
+  if (schema) oc.format = { type: "json_schema", schema: schema };
+  if (Object.keys(oc).length) body.output_config = oc;
+  return body;
+}
+
+async function claude(opts) {
+  const key = $("anthropicKey").value.trim();
+  if (!key) throw new Error("No Anthropic API key provided.");
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true"
+    },
+    body: JSON.stringify(claudeBody(opts.model, opts.system, opts.prompt, opts.schema, opts.maxTokens))
+  });
+  if (!res.ok) {
+    let detail = "";
+    try { const j = await res.json(); detail = (j.error && j.error.message) || JSON.stringify(j); }
+    catch (e) { detail = await res.text().catch(() => ""); }
+    throw new Error("Claude API " + res.status + ": " + detail.slice(0, 300));
+  }
+  const j = await res.json();
+  if (j.stop_reason === "refusal") throw new Error("Claude declined this request.");
+  const text = (j.content || []).filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  if (!text) throw new Error("Claude returned no text.");
+  return text;
+}
+
+function looseJSON(text) {
+  try { return JSON.parse(text); } catch (e) { /* fall through */ }
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch (e) { /* fall through */ } }
+  return null;
+}
+
+const STYLE_SCHEMA = {
+  type: "object",
+  properties: {
+    primary_font: { type: "string" },
+    secondary_font: { type: "string" },
+    primary_color: { type: "string" },
+    secondary_color: { type: "string" },
+    text_color: { type: "string" },
+    background_color: { type: "string" },
+    texture_description: { type: "string" }
+  },
+  required: ["primary_font", "secondary_font", "primary_color", "secondary_color",
+             "text_color", "background_color", "texture_description"],
+  additionalProperties: false
+};
+
+const FEATURES_SCHEMA = {
+  type: "object",
+  properties: { feature1: { type: "string" }, feature2: { type: "string" }, feature3: { type: "string" } },
+  required: ["feature1", "feature2", "feature3"],
+  additionalProperties: false
+};
+
+const WARNINGS_SCHEMA = {
+  type: "object",
+  properties: { warning1: { type: "string" }, warning2: { type: "string" } },
+  required: ["warning1", "warning2"],
+  additionalProperties: false
+};
+
+/* ------------------------------------------------------------------ *
+ * fal.ai image generation
+ * ------------------------------------------------------------------ */
+
+async function falImage(prompt) {
+  const key = $("falKey").value.trim();
+  if (!key) throw new Error("No fal.ai API key provided.");
+  const res = await fetch("https://fal.run/fal-ai/flux/dev", {
+    method: "POST",
+    headers: { "content-type": "application/json", "Authorization": "Key " + key },
+    body: JSON.stringify({
+      prompt: prompt,
+      image_size: "square_hd",
+      num_inference_steps: 28,
+      guidance_scale: 3.5,
+      num_images: 1,
+      enable_safety_checker: false
+    })
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error("fal.ai " + res.status + ": " + t.slice(0, 300));
+  }
+  const j = await res.json();
+  const url = j && j.images && j.images[0] && j.images[0].url;
+  if (!url) throw new Error("fal.ai returned no image.");
+  return await loadImageCORS(url);
+}
+
+async function loadImageCORS(url) {
+  // Fetch as a blob first so the canvas is never tainted.
+  try {
+    const r = await fetch(url, { mode: "cors" });
+    if (r.ok) {
+      const blob = await r.blob();
+      return await blobToImage(blob);
+    }
+  } catch (e) { /* fall through to crossOrigin */ }
+  return await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Could not load the generated image (CORS)."));
+    img.src = url;
+  });
+}
+
+function blobToImage(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Unreadable image data.")); };
+    img.src = url;
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ * Step UI
+ * ------------------------------------------------------------------ */
+
+const STEPS = [
+  ["style", "Era style guide"],
+  ["name", "Period name"],
+  ["copy", "Description, features, notices"],
+  ["prompt", "Illustration prompt"],
+  ["image", "Illustration"],
+  ["render", "Compose poster"]
+];
+
+function resetSteps() {
+  const ul = $("steps");
+  ul.innerHTML = "";
+  for (const [id, label] of STEPS) {
+    const li = document.createElement("li");
+    li.id = "step-" + id;
+    li.innerHTML = '<span class="dot">·</span><span>' + label + "</span>";
+    ul.appendChild(li);
+  }
+}
+
+function step(id, status, note) {
+  const li = $("step-" + id);
+  if (!li) return;
+  li.className = status;
+  const dots = { run: "◍", done: "✓", fail: "✕", skip: "–" };
+  li.firstChild.textContent = dots[status] || "·";
+  if (note) li.lastChild.textContent = li.lastChild.textContent.split(" — ")[0] + " — " + note;
+}
+
+function say(text, cls) {
+  const el = $("msg");
+  el.textContent = text || "";
+  el.className = cls || "";
+}
+
+/* ------------------------------------------------------------------ *
+ * Main pipeline
+ * ------------------------------------------------------------------ */
+
+function currentEraLabel() {
+  const v = $("era").value;
+  return v === "__custom__" ? ($("customEra").value.trim() || "An Unnamed Age") : v;
+}
+
+function eraDefFor(label) {
+  return ERAS.find((e) => e.label === label) || ERAS[5];
+}
+
+function syncEditors() {
+  const map = {
+    e_name: "name", e_desc: "description", e_f1: "feature1", e_f2: "feature2",
+    e_f3: "feature3", e_w1: "warning1", e_w2: "warning2", e_agency: "agency"
+  };
+  for (const id in map) $(id).value = state[map[id]] || "";
+  $("e_primary").value = state.style.primary_color || "";
+  $("e_secondary").value = state.style.secondary_color || "";
+  $("e_bg").value = state.style.background_color || "";
+  $("e_text").value = state.style.text_color || "";
+  $("e_imgprompt").value = state.imagePrompt || "";
+}
+
+let busy = false;
+
+async function generate() {
+  if (busy) return;
+  busy = true;
+  $("go").disabled = true;
+  resetSteps();
+  say("");
+
+  const era = currentEraLabel();
+  const thing = $("thing").value.trim() || "a modern thing";
+  const eraDef = eraDefFor(era);
+  const model = $("model").value;
+  const useClaude = $("textMode").value === "claude";
+  const imgMode = $("imgMode").value;
+
+  state.era = era;
+  state.thing = thing;
+  state.texture = eraDef.texture;
+  state.image = null;
+
+  const notes = [];
+
+  try {
+    // ---------- style + name ----------
+    step("style", "run");
+    step("name", "run");
+
+    const fallbackCopy = offlineCopy(eraDef, thing);
+    let styleP, nameP;
+
+    if (useClaude) {
+      styleP = claude({
+        model: model,
+        system: "You are an expert historical design consultant.",
+        maxTokens: 700,
+        schema: STYLE_SCHEMA,
+        prompt: "Create a JSON style guide for " + era + " that captures the essence of that period's design.\n" +
+          "primary_font: a Google Font name for grand but highly legible titles (nothing decorative or script)\n" +
+          "secondary_font: a complementary, highly legible Google Font for body text\n" +
+          "primary_color: main colour as a #rrggbb hex string\n" +
+          "secondary_color: accent colour as a #rrggbb hex string\n" +
+          "text_color: readable body-text colour as a #rrggbb hex string\n" +
+          "background_color: period-appropriate background as a #rrggbb hex string, nothing garish\n" +
+          "texture_description: a short description of a period-appropriate material or texture\n" +
+          "Ensure text_color and primary_color are clearly legible against background_color."
+      });
+      nameP = claude({
+        model: model,
+        system: "You are an expert in historical linguistics and naming conventions.",
+        maxTokens: 200,
+        prompt: "Create a historically appropriate name for " + thing + " as if it had existed in " + era +
+          ". Make it sound authentic to the period, using appropriate language and terminology, without foreign characters. " +
+          "Return only the name, with no explanation and no quotation marks."
+      });
+    } else {
+      styleP = Promise.reject(new Error("offline"));
+      nameP = Promise.reject(new Error("offline"));
+      styleP.catch(() => {}); nameP.catch(() => {});
+    }
+
+    let style = Object.assign({}, eraDef.style);
+    try {
+      const raw = await styleP;
+      const parsed = looseJSON(raw);
+      if (parsed) {
+        for (const k in STYLE_SCHEMA.properties) {
+          if (typeof parsed[k] === "string" && parsed[k].trim()) style[k] = parsed[k].trim();
+        }
+        step("style", "done");
+      } else {
+        step("style", "done", "era default");
+      }
+    } catch (e) {
+      step("style", useClaude ? "fail" : "skip", useClaude ? "era default" : "era default");
+      if (useClaude) notes.push("Style: " + e.message);
+    }
+    state.style = style;
+
+    try {
+      const n = (await nameP).replace(/^["'\s]+|["'\s.]+$/g, "").split("\n")[0];
+      state.name = n || fallbackCopy.name;
+      step("name", "done");
+    } catch (e) {
+      state.name = fallbackCopy.name;
+      step("name", useClaude ? "fail" : "skip", "template");
+      if (useClaude) notes.push("Name: " + e.message);
+    }
+
+    await render();
+
+    // ---------- description / agency / features / warnings ----------
+    step("copy", "run");
+    if (useClaude) {
+      const name = state.name;
+      const jobs = [
+        claude({
+          model: model, maxTokens: 500,
+          system: "You are a historical advertising copywriter.",
+          prompt: "Write a brief product description for a " + thing + " as if it were advertised in " + era +
+            " under the name \"" + name + "\". Use period-appropriate language and focus on what would impress people of that time. " +
+            "Under 100 words. Return only the description."
+        }),
+        claude({
+          model: model, maxTokens: 200,
+          system: "You are an expert in historical linguistics and naming conventions.",
+          prompt: "In fewer than 30 characters, with no single word longer than 15 characters, and with no explanation, " +
+            "give the name of a humorous fictional government agency specific to " + era +
+            " — one that would have regulated " + thing + " in that era, but broad and funny rather than too specific. Return only the name."
+        }),
+        claude({
+          model: model, maxTokens: 400, schema: FEATURES_SCHEMA,
+          system: "You are a creative historical inventor.",
+          prompt: "Create 3 historically appropriate \"features\" for \"" + name + "\" that reimagine how " + thing +
+            " would work using only technology available in " + era + ". Each feature is a short phrase."
+        }),
+        claude({
+          model: model, maxTokens: 400, schema: WARNINGS_SCHEMA,
+          system: "You are a historical safety inspector with a sense of humour.",
+          prompt: "Create 2 funny period-appropriate warning labels for \"" + name + "\" in the language style of " + era + "."
+        })
+      ];
+      const [d, a, f, w] = await Promise.allSettled(jobs);
+
+      state.description = d.status === "fulfilled" ? d.value.trim() : fallbackCopy.description;
+      state.agency = a.status === "fulfilled" ? a.value.trim().replace(/^["'\s]+|["'\s.]+$/g, "") : fallbackCopy.agency;
+
+      const fj = f.status === "fulfilled" ? looseJSON(f.value) : null;
+      state.feature1 = (fj && fj.feature1) || fallbackCopy.feature1;
+      state.feature2 = (fj && fj.feature2) || fallbackCopy.feature2;
+      state.feature3 = (fj && fj.feature3) || fallbackCopy.feature3;
+
+      const wj = w.status === "fulfilled" ? looseJSON(w.value) : null;
+      state.warning1 = (wj && wj.warning1) || fallbackCopy.warning1;
+      state.warning2 = (wj && wj.warning2) || fallbackCopy.warning2;
+
+      const failed = [d, a, f, w].filter((r) => r.status === "rejected");
+      state.copyFromTemplate = false;
+      if (failed.length) {
+        step("copy", "fail", failed.length + " of 4 fell back");
+        notes.push("Copy: " + failed[0].reason.message);
+      } else {
+        step("copy", "done");
+      }
+    } else {
+      state.description = fallbackCopy.description;
+      state.agency = fallbackCopy.agency;
+      state.feature1 = fallbackCopy.feature1;
+      state.feature2 = fallbackCopy.feature2;
+      state.feature3 = fallbackCopy.feature3;
+      state.warning1 = fallbackCopy.warning1;
+      state.warning2 = fallbackCopy.warning2;
+      state.copyFromTemplate = true;
+      step("copy", "skip", "templates");
+    }
+
+    syncEditors();
+    await render();
+
+    // ---------- image prompt ----------
+    step("prompt", "run");
+    const basePrompt = "Technical illustration and period advertisement for \"" + state.name + "\", a " + thing +
+      " reimagined for " + era + ". " + state.description + " Features: " + state.feature1 + "; " + state.feature2 +
+      "; " + state.feature3 + ". Materials and texture: " + (state.style.texture_description || eraDef.style.texture_description) +
+      ". Drawn in the artistic style of " + era + ", detailed diagram with labelled parts, period-appropriate decorative elements, vintage aesthetic.";
+
+    if (useClaude && imgMode === "fal") {
+      try {
+        state.imagePrompt = await claude({
+          model: model, maxTokens: 600,
+          system: "You are an expert in historical industrial design and technical illustration.",
+          prompt: "Write a detailed image-generation prompt for \"" + state.name + "\", combining:\n" +
+            "1. Description: " + state.description + "\n" +
+            "2. Features: " + state.feature1 + ", " + state.feature2 + ", " + state.feature3 + "\n" +
+            "3. Material texture: " + (state.style.texture_description || "") + "\n" +
+            "4. Era style: " + era + "\n" +
+            "This is a " + thing + " adapted for that era. The image should look like a technical drawing or advertisement from the era. " +
+            "Include specific period-appropriate materials, decorative elements, and artistic style. Output only the prompt."
+        });
+        step("prompt", "done");
+      } catch (e) {
+        state.imagePrompt = basePrompt;
+        step("prompt", "fail", "assembled locally");
+        notes.push("Image prompt: " + e.message);
+      }
+    } else {
+      state.imagePrompt = basePrompt;
+      step("prompt", imgMode === "fal" ? "done" : "skip", imgMode === "fal" ? "assembled locally" : undefined);
+    }
+    $("e_imgprompt").value = state.imagePrompt;
+
+    // ---------- image ----------
+    step("image", "run");
+    if (imgMode === "fal") {
+      try {
+        state.image = await falImage(state.imagePrompt +
+          ", technical illustration style, period-appropriate, detailed diagram, vintage aesthetic");
+        step("image", "done");
+      } catch (e) {
+        state.image = null;
+        step("image", "fail", "drawn placeholder");
+        notes.push("Illustration: " + e.message);
+      }
+    } else if (imgMode === "upload") {
+      if (uploadedImage) { state.image = uploadedImage; step("image", "done", "uploaded"); }
+      else { step("image", "skip", "no file chosen"); }
+    } else {
+      step("image", "skip", "drawn placeholder");
+    }
+
+    // ---------- render ----------
+    step("render", "run");
+    await render();
+    step("render", "done");
+
+    if (notes.length) say(notes.join("  ·  "), "warn");
+    else say("Done. Use “Download PNG” to save it.", "ok");
+  } catch (e) {
+    say(e.message, "err");
+  } finally {
+    busy = false;
+    $("go").disabled = false;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Wiring
+ * ------------------------------------------------------------------ */
+
+let uploadedImage = null;
+
+function initEraSelect() {
+  const sel = $("era");
+  for (const e of ERAS) {
+    const o = document.createElement("option");
+    o.value = e.label; o.textContent = e.label;
+    sel.appendChild(o);
+  }
+  const o = document.createElement("option");
+  o.value = "__custom__"; o.textContent = "Custom era…";
+  sel.appendChild(o);
+  sel.value = ERAS[5].label;
+}
+
+function slug(s) {
+  return (s || "poster").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "poster";
+}
+
+function download() {
+  const canvas = $("poster");
+  canvas.toBlob((blob) => {
+    if (!blob) { say("Could not export the canvas.", "err"); return; }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = slug(state.name || state.thing) + "-" + slug(state.era) + ".png";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }, "image/png");
+}
+
+function loadKeys() {
+  try {
+    const raw = localStorage.getItem("anachronism.keys");
+    if (!raw) return;
+    const k = JSON.parse(raw);
+    if (k.anthropic) $("anthropicKey").value = k.anthropic;
+    if (k.fal) $("falKey").value = k.fal;
+    $("remember").checked = true;
+  } catch (e) { /* ignore */ }
+}
+
+function saveKeys() {
+  if ($("remember").checked) {
+    localStorage.setItem("anachronism.keys", JSON.stringify({
+      anthropic: $("anthropicKey").value.trim(),
+      fal: $("falKey").value.trim()
+    }));
+  } else {
+    localStorage.removeItem("anachronism.keys");
+  }
+}
+
+function applyModeVisibility() {
+  $("claudeOpts").style.display = $("textMode").value === "claude" ? "" : "none";
+  const m = $("imgMode").value;
+  $("falOpts").style.display = m === "fal" ? "" : "none";
+  $("uploadOpts").style.display = m === "upload" ? "" : "none";
+  $("customEraWrap").style.display = $("era").value === "__custom__" ? "" : "none";
+}
+
+function init() {
+  initEraSelect();
+  resetSteps();
+  loadKeys();
+  applyModeVisibility();
+
+  $("era").addEventListener("change", () => {
+    applyModeVisibility();
+    const label = currentEraLabel();
+    const def = eraDefFor(label);
+    state.era = label;
+    state.style = Object.assign({}, def.style);
+    state.texture = def.texture;
+    if (state.copyFromTemplate) Object.assign(state, offlineCopy(def, state.thing));
+    syncEditors();
+    render();
+  });
+  $("customEra").addEventListener("input", () => { state.era = currentEraLabel(); render(); });
+  $("thing").addEventListener("input", () => { state.thing = $("thing").value.trim(); render(); });
+  $("textMode").addEventListener("change", applyModeVisibility);
+  $("imgMode").addEventListener("change", applyModeVisibility);
+  $("scale").addEventListener("change", render);
+  $("go").addEventListener("click", () => { saveKeys(); generate(); });
+  $("download").addEventListener("click", download);
+  $("remember").addEventListener("change", saveKeys);
+
+  $("surprise").addEventListener("click", () => {
+    const e = pick(ERAS);
+    $("era").value = e.label;
+    $("thing").value = pick(THINGS);
+    applyModeVisibility();
+    state.era = e.label;
+    state.thing = $("thing").value;
+    state.style = Object.assign({}, e.style);
+    state.texture = e.texture;
+    Object.assign(state, offlineCopy(e, state.thing));
+    state.copyFromTemplate = true;
+    syncEditors();
+    render();
+  });
+
+  document.querySelectorAll("[data-field]").forEach((el) => {
+    el.addEventListener("input", () => {
+      const f = el.dataset.field;
+      if (f in state) { state[f] = el.value; state.copyFromTemplate = false; }
+      else state.style[f] = el.value;
+      render();
+    });
+  });
+
+  $("e_imgprompt").addEventListener("input", () => { state.imagePrompt = $("e_imgprompt").value; });
+
+  $("imgFile").addEventListener("change", async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    try {
+      uploadedImage = await blobToImage(file);
+      state.image = uploadedImage;
+      await render();
+      say("Image loaded.", "ok");
+    } catch (e) { say(e.message, "err"); }
+  });
+
+  $("regenImage").addEventListener("click", async () => {
+    if ($("imgMode").value !== "fal") { say("Switch the illustration source to fal.ai first.", "warn"); return; }
+    saveKeys();
+    step("image", "run");
+    say("");
+    try {
+      state.image = await falImage($("e_imgprompt").value ||
+        (state.imagePrompt + ", technical illustration style, period-appropriate, detailed diagram, vintage aesthetic"));
+      step("image", "done");
+      await render();
+      say("New illustration.", "ok");
+    } catch (e) {
+      step("image", "fail");
+      say(e.message, "err");
+    }
+  });
+
+  // Seed with a complete offline poster so the canvas is never empty.
+  const seed = eraDefFor(state.era);
+  Object.assign(state, offlineCopy(seed, state.thing));
+  syncEditors();
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
