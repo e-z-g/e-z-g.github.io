@@ -184,6 +184,9 @@
               + 3D Decal Video <input type="file" id="upload-decal" accept="video/*" style="display:none;">
             </label>
         </div>
+        <a class="upload-btn" href="./stitcher.html" style="text-decoration:none; display:block;">
+          Build an atlas from 6 faces →
+        </a>
       </div>
     </div>
     
@@ -242,6 +245,7 @@
 
   <script type="module">
     import * as THREE from 'three';
+    import { sampleAtlasGlsl, detectLayout, layoutUsesGutter, GUTTER_PX, LAYOUTS } from './atlas-layout.js';
 
     // Assets live next to this page. Loading them relatively (rather than from
     // raw.githubusercontent.com) keeps them on the Pages CDN, drops a cross-origin
@@ -284,7 +288,7 @@
         ]
       },
       {
-        name: 'Custom (5x3 LDI Upload)',
+        name: 'Custom (LDI Upload)',
         type: 'custom',
         audio: null,
         hasDepth: false,
@@ -334,6 +338,51 @@
     setupUploader('fg-depth', 'fgDepth');
     setupUploader('bg-color', 'bgColor');
     setupUploader('bg-depth', 'bgDepth');
+
+    // --- Handoff from the stitcher ---
+    // The stitcher stashes freshly built atlases in IndexedDB and sends the user
+    // here, so an atlas doesn't have to be downloaded and re-uploaded by hand.
+    const HANDOFF_DB = 'cubemap-handoff', HANDOFF_STORE = 'atlases';
+    const HANDOFF_SLOTS = {
+      'fg-color': 'fgColor', 'fg-depth': 'fgDepth',
+      'bg-color': 'bgColor', 'bg-depth': 'bgDepth',
+    };
+
+    async function takeHandoffAtlases() {
+      if (!window.indexedDB) return false;
+      let db;
+      try {
+        db = await new Promise((resolve, reject) => {
+          const req = indexedDB.open(HANDOFF_DB, 1);
+          req.onupgradeneeded = () => req.result.createObjectStore(HANDOFF_STORE);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) { return false; }
+
+      const found = await new Promise((resolve) => {
+        const out = {};
+        const tx = db.transaction(HANDOFF_STORE, 'readwrite');
+        const store = tx.objectStore(HANDOFF_STORE);
+        for (const slot of Object.keys(HANDOFF_SLOTS)) {
+          const get = store.get(slot);
+          get.onsuccess = () => { if (get.result) { out[slot] = get.result; store.delete(slot); } };
+        }
+        tx.oncomplete = () => resolve(out);
+        tx.onerror = () => resolve(out);
+      });
+      db.close();
+
+      let any = false;
+      for (const [slot, blob] of Object.entries(found)) {
+        const mapKey = HANDOFF_SLOTS[slot];
+        if (customMaps[mapKey]) URL.revokeObjectURL(customMaps[mapKey]);
+        customMaps[mapKey] = URL.createObjectURL(blob);
+        document.getElementById(`lbl-upload-${slot}`).classList.add('active');
+        any = true;
+      }
+      return any;
+    }
 
     // --- Audio System ---
     const audioSystem = { active: new Audio(), fading: new Audio(), isMuted: true, masterVolume: 0, currentUrl: currentLocation.audio, fadeInterval: null };
@@ -525,55 +574,14 @@
     `;
 
     // --- UNIFIED MATERIAL ENGINE ---
-    const atlasLogic = `
-      vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 5.0, (2.0 - row + localUv.y) / 3.0); }
-      vec2 rotateUV(vec2 uv, float angleDeg) {
-        float a = radians(angleDeg); float s = sin(a), c = cos(a);
-        vec2 p = uv - 0.5; return vec2(p.x * c - p.y * s, p.x * s + p.y * c) + 0.5;
-      }
-      vec4 sampleAtlas(sampler2D tex, int face, vec2 local) {
-        if (face == 4) return texture2D(tex, getGrid(1.0, 1.0, local));
-        if (face == 0) return texture2D(tex, getGrid(2.0, 1.0, local));
-        if (face == 5) return texture2D(tex, getGrid(3.0, 1.0, local));
-        
-        if (face == 1) {
-          vec4 c4 = texture2D(tex, getGrid(4.0, 1.0, local));
-          vec4 c0 = texture2D(tex, getGrid(0.0, 1.0, local));
-          return mix(c4, c0, smoothstep(0.25, 0.75, local.x));
-        }
-
-        float d1 = local.x - local.y; 
-        float d2 = (1.0 - local.x) - local.y;
-        float t1 = smoothstep(-0.1, 0.1, d1); 
-        float t2 = smoothstep(-0.1, 0.1, d2);
-        
-        float wBottom = t1 * t2;
-        float wTop    = (1.0 - t1) * (1.0 - t2);
-        float wLeft   = (1.0 - t1) * t2;
-        float wRight  = t1 * (1.0 - t2);
-
-        if (face == 2) {
-          vec4 cFront = texture2D(tex, getGrid(1.0, 0.0, local));
-          vec4 cBack  = texture2D(tex, getGrid(3.0, 0.0, rotateUV(local, 180.0)));
-          vec4 cLeft  = texture2D(tex, getGrid(0.0, 0.0, rotateUV(local, 90.0)));
-          vec4 cRight = texture2D(tex, getGrid(2.0, 0.0, rotateUV(local, -90.0)));
-          return cFront * wBottom + cBack * wTop + cLeft * wLeft + cRight * wRight;
-        }
-        
-        if (face == 3) {
-          vec4 cFront = texture2D(tex, getGrid(1.0, 2.0, local));
-          vec4 cBack  = texture2D(tex, getGrid(3.0, 2.0, rotateUV(local, 180.0)));
-          vec4 cLeft  = texture2D(tex, getGrid(0.0, 2.0, rotateUV(local, -90.0))); 
-          vec4 cRight = texture2D(tex, getGrid(2.0, 2.0, rotateUV(local, 90.0)));
-          return cFront * wTop + cBack * wBottom + cLeft * wLeft + cRight * wRight;
-        }
-        return vec4(0.0);
-      }
-    `;
+    // Atlas sampling GLSL lives in atlas-layout.js, shared with the stitcher.
 
     // seamFill=true adds a tBgColor sampler so torn/discarded fg pixels fall back
     // to the bg colour instead of showing black void.
-    const createMaterials = (colorMode, depthMode, seamFill = false) => {
+    const createMaterials = (colorMode, depthMode, seamFill = false, layoutId = '5x3') => {
+        const usesAtlas = colorMode === 'atlas' || depthMode === 'atlas';
+        const atlasLogic = usesAtlas ? sampleAtlasGlsl(layoutId) : '';
+        const gutterUniform = (usesAtlas && layoutUsesGutter(layoutId)) ? { uGutterFrac: { value: 0.0 } } : {};
         const mats = [];
         for (let i = 0; i < 6; i++) {
           const colorSample     = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv)` : `texture2D(tColor, vUv)`;
@@ -590,6 +598,7 @@
               uFace: { value: i },
               uIsForeground: { value: 0 },
               uTearThreshold: { value: 0.0 },
+              ...gutterUniform,
               ...extraUniforms
             },
             transparent: true, 
@@ -599,7 +608,7 @@
               uniform int uFace;
               varying vec2 vUv;
               ${gnomonicUvGlsl}
-              ${colorMode === 'atlas' || depthMode === 'atlas' ? atlasLogic : ''}
+              ${atlasLogic}
               void main() {
                 vec3 dir = normalize(position);
                 vec2 rawUv = gnomonicUV(dir, uFace);
@@ -617,7 +626,7 @@
               uniform float uTearThreshold;
               ${seamFill ? 'uniform sampler2D tBgColor;' : ''}
               varying vec2 vUv;
-              ${colorMode === 'atlas' || depthMode === 'atlas' ? atlasLogic : ''}
+              ${atlasLogic}
               void main() {
                 float texDepth = clamp(${fragDepthSample}.r, 0.0, 1.0);
                 float alpha = 1.0;
@@ -672,18 +681,53 @@
         return mats;
     };
 
-    const matSets = {
-        standard:      createMaterials('standard', 'standard'),
-        atlasStandard: createMaterials('atlas', 'standard'), 
-        atlasFg:       createMaterials('atlas', 'atlas', true),  // seamFill enabled
-        atlasBg:       createMaterials('atlas', 'atlas')
+    // Atlas material sets depend on the layout of the atlas being shown, and an
+    // atlas layout is only known once an image has loaded. Build them on first
+    // use for a given layout rather than compiling every combination up front.
+    const MAT_KINDS = {
+        standard:      ['standard', 'standard', false],
+        atlasStandard: ['atlas',    'standard', false],
+        atlasFg:       ['atlas',    'atlas',    true],   // seamFill enabled
+        atlasBg:       ['atlas',    'atlas',    false],
     };
+    const matSetCache = new Map();
 
-    const bgCubeMesh = new THREE.Mesh(bgGeometry, matSets.atlasBg);
-    bgCubeMesh.renderOrder = 0; 
+    function getMatSet(kind, layoutId = '5x3') {
+        const key = kind === 'standard' ? kind : `${kind}|${layoutId}`;
+        let set = matSetCache.get(key);
+        if (!set) {
+            const [colorMode, depthMode, seamFill] = MAT_KINDS[kind];
+            set = createMaterials(colorMode, depthMode, seamFill, layoutId);
+            set.forEach(m => { m.userData.isBg = kind === 'atlasBg'; });
+            matSetCache.set(key, set);
+        }
+        return set;
+    }
+
+    const eachMaterial = (fn) => { for (const set of matSetCache.values()) set.forEach(fn); };
+
+    // The bg sphere displaces at half the fg rate so it stays behind the fg.
+    function setDisplacement(val) {
+        const fgScale = val * 0.95;
+        eachMaterial(m => {
+            m.uniforms.uDisplacementScale.value = m.userData.isBg ? fgScale * 0.5 : fgScale;
+        });
+    }
+
+    // Atlases written in a gutter layout reserve a border of GUTTER_PX per cell;
+    // the shader insets its UVs by the matching fraction.
+    function setGutterFrac(mats, atlasWidth, layoutId) {
+        const l = LAYOUTS[layoutId];
+        if (!l || !l.gutter || !atlasWidth) return;
+        const frac = GUTTER_PX / (atlasWidth / l.cols);
+        mats.forEach(m => { if (m.uniforms.uGutterFrac) m.uniforms.uGutterFrac.value = frac; });
+    }
+
+    const bgCubeMesh = new THREE.Mesh(bgGeometry, getMatSet('atlasBg'));
+    bgCubeMesh.renderOrder = 0;
     scene.add(bgCubeMesh);
 
-    const fgCubeMesh = new THREE.Mesh(geometry, matSets.standard);
+    const fgCubeMesh = new THREE.Mesh(geometry, getMatSet('standard'));
     fgCubeMesh.renderOrder = 1;
     scene.add(fgCubeMesh);
 
@@ -730,20 +774,12 @@
     const tearControls = document.getElementById('tear-controls');
     
     document.getElementById('displacement-slider').addEventListener('input', (e) => {
-      const val = parseFloat(e.target.value) / 100.0;
-      const fgScale = val * 0.95;
-      const bgScale = val * 0.95 * 0.5; // BG displaces at half the fg rate
-      ['standard', 'atlasStandard', 'atlasFg'].forEach(k => {
-        matSets[k].forEach(m => m.uniforms.uDisplacementScale.value = fgScale);
-      });
-      matSets.atlasBg.forEach(m => m.uniforms.uDisplacementScale.value = bgScale);
+      setDisplacement(parseFloat(e.target.value) / 100.0);
     });
-    
+
     document.getElementById('tear-slider').addEventListener('input', (e) => {
         const val = parseFloat(e.target.value) / 100.0;
-        Object.values(matSets).forEach(mats => {
-            mats.forEach(m => m.uniforms.uTearThreshold.value = val);
-        });
+        eachMaterial(m => { m.uniforms.uTearThreshold.value = val; });
     });
 
     const videoTexture = new THREE.VideoTexture(sourceVideo);
@@ -971,12 +1007,10 @@
 
     function safeDisposeTextures() {
         const toDispose = new Set();
-        Object.values(matSets).forEach(mats => {
-            mats.forEach(mat => {
-                const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
-                if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
-                if (d && d !== dummyDepthTex) toDispose.add(d);
-            });
+        eachMaterial(mat => {
+            const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
+            if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
+            if (d && d !== dummyDepthTex) toDispose.add(d);
         });
         return toDispose;
     }
@@ -1059,9 +1093,10 @@
     const loadErrorEl = document.getElementById('load-error');
     let pendingRetry = null;
 
-    function showLoadError(locationName, retryFn) {
-      document.getElementById('load-error-msg').textContent =
-        `Couldn't load ${locationName}. Check your connection and try again.`;
+    function showLoadError(locationName, retryFn, detail) {
+      document.getElementById('load-error-msg').textContent = detail
+        ? `${locationName}: ${detail}`
+        : `Couldn't load ${locationName}. Check your connection and try again.`;
       pendingRetry = retryFn;
       loadErrorEl.classList.add('active');
     }
@@ -1122,7 +1157,8 @@
             
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
             
-            fgCubeMesh.material = hasActiveDepth ? matSets.atlasStandard : matSets.atlasFg; 
+            // Video atlases are 5x3 by definition of the version's type.
+            fgCubeMesh.material = getMatSet(hasActiveDepth ? 'atlasStandard' : 'atlasFg', '5x3');
             bgCubeMesh.visible = false;
             
             fgCubeMesh.material.forEach((mat, i) => {
@@ -1161,11 +1197,26 @@
             let fgD = loaded[1];
             const bgC = processAtlasTex(loaded[2], true);
             let bgD = loaded[3];
-            
+
             fgD = prepareDepthTex(fgD);
             bgD = prepareDepthTex(bgD);
 
             if (loadId !== currentLoadId) return;
+
+            // Which atlas layout is this? Read it off the aspect ratio of the
+            // first real image we have; a mis-shaped upload used to render as
+            // garbage with no explanation.
+            const shapeSource = [fgC, bgC, fgD, bgD]
+              .find(t => t !== defaultCustomTex && t !== dummyDepthTex && t.image);
+            const atlasW = shapeSource ? shapeSource.image.width : 0;
+            const atlasH = shapeSource ? shapeSource.image.height : 0;
+            const detected = shapeSource ? detectLayout(atlasW, atlasH) : LAYOUTS['5x3'];
+            if (!detected) {
+              throw new Error(
+                `Atlas is ${atlasW}x${atlasH} (${(atlasW / atlasH).toFixed(2)}:1). ` +
+                `Expected 5:3 or 3:2 — stitch it with the face stitcher first.`);
+            }
+            const layoutId = detected.id;
 
             hasActiveDepth = !!customMaps.fgDepth || !!customMaps.bgDepth;
             depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
@@ -1176,9 +1227,11 @@
             const fgScale = currentSliderVal * 0.95;
             const bgScale = currentSliderVal * 0.95 * 0.5;
             
-            fgCubeMesh.material = matSets.atlasFg;
-            bgCubeMesh.material = matSets.atlasBg;
+            fgCubeMesh.material = getMatSet('atlasFg', layoutId);
+            bgCubeMesh.material = getMatSet('atlasBg', layoutId);
             bgCubeMesh.visible = isDualLayer;
+            setGutterFrac(fgCubeMesh.material, atlasW, layoutId);
+            setGutterFrac(bgCubeMesh.material, atlasW, layoutId);
             
             fgCubeMesh.material.forEach((mat) => {
               mat.uniforms.tColor.value = fgC;
@@ -1231,7 +1284,7 @@
             hasActiveDepth = currentLocation.hasDepth;
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
             
-            fgCubeMesh.material = matSets.standard;
+            fgCubeMesh.material = getMatSet('standard');
             bgCubeMesh.visible = false;
             
             fgCubeMesh.material.forEach((mat, i) => {
@@ -1264,7 +1317,9 @@
 
       } catch (err) {
           console.error("Failed to load panorama:", err);
-          showLoadError(currentLocation.name, () => loadPanorama(mode));
+          // Our own validation errors carry a message worth showing verbatim.
+          showLoadError(currentLocation.name, () => loadPanorama(mode),
+                        err instanceof Error && err.message ? err.message : null);
           return;
       } finally {
           // Every exit path clears the spinner. isTransitioning is only left set
@@ -1426,7 +1481,15 @@
     // land inside the first rendered frame.
     renderer.compile(scene, camera);
     renderer.compile(transitionScene, transitionCamera);
-    loadPanorama('block'); render();
+    render();
+
+    // Arriving from the stitcher (or with #custom) opens straight into the
+    // custom slot, with any handed-off atlases already filled in.
+    (async () => {
+      const handedOff = await takeHandoffAtlases();
+      if (handedOff || location.hash === '#custom') forceCustomSelection();
+      loadPanorama('block');
+    })();
 
   </script>
 </body>
