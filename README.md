@@ -9,4 +9,5 @@ A collection of web-based tools and interactive viewers.
 - **[Wine Tool](https://e-z-g.github.io/wine.html)** — Wine reference/utility tool.
 - **[VR Video](https://e-z-g.github.io/vrvid.html)** — VR video player.
 - **[Star/Planet Viewer](https://e-z-g.github.io/ev/)** — Generative space scene with star field and planet image, with PNG export.
+- **[3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html)** — Interlace up to six frames into a printable base plate and sliding barrier grid, with SVG and multi-colour 3MF export.
 - **[FPQR](https://e-z-g.github.io/fpqr/)** — First-person QR experience.
