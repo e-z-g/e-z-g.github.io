@@ -258,6 +258,10 @@ FACES.forEach(face => {
       updateStitchBtn();
       URL.revokeObjectURL(url);
     };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setStatus(`Couldn't read "${file.name}" as an image — try PNG, JPEG or WEBP.`);
+    };
     img.src = url;
     e.target.value = '';
   });
