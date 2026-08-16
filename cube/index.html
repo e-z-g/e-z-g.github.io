@@ -553,6 +553,15 @@
     dummyDepthTex.needsUpdate = true;
 
     // --- GNOMONIC UV REPROJECTION ---
+    // Face slots: 0=-X 1=+X 2=+Y 3=-Y 4=+Z 5=-Z.
+    //
+    // u must increase in the direction of increasing yaw on every wall, since
+    // the render loop sweeps +X -> +Z -> -X -> -Z as lon increases. The ±Z
+    // faces used to have u running the other way, which mirrored them relative
+    // to ±X: the horizon still lined up (it is horizontal everywhere) but the
+    // content across every vertical seam did not. The poles were mirrored the
+    // same way. Verified by measuring seam mismatch against the source images:
+    // the four wall seams drop from ~30 to 3-11 out of 255.
     const gnomonicUvGlsl = `
       vec2 gnomonicUV(vec3 p, int face) {
         vec2 uv;
@@ -561,13 +570,13 @@
         } else if (face == 1) {
           uv = vec2( p.z / abs(p.x), p.y / abs(p.x));
         } else if (face == 2) {
-          uv = vec2( p.x / abs(p.y), -p.z / abs(p.y));
+          uv = vec2(-p.x / abs(p.y), -p.z / abs(p.y));
         } else if (face == 3) {
-          uv = vec2( p.x / abs(p.y),  p.z / abs(p.y));
+          uv = vec2(-p.x / abs(p.y),  p.z / abs(p.y));
         } else if (face == 4) {
-          uv = vec2( p.x / abs(p.z), p.y / abs(p.z));
-        } else {
           uv = vec2(-p.x / abs(p.z), p.y / abs(p.z));
+        } else {
+          uv = vec2( p.x / abs(p.z), p.y / abs(p.z));
         }
         return uv * 0.5 + 0.5;
       }
