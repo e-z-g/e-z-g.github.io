@@ -24,15 +24,19 @@ function dbg(msg, level = 'info') {
     if (_dbgLogs.length > 200) _dbgLogs.shift();
     const panel = document.getElementById('debug-log-panel');
     if (panel) {
-        const colors = { info: '#94a3b8', warn: '#fbbf24', error: '#f87171', ok: '#34d399' };
-        const line = document.createElement('div');
-        line.style.cssText = `font-size:10px;font-family:monospace;color:${colors[level]||colors.info};white-space:pre;`;
-        line.textContent = `[${ts}] ${msg}`;
-        panel.appendChild(line);
+        renderDbgLine(panel, entry);
         panel.scrollTop = panel.scrollHeight;
     }
     if (level === 'error') console.error('[DBG]', msg);
     else if (level === 'warn') console.warn('[DBG]', msg);
+}
+
+function renderDbgLine(panel, entry) {
+    const colors = { info: '#94a3b8', warn: '#fbbf24', error: '#f87171', ok: '#34d399' };
+    const line = document.createElement('div');
+    line.style.cssText = `font-size:10px;font-family:monospace;color:${colors[entry.level]||colors.info};white-space:pre;`;
+    line.textContent = `[${entry.ts}] ${entry.msg}`;
+    panel.appendChild(line);
 }
 
 function buildDebugPanel() {
@@ -60,6 +64,12 @@ function buildDebugPanel() {
         <div id="debug-status-bar" style="padding:5px 10px;background:#0f111a;border-top:1px solid #1e293b;font-size:9px;color:#475569;font-family:monospace;">Ready</div>
     `;
     document.body.appendChild(root);
+
+    // Replay anything logged before the panel was opened, so the shortcut still
+    // shows startup events rather than an empty log.
+    const logPanel = document.getElementById('debug-log-panel');
+    _dbgLogs.forEach(entry => renderDbgLine(logPanel, entry));
+    logPanel.scrollTop = logPanel.scrollHeight;
 
     // Close
     document.getElementById('debug-close-btn').onclick = () => root.remove();
@@ -157,31 +167,51 @@ window.exportSettings = () => {
     settings['logoShape'] = logoShape;
     const blob = new Blob([JSON.stringify(settings, null, 2)], {type: 'application/json'});
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    a.href = url;
     a.download = `QR-Settings-${Date.now()}.json`;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
 };
 
 function isolateQR(canvasId) {
-    window.isExporting = true;
-    if (typeof renderCanvas === 'function') renderCanvas();
     const canvas = E(canvasId), modal = E('isolate-modal'), img = E('isolate-img');
-    if(!canvas || !modal || !img) { window.isExporting = false; return; }
-    img.src = canvas.toDataURL('image/png');
+    if(!canvas || !modal || !img) return;
+
+    // Snapshot both encodings while the canvas is still at export resolution.
+    // Deferring toDataURL() into the click handlers would capture the canvas
+    // after it has been re-rendered back down to preview size (and, while the
+    // animation loop is running, at whatever frame happened to be on screen).
+    window.isExporting = true;
+    let pngUrl, jpgUrl;
+    try {
+        if (typeof renderCanvas === 'function') renderCanvas();
+        pngUrl = canvas.toDataURL('image/png');
+        jpgUrl = canvas.toDataURL('image/jpeg', 1.0);
+    } finally {
+        window.isExporting = false;
+        if (typeof renderCanvas === 'function') renderCanvas();
+    }
+
+    img.src = pngUrl;
+    const download = (href, ext) => {
+        const l = document.createElement('a');
+        l.download = `HD-Matrix-${Date.now()}.${ext}`;
+        l.href = href;
+        l.click();
+    };
     const btnPng = E('modal-download-png');
     if(btnPng) {
         btnPng.innerHTML = `Download PNG`;
         btnPng.classList.remove('hidden');
-        btnPng.onclick = () => { const l = document.createElement('a'); l.download = `HD-Matrix-${Date.now()}.png`; l.href = canvas.toDataURL('image/png'); l.click(); };
+        btnPng.onclick = () => download(pngUrl, 'png');
     }
     const btnJpg = E('modal-download-jpg');
     if(btnJpg) {
         btnJpg.innerHTML = `Download JPG`;
         btnJpg.classList.remove('hidden');
-        btnJpg.onclick = () => { const l = document.createElement('a'); l.download = `HD-Matrix-${Date.now()}.jpg`; l.href = canvas.toDataURL('image/jpeg', 1.0); l.click(); };
+        btnJpg.onclick = () => download(jpgUrl, 'jpg');
     }
-    window.isExporting = false;
-    if (typeof renderCanvas === 'function') renderCanvas();
     modal.classList.remove('hidden');
     void modal.offsetWidth;
     modal.classList.add('opacity-100');
@@ -190,8 +220,8 @@ function isolateQR(canvasId) {
 let gifWorkerUrl = null;
 
 const initApp = () => {
-    // Open debug panel automatically on load so you can see what happens
-    buildDebugPanel();
+    // Debug panel is opt-in via Ctrl+Shift+D; logging runs regardless and is
+    // replayed into the panel when it is opened.
     dbg('initApp() started', 'info');
 
     fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js')
@@ -317,6 +347,7 @@ const initApp = () => {
         const blobUrl = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => {
+            URL.revokeObjectURL(blobUrl);
             if (type === 'color') {
                 colorMapImage = img; colorMapIsGif = !!gifFrames;
                 colorMapGifFrames = gifFrames; colorMapGifTotalTime = gifTotalTime;
@@ -329,6 +360,7 @@ const initApp = () => {
             startAnimIfNeeded();
             renderCanvas();
         };
+        img.onerror = () => { URL.revokeObjectURL(blobUrl); showToast('Could not read that image.', true); };
         img.src = blobUrl;
     }
 
@@ -350,13 +382,114 @@ const initApp = () => {
             const blobUrl = URL.createObjectURL(file);
             const img = new Image();
             img.onload = () => {
+                URL.revokeObjectURL(blobUrl);
                 customModuleImage = img;
                 if(E('module-image-name')) E('module-image-name').textContent = file.name;
                 renderCanvas();
             };
+            img.onerror = () => { URL.revokeObjectURL(blobUrl); showToast('Could not read that image.', true); };
             img.src = blobUrl;
         }
         e.target.value = '';
+    });
+
+    async function handleLogoUpload(file) {
+        const isGif = file.type === 'image/gif';
+        let gifFrames = null; let gifTotalTime = 0;
+        if (isGif && window.ImageDecoder) {
+            showToast('Parsing logo GIF frames...', false);
+            const parsed = await decodeGif(file);
+            if (parsed && parsed.frames.length > 0) {
+                gifFrames = parsed.frames;
+                gifTotalTime = parsed.totalTime;
+                showToast('Animated logo loaded!');
+            }
+        } else if (isGif) {
+            showToast('Animated GIF Support requires Chromium browsers.', true);
+        }
+        const blobUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(blobUrl);
+            customLogoImage = img;
+            customLogoIsGif = !!gifFrames;
+            logoGifFrames = gifFrames;
+            logoGifTotalTime = gifTotalTime;
+            safeSetText('logo-filename', file.name);
+            E('logo-clear-btn')?.classList.remove('hidden');
+            startAnimIfNeeded();
+            renderCanvas();
+        };
+        img.onerror = () => { URL.revokeObjectURL(blobUrl); showToast('Could not read that image.', true); };
+        img.src = blobUrl;
+    }
+
+    E('logo-upload-input')?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (file) await handleLogoUpload(file);
+        e.target.value = '';
+    });
+
+    E('logo-clear-btn')?.addEventListener('click', () => {
+        customLogoImage = null;
+        customLogoIsGif = false;
+        logoGifFrames = null;
+        logoGifTotalTime = 0;
+        safeSetText('logo-filename', 'None');
+        E('logo-clear-btn')?.classList.add('hidden');
+        if (E('logo-upload-input')) E('logo-upload-input').value = '';
+        // Dropping an animated logo may remove the only reason the GIF export
+        // button was showing; the render loop stops itself on its next frame.
+        if (!E('anim-toggle')?.checked && !getHasAnimatedGif()) {
+            E('export-gif-btn')?.classList.add('hidden');
+        }
+        renderCanvas();
+    });
+
+    E('import-qr-input')?.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        if (typeof jsQR !== 'function') { showToast('QR decoder is still loading.', true); return; }
+
+        const blobUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(blobUrl);
+            // Cap the decode resolution: jsQR gets no better on huge photos, and
+            // getImageData on a 4000px source is needlessly slow.
+            const maxSide = 1024;
+            const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+            const can = document.createElement('canvas');
+            can.width = w; can.height = h;
+            const ctx = can.getContext('2d', { willReadFrequently: true });
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const code = jsQR(imgData.data, w, h, { inversionAttempts: 'attemptBoth' });
+            if (!code) { showToast('No QR code found in that image.', true); return; }
+
+            const textEl = E('input-text');
+            if (textEl) textEl.value = code.data;
+
+            const fmt = extractFormatInfoFromImage(imgData, code);
+            if (E('ec-level') && fmt.ec) E('ec-level').value = fmt.ec;
+            if (E('mask-override') && fmt.mask >= 0 && fmt.mask <= 7) E('mask-override').value = String(fmt.mask);
+            const vSlider = E('version-override');
+            if (vSlider && code.version) {
+                vSlider.value = String(Math.min(parseInt(vSlider.max || '20'), code.version));
+            }
+
+            if (typeof analyzeData === 'function') analyzeData();
+            showToast(`Imported V${code.version} / EC ${fmt.ec}${fmt.mask >= 0 ? ' / mask ' + fmt.mask : ''}`);
+            dbg(`QR import: v${code.version} ec=${fmt.ec} mask=${fmt.mask} len=${code.data.length}`, 'ok');
+        };
+        img.onerror = () => { URL.revokeObjectURL(blobUrl); showToast('Could not read that image.', true); };
+        img.src = blobUrl;
     });
 
     E('data-shape')?.addEventListener('change', (e) => {
