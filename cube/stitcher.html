@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cubemap Face Stitcher → 5×3 Atlas</title>
+  <title>Cubemap Face Stitcher</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -13,27 +13,29 @@
       padding: 24px 16px 60px;
     }
     h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-    .subtitle { font-size: 13px; color: #888; margin-bottom: 24px; text-align: center; }
+    .subtitle { font-size: 13px; color: #888; margin-bottom: 8px; text-align: center; }
+    .subtitle a { color: #7eb8f7; }
+    .drophint { font-size: 12px; color: #666; margin-bottom: 20px; text-align: center; }
 
-    .atlas-diagram {
-      display: grid; grid-template-columns: repeat(5, 52px); grid-template-rows: repeat(3, 52px);
-      gap: 2px; margin-bottom: 28px;
-    }
+    .atlas-diagram { display: grid; gap: 2px; margin-bottom: 24px; }
     .atlas-cell {
       background: #222; border: 1px solid #333; border-radius: 3px;
+      width: 52px; height: 52px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       font-size: 9px; color: #666; line-height: 1.3; text-align: center;
     }
     .atlas-cell span.face { font-size: 10px; font-weight: 700; color: #ccc; }
-    .atlas-cell.top-row  { background: #1a1a26; border-color: #3a3a5a; }
-    .atlas-cell.mid-row  { background: #1a261a; border-color: #3a5a3a; }
-    .atlas-cell.bot-row  { background: #261a1a; border-color: #5a3a3a; }
-    .atlas-cell.dup      { opacity: 0.5; border-style: dashed; }
+    .atlas-cell.wall { background: #1a261a; border-color: #3a5a3a; }
+    .atlas-cell.pole { background: #1a1a26; border-color: #3a3a5a; }
+    .atlas-cell.dup  { opacity: 0.5; border-style: dashed; }
 
     .faces-grid {
       display: grid; grid-template-columns: repeat(3, 1fr);
-      gap: 12px; width: 100%; max-width: 560px; margin-bottom: 28px;
+      gap: 12px; width: 100%; max-width: 560px; margin-bottom: 24px;
+      border-radius: 10px; transition: outline-color 0.15s;
+      outline: 2px dashed transparent; outline-offset: 8px;
     }
+    .faces-grid.dragover { outline-color: #4ade80; }
     .face-card {
       background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 8px;
       padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -50,32 +52,24 @@
       line-height: 1.5; pointer-events: none; }
     .face-preview.loaded canvas { display: block; }
     .face-preview.loaded .placeholder { display: none; }
-    /* Invisible full-area file trigger */
-    .file-trigger {
-      position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0;
-    }
+    .face-preview:focus-within { border-color: #4ade80; border-style: solid; }
+    .file-trigger { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 0; }
 
-    .rot-row { display: flex; gap: 3px; width: 100%; }
-    .rot-btn {
+    .rot-row, .flip-row { display: flex; gap: 3px; width: 100%; }
+    .flip-row { gap: 6px; }
+    .rot-btn, .flip-btn {
       background: #252525; border: 1px solid #383838; color: #999;
       font-size: 12px; border-radius: 4px; padding: 5px 0; cursor: pointer;
       flex: 1; text-align: center; -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
+    .flip-btn { font-size: 11px; padding: 4px 0; color: #888; }
     .rot-btn.active { background: #2a3a2a; border-color: #4ade80; color: #4ade80; }
-
-    .flip-row { display: flex; gap: 6px; width: 100%; }
-    .flip-btn {
-      background: #252525; border: 1px solid #383838; color: #888;
-      font-size: 11px; border-radius: 4px; padding: 4px 0; cursor: pointer;
-      flex: 1; text-align: center; -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
     .flip-btn.active { background: #2a1a3a; border-color: #c084fc; color: #c084fc; }
 
     .controls {
       width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
     .ctrl-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     label.ctrl-lbl { font-size: 12px; color: #888; text-transform: uppercase;
@@ -84,7 +78,11 @@
       background: #1c1c1c; border: 1px solid #333; color: #e0e0e0;
       border-radius: 4px; padding: 6px 10px; font-size: 13px; outline: none;
     }
-    input[type=number] { width: 80px; }
+    select:focus-visible, input:focus-visible, button:focus-visible {
+      outline: 2px solid #4ade80; outline-offset: 2px;
+    }
+    input[type=number] { width: 88px; }
+    .hint { font-size: 12px; color: #555; }
 
     .action-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
     .btn {
@@ -102,35 +100,51 @@
     }
     #output-wrap h2 { font-size: 15px; font-weight: 600; }
     #output-canvas { width: 100%; border-radius: 6px; border: 1px solid #2a2a2a; }
-    .dl-row { display: flex; gap: 10px; }
+    .dl-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
-    #status { font-size: 12px; color: #888; min-height: 18px; text-align: center; }
+    #status { font-size: 12px; color: #888; min-height: 18px; text-align: center; max-width: 560px; }
   </style>
 </head>
 <body>
 
 <h1>Cubemap Face Stitcher</h1>
-<p class="subtitle">Upload 6 faces → get a 5×3 atlas for the LDI custom upload</p>
+<p class="subtitle">Six faces → an atlas for the <a href="./index.html">viewer's</a> custom LDI upload</p>
+<p class="drophint">Drop six files anywhere on the face grid and they'll be assigned automatically.</p>
 
 <div class="atlas-diagram" id="atlas-diagram"></div>
 <div class="faces-grid" id="faces-grid"></div>
 
 <div class="controls">
   <div class="ctrl-row">
-    <label class="ctrl-lbl">Face size</label>
-    <input type="number" id="face-size" value="1024" min="64" max="4096" step="64">
-    <span style="font-size:12px;color:#555">px → output 5× wide, 3× tall</span>
+    <label class="ctrl-lbl" for="layout-select">Layout</label>
+    <select id="layout-select"></select>
+    <span class="hint" id="layout-hint"></span>
   </div>
   <div class="ctrl-row">
-    <label class="ctrl-lbl">Format</label>
+    <label class="ctrl-lbl" for="slot-select">Slot</label>
+    <select id="slot-select">
+      <option value="fg-color">FG Color</option>
+      <option value="fg-depth">FG Depth</option>
+      <option value="bg-color">BG Color</option>
+      <option value="bg-depth">BG Depth</option>
+    </select>
+    <span class="hint" id="slot-hint"></span>
+  </div>
+  <div class="ctrl-row">
+    <label class="ctrl-lbl" for="face-size">Face size</label>
+    <input type="number" id="face-size" value="1024" min="64" max="1024" step="64">
+    <span class="hint" id="face-size-hint"></span>
+  </div>
+  <div class="ctrl-row">
+    <label class="ctrl-lbl" for="fmt-select">Format</label>
     <select id="fmt-select">
       <option value="image/webp">WEBP</option>
       <option value="image/jpeg">JPEG</option>
       <option value="image/png">PNG (lossless)</option>
     </select>
-    <label class="ctrl-lbl" style="min-width:unset;margin-left:6px">Quality</label>
+    <label class="ctrl-lbl" for="quality" style="min-width:unset;margin-left:6px">Quality</label>
     <input type="number" id="quality" value="92" min="1" max="100">
-    <span style="font-size:12px;color:#555">%</span>
+    <span class="hint">%</span>
   </div>
 </div>
 
@@ -138,170 +152,275 @@
   <button class="btn btn-primary" id="stitch-btn" disabled>Stitch Atlas</button>
   <button class="btn btn-secondary" id="clear-btn">Clear All</button>
 </div>
-<p id="status"></p>
+<p id="status" role="status" aria-live="polite"></p>
 
 <div id="output-wrap">
-  <h2>Output Atlas (5×3)</h2>
+  <h2 id="output-title">Output Atlas</h2>
   <canvas id="output-canvas"></canvas>
   <div class="dl-row">
     <button class="btn btn-primary" id="dl-btn">⬇ Download</button>
+    <button class="btn btn-secondary" id="viewer-btn">Open in viewer →</button>
   </div>
 </div>
 
-<script>
-// ================================================================
-// ATLAS LAYOUT
-// Row 0 = top face, rotated to align each cell's bottom edge with
-//         the top edge of the wall face directly below it.
-// Row 1 = equatorial walls: Left | Front | Right | Back | Left(dup)
-// Row 2 = bottom face, rotated to align each cell's top edge with
-//         the bottom edge of the wall face directly above it.
-//
-// Equatorial strip (viewed inward, CW from left):
-//   Col 0: Left (-X)   Col 1: Front (+Z)   Col 2: Right (+X)
-//   Col 3: Back (-Z)   Col 4: Left dup (seam wrap)
-//
-// Top-face rotations (base, before user override):
-//   Col 0 (above Left):  -90°  → top face's left edge aligns downward
-//   Col 1 (above Front):   0°  → top face's bottom edge aligns downward  
-//   Col 2 (above Right): +90°  → top face's right edge aligns downward
-//   Col 3 (above Back):  180°  → top face's top edge aligns downward
-//   Col 4 (dup col 0):   -90°
-//
-// Bottom-face rotations (mirror of top):
-//   Col 0: +90°  Col 1: 0°  Col 2: -90°  Col 3: 180°  Col 4: +90°
-// ================================================================
+<script type="module">
+import {
+  FACES, FACE_LABELS, FACE_INDEX, INDEX_FACE, LAYOUTS, GUTTER_PX,
+  faceUvToDir, dirToFaceUv,
+} from './atlas-layout.js';
 
-const FACES = ['left','front','right','back','top','bottom'];
-const FACE_LABELS = {
-  left:   'Left (−X)',  front: 'Front (+Z)',
-  right:  'Right (+X)', back:  'Back (−Z)',
-  top:    'Top (+Y)',   bottom:'Bottom (−Y)'
-};
-
-const LAYOUT = [
-  // Row 0 – top face at each horizontal position
-  { face:'top',    rot: -90, note:'Top\n-90°' },
-  { face:'top',    rot:   0, note:'Top\n0°'   },
-  { face:'top',    rot:  90, note:'Top\n+90°' },
-  { face:'top',    rot: 180, note:'Top\n180°' },
-  { face:'top',    rot: -90, note:'Top\ndup'   },
-  // Row 1 – equatorial walls
-  { face:'left',   rot:   0, note:'Left'  },
-  { face:'front',  rot:   0, note:'Front' },
-  { face:'right',  rot:   0, note:'Right' },
-  { face:'back',   rot:   0, note:'Back'  },
-  { face:'left',   rot:   0, note:'L dup' },
-  // Row 2 – bottom face at each horizontal position
-  { face:'bottom', rot:  90, note:'Bot\n+90°' },
-  { face:'bottom', rot:   0, note:'Bot\n0°'   },
-  { face:'bottom', rot: -90, note:'Bot\n-90°' },
-  { face:'bottom', rot: 180, note:'Bot\n180°' },
-  { face:'bottom', rot:  90, note:'Bot\ndup'   },
-];
-
-// Per-face user overrides
+// ── State ────────────────────────────────────────────────────────
 const faceImages = {};
-const faceRot    = {}; // 0 / 90 / 180 / 270
+const faceRot    = {};
 const faceFlipH  = {};
 const faceFlipV  = {};
 FACES.forEach(f => { faceRot[f] = 0; faceFlipH[f] = false; faceFlipV[f] = false; });
 
-// ── Atlas diagram ────────────────────────────────────────────────
-const rowClass = ['top-row','mid-row','bot-row'];
-const diagramEl = document.getElementById('atlas-diagram');
-LAYOUT.forEach((cell, i) => {
-  const row = Math.floor(i / 5), col = i % 5;
-  const el = document.createElement('div');
-  el.className = `atlas-cell ${rowClass[row]}${col === 4 ? ' dup' : ''}`;
-  el.innerHTML = cell.note.split('\n').map((l,j) =>
-    j === 0 ? `<span class="face">${l}</span>` : `<span>${l}</span>`
-  ).join('');
-  el.title = `Row ${row}, Col ${col}: ${cell.face} base rot ${cell.rot}°`;
-  diagramEl.appendChild(el);
-});
+let layout = LAYOUTS['3x2'];
 
-// ── Face upload cards ────────────────────────────────────────────
+const SLOT_LABELS = {
+  'fg-color': 'FG Color', 'fg-depth': 'FG Depth',
+  'bg-color': 'BG Color', 'bg-depth': 'BG Depth',
+};
+const isDepthSlot = () => document.getElementById('slot-select').value.endsWith('-depth');
+
+function setStatus(m) { document.getElementById('status').textContent = m; }
+
+// ── Canvas size limits ───────────────────────────────────────────
+// iOS Safari caps a canvas at roughly 16.7M pixels, and every browser has some
+// ceiling. The old input offered 4096, which at 5×3 promised a 20480×12288
+// canvas that cannot exist anywhere.
+const MAX_CANVAS_AREA = 16777216;
+const MAX_CANVAS_DIM  = 16384;
+
+function maxFaceSize(l = layout) {
+  const byArea = Math.floor(Math.sqrt(MAX_CANVAS_AREA / (l.cols * l.rows)));
+  const byDim  = Math.floor(MAX_CANVAS_DIM / l.cols);
+  return Math.max(64, Math.floor(Math.min(byArea, byDim) / 64) * 64);
+}
+
+function applyFaceSizeLimit() {
+  const input = document.getElementById('face-size');
+  const cap = maxFaceSize();
+  input.max = cap;
+  if (parseInt(input.value) > cap) input.value = cap;
+  const size = Math.min(cap, parseInt(input.value) || 1024);
+  const gutterNote = layout.gutter
+    ? `, ${size - 2 * layout.gutter}px of it image` // the rest is gutter
+    : '';
+  document.getElementById('face-size-hint').textContent =
+    `px → ${layout.cols * size}×${layout.rows * size} atlas${gutterNote} (max ${cap})`;
+}
+
+// ── Atlas diagram ────────────────────────────────────────────────
+function renderDiagram() {
+  const el = document.getElementById('atlas-diagram');
+  el.style.gridTemplateColumns = `repeat(${layout.cols}, 52px)`;
+  el.style.gridTemplateRows = `repeat(${layout.rows}, 52px)`;
+  el.innerHTML = '';
+  layout.cells.forEach((cell, i) => {
+    const row = Math.floor(i / layout.cols), col = i % layout.cols;
+    const isPole = cell.face === 'top' || cell.face === 'bottom';
+    const isDup = layout.cells.findIndex(c => c.face === cell.face) !== i;
+    const d = document.createElement('div');
+    d.className = `atlas-cell ${isPole ? 'pole' : 'wall'}${isDup ? ' dup' : ''}`;
+    d.innerHTML = cell.note.split('\n').map((l, j) =>
+      j === 0 ? `<span class="face">${l}</span>` : `<span>${l}</span>`).join('');
+    d.title = `Row ${row}, Col ${col}: ${cell.face}, base rotation ${cell.rot}°`;
+    el.appendChild(d);
+  });
+}
+
+// ── Face cards ───────────────────────────────────────────────────
 const grid = document.getElementById('faces-grid');
 FACES.forEach(face => {
   const card = document.createElement('div');
   card.className = 'face-card';
   card.innerHTML = `
-    <h3>${FACE_LABELS[face]}</h3>
+    <h3 id="lbl-${face}">${FACE_LABELS[face]}</h3>
     <div class="face-preview" id="prev-${face}">
       <canvas id="thumb-${face}"></canvas>
       <div class="placeholder">Tap / click<br>to upload</div>
-      <input type="file" accept="image/*" class="file-trigger" id="file-${face}" tabindex="-1">
+      <input type="file" accept="image/*" class="file-trigger" id="file-${face}"
+             aria-labelledby="lbl-${face}">
     </div>
-    <div class="rot-row">
-      <button class="rot-btn active" data-face="${face}" data-rot="0">0°</button>
-      <button class="rot-btn" data-face="${face}" data-rot="90">90°</button>
-      <button class="rot-btn" data-face="${face}" data-rot="180">180°</button>
-      <button class="rot-btn" data-face="${face}" data-rot="270">270°</button>
+    <div class="rot-row" role="group" aria-label="${FACE_LABELS[face]} rotation">
+      ${[0, 90, 180, 270].map(r => `
+        <button class="rot-btn${r === 0 ? ' active' : ''}" data-face="${face}" data-rot="${r}"
+                aria-pressed="${r === 0}">${r}°</button>`).join('')}
     </div>
     <div class="flip-row">
-      <button class="flip-btn" data-face="${face}" data-flip="h">⇔ Flip H</button>
-      <button class="flip-btn" data-face="${face}" data-flip="v">⇕ Flip V</button>
+      <button class="flip-btn" data-face="${face}" data-flip="h" aria-pressed="false">⇔ Flip H</button>
+      <button class="flip-btn" data-face="${face}" data-flip="v" aria-pressed="false">⇕ Flip V</button>
     </div>
   `;
   grid.appendChild(card);
 
-  // File input
   document.getElementById(`file-${face}`).addEventListener('change', e => {
-    const file = e.target.files[0]; if (!file) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      faceImages[face] = img;
-      updateThumb(face);
-      document.getElementById(`prev-${face}`).classList.add('loaded');
-      updateStitchBtn();
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
+    const file = e.target.files[0];
+    if (file) loadFaceFile(face, file);
     e.target.value = '';
   });
 });
 
-// Rotation buttons – use touchend + click with a guard to avoid double-fire
-function addTapHandler(el, fn) {
-  let touched = false;
-  el.addEventListener('touchend', e => {
-    e.preventDefault(); touched = true; fn(); setTimeout(() => touched = false, 400);
-  });
-  el.addEventListener('click', () => { if (!touched) fn(); });
+// EXIF orientation is honoured here; iOS photos otherwise arrive rotated.
+async function decode(file) {
+  try {
+    return await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch (e) {
+    return await new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+      img.src = url;
+    });
+  }
 }
 
-document.querySelectorAll('.rot-btn').forEach(btn => {
-  addTapHandler(btn, () => {
-    const face = btn.dataset.face, rot = parseInt(btn.dataset.rot);
-    faceRot[face] = rot;
-    document.querySelectorAll(`.rot-btn[data-face="${face}"]`).forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+async function loadFaceFile(face, file) {
+  try {
+    const img = await decode(file);
+    faceImages[face] = img;
+    invalidateFace(face);
     updateThumb(face);
-  });
+    document.getElementById(`prev-${face}`).classList.add('loaded');
+    updateStitchBtn();
+    warnAboutInputs();
+  } catch (e) {
+    setStatus(`Couldn't read "${file.name}" as an image — try PNG, JPEG or WEBP.`);
+  }
+}
+
+// Non-square or mismatched faces used to be squashed silently.
+function warnAboutInputs() {
+  const loaded = FACES.filter(f => faceImages[f]);
+  const nonSquare = loaded.filter(f => faceImages[f].width !== faceImages[f].height);
+  const sizes = new Set(loaded.map(f => `${faceImages[f].width}x${faceImages[f].height}`));
+  const notes = [];
+  if (nonSquare.length) notes.push(`${nonSquare.join(', ')} not square — will be squashed to fit`);
+  if (sizes.size > 1) notes.push(`mixed face sizes (${[...sizes].join(', ')})`);
+  if (notes.length) setStatus('Heads up: ' + notes.join('; ') + '.');
+}
+
+// ── Drag & drop with filename inference ──────────────────────────
+// Rules are tried in order; the first that assigns all six wins.
+const WORD_PATTERNS = [
+  { name: 'face names', map: { left: /(^|[^a-z])(left|lf)([^a-z]|$)/i, right: /(^|[^a-z])(right|rt)([^a-z]|$)/i,
+      top: /(^|[^a-z])(top|up)([^a-z]|$)/i, bottom: /(^|[^a-z])(bottom|bot|down|dn)([^a-z]|$)/i,
+      front: /(^|[^a-z])(front|ft)([^a-z]|$)/i, back: /(^|[^a-z])(back|bk)([^a-z]|$)/i } },
+  { name: 'axis codes', map: { right: /(^|[^a-z])(pos)?x([^a-z]|$)/i, left: /(^|[^a-z])n(eg)?x([^a-z]|$)/i,
+      top: /(^|[^a-z])(pos)?y([^a-z]|$)/i, bottom: /(^|[^a-z])n(eg)?y([^a-z]|$)/i,
+      front: /(^|[^a-z])(pos)?z([^a-z]|$)/i, back: /(^|[^a-z])n(eg)?z([^a-z]|$)/i } },
+];
+
+// Every built-in dataset in this repo numbers its faces in the same order —
+// MAWWnodes-8..13, LEIS661..666, ENCHnodes-277..282 — so six files sorted by
+// trailing number assign correctly with no renaming. (Read off getCubemapUrls
+// in index.html.)
+const NUMERIC_ORDER = ['front', 'bottom', 'back', 'right', 'left', 'top'];
+
+function inferAssignment(files) {
+  const names = files.map(f => f.name.replace(/\.[^.]+$/, ''));
+
+  for (const rule of WORD_PATTERNS) {
+    const picked = {};
+    const used = new Set();
+    for (const [face, re] of Object.entries(rule.map)) {
+      const idx = names.findIndex((n, i) => !used.has(i) && re.test(n));
+      if (idx === -1) break;
+      picked[face] = files[idx]; used.add(idx);
+    }
+    if (Object.keys(picked).length === 6) return { assignment: picked, rule: rule.name };
+  }
+
+  // Trailing index 0..5.
+  const byIndex = {};
+  let indexed = true;
+  for (let i = 0; i < files.length; i++) {
+    const m = names[i].match(/[_-]([0-5])$/);
+    if (!m) { indexed = false; break; }
+    byIndex[NUMERIC_ORDER[+m[1]]] = files[i];
+  }
+  if (indexed && Object.keys(byIndex).length === 6) {
+    return { assignment: byIndex, rule: 'trailing 0–5 index' };
+  }
+
+  // Numeric-sequence fallback.
+  const nums = names.map(n => { const m = n.match(/(\d+)(?!.*\d)/); return m ? +m[1] : null; });
+  if (nums.every(n => n !== null) && new Set(nums).size === 6) {
+    const order = files.map((f, i) => ({ f, n: nums[i] })).sort((a, b) => a.n - b.n);
+    const picked = {};
+    order.forEach((o, i) => { picked[NUMERIC_ORDER[i]] = o.f; });
+    return { assignment: picked, rule: 'numeric sequence' };
+  }
+  return null;
+}
+
+grid.addEventListener('dragover', e => { e.preventDefault(); grid.classList.add('dragover'); });
+grid.addEventListener('dragleave', e => { if (e.target === grid) grid.classList.remove('dragover'); });
+grid.addEventListener('drop', async e => {
+  e.preventDefault();
+  grid.classList.remove('dragover');
+  const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+  if (!files.length) { setStatus('No image files in that drop.'); return; }
+
+  if (files.length === 1) {
+    setStatus('Dropped one file — drop six at once to auto-assign, or click a face to place it.');
+    return;
+  }
+  if (files.length !== 6) { setStatus(`Dropped ${files.length} files — expected 6.`); return; }
+
+  const result = inferAssignment(files);
+  if (!result) {
+    setStatus("Couldn't work out which file is which face — click each face to place them.");
+    return;
+  }
+  for (const [face, file] of Object.entries(result.assignment)) await loadFaceFile(face, file);
+  setStatus(`Assigned 6 faces by ${result.rule}. Check the previews and reassign any that look wrong.`);
 });
 
-document.querySelectorAll('.flip-btn').forEach(btn => {
-  addTapHandler(btn, () => {
-    const face = btn.dataset.face, flip = btn.dataset.flip;
-    if (flip === 'h') faceFlipH[face] = !faceFlipH[face];
-    else              faceFlipV[face] = !faceFlipV[face];
-    btn.classList.toggle('active');
+// ── Rotation / flip ──────────────────────────────────────────────
+grid.addEventListener('click', e => {
+  const rot = e.target.closest('.rot-btn');
+  if (rot) {
+    const face = rot.dataset.face;
+    faceRot[face] = parseInt(rot.dataset.rot);
+    invalidateFace(face);
+    document.querySelectorAll(`.rot-btn[data-face="${face}"]`).forEach(b => {
+      b.classList.remove('active'); b.setAttribute('aria-pressed', 'false');
+    });
+    rot.classList.add('active'); rot.setAttribute('aria-pressed', 'true');
     updateThumb(face);
-  });
+    return;
+  }
+  const flip = e.target.closest('.flip-btn');
+  if (flip) {
+    const face = flip.dataset.face;
+    if (flip.dataset.flip === 'h') faceFlipH[face] = !faceFlipH[face];
+    else                           faceFlipV[face] = !faceFlipV[face];
+    invalidateFace(face);
+    flip.classList.toggle('active');
+    flip.setAttribute('aria-pressed', String(flip.classList.contains('active')));
+    updateThumb(face);
+  }
 });
 
-addTapHandler(document.getElementById('clear-btn'), () => {
+document.getElementById('clear-btn').addEventListener('click', () => {
   FACES.forEach(face => {
     delete faceImages[face];
+    invalidateFace(face);
     faceRot[face] = 0; faceFlipH[face] = false; faceFlipV[face] = false;
     document.getElementById(`prev-${face}`).classList.remove('loaded');
     const tc = document.getElementById(`thumb-${face}`);
-    const tx = tc.getContext('2d'); tx.clearRect(0,0,tc.width,tc.height);
-    document.querySelectorAll(`.rot-btn[data-face="${face}"]`).forEach(b => b.classList.remove('active'));
-    document.querySelector(`.rot-btn[data-face="${face}"][data-rot="0"]`).classList.add('active');
-    document.querySelectorAll(`.flip-btn[data-face="${face}"]`).forEach(b => b.classList.remove('active'));
+    tc.getContext('2d').clearRect(0, 0, tc.width, tc.height);
+    document.querySelectorAll(`.rot-btn[data-face="${face}"]`).forEach(b => {
+      b.classList.toggle('active', b.dataset.rot === '0');
+      b.setAttribute('aria-pressed', String(b.dataset.rot === '0'));
+    });
+    document.querySelectorAll(`.flip-btn[data-face="${face}"]`).forEach(b => {
+      b.classList.remove('active'); b.setAttribute('aria-pressed', 'false');
+    });
   });
   document.getElementById('output-wrap').style.display = 'none';
   updateStitchBtn(); setStatus('');
@@ -310,124 +429,275 @@ addTapHandler(document.getElementById('clear-btn'), () => {
 function updateStitchBtn() {
   const n = FACES.filter(f => faceImages[f]).length;
   document.getElementById('stitch-btn').disabled = n < 6;
-  setStatus(n < 6 ? `${n}/6 faces loaded` : 'All 6 faces ready — tap Stitch!');
-}
-function setStatus(m) { document.getElementById('status').textContent = m; }
-
-// ── Offscreen transform: rotate+flip via a scratch canvas ────────
-// Returns an ImageBitmap or HTMLCanvasElement with the transform applied.
-// This approach works on iOS Safari/Chrome where ctx.rotate() can
-// produce incorrect results when combined with translate().
-function transformedFace(face, totalRotCW, flipH, flipV, size) {
-  const src = faceImages[face];
-  const offscreen = document.createElement('canvas');
-  offscreen.width = size; offscreen.height = size;
-  const oc = offscreen.getContext('2d');
-
-  // Step 1: draw source image at full size into scratch
-  const scratch = document.createElement('canvas');
-  scratch.width = size; scratch.height = size;
-  const sc = scratch.getContext('2d');
-  sc.drawImage(src, 0, 0, size, size);
-  const srcData = sc.getImageData(0, 0, size, size).data;
-
-  // Step 2: pixel-remap according to rotation + flip
-  // We compute for each destination pixel (dx,dy) the source pixel (sx,sy).
-  const dstData = oc.createImageData(size, size);
-  const d = dstData.data;
-  const s = srcData;
-  const n = size;
-
-  // Normalise rotation to 0/90/180/270
-  const rot = ((totalRotCW % 360) + 360) % 360;
-
-  for (let dy = 0; dy < n; dy++) {
-    for (let dx = 0; dx < n; dx++) {
-      // Reverse-map destination → source
-      let sx, sy;
-      // Rotation (CW) → inverse mapping (CCW)
-      if      (rot === 0)   { sx = dx;         sy = dy; }
-      else if (rot === 90)  { sx = dy;         sy = n-1-dx; }
-      else if (rot === 180) { sx = n-1-dx;     sy = n-1-dy; }
-      else                  { sx = n-1-dy;     sy = dx; }      // 270
-
-      // Apply flips after rotation
-      if (flipH) sx = n-1-sx;
-      if (flipV) sy = n-1-sy;
-
-      const dIdx = (dy * n + dx) * 4;
-      const sIdx = (sy * n + sx) * 4;
-      d[dIdx]   = s[sIdx];
-      d[dIdx+1] = s[sIdx+1];
-      d[dIdx+2] = s[sIdx+2];
-      d[dIdx+3] = s[sIdx+3];
-    }
+  if (!document.getElementById('status').textContent.startsWith('Heads up')) {
+    setStatus(n < 6 ? `${n}/6 faces loaded` : 'All 6 faces ready — tap Stitch!');
   }
-  oc.putImageData(dstData, 0, 0);
-  return offscreen;
 }
 
-// Update the small thumbnail preview for a face card
+// ── Face transform, memoized ─────────────────────────────────────
+// The 5×3 atlas repeats the pole faces at several rotations, so the same
+// (face, rotation, flip, size) is requested more than once per stitch.
+const transformCache = new Map();
+
+function transformedFace(face, totalRotCW, flipH, flipV, size) {
+  const rot = ((totalRotCW % 360) + 360) % 360;
+  const key = `${face}|${rot}|${flipH}|${flipV}|${size}`;
+  const hit = transformCache.get(key);
+  if (hit) return hit;
+
+  const src = faceImages[face];
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // Flip then rotation, composed as one affine transform. (This used to be a
+  // per-destination-pixel JS loop costing size² iterations per cell.)
+  const n = size;
+  ctx.save();
+  switch (rot) {
+    case 90:  ctx.transform(0, 1, -1, 0, n, 0); break;
+    case 180: ctx.transform(-1, 0, 0, -1, n, n); break;
+    case 270: ctx.transform(0, -1, 1, 0, 0, n); break;
+  }
+  if (flipH) ctx.transform(-1, 0, 0, 1, n, 0);
+  if (flipV) ctx.transform(1, 0, 0, -1, 0, n);
+  ctx.drawImage(src, 0, 0, n, n);
+  ctx.restore();
+
+  transformCache.set(key, canvas);
+  return canvas;
+}
+
+function invalidateFace(face) {
+  for (const key of transformCache.keys()) {
+    if (key.startsWith(face + '|')) transformCache.delete(key);
+  }
+}
+
 function updateThumb(face) {
-  const img = faceImages[face]; if (!img) return;
+  if (!faceImages[face]) return;
   const SIZE = 128;
   const tc = document.getElementById(`thumb-${face}`);
   tc.width = SIZE; tc.height = SIZE;
-  const totalRot = ((faceRot[face] % 360) + 360) % 360;
-  const transformed = transformedFace(face, totalRot, faceFlipH[face], faceFlipV[face], SIZE);
-  tc.getContext('2d').drawImage(transformed, 0, 0);
+  tc.getContext('2d').drawImage(
+    transformedFace(face, faceRot[face], faceFlipH[face], faceFlipV[face], SIZE), 0, 0);
+}
+
+// ── Gutter ───────────────────────────────────────────────────────
+// The 3×2 layout drops the pole duplication that gave the 5×3 atlas correct
+// bilinear neighbours at the pole edges. A gutter restores it: each cell
+// reserves a GUTTER_PX border filled by projecting back out to the cube and
+// resampling whichever face that direction actually lands on. One piece of
+// maths covers every edge and corner, with no adjacency table to get wrong.
+function buildGutter(ctx, cellX, cellY, face, S, G, contents) {
+  const C = S - 2 * G;
+  const faceIndex = FACE_INDEX[face];
+
+  const paint = (x0, y0, w, h) => {
+    if (w <= 0 || h <= 0) return;
+    const out = ctx.createImageData(w, h);
+    const d = out.data;
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) {
+        // Cell-local pixel -> face UV (v runs bottom-up, matching the texture).
+        const px = x0 + dx, py = y0 + dy;
+        const u = (px + 0.5 - G) / C;
+        const v = 1 - (py + 0.5 - G) / C;
+
+        const [X, Y, Z] = faceUvToDir(faceIndex, u, v);
+        const hitFace = dirToFaceUv(X, Y, Z);
+        const srcName = INDEX_FACE[hitFace.faceIndex];
+        const src = contents[srcName];
+
+        const i = (dy * w + dx) * 4;
+        if (!src) { d[i + 3] = 255; continue; }
+
+        const sx = Math.min(C - 1, Math.max(0, Math.round(hitFace.u * C - 0.5)));
+        const sy = Math.min(C - 1, Math.max(0, Math.round((1 - hitFace.v) * C - 0.5)));
+        const j = (sy * C + sx) * 4;
+        d[i]     = src.data[j];
+        d[i + 1] = src.data[j + 1];
+        d[i + 2] = src.data[j + 2];
+        d[i + 3] = src.data[j + 3];
+      }
+    }
+    ctx.putImageData(out, cellX + x0, cellY + y0);
+  };
+
+  paint(0, 0, S, G);                    // top band
+  paint(0, S - G, S, G);                // bottom band
+  paint(0, G, G, S - 2 * G);            // left band
+  paint(S - G, G, G, S - 2 * G);        // right band
 }
 
 // ── Stitch ───────────────────────────────────────────────────────
-addTapHandler(document.getElementById('stitch-btn'), stitch);
+document.getElementById('stitch-btn').addEventListener('click', stitch);
 
 function stitch() {
-  const faceSize = Math.max(64, Math.min(4096, parseInt(document.getElementById('face-size').value) || 1024));
-  setStatus('Rendering…');
+  const requested = parseInt(document.getElementById('face-size').value) || 1024;
+  const faceSize = Math.max(64, Math.min(maxFaceSize(), requested));
+  if (faceSize < requested) {
+    document.getElementById('face-size').value = faceSize;
+    setStatus(`Face size capped at ${faceSize}px — ${requested}px exceeds the browser's canvas limit.`);
+  } else {
+    setStatus('Rendering…');
+  }
 
-  // Use setTimeout so the status text repaints before the heavy work
+  // Let the status repaint before the heavy work.
   setTimeout(() => {
-    const canvas = document.getElementById('output-canvas');
-    canvas.width  = faceSize * 5;
-    canvas.height = faceSize * 3;
-    const ctx = canvas.getContext('2d');
+    const G = layout.gutter;
+    const C = faceSize - 2 * G;
+    if (C < 16) { setStatus(`Face size too small for a ${G}px gutter.`); return; }
 
-    LAYOUT.forEach((cell, idx) => {
-      const col = idx % 5, row = Math.floor(idx / 5);
+    const canvas = document.getElementById('output-canvas');
+    canvas.width  = faceSize * layout.cols;
+    canvas.height = faceSize * layout.rows;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    // Content images at the inner size, needed both for drawing and (for the
+    // gutter) for cross-face sampling.
+    const contents = {};
+    if (G > 0) {
+      for (const f of FACES) {
+        const c = transformedFace(f, faceRot[f], faceFlipH[f], faceFlipV[f], C);
+        contents[f] = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, C, C);
+      }
+    }
+
+    layout.cells.forEach((cell, idx) => {
+      const col = idx % layout.cols, row = Math.floor(idx / layout.cols);
       if (!faceImages[cell.face]) return;
-      const totalRot = ((cell.rot + faceRot[cell.face]) % 360 + 360) % 360;
-      const rendered = transformedFace(cell.face, totalRot, faceFlipH[cell.face], faceFlipV[cell.face], faceSize);
-      ctx.drawImage(rendered, col * faceSize, row * faceSize);
+      const cellX = col * faceSize, cellY = row * faceSize;
+      const totalRot = cell.rot + faceRot[cell.face];
+      const rendered = transformedFace(cell.face, totalRot, faceFlipH[cell.face], faceFlipV[cell.face], C);
+      ctx.drawImage(rendered, cellX + G, cellY + G);
+      if (G > 0) buildGutter(ctx, cellX, cellY, cell.face, faceSize, G, contents);
     });
 
+    // An over-limit canvas doesn't throw, it silently stays blank — the failure
+    // used to surface only as an empty download.
+    if (!canvasHasContent(ctx, canvas)) {
+      setStatus(`Browser refused a ${canvas.width}×${canvas.height} canvas — lower the face size.`);
+      document.getElementById('output-wrap').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('output-title').textContent =
+      `Output Atlas (${layout.cols}×${layout.rows}) — ${SLOT_LABELS[document.getElementById('slot-select').value]}`;
     document.getElementById('output-wrap').style.display = 'flex';
     setStatus(`Done — ${canvas.width}×${canvas.height} px`);
   }, 20);
 }
 
-// ── Download ─────────────────────────────────────────────────────
-addTapHandler(document.getElementById('dl-btn'), () => {
+function canvasHasContent(ctx, canvas) {
+  try {
+    const d = ctx.getImageData(Math.floor(canvas.width * 0.5), Math.floor(canvas.height * 0.25), 1, 1).data;
+    return d[3] !== 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+// ── Output ───────────────────────────────────────────────────────
+function encodeAtlas() {
   const canvas = document.getElementById('output-canvas');
-  if (!canvas.width) return;
-  const fmt = document.getElementById('fmt-select').value;
+  if (!canvas.width) return null;
+  // Depth maps are data, not pictures: lossy encoding bands and rings them.
+  const fmt = isDepthSlot() ? 'image/png' : document.getElementById('fmt-select').value;
   const q = Math.max(0.01, Math.min(1, parseInt(document.getElementById('quality').value) / 100));
   const ext = fmt === 'image/png' ? 'png' : fmt === 'image/webp' ? 'webp' : 'jpg';
+  const slot = document.getElementById('slot-select').value;
+  return new Promise(resolve => {
+    canvas.toBlob(blob => resolve(blob ? { blob, ext, name: `cubemap_${layout.id}_${slot}.${ext}` } : null), fmt, q);
+  });
+}
+
+document.getElementById('dl-btn').addEventListener('click', async () => {
   setStatus('Encoding…');
-  canvas.toBlob(blob => {
-    if (!blob) { setStatus('Encoding failed — try PNG or smaller face size'); return; }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `cubemap_atlas.${ext}`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    setStatus(`Downloaded cubemap_atlas.${ext} (${(blob.size/1024).toFixed(0)} KB)`);
-  }, fmt, q);
+  const out = await encodeAtlas();
+  if (!out) { setStatus('Encoding failed — try PNG or a smaller face size.'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(out.blob);
+  a.download = out.name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  setStatus(`Downloaded ${out.name} (${(out.blob.size / 1024).toFixed(0)} KB)`);
 });
+
+// ── Handoff to the viewer ────────────────────────────────────────
+// Atlases run to several MB and there can be four of them, so sessionStorage
+// (~5MB, strings only) is not an option. IndexedDB takes the blobs directly.
+const DB_NAME = 'cubemap-handoff', STORE = 'atlases';
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function stashAtlas(slot, blob) {
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).put(blob, slot);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+document.getElementById('viewer-btn').addEventListener('click', async () => {
+  setStatus('Encoding…');
+  const out = await encodeAtlas();
+  if (!out) { setStatus('Encoding failed — try PNG or a smaller face size.'); return; }
+  const slot = document.getElementById('slot-select').value;
+  try {
+    await stashAtlas(slot, out.blob);
+    location.href = './index.html#custom';
+  } catch (e) {
+    setStatus('Could not hand off to the viewer — download the file and upload it instead.');
+  }
+});
+
+// ── Wiring ───────────────────────────────────────────────────────
+const layoutSelect = document.getElementById('layout-select');
+Object.values(LAYOUTS).forEach(l => {
+  const o = document.createElement('option');
+  o.value = l.id; o.textContent = l.label; layoutSelect.appendChild(o);
+});
+layoutSelect.value = layout.id;
+
+function applyLayout() {
+  layout = LAYOUTS[layoutSelect.value];
+  document.getElementById('layout-hint').textContent = layout.note;
+  renderDiagram();
+  applyFaceSizeLimit();
+  document.getElementById('output-wrap').style.display = 'none';
+}
+layoutSelect.addEventListener('change', applyLayout);
+document.getElementById('face-size').addEventListener('input', applyFaceSizeLimit);
+
+function applySlot() {
+  const depth = isDepthSlot();
+  document.getElementById('fmt-select').disabled = depth;
+  document.getElementById('quality').disabled = depth || document.getElementById('fmt-select').value === 'image/png';
+  document.getElementById('slot-hint').textContent = depth
+    ? 'Depth maps export as lossless PNG — JPEG/WEBP band the gradients.'
+    : 'Names the download and the viewer slot this atlas fills.';
+}
+document.getElementById('slot-select').addEventListener('change', applySlot);
 
 document.getElementById('fmt-select').addEventListener('change', e => {
-  document.getElementById('quality').disabled = e.target.value === 'image/png';
+  document.getElementById('quality').disabled = isDepthSlot() || e.target.value === 'image/png';
 });
 
+applyLayout();
+applySlot();
 updateStitchBtn();
 </script>
 </body>
