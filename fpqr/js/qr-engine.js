@@ -4,12 +4,40 @@ const safeSetText = (id, txt) => { if(E(id)) E(id).textContent = txt; };
 const safeSetHTML = (id, html) => { if(E(id)) E(id).innerHTML = html; };
 
 // Shared QR Constants
-const AP_LOCATIONS = [[], [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50]];
-const QR_CAPACITY = { 
-    'L': [0, 152, 272, 440, 640, 864, 1088], 
-    'M': [0, 128, 224, 352, 512, 688, 864], 
-    'Q': [0, 104, 176, 272, 384, 496, 608], 
-    'H': [0, 72, 128, 208, 288, 368, 480] 
+// Both tables are indexed by version and must cover the full 1-40 range: the
+// version slider goes to 20 and auto-selection can pick anything up to 40, so a
+// short table silently degrades (no alignment styling, "0 B" capacity readout).
+const AP_LOCATIONS = [
+    [],                             // (unused, versions are 1-based)
+    [],                             // v1 has no alignment patterns
+    [6, 18],       [6, 22],         [6, 26],         [6, 30],         [6, 34],
+    [6, 22, 38],   [6, 24, 42],     [6, 26, 46],     [6, 28, 50],     [6, 30, 54],
+    [6, 32, 58],   [6, 34, 62],     [6, 26, 46, 66], [6, 26, 48, 70], [6, 26, 50, 74],
+    [6, 30, 54, 78], [6, 30, 56, 82], [6, 30, 58, 86], [6, 34, 62, 90],
+    [6, 28, 50, 72, 94],  [6, 26, 50, 74, 98],  [6, 30, 54, 78, 102], [6, 28, 54, 80, 106],
+    [6, 32, 58, 84, 110], [6, 30, 58, 86, 114], [6, 34, 62, 90, 118],
+    [6, 26, 50, 74, 98, 122],  [6, 30, 54, 78, 102, 126], [6, 26, 52, 78, 104, 130],
+    [6, 30, 56, 82, 108, 134], [6, 34, 60, 86, 112, 138], [6, 30, 58, 86, 114, 142],
+    [6, 34, 62, 90, 118, 146],
+    [6, 30, 54, 78, 102, 126, 150], [6, 24, 50, 76, 102, 128, 154],
+    [6, 28, 54, 80, 106, 132, 158], [6, 32, 58, 84, 110, 136, 162],
+    [6, 26, 54, 82, 110, 138, 166], [6, 30, 58, 86, 114, 142, 170]
+];
+
+// Usable data capacity in bits (total data codewords x 8) per version.
+const QR_CAPACITY = {
+    'L': [0, 152, 272, 440, 640, 864, 1088, 1248, 1552, 1856, 2192, 2592, 2960, 3424, 3688, 4184,
+          4712, 5176, 5768, 6360, 6888, 7456, 8048, 8752, 9392, 10208, 10960, 11744, 12248, 13048,
+          13880, 14744, 15640, 16568, 17528, 18448, 19472, 20528, 21616, 22496, 23648],
+    'M': [0, 128, 224, 352, 512, 688, 864, 992, 1232, 1456, 1728, 2032, 2320, 2672, 2920, 3320,
+          3624, 4056, 4504, 5016, 5352, 5712, 6256, 6880, 7312, 8000, 8496, 9024, 9544, 10136,
+          10984, 11640, 12328, 13048, 13800, 14496, 15312, 15936, 16816, 17728, 18672],
+    'Q': [0, 104, 176, 272, 384, 496, 608, 704, 880, 1056, 1232, 1440, 1648, 1952, 2088, 2360,
+          2600, 2936, 3176, 3560, 3880, 4096, 4544, 4912, 5312, 5744, 6032, 6464, 6968, 7288,
+          7880, 8264, 8920, 9368, 9848, 10288, 10832, 11408, 12016, 12656, 13328],
+    'H': [0, 72, 128, 208, 288, 368, 480, 528, 688, 800, 976, 1120, 1264, 1440, 1576, 1784,
+          2024, 2264, 2504, 2728, 3080, 3248, 3536, 3712, 4112, 4304, 4768, 5024, 5288, 5608,
+          5960, 6344, 6760, 7208, 7688, 7888, 8432, 8768, 9136, 9776, 10208]
 };
 
 // Global Matrix State
@@ -29,7 +57,12 @@ let animScanAccumulator = 0;
 let animScanCount = 0;
 let lastAnimScanUpdate = Date.now();
 
-function getBits(s, m) { 
+// Per-segment overhead: 4-bit mode indicator + character-count field. The count
+// field widens at versions 10 and 27; these are the version 1-9 widths, which is
+// the range the DP is actually choosing between.
+const SEG_HEADER_BITS = { numeric: 4 + 10, alphanumeric: 4 + 9, byte: 4 + 8 };
+
+function getBits(s, m) {
     const l = s.length; 
     if(m === 'numeric') return Math.floor(l/3)*10 + [0,4,7][l%3]; 
     if(m === 'alphanumeric') return Math.floor(l/2)*11 + (l%2===1?6:0); 
@@ -52,11 +85,14 @@ function extractFormatInfoFromImage(imageData, code) {
             return (imageData.data[idx] * 0.299 + imageData.data[idx+1] * 0.587 + imageData.data[idx+2] * 0.114) < 128 ? 1 : 0;
         };
 
-        const bit14 = getPixelDark(0.5, 8.5) ^ 1;
-        const bit13 = getPixelDark(1.5, 8.5) ^ 0;
-        const bit12 = getPixelDark(2.5, 8.5) ^ 1;
-        const bit11 = getPixelDark(3.5, 8.5) ^ 0;
-        const bit10 = getPixelDark(4.5, 8.5) ^ 1;
+        // Format bits 14..10 carry the EC level and mask. In the top-left copy they
+        // sit along ROW 8, columns 0-4 -- column 8 / rows 0-4 holds bits 0..4, which
+        // are BCH parity, not data. Each bit is unmasked against 0x5412 (101010...).
+        const bit14 = getPixelDark(8.5, 0.5) ^ 1;
+        const bit13 = getPixelDark(8.5, 1.5) ^ 0;
+        const bit12 = getPixelDark(8.5, 2.5) ^ 1;
+        const bit11 = getPixelDark(8.5, 3.5) ^ 0;
+        const bit10 = getPixelDark(8.5, 4.5) ^ 1;
 
         const ecBits = (bit14 << 1) | bit13;
         if (ecBits === 1) result.ec = 'L';
@@ -88,9 +124,9 @@ function runDP(text, uT, pT) {
     for(let i=0; i<n; i++) for(let j=i+1; j<=n; j++) {
         const sub = s.substring(i,j);
         const modes = [{m:'numeric',v:/^[0-9]+$/.test(sub)}, {m:'alphanumeric',v:/^[0-9A-Z $%*+\-./:]+$/.test(sub)}, {m:'byte',v:true}];
-        for(const {m,v} of modes) if(v) { 
-            const c = (m==='byte'?12:13) + getBits(sub,m); 
-            if(dp[i]+c < dp[j]) { dp[j] = dp[i]+c; back[j] = {f:i,m,d:sub,c}; } 
+        for(const {m,v} of modes) if(v) {
+            const c = SEG_HEADER_BITS[m] + getBits(sub,m);
+            if(dp[i]+c < dp[j]) { dp[j] = dp[i]+c; back[j] = {f:i,m,d:sub,c}; }
         }
     }
     let segs = [], currIdx = n;
