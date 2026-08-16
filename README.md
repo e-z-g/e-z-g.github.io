@@ -18,6 +18,7 @@ browser — no build step, no server, no uploads.
 - **[Custom Video Scaler](https://e-z-g.github.io/vidscale.html)** — Rescale a video to arbitrary dimensions with smooth or pixelated sampling, and re-export it.
 - **[3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html)** — Interlace up to six frames into a printable base plate and sliding barrier grid, with SVG and multi-colour 3MF export.
 - **[Star/Planet Viewer](https://e-z-g.github.io/ev/)** — Generative space scene with star field and planet image, with PNG export.
+- **[Anachronism Machine](https://e-z-g.github.io/anachronism.html)** — Reimagine a modern object as a period advertisement from any of 13 eras, with era-matched typography and palette, optional Claude-written copy and AI illustration, and PNG export.
 
 ## Codes & utilities
 
