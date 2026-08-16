@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cythera Graphics Browser (v80)</title>
+<title>Cythera Graphics Browser (v81)</title>
 <style>
   body { background:#1a1a1a; color:#eee; font-family: system-ui, sans-serif; padding:16px; font-size:16px; line-height:1.5; }
   input[type=file] { margin-bottom:12px; }
@@ -271,7 +271,14 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
 .cell .lbl.guessed, .lbl.guessed { color:#c9a86a; }
 .cell .lbl.guessed::after, .lbl.guessed::after { content:' \2020'; opacity:.85; }
 #labelLegend { font-size:12px; color:#9b8850; margin:6px 0 2px; }
-#navBar { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:4px 0 8px; }
+/* Four fixed columns could not survive a phone. A grid item defaults to
+   min-width:auto, so each plaque refused to shrink below the width of its own
+   icon and label -- "Characters" is about 120px -- and the fourth column was
+   pushed off the right edge of a 390px screen with no way to reach it. The
+   tracks now size themselves, and the plaques are allowed to shrink. */
+#navBar { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin:4px 0 8px; }
+.navBtn { min-width:0; }
+.navBtn span { overflow-wrap:anywhere; }
 .navBtn { background:linear-gradient(160deg,#6c6555 0%,#4b463c 40%,#393530 100%);
   border:1px solid #2a2620; border-radius:7px; clip-path:none; box-shadow:0 1px 0 #16130e;
   padding:8px 4px 6px; min-height:0; width:auto; margin:0; display:block;
@@ -286,6 +293,37 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
   box-shadow:none; text-shadow:none; letter-spacing:0; }
 .navChip::after { display:none; }
 .navChip.active { background:var(--gold); color:#141210; border-color:var(--gold); font-weight:600; }
+/* Phones. The plaque styling is deliberate, so the sizes come down rather
+   than the look: the nav labels are pinned small (the global
+   font-size:clamp(...) !important on `button` otherwise wins over .navBtn's
+   own 11px and blows the labels back up), the icons shrink to match, and the
+   category chips lose enough of their 24px plaque padding to fit two or three
+   to a row instead of one each. */
+@media (max-width:640px) {
+  #navBar { grid-template-columns:repeat(auto-fit,minmax(76px,1fr)); gap:5px; }
+  /* The plaque's 24px side padding is !important, so a narrow button spent
+     two thirds of its width on padding and hyphenated "Machinery" into
+     "Machi/nery". */
+  .navBtn { padding:6px 3px 5px !important; font-size:10.5px !important;
+    letter-spacing:0; line-height:1.15; }
+  .navBtn canvas { width:24px !important; height:24px !important; }
+  .navBtn span { margin-top:3px; }
+  #navSub { gap:4px; }
+  .navChip { font-size:11px !important; min-height:30px !important;
+    padding:5px 16px !important; }
+  .navChip::before { left:7px; right:7px; height:7px; margin-top:-3.5px; }
+  /* Cross-reference chips are narrow, and the bolt studs are positioned 16px
+     in from each end -- on a chip only 70px wide that put both studs on top of
+     the label. They are decoration on an element this small, so drop them and
+     keep the words legible. */
+  .sv-chip { font-size:11px !important; padding:4px 14px !important; }
+  .sv-chip::before { display:none; }
+}
+@media (max-width:380px) {
+  #navBar { grid-template-columns:repeat(auto-fit,minmax(66px,1fr)); gap:4px; }
+  .navBtn { font-size:9.5px !important; padding:5px 2px 4px !important; }
+  .navBtn canvas { width:22px !important; height:22px !important; }
+}
 #propFilterWrap { margin:8px 0 2px; }
 #propFilter { width:100%; box-sizing:border-box; padding:9px 12px; border-radius:8px;
   border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
@@ -296,6 +334,10 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
   border-bottom:1px solid var(--edge); padding-bottom:4px; }
 .cell.propCell { height:150px; justify-content:flex-start; }
 .cell.propCell .cellimgwrap { flex:0 0 78px; height:78px; }
+/* An item cell carries three facts (weight, count, id) where a prop cell
+   carries two, so the caption is given a smaller type size rather than a
+   third line. */
+.cell.itemCell .resid { font-size:10px; line-height:1.35; }
 #searchBox { width:100%; box-sizing:border-box; padding:11px 14px; border-radius:8px;
   border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
   font-family:Argos, Georgia, serif; font-size:16px; }
@@ -491,6 +533,7 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
       <optgroup label="People & creatures">
         <option value="CHARACTERS">Characters (all info)</option>
         <option value="PROPS">Creatures &amp; Props (all sprites)</option>
+        <option value="ITEMS">Inventory Items</option>
         <option value="MONSTERS">Monster Stats (0xF008)</option>
         <option value="135">Portraits (64x64)</option>
         <option value="137">Skill Icons (32×16)</option>
@@ -1647,7 +1690,10 @@ function propFrameFill(tile) {
 }
 
 window.PROP_FILTER = '';
-function setPropFilter(v) { window.PROP_FILTER = v; renderPropTypeSheet(); }
+function setPropFilter(v) {
+  window.PROP_FILTER = v;
+  if (window.CUR_SUBN === 'ITEMS') renderItemSheet(); else renderPropTypeSheet();
+}
 
 function renderPropTypeSheet() {
   stopSpriteAnimations();
@@ -1781,6 +1827,429 @@ function showPropTypeDetail(pt) {
   grid.appendChild(panel);
   out.textContent = (name || 'prop type 0x' + pt.toString(16).toUpperCase()) +
     ' \u2014 ' + info.count + ' frames';
+}
+
+/* --- Inventory items -------------------------------------------------------
+   An item is a prop type that also has a class script, and the wiki's
+   prop-type list gives the rule for finding it: "Scripts for an object are
+   located in 0x1000 + proptype". The Object page calls that class Item and
+   assigns it resources 0x10xx-0x13xx.
+
+   Every such resource ends in a dispatch `table`: per the wiki's Table page
+   that is A0 <count> followed by 6-byte entries of {4-byte value, 2-byte key},
+   where a value must be a dref (0x8000_0000 | resid<<16 | offset) or the atom
+   None (0x5000FFFF), which is indistinguishable from having no entry at all.
+   The same page explains why an item's weight is an array holding one integer:
+   table values cannot be bare scalars, so scalars are wrapped.
+
+   That gives the split this inspector is built on. An entry whose dref lands
+   on an array (0x9n) is static data -- weight, armour value, equipment slot;
+   one that lands on a function (0x81) is behaviour. The keys are the same
+   numbering as DVM_SYM.method, which is what makes reading them safe rather
+   than speculative: the wiki independently documents key 0x0024 as Weight and
+   method 36 is Weight, and the values agree with the game (a sword weighs 34
+   grains, a cuirass 24 and gives 3 points of armour).
+
+   Of the 268 item classes in the shipped archive, 123 carry a weight. Where a
+   key has no published meaning the panel says so instead of guessing.
+--------------------------------------------------------------------------- */
+
+// Labels come from DVM_SYM.method so the two can never drift apart; only the
+// units and the notes are stated here, and only where the wiki or the archive
+// actually establishes them.
+const ITEM_FIELD_INFO = {
+  0x24: { scalar:true, unit:'grains', gloss:'Carry weight. System.WeightCapacity measures a container against the sum of these.' },
+  0x26: { scalar:true, gloss:'Equipment slot this occupies when worn or wielded.' },
+  0x27: { scalar:true, hex:true, gloss:'Bit flags. The individual bits are not documented.' },
+  0x28: { scalar:true, gloss:'How many fit in one inventory slot.' },
+  0x2A: { gloss:'Melee parameters. The elements are not decoded; the last is a reference into this same resource.' },
+  0x2B: { gloss:'Thrown-weapon parameters. Not decoded.' },
+  0x2C: { scalar:true, gloss:'Points of protection this armour contributes.' },
+  0x2D: { gloss:'Ammunition parameters. Not decoded.' },
+  0x2E: { gloss:'Ranged-weapon parameters. Not decoded.' },
+  0x2F: { gloss:'Shield parameters. Not decoded.' },
+  0x30: { scalar:true, gloss:'Reagent number, used by alchemy.' },
+  0x32: { gloss:'Light this item casts.' },
+  0x34: { gloss:'Lock parameters -- what a key or a lockpick is tested against.' },
+  0x3C: { scalar:true, unit:'obols', gloss:'Money value. Only the coin itself carries one; shop prices are computed in script.' }
+};
+// Keys that mark an item as gear rather than goods, used only for grouping.
+const ITEM_COMBAT_KEYS = [0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F];
+
+function itemFieldLabel(key) {
+  const m = DVM_SYM.method[String(key)];
+  return m ? prettyLabel(m) : ('Key 0x' + key.toString(16).toUpperCase().padStart(4, '0'));
+}
+
+// Raw 4-byte words of an array, as stored. dvmArrayContents() formats them for
+// the disassembly; a stat panel needs the numbers themselves.
+function dvmArrayWords(b, off) {
+  if (off + 2 > b.length) return null;
+  const size = ((b[off] << 8) | b[off+1]) & 0x0FFF;
+  if (size < 1 || size > 64 || off + 2 + size * 4 > b.length) return null;
+  const out = [];
+  for (let i = 0; i < size; i++) {
+    const o = off + 2 + i * 4;
+    out.push((((b[o] << 24) | (b[o+1] << 16) | (b[o+2] << 8) | b[o+3]) >>> 0));
+  }
+  return out;
+}
+
+function itemStringAt(b, off) {
+  let end = off;
+  while (end < b.length && b[end] !== 0 && end - off < 160) end++;
+  if (end - off < 4) return null;
+  for (let i = off; i < end; i++) if (b[i] < 0x20 && b[i] !== 9) return null;
+  const s = decodeMacRoman(b.subarray(off, end)).trim();
+  return /[A-Za-z]{3}/.test(s) ? s : null;
+}
+
+window.ITEM_CLASSES = null;
+function parseItemClass(pt) {
+  const cache = window.ITEM_CLASSES || (window.ITEM_CLASSES = {});
+  if (pt in cache) return cache[pt];
+  const resid = 0x1000 + pt;
+  let b = null;
+  try { const raw = getResourceBytes(resid); if (raw) b = smartDecrypt(raw, resid).data; } catch (e) {}
+  if (!b || b.length < 8) return (cache[pt] = null);
+  let disc = null;
+  try { disc = dvmDiscover(b, resid); } catch (e) {}
+  const toff = disc ? disc.tableOffset : null;
+  if (toff === null || toff + 2 > b.length || (b[toff] & 0xF0) !== 0xA0) return (cache[pt] = null);
+  const count = ((b[toff] << 8) | b[toff+1]) & 0x0FFF;
+  const cls = { resid, size: b.length, data: [], code: [], text: [], empty: 0, unknown: 0 };
+  for (let i = 0, p = toff + 2; i < count && p + 6 <= b.length; i++, p += 6) {
+    const val = (((b[p] << 24) | (b[p+1] << 16) | (b[p+2] << 8) | b[p+3]) >>> 0);
+    const key = (b[p+4] << 8) | b[p+5];
+    // The Table page: a None entry is the same as no entry, and dead keys
+    // propagated by copy-and-paste are common. Neither is worth showing.
+    if (val === 0x5000FFFF) { cls.empty++; continue; }
+    if (!(val & 0x80000000) || ((val & 0x7FFF0000) >>> 16) !== resid) { cls.unknown++; continue; }
+    const off = val & 0xFFFF;
+    if (off >= b.length) { cls.unknown++; continue; }
+    const kind = (disc.kinds && disc.kinds[off]) || 'data';
+    if (kind === 'array') {
+      const words = dvmArrayWords(b, off);
+      if (words) cls.data.push({ key, off, words });
+    } else if (kind === 'function') {
+      cls.code.push({ key, off });
+    } else {
+      const s = itemStringAt(b, off);
+      if (s) cls.text.push({ key, off, text: s });
+    }
+  }
+  cls.data.sort((a, b2) => a.key - b2.key);
+  cls.code.sort((a, b2) => a.key - b2.key);
+  return (cache[pt] = cls);
+}
+
+function itemFieldValue(f) {
+  const info = ITEM_FIELD_INFO[f.key] || {};
+  if (info.scalar && f.words.length === 1 && (f.words[0] & 0xF0000000) === 0) {
+    const n = f.words[0] & 0x0FFFFFFF;
+    if (info.hex) return '0x' + n.toString(16).toUpperCase() + ' (' + n + ')';
+    return n + (info.unit ? ' ' + info.unit : '');
+  }
+  return f.words.map(dvmWord).join(', ');
+}
+
+function itemWeight(pt) {
+  const cls = parseItemClass(pt);
+  if (!cls) return null;
+  for (const f of cls.data) {
+    if (f.key === 0x24 && f.words.length === 1 && (f.words[0] & 0xF0000000) === 0)
+      return f.words[0] & 0x0FFFFFFF;
+  }
+  return null;
+}
+
+/* Where the items actually are. The prop lists are the shipped scenario's
+   inventories: 990 of the 14,485 prop records in this archive are not on the
+   floor but inside something, and reading their location word as containment
+   (see parseDelverPropList) turns them into "Larisa's dresser holds four keys"
+   and "Deiphobus carries a mace, a cuirass and a round shield". */
+window.ITEM_INDEX = null;
+function buildItemIndex() {
+  if (window.ITEM_INDEX) return window.ITEM_INDEX;
+  const byType = {};
+  const get = pt => byType[pt] || (byType[pt] = {
+    total: 0, loose: 0, contained: 0, carried: 0, equipped: 0, takeable: 0,
+    zones: {}, inside: [], held: []
+  });
+  const count = subindexCount(128);
+  const chars = characterProptypes();
+  for (let n = 0; n < count; n++) {
+    const resid = 0x8100 + n;
+    let recs = null;
+    try {
+      const raw = getResourceBytes(resid);
+      if (raw) recs = parseDelverPropList(smartDecrypt(raw, resid).data);
+    } catch (e) {}
+    if (!recs) continue;
+    for (const r of recs) {
+      if (r.flags === 0xFF || !r.proptype) continue;
+      // flags 0x09 is ambiguous -- it is both "in a container, takeable" and
+      // the flags nine of Land King Hall's guards stand around with. A prop
+      // whose type is somebody is never inventory, same test the map renderer
+      // uses.
+      const isPerson = chars.has(r.proptype);
+      const e = get(r.proptype);
+      e.total++;
+      if (r.takeable) e.takeable++;
+      e.zones[resid] = (e.zones[resid] || 0) + 1;
+      if (r.carriedBy !== null && !isPerson) {
+        if (r.equipped) e.equipped++; else e.carried++;
+        if (e.held.length < 80) e.held.push({ resid, character: r.carriedBy, equipped: r.equipped });
+      } else if (r.container !== null && !isPerson &&
+                 r.container >= 0 && r.container < recs.length) {
+        e.contained++;
+        if (e.inside.length < 80)
+          e.inside.push({ resid, index: r.container, hostType: recs[r.container].proptype });
+      } else e.loose++;
+    }
+  }
+  return (window.ITEM_INDEX = byType);
+}
+
+// A prop type counts as an item if the archive treats it as one: it has a
+// weight in its class, or instances of it are carried, contained or marked
+// takeable. Nothing here is a hand-written list of item names.
+function isInventoryItem(pt) {
+  if (livingPropTypes().has(pt)) return false;
+  if (itemWeight(pt) !== null) return true;
+  const e = buildItemIndex()[pt];
+  return !!(e && (e.carried || e.equipped || e.contained || e.takeable));
+}
+
+function itemGroup(pt) {
+  const cls = parseItemClass(pt);
+  if (cls && ITEM_COMBAT_KEYS.some(k => cls.data.some(f => f.key === k))) return 'Weapons & armour';
+  const e = buildItemIndex()[pt];
+  if (e && e.contained && cls && cls.code.some(f => f.key === 0x17)) return 'Containers';
+  if (cls && cls.data.some(f => f.key === 0x34)) return 'Containers';
+  return 'Carried goods';
+}
+
+window.ITEM_LIST = null;
+function inventoryItemList() {
+  if (window.ITEM_LIST) return window.ITEM_LIST;
+  const tiles = getPropTileList();
+  const list = [];
+  for (let pt = 1; pt < tiles.length && pt < 1024; pt++) {
+    if (!tiles[pt]) continue;
+    let ok = false;
+    try { ok = isInventoryItem(pt); } catch (e) {}
+    if (!ok) continue;
+    const e = buildItemIndex()[pt] || null;
+    list.push({
+      pt, name: propTypeName(pt), weight: itemWeight(pt), group: itemGroup(pt),
+      instances: e ? e.total : 0, cls: parseItemClass(pt)
+    });
+  }
+  return (window.ITEM_LIST = list);
+}
+
+const ITEM_GROUP_ORDER = ['Weapons & armour', 'Containers', 'Carried goods'];
+
+function renderItemSheet() {
+  stopSpriteAnimations();
+  const grid = document.getElementById('sheetGrid');
+  const out = document.getElementById('output');
+  grid.style.display = '';
+  grid.innerHTML = '';
+  const q = (window.PROP_FILTER || '').trim().toLowerCase();
+  const entries = inventoryItemList().filter(e =>
+    !q || (e.name || '').toLowerCase().includes(q) || ('0x' + e.pt.toString(16)).includes(q));
+  entries.sort((a, b) =>
+    (ITEM_GROUP_ORDER.indexOf(a.group) - ITEM_GROUP_ORDER.indexOf(b.group)) ||
+    ((a.name ? 0 : 1) - (b.name ? 0 : 1)) ||
+    (a.name || '').localeCompare(b.name || '') || a.pt - b.pt);
+
+  let heading = null;
+  for (const e of entries) {
+    if (e.group !== heading) {
+      heading = e.group;
+      const h = document.createElement('div');
+      h.className = 'propHead';
+      h.textContent = heading;
+      grid.appendChild(h);
+    }
+    const cell = document.createElement('div');
+    cell.className = 'cell propCell itemCell';
+    const wrap = document.createElement('div');
+    wrap.className = 'cellimgwrap';
+    const base = getPropTileList()[e.pt] || 0;
+    const info = spriteFrameInfo(0, e.pt);
+    const spr = drawPropSprite(base + (info.present[0] || 0), 34);
+    if (spr) wrap.appendChild(spr.canvas);
+    cell.appendChild(wrap);
+    const lbl = document.createElement('div');
+    lbl.className = 'lbl';
+    lbl.innerHTML = e.name
+      ? svEsc(e.name) + '<span class="guessed" title="name from the delvmod wiki, not the archive">\u2020</span>'
+      : '<span style="color:#7d7358">unnamed</span>';
+    cell.appendChild(lbl);
+    const sub = document.createElement('div');
+    sub.className = 'resid';
+    const bits = [];
+    if (e.weight !== null) bits.push(e.weight + 'gr');
+    if (e.instances) bits.push(e.instances + '\u00d7');
+    bits.push('0x' + e.pt.toString(16).toUpperCase());
+    sub.textContent = bits.join(' \u00b7 ');
+    cell.appendChild(sub);
+    cell.onclick = () => showItemDetail(e.pt);
+    grid.appendChild(cell);
+  }
+  const withWeight = entries.filter(e => e.weight !== null).length;
+  out.textContent = entries.length + ' items' +
+    (q ? ' matching \u201c' + q + '\u201d' : '') + ', ' + withWeight + ' with a weight in their class script.';
+}
+
+function showItemDetail(pt) {
+  stopSpriteAnimations();
+  markDetailView('item', pt);
+  const grid = document.getElementById('sheetGrid');
+  const out = document.getElementById('output');
+  grid.style.display = 'block';
+  grid.innerHTML = '';
+  const back = document.createElement('button');
+  back.className = 'secondary';
+  back.textContent = '\u2190 Back to items';
+  back.onclick = renderItemSheet;
+  grid.appendChild(back);
+
+  const name = propTypeName(pt);
+  const base = getPropTileList()[pt] || 0;
+  const info = spriteFrameInfo(0, pt);
+  const cls = parseItemClass(pt);
+  const idx = buildItemIndex()[pt];
+  const panel = document.createElement('div');
+  panel.style.cssText = 'width:100%;max-width:620px;margin:12px auto;text-align:left';
+
+  let h = '<div class="sv-head"><span class="sv-id">' +
+    (name ? svEsc(name) : 'unnamed item') + '</span></div>' +
+    '<div style="font-size:13px;color:#cfc4a0;margin:4px 0 10px">prop type 0x' +
+    pt.toString(16).toUpperCase() + ' \u00b7 base tile 0x' + base.toString(16).toUpperCase() +
+    (cls ? ' \u00b7 class ' + '0x' + cls.resid.toString(16).toUpperCase() + ', ' + cls.size + ' bytes'
+         : ' \u00b7 no class script at 0x' + (0x1000 + pt).toString(16).toUpperCase()) + '</div>';
+  panel.innerHTML = h;
+
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;margin-bottom:12px';
+  for (const f of info.present.slice(0, 8)) {
+    const holder = document.createElement('div');
+    holder.style.cssText = 'width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:#1c1913;border:1px solid #33302a;overflow:hidden';
+    const spr = drawPropSprite(base + f, 20);
+    if (spr) holder.appendChild(spr.canvas);
+    holder.title = 'frame ' + f + ' \u00b7 tile 0x' + (base + f).toString(16).toUpperCase();
+    sheet.appendChild(holder);
+  }
+  panel.appendChild(sheet);
+
+  const add = html => {
+    const d = document.createElement('div');
+    d.innerHTML = html;
+    panel.appendChild(d);
+  };
+
+  // Static data from the class table.
+  if (cls && cls.data.length) {
+    let rows = '';
+    for (const f of cls.data) {
+      const meta = ITEM_FIELD_INFO[f.key] || {};
+      rows += '<tr><td style="padding:3px 10px 3px 0;color:#cfc4a0;white-space:nowrap">' +
+        svEsc(itemFieldLabel(f.key)) +
+        '<span style="color:#7d7358;font-size:11px"> 0x' + f.key.toString(16).toUpperCase().padStart(4,'0') + '</span></td>' +
+        '<td style="padding:3px 0;color:var(--gold);font-family:ui-monospace,Menlo,Consolas,monospace">' +
+        svEsc(itemFieldValue(f)) + '</td></tr>' +
+        (meta.gloss ? '<tr><td colspan="2" style="padding:0 0 6px;color:#8a8064;font-size:12px">' +
+          svEsc(meta.gloss) + '</td></tr>'
+        : '<tr><td colspan="2" style="padding:0 0 6px;color:#8a8064;font-size:12px">' +
+          'No published meaning for this key.</td></tr>');
+    }
+    add('<div class="sv-block"><h4>Class data</h4><table style="border-collapse:collapse;width:100%">' +
+        rows + '</table></div>');
+  } else if (cls) {
+    add('<div class="sv-block"><h4>Class data</h4><div class="sv-note">' +
+        'This class carries only behaviour \u2014 no data fields.</div></div>');
+  }
+
+  // Behaviour: which methods have code behind them.
+  if (cls && cls.code.length) {
+    add('<div class="sv-block"><h4>Responds to</h4>' +
+      cls.code.map(f => '<button class="sv-chip" onclick="jumpToResource(' + cls.resid + ')">' +
+        svEsc(itemFieldLabel(f.key)) + '</button>').join(' ') +
+      '<div class="sv-note" style="margin-top:6px">Each opens the class script 0x' +
+      cls.resid.toString(16).toUpperCase() + ', where the disassembly is grouped by method.</div></div>');
+  }
+
+  if (cls && cls.text.length) {
+    add('<div class="sv-block"><h4>Text in this class</h4>' +
+      cls.text.slice(0, 12).map(t =>
+        '<div style="color:#f4e9c8;font-size:13px;margin-bottom:4px">\u201c' + svEsc(t.text) + '\u201d</div>'
+      ).join('') + '</div>');
+  }
+
+  // Where it is in the shipped scenario.
+  if (idx && idx.total) {
+    const facts = [];
+    facts.push('<div><b>Total</b>' + idx.total + '</div>');
+    if (idx.loose) facts.push('<div><b>On the ground</b>' + idx.loose + '</div>');
+    if (idx.contained) facts.push('<div><b>In containers</b>' + idx.contained + '</div>');
+    if (idx.carried) facts.push('<div><b>Carried</b>' + idx.carried + '</div>');
+    if (idx.equipped) facts.push('<div><b>Equipped</b>' + idx.equipped + '</div>');
+    // .sv-facts is a single-column grid by default, which turns four small
+    // counts into four full-width slabs on a phone.
+    let body = '<div class="sv-facts" style="grid-template-columns:repeat(auto-fit,minmax(118px,1fr))">' +
+      facts.join('') + '</div>';
+
+    const zoneIds = Object.keys(idx.zones).map(Number).sort((a, b) => idx.zones[b] - idx.zones[a]);
+    body += '<div style="margin-top:8px">' + zoneIds.slice(0, 16).map(rid =>
+      '<button class="sv-chip" onclick="jumpToResource(' + (rid - 0x100) + ')">' +
+      svEsc(zoneNameFor(rid) || ('0x' + rid.toString(16).toUpperCase())) +
+      ' <em>\u00d7' + idx.zones[rid] + '</em></button>').join(' ') +
+      (zoneIds.length > 16 ? ' <span style="color:#7d7358">+' + (zoneIds.length - 16) + ' more</span>' : '') +
+      '</div>';
+
+    if (idx.held.length) {
+      const byChar = {};
+      for (const h of idx.held) {
+        const k = h.character;
+        byChar[k] = byChar[k] || { n: 0, equipped: 0 };
+        byChar[k].n++; if (h.equipped) byChar[k].equipped++;
+      }
+      body += '<div style="margin-top:10px"><b style="color:#9d9270;font-size:11px;text-transform:uppercase;letter-spacing:1px">Carried by</b><br>' +
+        Object.keys(byChar).slice(0, 24).map(k =>
+          '<button class="sv-chip" onclick="showCharacterDetail(' + k + ')">' +
+          svEsc(characterName(+k)) + (byChar[k].equipped ? ' <em>equipped</em>' : '') +
+          (byChar[k].n > 1 ? ' <em>\u00d7' + byChar[k].n + '</em>' : '') + '</button>').join(' ') +
+        '</div>';
+    }
+
+    if (idx.inside.length) {
+      const byHost = {};
+      for (const h of idx.inside) {
+        const k = h.hostType;
+        byHost[k] = (byHost[k] || 0) + 1;
+      }
+      body += '<div style="margin-top:10px"><b style="color:#9d9270;font-size:11px;text-transform:uppercase;letter-spacing:1px">Found inside</b><br>' +
+        Object.keys(byHost).sort((a, b) => byHost[b] - byHost[a]).slice(0, 16).map(k =>
+          '<button class="sv-chip" onclick="showItemDetail(' + k + ')">' +
+          svEsc(propTypeName(+k) || ('0x' + (+k).toString(16).toUpperCase())) +
+          ' <em>\u00d7' + byHost[k] + '</em></button>').join(' ') +
+        '</div>';
+    }
+    add('<div class="sv-block"><h4>In the world</h4>' + body + '</div>');
+  } else {
+    add('<div class="sv-block"><h4>In the world</h4><div class="sv-note">' +
+        'No instance of this item is placed in the shipped scenario \u2014 it is either created by a script or unused.</div></div>');
+  }
+
+  grid.appendChild(panel);
+  const w = itemWeight(pt);
+  out.textContent = (name || 'item 0x' + pt.toString(16).toUpperCase()) +
+    (w !== null ? ' \u2014 ' + w + ' grains' : '') +
+    (idx && idx.total ? ', ' + idx.total + ' placed in the world' : '');
 }
 
 function renderCharacterSheet() {
@@ -2062,6 +2531,11 @@ function setModeImpl(m) {
     renderPropTypeSheet();
     return;
   }
+  if (window.CUR_SUBN === 'ITEMS') {
+    document.getElementById('propFilterWrap').style.display = 'block';
+    renderItemSheet();
+    return;
+  }
   if (window.CUR_SUBN === 'MONSTERS') { renderMonsterSheet(); return; }
   document.getElementById('propFilterWrap').style.display = 'none';
   const isComposite = window.CUR_SUBN === 'COMPOSITE';
@@ -2119,6 +2593,9 @@ function resetDerivedCaches() {
   window.ZONEPORTS = null;
   window.PROP_BLOCK = null;
   window.LIVING_PROPTYPES = null;
+  window.ITEM_CLASSES = null;
+  window.ITEM_INDEX = null;
+  window.ITEM_LIST = null;
   window.SCHEDULES = null;
   window.CHAR_TABLE = null;
   window._CHAR_PROPTYPES = null;
@@ -2528,6 +3005,7 @@ function currentSelectedResid() {
 const DETAIL_OPENERS = {
   char: i => showCharacterDetail(i),
   prop: i => showPropTypeDetail(i),
+  item: i => showItemDetail(i),
   monster: i => showMonsterDetail(i)
 };
 function markDetailView(kind, id) {
@@ -2694,8 +3172,8 @@ function onCategoryChangeImpl() {
     setMode('sheet');
     return;
   }
-  if (rawval === 'PROPS') {
-    window.CUR_SUBN = 'PROPS';
+  if (rawval === 'PROPS' || rawval === 'ITEMS') {
+    window.CUR_SUBN = rawval;
     document.getElementById('residSelect').innerHTML = '';
     setMode('sheet');
     return;
@@ -3764,6 +4242,17 @@ function parseDelverPropList(data) {
     // read_xy24: 3 bytes packing 12-bit x, 12-bit y
     const raw = (data[p+1] << 16) | (data[p+2] << 8) | data[p+3];
     const x = raw >> 12, y = raw & 0x0FFF;
+    // ...except when the prop is not on the floor at all. delvmod's
+    // level.py (textual_location / inside_something) and the wiki's subindex
+    // 128 page agree that the location word doubles as a containment link:
+    // flags & 0x10 means a character is holding it and the low 16 bits are
+    // that character's number, flags & 0x08 means it is inside another prop
+    // in this same list at index (low16 - 0x100), and both bits together mean
+    // the character has it equipped. This viewer read those bytes as x,y
+    // unconditionally, so all 990 contained props in the shipped archive were
+    // being placed at coordinates that mean nothing. 0x01 is "okay to take".
+    const carried = !!(flags & 0x10), inside = !!(flags & 0x08);
+    const holder = raw & 0xFFFF;
     const aw = (data[p+4] << 8) | data[p+5];
     const aspectRot = (aw >> 10) & 0x3F, proptype = aw & 0x03FF;
     const d3 = (data[p+6] << 8) | data[p+7];
@@ -3775,7 +4264,12 @@ function parseDelverPropList(data) {
     records.push({
       index: records.length, flags, x, y, aspect: aspectRot & 0x1F,
       rotated: aspectRot & 0x20, proptype, d1: d3 >> 8, d2: d3 & 0xFF,
-      d3, storeref, otherprop, tail, u
+      d3, storeref, otherprop, tail, u,
+      onMap: !carried && !inside && flags !== 0xFF,
+      carriedBy: carried ? holder : null,
+      container: (!carried && inside) ? holder - 0x100 : null,
+      equipped: carried && inside,
+      takeable: !!(flags & 0x01)
     });
   }
   return records;
@@ -6545,6 +7039,8 @@ const NAV_GROUPS = [
   { id: 'search', label: 'Search',     icon: 0x141, action: 'search' },
   { id: 'chars',  label: 'Characters', icon: 0x022,
     values: ['CHARACTERS', 'PROPS', 'MONSTERS', '135', '137', '24', '25'] },
+  { id: 'items',  label: 'Items',      icon: 0x08D,
+    values: ['ITEMS'] },
   { id: 'maps',   label: 'Maps',       icon: 0x111,
     values: ['127', '128', '131', '19', '20'] },
   { id: 'gfx',    label: 'Graphics',   icon: 0x158,
@@ -6902,7 +7398,13 @@ function renderText() {
       content += "--- PROP LIST (parsed as delv.level.PropList, " + recs.length + " records) ---\n";
       content += recs.map(r =>
         '#' + r.index + '  flags=0x' + r.flags.toString(16).padStart(2,'0') +
-        '  (' + r.x + ',' + r.y + ')' +
+        // Same reading as delvmod's textual_location: the location word is a
+        // containment link, not coordinates, once the flags say so.
+        '  ' + (r.carriedBy !== null
+                  ? (r.equipped ? 'equipped by #' : 'carried by #') + r.carriedBy
+                  : r.container !== null
+                      ? 'inside prop #' + r.container
+                      : '(' + r.x + ',' + r.y + ')') +
         '  proptype=0x' + r.proptype.toString(16).padStart(3,'0') +
         '  aspect=' + r.aspect + (r.rotated ? '(rot)' : '') +
         '  d1=' + r.d1 + ' d2=' + r.d2 +
