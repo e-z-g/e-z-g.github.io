@@ -6,7 +6,7 @@ browser — no build step, no server, no uploads.
 
 ## 360° & VR
 
-- **[Cubemap VR Viewer](https://e-z-g.github.io/cube/)** — Interactive 360° parallax cubemap viewer with depth-driven square transitions, gyroscope support, and custom LDI upload.
+- **[Cubemap VR Viewer](https://e-z-g.github.io/cube/)** — Interactive 360° parallax cubemap viewer for four Myst III ages. Enter a WebXR headset for real stereo depth off the displaced mesh, or stay flat for depth-driven square transitions, gyroscope, keyboard controls, shareable view links, and custom LDI upload.
 - **[Cubemap Face Stitcher](https://e-z-g.github.io/cube/stitcher.html)** — Assemble six cube faces into the atlas the viewer's custom LDI mode loads, with per-face rotation and flip.
 - **[Video Sphere Viewer](https://e-z-g.github.io/vrvid.html)** — Play any equirectangular 360° video on a sphere; pass one in with `?video=`, with gyroscope and fullscreen.
 
@@ -58,6 +58,24 @@ Then open <http://localhost:8000/>.
 | `fpqr/` | QR encoder with its own `css/` and `js/`. |
 | `wine/` | VinoVision and its sample photo. |
 | `*.html` | Standalone single-file tools. |
+
+## Cubemap viewer links
+
+The viewer keeps its state in the URL hash, so a particular view can be linked
+to. The link button (or <kbd>L</kbd>) copies the current one.
+
+| Key | Meaning |
+| --- | --- |
+| `age` | `amateria`, `voltaic`, `jnanin`, `edanna`, or `customldiupload` |
+| `q` | Quality tier, indexed from 0 in the order the buttons appear |
+| `lon`, `lat` | Heading and pitch in degrees; pitch clamps to ±85 |
+| `fov` | Vertical field of view, 30–120 |
+| `depth` | Displacement strength, 0–100, on ages that ship a depth map |
+
+For example,
+<https://e-z-g.github.io/cube/#age=edanna&q=0&lon=200&lat=0&fov=90&depth=70>.
+`#custom` still opens straight into the LDI upload slot, as does arriving from
+the stitcher.
 
 `cube/atlas-layout.js` is the single definition of the atlas format the
 stitcher writes and the viewer reads. Both layouts (5×3 and the compact 3×2)

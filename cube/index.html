@@ -118,6 +118,43 @@
     #video-toggle, #gyro-toggle { display: none; padding: 6px 10px; }
     #gyro-toggle { display: inline-flex; align-items: center; justify-content: center; }
     #video-toggle { font-size: 14px; }
+    /* Revealed only once navigator.xr confirms an immersive-vr device. */
+    #vr-toggle { display: none; align-items: center; justify-content: center; padding: 6px 10px; }
+    #fullscreen-toggle, #share-link, #help-toggle {
+      display: inline-flex; align-items: center; justify-content: center; padding: 6px 10px;
+    }
+    #help-toggle { font-weight: 700; }
+
+    #toast {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+      z-index: 1003; background: rgba(0,0,0,0.8); color: #fff;
+      padding: 8px 16px; border-radius: 6px; font-size: 12px;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    #toast.active { opacity: 1; }
+
+    #help-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 9998;
+      display: flex; justify-content: center; align-items: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    #help-overlay.active { opacity: 1; pointer-events: auto; }
+    #help-panel {
+      background: rgba(18,18,20,0.9); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 22px 26px; color: rgba(255,255,255,0.9);
+      font-size: 13px; line-height: 1.9; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+    }
+    #help-panel h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+    #help-panel table { border-collapse: collapse; }
+    #help-panel td { padding: 1px 0; vertical-align: top; }
+    #help-panel td:first-child { padding-right: 20px; white-space: nowrap; }
+    #help-panel kbd {
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 4px; padding: 1px 6px; font-family: inherit; font-size: 11px;
+    }
     
     #load-error {
       position: fixed; left: 50%; transform: translateX(-50%);
@@ -140,6 +177,14 @@
       animation: spin 1s linear infinite; pointer-events: none; display: none;
     }
     @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+    /* Counter-rotates so the percentage stays upright inside the spinning ring. */
+    #loader-text {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      animation: counterspin 1s linear infinite;
+      color: rgba(255,255,255,0.9); font-size: 11px; font-weight: 600;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.5px;
+    }
+    @keyframes counterspin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(-360deg); } }
   </style>
 
   <script type="importmap">
@@ -156,7 +201,7 @@
   <video id="decal-video" crossOrigin="anonymous" loop playsInline muted style="display:none;"></video>
 
   <div id="viewer-container"></div>
-  <div id="loader"></div>
+  <div id="loader"><span id="loader-text"></span></div>
   <div id="load-error" role="alert" aria-live="assertive">
     <span id="load-error-msg"></span>
     <button id="load-error-retry" type="button">Retry</button>
@@ -199,8 +244,27 @@
           <ellipse cx="12" cy="12" rx="8" ry="3" transform="rotate(-45 12 12)"></ellipse>
         </svg>
       </button>
+      <button id="vr-toggle" title="Enter VR (headset)" aria-label="Enter VR">
+        <svg viewBox="0 0 24 24" style="width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.8; vertical-align:middle;">
+          <rect x="1.5" y="7" width="21" height="10" rx="3.5"></rect>
+          <path d="M10 15.5c.7-1.8 3.3-1.8 4 0"></path>
+        </svg>
+      </button>
+      <button id="fullscreen-toggle" title="Fullscreen (F)" aria-label="Toggle fullscreen">
+        <svg viewBox="0 0 24 24" style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; vertical-align:middle;">
+          <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"></path>
+        </svg>
+      </button>
+      <button id="share-link" title="Copy a link to this exact view (L)" aria-label="Copy link to this view">
+        <svg viewBox="0 0 24 24" style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; vertical-align:middle;">
+          <path d="M9.5 14.5l5-5"></path>
+          <path d="M13 7l1.8-1.8a3.7 3.7 0 015.2 5.2L18 12"></path>
+          <path d="M11 17l-1.8 1.8a3.7 3.7 0 01-5.2-5.2L6 12"></path>
+        </svg>
+      </button>
       <button id="audio-toggle" style="font-size: 16px;">&#9835;</button>
       <input type="range" id="volume-slider" min="0" max="25" value="0">
+      <button id="help-toggle" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
       <div id="dni-trigger" title="View large symbol">
         <svg viewBox="-15 -15 30 30" style="width:100%; height:100%; stroke: rgba(255,255,255,0.8); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;">
           <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
@@ -233,6 +297,28 @@
       <path id="dni-large-3" d="M 0,0 Q 0,0 0,0" />
     </svg>
     <input type="range" id="large-volume-slider" min="0" max="25" value="0">
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <div id="help-overlay">
+    <div id="help-panel">
+      <h2>Controls</h2>
+      <table>
+        <tr><td><kbd>&larr;</kbd><kbd>&rarr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Look around</td></tr>
+        <tr><td>Drag / <kbd>Shift</kbd>+arrows</td><td>Look around (faster)</td></tr>
+        <tr><td>Scroll / pinch / <kbd>+</kbd> <kbd>&minus;</kbd></td><td>Zoom</td></tr>
+        <tr><td><kbd>1</kbd>&hellip;<kbd>9</kbd></td><td>Jump to an age</td></tr>
+        <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next age</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Fullscreen</td></tr>
+        <tr><td><kbd>G</kbd></td><td>Gyroscope</td></tr>
+        <tr id="help-vr-row" style="display:none;"><td><kbd>V</kbd></td><td>Enter VR headset</td></tr>
+        <tr><td><kbd>M</kbd></td><td>Mute / unmute</td></tr>
+        <tr><td><kbd>L</kbd></td><td>Copy a link to this view</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Reset view</td></tr>
+        <tr><td><kbd>?</kbd> / <kbd>Esc</kbd></td><td>Show / hide this panel</td></tr>
+      </table>
+    </div>
   </div>
 
   <div id="caption">
@@ -279,12 +365,27 @@
         name: "J'nanin",
         baseUrl: rawUrl + 'jnanin/',
         type: 'classic-leis',
-        audio: null,
+        // audio_jnanin.mp3 has been sitting in the folder unreferenced; J'nanin
+        // used to fall silent because this was null.
+        audio: rawUrl + 'jnanin/audio_jnanin.mp3',
         hasDepth: false,
         versions: [
           { label: 'Original',    suffix: '-orig.jpg' },
           { label: '2K (HD)',     suffix: '-hdmod.webp' },
           { label: '6K',          suffix: '-seamless.webp' }
+        ]
+      },
+      {
+        // Edanna ships as a pre-stitched 5x3 atlas plus a matching depth atlas,
+        // the same format the custom-LDI path reads, so it needs no per-face
+        // URL scheme — just the `atlas` type below.
+        name: 'Edanna',
+        baseUrl: rawUrl + 'edanna/',
+        type: 'atlas',
+        audio: null,
+        hasDepth: true,
+        versions: [
+          { label: 'Original', color: 'edanna.jpeg', depth: 'edanna_depth.png' }
         ]
       },
       {
@@ -295,8 +396,29 @@
         versions: [{ label: 'Local Files', type: 'custom' }]
       }
     ];
-    
-    let currentLocation = locations[1];
+
+    const locationByKey = (key) => locations.find(l => slugOf(l) === key);
+    function slugOf(loc) { return loc.name.toLowerCase().replace(/[^a-z0-9]/g, ''); }
+
+    // --- Shareable view state ---
+    // Everything that defines what you are looking at lives in the hash, so a
+    // view can be linked to. `#custom` predates this and still works.
+    function parseHash() {
+      const raw = location.hash.replace(/^#/, '');
+      if (!raw) return {};
+      if (!raw.includes('=')) return { legacy: raw };
+      const p = new URLSearchParams(raw);
+      const num = (k) => { const v = parseFloat(p.get(k)); return Number.isFinite(v) ? v : undefined; };
+      return {
+        age: p.get('age') || undefined,
+        q: num('q'), lon: num('lon'), lat: num('lat'), fov: num('fov'), depth: num('depth')
+      };
+    }
+
+    const initialState = parseHash();
+
+    let currentLocation = (initialState.age && locationByKey(initialState.age)) || locationByKey('voltaic');
+
     let currentVersionIndex = 0;
     let hasActiveDepth = false; 
     let isTransitioning = false;
@@ -514,8 +636,21 @@
     // --- Pure Three.js Core Engine ---
     const container = document.getElementById('viewer-container');
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 500); 
+    const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 500);
     const renderer = new THREE.WebGLRenderer({ antialias: false });
+
+    // The camera hangs off a rig so WebXR has something to compose its head pose
+    // against: in immersive mode three.js overwrites camera.matrix from the
+    // device and multiplies by the parent's world matrix, so the rig is the only
+    // place we can put our own yaw. Outside XR the rig stays at identity and the
+    // existing lon/lat camera maths is unaffected.
+    const cameraRig = new THREE.Group();
+    cameraRig.add(camera);
+    scene.add(cameraRig);
+    renderer.xr.enabled = true;
+    // 'local' seats the origin at the head's start pose. 'local-floor' would drop
+    // the viewer to the floor of a sphere whose centre is the only correct spot.
+    renderer.xr.setReferenceSpaceType('local');
     // Cap the ratio: at 3x on a phone this shades 9 pixels per CSS pixel across
     // ~200k triangles per mesh, for no visible gain over 2x.
     const pixelRatio = Math.min(window.devicePixelRatio, 2);
@@ -698,6 +833,10 @@
         atlasStandard: ['atlas',    'standard', false],
         atlasFg:       ['atlas',    'atlas',    true],   // seamFill enabled
         atlasBg:       ['atlas',    'atlas',    false],
+        // Single-layer atlas with its own depth atlas (built-in `atlas` ages).
+        // Same shaders as atlasBg, but not flagged isBg, so it displaces at the
+        // full slider rate instead of the half rate the backdrop sphere uses.
+        atlasSolo:     ['atlas',    'atlas',    false],
     };
     const matSetCache = new Map();
 
@@ -838,17 +977,30 @@
 
     window.addEventListener('orientationchange', () => { screenOrientation = (screen.orientation || {}).angle || window.orientation || 0; baseGamma = null; });
     
+    // Recover lon/lat from wherever the camera is actually pointing, so handing
+    // control back from gyro or from a headset doesn't snap the view.
+    //
+    // The render loop aims at (sin(phi)cos(lon), cos(phi), sin(phi)sin(lon)), so
+    // lon is atan2(z, x). This used to read atan2(x, z), which is 90 - lon: every
+    // gyro-off jumped the view a quarter turn. acos also needs the clamp, since a
+    // y component of 1.0000001 makes it NaN and freezes the camera.
+    const _fwd = new THREE.Vector3(), _wq = new THREE.Quaternion();
+    function adoptCameraAngles() {
+      camera.getWorldQuaternion(_wq);
+      _fwd.set(0, 0, -1).applyQuaternion(_wq);
+      lat = 90 - THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(_fwd.y, -1, 1)));
+      lon = THREE.MathUtils.radToDeg(Math.atan2(_fwd.z, _fwd.x));
+    }
+
     document.getElementById('gyro-toggle').addEventListener('click', () => {
       initTiltSensors();
       gyroActive = !gyroActive;
       document.getElementById('gyro-toggle').classList.toggle('active', gyroActive);
-      
+
       if (gyroActive) {
          panLon = 0; panLat = 0;
       } else {
-         const vector = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-         lat = 90 - THREE.MathUtils.radToDeg(Math.acos(vector.y)); 
-         lon = THREE.MathUtils.radToDeg(Math.atan2(vector.x, vector.z));
+         adoptCameraAngles();
       }
     });
 
@@ -919,6 +1071,286 @@
       if (e.touches.length === 0) { isDragging = false; initialPinchDistance = null; } 
       else if (e.touches.length === 1) { initialPinchDistance = null; onPointerDown(e.touches[0].clientX, e.touches[0].clientY); }
     });
+
+    // --- IMMERSIVE VR (WebXR) ---
+    // The page has always been called a VR viewer while only ever rendering one
+    // monoscopic view. In a headset the depth-displaced mesh finally pays off:
+    // the parallax is real binocular parallax off the geometry, and leaning in
+    // moves you through the scene rather than smearing a flat photo.
+    const vrToggleBtn = document.getElementById('vr-toggle');
+    let xrSession = null;
+    let xrYaw = 0;              // radians; our own turn offset, applied to the rig
+    let xrSnapArmed = false;
+    const XR_SNAP_RAD = THREE.MathUtils.degToRad(30);
+
+    if (navigator.xr && navigator.xr.isSessionSupported) {
+      navigator.xr.isSessionSupported('immersive-vr')
+        .then(ok => {
+          if (!ok) return;
+          vrToggleBtn.style.display = 'inline-flex';
+          document.getElementById('help-vr-row').style.display = 'table-row';
+        })
+        .catch(() => {});
+    }
+
+    async function enterXR() {
+      try {
+        const session = await navigator.xr.requestSession('immersive-vr', {
+          optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers']
+        });
+        await renderer.xr.setSession(session);
+      } catch (e) {
+        console.warn('Could not start the VR session:', e);
+        showLoadError('VR', null, 'Headset refused the session. Is another app using it?');
+      }
+    }
+
+    renderer.xr.addEventListener('sessionstart', () => {
+      xrSession = renderer.xr.getSession();
+      vrToggleBtn.classList.add('active');
+      // Start the headset facing wherever the flat view was pointing.
+      // Rotating the rig by y sends -Z to (-sin y, 0, -cos y); we want (cos lon,
+      // 0, sin lon), hence the negated pair below.
+      const lonRad = THREE.MathUtils.degToRad(lon);
+      xrYaw = Math.atan2(-Math.cos(lonRad), -Math.sin(lonRad));
+      xrSnapArmed = false;
+    });
+
+    renderer.xr.addEventListener('sessionend', () => {
+      xrSession = null;
+      vrToggleBtn.classList.remove('active');
+      // Read the heading back *before* the rig is straightened. three.js leaves
+      // camera.matrix holding the rig-local head pose, so the rig still carries
+      // the turn the user made in the headset; zeroing it first would throw that
+      // away and drop them back at whatever direction they were facing bodily.
+      adoptCameraAngles();
+      cameraRig.rotation.set(0, 0, 0);
+      cameraRig.updateMatrixWorld(true);
+    });
+
+    vrToggleBtn.addEventListener('click', () => {
+      if (xrSession) xrSession.end(); else enterXR();
+    });
+
+    // Thumbstick snap-turn, so a seated user can face the whole sphere without
+    // a swivel chair. One turn per push: the stick has to recentre to re-arm.
+    function pollXrTurn() {
+      if (!xrSession) return;
+      let turn = 0;
+      for (const src of xrSession.inputSources) {
+        const gp = src.gamepad;
+        if (!gp || !gp.axes) continue;
+        // Axis 2 is the thumbstick on the standard xr-gamepad mapping; axis 0 is
+        // the touchpad fallback for controllers that only have one.
+        const x = gp.axes.length > 2 ? gp.axes[2] : (gp.axes[0] || 0);
+        if (Math.abs(x) > Math.abs(turn)) turn = x;
+      }
+      if (Math.abs(turn) > 0.6) {
+        if (!xrSnapArmed) { xrYaw -= Math.sign(turn) * XR_SNAP_RAD; xrSnapArmed = true; }
+      } else if (Math.abs(turn) < 0.3) {
+        xrSnapArmed = false;
+      }
+    }
+
+    // --- Toast ---
+    const toastEl = document.getElementById('toast');
+    let toastTimer = null;
+    function toast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('active');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('active'), 1800);
+    }
+
+    // --- Fullscreen ---
+    const fullscreenBtn = document.getElementById('fullscreen-toggle');
+    function toggleFullscreen() {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document);
+      }
+    }
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+      fullscreenBtn.classList.toggle('active', !!document.fullscreenElement);
+    });
+
+    // --- Help overlay ---
+    const helpOverlay = document.getElementById('help-overlay');
+    const toggleHelp = (force) => helpOverlay.classList.toggle('active', force);
+    document.getElementById('help-toggle').addEventListener('click', () => toggleHelp());
+    // Backdrop only — a click on the panel itself shouldn't dismiss it.
+    helpOverlay.addEventListener('click', (e) => { if (e.target === helpOverlay) toggleHelp(false); });
+
+    // --- Share link ---
+    // Writes the live camera as well as the age, so the link reproduces the exact
+    // framing rather than dumping the recipient at the default heading.
+    function currentStateUrl() {
+      const p = new URLSearchParams();
+      p.set('age', slugOf(currentLocation));
+      p.set('q', String(currentVersionIndex));
+      p.set('lon', lon.toFixed(1));
+      p.set('lat', lat.toFixed(1));
+      p.set('fov', camera.fov.toFixed(0));
+      if (hasActiveDepth) p.set('depth', document.getElementById('displacement-slider').value);
+      return `${location.origin}${location.pathname}#${p}`;
+    }
+
+    async function copyShareLink() {
+      const url = currentStateUrl();
+      try {
+        await navigator.clipboard.writeText(url);
+        toast('Link to this view copied');
+      } catch (e) {
+        // Clipboard access needs a secure context and, on some browsers, focus.
+        // Claim the write first so the hashchange handler doesn't treat our own
+        // address-bar update as someone navigating and re-fade the scene.
+        selfWrittenHash = '#' + url.split('#')[1];
+        location.hash = selfWrittenHash;
+        toast('Copy the address bar to share this view');
+      }
+    }
+    document.getElementById('share-link').addEventListener('click', copyShareLink);
+
+    // Keep the hash pointing at the current age without recording a history entry
+    // per click — the camera angles are only baked in when a link is requested.
+    let selfWrittenHash = '';
+    function syncHash() {
+      const p = new URLSearchParams();
+      p.set('age', slugOf(currentLocation));
+      p.set('q', String(currentVersionIndex));
+      selfWrittenHash = `#${p}`;
+      history.replaceState(null, '', selfWrittenHash);
+    }
+
+    // Pasting a shared link into an already-open viewer only changes the hash;
+    // the page never reloads, so without this the link appeared to do nothing.
+    window.addEventListener('hashchange', () => {
+      if (location.hash === selfWrittenHash) return;   // our own replaceState
+      const st = parseHash();
+      if (st.legacy === 'custom') { forceCustomSelection(); loadPanorama('fade'); return; }
+
+      if (st.lon !== undefined) lon = st.lon;
+      if (st.lat !== undefined) lat = Math.max(-85, Math.min(85, st.lat));
+      if (st.fov !== undefined) {
+        camera.fov = Math.max(30, Math.min(120, st.fov));
+        camera.updateProjectionMatrix();
+      }
+      if (st.depth !== undefined) {
+        const d = Math.max(0, Math.min(100, st.depth));
+        document.getElementById('displacement-slider').value = d;
+        setDisplacement(d / 100);
+      }
+
+      const loc = st.age ? locationByKey(st.age) : null;
+      if (loc) goToLocation(loc, st.q !== undefined ? Math.round(st.q) : 0);
+    });
+
+    // --- Keyboard ---
+    // Held keys drive a per-frame turn rate rather than a per-keypress jump, so
+    // arrow-key looking has the same feel as dragging.
+    const heldKeys = new Set();
+    const LOOK_DEG_PER_SEC = 60;
+    let lastLookTime = performance.now();
+
+    function applyKeyboardLook() {
+      const now = performance.now();
+      const dt = Math.min((now - lastLookTime) / 1000, 0.1);
+      lastLookTime = now;
+      if (!heldKeys.size) return;
+
+      const rate = LOOK_DEG_PER_SEC * dt * (heldKeys.has('shift') ? 2.5 : 1);
+      let dLon = 0, dLat = 0;
+      if (heldKeys.has('arrowleft')  || heldKeys.has('a')) dLon -= rate;
+      if (heldKeys.has('arrowright') || heldKeys.has('d')) dLon += rate;
+      if (heldKeys.has('arrowup')    || heldKeys.has('w')) dLat += rate;
+      if (heldKeys.has('arrowdown')  || heldKeys.has('s')) dLat -= rate;
+      if (!dLon && !dLat) return;
+
+      if (gyroActive) {
+        panLon += dLon;
+        panLat = Math.max(-85, Math.min(85, panLat + dLat));
+      } else {
+        lon += dLon;
+        lat = Math.max(-85, Math.min(85, lat + dLat));
+      }
+    }
+
+    function zoomBy(delta) {
+      camera.fov = Math.max(30, Math.min(120, camera.fov + delta));
+      camera.updateProjectionMatrix();
+    }
+
+    function goToLocation(loc, versionIndex = 0) {
+      if (!loc || isTransitioning) return;
+      const isLocChange = loc !== currentLocation;
+      currentLocation = loc;
+      currentVersionIndex = Math.max(0, Math.min(loc.versions.length - 1, versionIndex));
+      updateUI();
+      syncHash();
+      loadPanorama(isLocChange ? 'block' : 'fade');
+    }
+
+    function stepLocation(dir) {
+      const i = locations.indexOf(currentLocation);
+      goToLocation(locations[(i + dir + locations.length) % locations.length]);
+    }
+
+    const LOOK_KEYS = new Set(['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'w', 'a', 's', 'd', 'shift']);
+
+    window.addEventListener('keydown', (e) => {
+      // Never steal keys from the file pickers, the range inputs or a headset.
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const k = e.key.toLowerCase();
+
+      if (LOOK_KEYS.has(k)) {
+        heldKeys.add(k);
+        if (k !== 'shift') e.preventDefault();
+        return;
+      }
+
+      switch (k) {
+        case 'escape':
+          toggleHelp(false);
+          closeOverlay();
+          return;
+        // preventDefault keeps '/' out of Firefox's quick-find bar.
+        case '?': case '/': case 'h': e.preventDefault(); toggleHelp(); return;
+        case 'f': toggleFullscreen(); return;
+        case 'g': document.getElementById('gyro-toggle').click(); return;
+        // The button only becomes visible once a headset is confirmed; clicking
+        // it blind would just raise a "no session" error on a plain desktop.
+        case 'v': if (vrToggleBtn.style.display !== 'none') vrToggleBtn.click(); return;
+        case 'm': audioToggleBtn.click(); return;
+        case 'l': copyShareLink(); return;
+        case 'r':
+          lon = 225; lat = 0; panLon = 0; panLat = 0;
+          camera.fov = 80; camera.updateProjectionMatrix();
+          return;
+        case '[': stepLocation(-1); return;
+        case ']': stepLocation(1); return;
+        case '+': case '=': zoomBy(-8); return;
+        case '-': case '_': zoomBy(8); return;
+        case ' ':
+          if (videoToggleBtn.style.display !== 'none') { e.preventDefault(); videoToggleBtn.click(); }
+          return;
+      }
+
+      if (k >= '1' && k <= '9') {
+        const loc = locations[parseInt(k, 10) - 1];
+        if (loc) goToLocation(loc);
+      }
+    });
+
+    window.addEventListener('keyup', (e) => heldKeys.delete(e.key.toLowerCase()));
+    // A tab-out never delivers keyup, which used to be how a held arrow key could
+    // leave the view spinning forever.
+    window.addEventListener('blur', () => heldKeys.clear());
 
     // --- TRANSITION SYSTEM ---
     const transitionScene = new THREE.Scene();
@@ -1013,6 +1445,38 @@
     let pendingTransitionDepth = null;
 
     const textureLoader = new THREE.TextureLoader(); textureLoader.crossOrigin = 'anonymous';
+
+    // --- Load progress ---
+    // The bare spinner said nothing while J'nanin pulled ~9MB of faces. Count
+    // completed requests against the number this load asked for, so the spinner
+    // can show real progress instead of an indefinite wait.
+    const loaderEl = document.getElementById('loader');
+    const loaderTextEl = document.getElementById('loader-text');
+    let loadDone = 0, loadTotal = 0;
+
+    function beginProgress(total) {
+      loadDone = 0; loadTotal = total;
+      loaderEl.style.display = 'block';
+      renderProgress();
+    }
+    function renderProgress() {
+      if (!loadTotal) { loaderTextEl.textContent = ''; return; }
+      loaderTextEl.textContent = `${Math.round((loadDone / loadTotal) * 100)}%`;
+    }
+    function endProgress() {
+      loadTotal = 0;
+      loaderEl.style.display = 'none';
+      loaderTextEl.textContent = '';
+    }
+    // Counts the request whether it resolved or rejected, so a missing depth map
+    // can't strand the readout below 100%.
+    function trackedLoad(url) {
+      const tick = () => { loadDone++; renderProgress(); };
+      return textureLoader.loadAsync(url).then(
+        t => { tick(); return t; },
+        e => { tick(); throw e; }
+      );
+    }
 
     function safeDisposeTextures() {
         const toDispose = new Set();
@@ -1126,21 +1590,29 @@
       isTransitioning = true;
       // Tracks whether we reached the tween, which then owns clearing isTransitioning.
       let handedOffToTween = false;
-      document.getElementById('loader').style.display = 'block';
+      beginProgress(0);
       hideLoadError();
       // Always call: a location with `audio: null` needs the previous track faded out.
       playOrCrossfadeAudio(currentLocation.audio);
 
-      renderer.setRenderTarget(rtOld); renderer.render(scene, camera); renderer.setRenderTarget(null);
-      setTransitionUniform('tOld', rtOld.texture);
-      setTransitionUniform('tNew', rtNew.texture);
-      setTransitionUniform('uProgress', 0);
-      transitionMesh.material = mode === 'block' ? transitionMats.block : transitionMats.fade;
+      // The crossfade composites two render targets onto a fullscreen quad,
+      // which has no meaning inside a stereo XR frame — and grabbing the render
+      // target mid-session would fight the headset's own framebuffer. In VR the
+      // scene simply swaps.
+      const inXR = renderer.xr.isPresenting;
+      if (!inXR) {
+        renderer.setRenderTarget(rtOld); renderer.render(scene, camera); renderer.setRenderTarget(null);
+        setTransitionUniform('tOld', rtOld.texture);
+        setTransitionUniform('tNew', rtNew.texture);
+        setTransitionUniform('uProgress', 0);
+        transitionMesh.material = mode === 'block' ? transitionMats.block : transitionMats.fade;
+      }
 
       const targetVersion = currentLocation.versions[currentVersionIndex];
       const isVideo = targetVersion.type === 'video-5x3';
       const isCustom = currentLocation.type === 'custom';
-      
+      const isAtlas = currentLocation.type === 'atlas';
+
       try {
           const oldTextures = safeDisposeTextures();
 
@@ -1179,17 +1651,84 @@
 
             pendingTransitionDepth = buildTransitionDepthTex(depthTextures);
             
+          } else if (isAtlas) {
+            // A built-in age that ships as one pre-stitched atlas (plus an
+            // optional depth atlas) rather than six separate face images.
+            videoToggleBtn.style.display = 'none';
+            sourceVideo.pause();
+
+            const wantsDepth = currentLocation.hasDepth && !!targetVersion.depth;
+            loadTotal = 1 + (wantsDepth ? 1 : 0); renderProgress();
+
+            const [rawColor, rawDepth] = await Promise.all([
+              trackedLoad(currentLocation.baseUrl + targetVersion.color),
+              wantsDepth
+                ? trackedLoad(currentLocation.baseUrl + targetVersion.depth)
+                    .catch(e => { console.warn('Missing depth atlas:', e); return dummyDepthTex; })
+                : Promise.resolve(dummyDepthTex)
+            ]);
+
+            if (loadId !== currentLoadId) return;
+
+            rawColor.colorSpace = THREE.SRGBColorSpace;
+            const colorTex = fitToGpu(rawColor);
+            colorTex.generateMipmaps = false;
+            colorTex.minFilter = THREE.LinearFilter; colorTex.magFilter = THREE.LinearFilter;
+            colorTex.wrapS = THREE.ClampToEdgeWrapping; colorTex.wrapT = THREE.ClampToEdgeWrapping;
+            colorTex.needsUpdate = true;
+
+            const depthTex = prepareDepthTex(rawDepth === dummyDepthTex ? rawDepth : fitToGpu(rawDepth));
+
+            // The colour and depth atlases are authored at different sizes, so
+            // the layout has to come from whichever one we actually have, and
+            // both must agree on it.
+            const layout = detectLayout(colorTex.image.width, colorTex.image.height);
+            if (!layout) {
+              throw new Error(
+                `Atlas is ${colorTex.image.width}x${colorTex.image.height} — expected a 5:3 or 3:2 cubemap atlas.`);
+            }
+            const layoutId = layout.id;
+
+            hasActiveDepth = depthTex !== dummyDepthTex;
+            depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
+            tearControls.style.display = 'none';
+
+            const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
+
+            fgCubeMesh.material = getMatSet('atlasSolo', layoutId);
+            bgCubeMesh.visible = false;
+            setGutterFrac(fgCubeMesh.material, colorTex.image.width, layoutId);
+
+            fgCubeMesh.material.forEach((mat) => {
+              mat.uniforms.tColor.value = colorTex;
+              mat.uniforms.tDepth.value = depthTex;
+              mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
+              mat.uniforms.uIsForeground.value = 0;
+              mat.uniforms.uTearThreshold.value = 0.0;
+            });
+
+            [colorTex, depthTex].forEach(t => oldTextures.delete(t));
+
+            const fakeDepthArr = depthTex !== dummyDepthTex
+              ? [depthTex, depthTex, depthTex, depthTex, depthTex, depthTex] : null;
+            pendingTransitionDepth = buildTransitionDepthTex(fakeDepthArr);
+
           } else if (isCustom) {
             videoToggleBtn.style.display = 'none';
             sourceVideo.pause();
-            
+
             const isDualLayer = !!customMaps.bgColor;
             
+            loadTotal = [customMaps.fgColor, customMaps.fgDepth,
+                         isDualLayer && customMaps.bgColor,
+                         isDualLayer && customMaps.bgDepth].filter(Boolean).length;
+            renderProgress();
+
             const loaded = await Promise.all([
-                customMaps.fgColor ? textureLoader.loadAsync(customMaps.fgColor) : Promise.resolve(defaultCustomTex),
-                customMaps.fgDepth ? textureLoader.loadAsync(customMaps.fgDepth) : Promise.resolve(dummyDepthTex),
-                isDualLayer ? textureLoader.loadAsync(customMaps.bgColor) : Promise.resolve(defaultCustomTex),
-                (isDualLayer && customMaps.bgDepth) ? textureLoader.loadAsync(customMaps.bgDepth) : Promise.resolve(dummyDepthTex)
+                customMaps.fgColor ? trackedLoad(customMaps.fgColor) : Promise.resolve(defaultCustomTex),
+                customMaps.fgDepth ? trackedLoad(customMaps.fgDepth) : Promise.resolve(dummyDepthTex),
+                isDualLayer ? trackedLoad(customMaps.bgColor) : Promise.resolve(defaultCustomTex),
+                (isDualLayer && customMaps.bgDepth) ? trackedLoad(customMaps.bgDepth) : Promise.resolve(dummyDepthTex)
             ]);
             
             const processAtlasTex = (tex, isColor) => {
@@ -1271,20 +1810,21 @@
             sourceVideo.pause();
             
             const urls = getCubemapUrls(currentLocation, targetVersion, false);
-            const loadedColors = await Promise.all(urls.map(url => textureLoader.loadAsync(url)));
-            
-            if (loadId !== currentLoadId) return; 
-            
+            loadTotal = urls.length + (currentLocation.hasDepth ? 6 : 0); renderProgress();
+            const loadedColors = await Promise.all(urls.map(url => trackedLoad(url)));
+
+            if (loadId !== currentLoadId) return;
+
             let depthTextures = null;
             if (currentLocation.hasDepth) {
                 depthControlsContainer.style.display = 'flex';
                 tearControls.style.display = 'none';
                 const dUrls = getCubemapUrls(currentLocation, targetVersion, true);
                 const loadedDepths = await Promise.all(dUrls.map(async (url) => {
-                    try { return await textureLoader.loadAsync(url); } 
+                    try { return await trackedLoad(url); }
                     catch(e) { console.warn("Missing depth map:", url); return dummyDepthTex; }
                 }));
-                
+
                 depthTextures = loadedDepths.map(prepareDepthTex);
             } else {
                 depthControlsContainer.style.display = 'none';
@@ -1334,8 +1874,17 @@
           // Every exit path clears the spinner. isTransitioning is only left set
           // when the tween below has taken ownership of it — previously a stale-load
           // return skipped both and locked the viewer permanently.
-          document.getElementById('loader').style.display = 'none';
+          endProgress();
           if (!handedOffToTween) isTransitioning = false;
+      }
+
+      if (inXR) {
+        isTransitioning = false;
+        if (pendingTransitionDepth && pendingTransitionDepth !== dummyDepthTex) {
+          pendingTransitionDepth.dispose();
+        }
+        pendingTransitionDepth = null;
+        return;
       }
 
       if (mode === 'block' && pendingTransitionDepth) {
@@ -1365,7 +1914,20 @@
 
     // --- Main Render Loop ---
     function render() {
-      requestAnimationFrame(render);
+      // In a headset the device owns the head pose: three.js overwrites the
+      // camera's matrix every frame, so all we steer is the rig's yaw. The
+      // mouse parallax, idle sway and orbit offset are all deliberately skipped
+      // — anything that moves the view independently of the neck is nauseating
+      // in stereo, and the headset supplies far better parallax anyway.
+      if (renderer.xr.isPresenting) {
+        pollXrTurn();
+        cameraRig.rotation.set(0, xrYaw, 0);
+        cameraRig.position.set(0, 0, 0);
+        renderer.render(scene, camera);
+        return;
+      }
+
+      applyKeyboardLook();
 
       currentMouseX += (targetMouseX - currentMouseX) * 0.1;
       currentMouseY += (targetMouseY - currentMouseY) * 0.1;
@@ -1459,12 +2021,14 @@
             e.target.value = locations.indexOf(currentLocation);
             return;
           }
-          const isLocChange = locations[e.target.value] !== currentLocation;
-          currentLocation = locations[e.target.value]; currentVersionIndex = 0;
-          updateUI(); loadPanorama(isLocChange ? 'block' : 'fade');
+          goToLocation(locations[e.target.value]);
         };
       }
-      
+
+      // Keep the dropdown honest when the age was changed from the keyboard or
+      // from a deep link rather than by picking from the list.
+      locSelect.value = String(locations.indexOf(currentLocation));
+
       const qBar = document.getElementById('quality-buttons');
       const uploadUI = document.getElementById('custom-upload-controls');
       
@@ -1478,10 +2042,31 @@
           currentLocation.versions.forEach((v, idx) => {
             const btn = document.createElement('button'); btn.textContent = v.label;
             if (idx === currentVersionIndex) btn.classList.add('active');
-            btn.onclick = () => { if (currentVersionIndex !== idx && !isTransitioning) { currentVersionIndex = idx; updateUI(); loadPanorama('fade'); } };
+            btn.onclick = () => {
+              if (currentVersionIndex !== idx && !isTransitioning) {
+                currentVersionIndex = idx; updateUI(); syncHash(); loadPanorama('fade');
+              }
+            };
             qBar.appendChild(btn);
           });
       }
+    }
+
+    // Apply the rest of the deep link. The age was resolved when `locations` was
+    // built; the camera and depth values need the controls to exist first.
+    if (initialState.q !== undefined) {
+      currentVersionIndex = Math.max(0, Math.min(currentLocation.versions.length - 1, Math.round(initialState.q)));
+    }
+    if (initialState.lon !== undefined) lon = initialState.lon;
+    if (initialState.lat !== undefined) lat = Math.max(-85, Math.min(85, initialState.lat));
+    if (initialState.fov !== undefined) {
+      camera.fov = Math.max(30, Math.min(120, initialState.fov));
+      camera.updateProjectionMatrix();
+    }
+    if (initialState.depth !== undefined) {
+      const d = Math.max(0, Math.min(100, initialState.depth));
+      document.getElementById('displacement-slider').value = d;
+      setDisplacement(d / 100);
     }
 
     setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
@@ -1490,13 +2075,16 @@
     // land inside the first rendered frame.
     renderer.compile(scene, camera);
     renderer.compile(transitionScene, transitionCamera);
-    render();
+    // setAnimationLoop, not requestAnimationFrame: while a headset is presenting
+    // the frames have to come from the XR session's own callback, not the page's.
+    renderer.setAnimationLoop(render);
 
     // Arriving from the stitcher (or with #custom) opens straight into the
     // custom slot, with any handed-off atlases already filled in.
     (async () => {
       const handedOff = await takeHandoffAtlases();
-      if (handedOff || location.hash === '#custom') forceCustomSelection();
+      if (handedOff || initialState.legacy === 'custom') forceCustomSelection();
+      syncHash();
       loadPanorama('block');
     })();
 
