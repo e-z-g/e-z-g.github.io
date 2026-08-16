@@ -1,0 +1,2394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<title>Mac Resource Fork Browser</title>
+<style>
+:root{
+  --bg:#1a1a1a; --panel:#111; --edge:#444; --gold:#C4A464;
+  --sp: max(14px, env(safe-area-inset-left));
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);color:#eee;font-family:system-ui,-apple-system,sans-serif;
+  font-size:16px;line-height:1.45;margin:0;overflow-x:hidden;
+  padding:14px var(--sp) calc(24px + env(safe-area-inset-bottom));
+  -webkit-tap-highlight-color:rgba(196,164,100,.25);
+}
+h2{color:var(--gold);font-size:1.05rem;margin:18px 0 8px}
+h2:first-of-type{margin-top:0}
+
+/* 16px minimum on every focusable control: anything smaller makes iOS
+   Safari zoom the page in on focus and never zoom back out. */
+button,select,input,textarea{font-size:16px;font-family:inherit}
+button{
+  background:#2E8B57;color:#fff;border:0;padding:11px 16px;border-radius:8px;
+  cursor:pointer;margin:0 8px 8px 0;min-height:44px;touch-action:manipulation;
+  -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;
+}
+button:active{filter:brightness(1.25)}
+button.secondary{background:#3a5a7a}
+button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+select,input[type=text]{
+  width:100%;padding:11px;min-height:44px;background:#222;color:#eee;
+  border:1px solid var(--edge);border-radius:8px;margin-bottom:12px;
+}
+input[type=file]{margin-bottom:0;max-width:100%}
+#dropZone{border:1px dashed #4a4a4a;border-radius:10px;padding:12px;margin-bottom:12px;
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;transition:background .15s,border-color .15s}
+#dropZone.drag{border-color:var(--gold);background:#26210f}
+#dropHint{font-size:13px;color:#888}
+.checkLabel{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#bbb;
+  min-height:38px;cursor:pointer}
+.checkLabel input{width:auto;min-height:0;margin:0}
+.hint{font-size:12px;color:#888;margin:0 0 8px}
+kbd{background:#2a2a2a;border:1px solid #444;border-radius:4px;padding:1px 5px;
+  font:12px/1.4 ui-monospace,Menlo,monospace;color:#ccc}
+.resRow{cursor:pointer}
+.resRow:focus-visible{outline:2px solid var(--gold);outline-offset:-2px}
+.galCell:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#status{color:#9c9;margin-bottom:10px;font-size:14px}
+#error{color:#e77}
+.badge{display:inline-block;background:#333;color:var(--gold);border-radius:4px;
+  padding:2px 6px;font-size:11px;margin-left:6px;white-space:nowrap}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+.toolbar button{margin:0}
+pre,.textPreview{
+  background:#0d0d0d;color:#f4e9c8;padding:12px;border-radius:8px;font-size:13px;
+  white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;
+  max-height:50vh;overflow:auto;-webkit-overflow-scrolling:touch;
+}
+canvas,img{max-width:100%}
+canvas{background:#333;image-rendering:pixelated;display:block;margin:8px auto;height:auto}
+.pictCanvas{max-width:100%;image-rendering:pixelated;background:#ddd}
+.previewTitle{color:var(--gold);margin-bottom:8px;font-size:16px;font-weight:700}
+.previewMeta,.cursorInfo{font-size:13px;color:#aaa;margin:6px 0 10px}
+.thumb{width:52px;height:52px;object-fit:contain;image-rendering:pixelated;
+  background:#555;border:1px solid #555;border-radius:6px;cursor:pointer}
+
+/* ---------- resource list: cards on mobile, table on desktop ---------- */
+#resTable{width:100%;border-collapse:collapse;margin-top:10px}
+#resTable thead{display:none}
+#resTable tr{
+  display:grid;grid-template-columns:52px 1fr;gap:10px 12px;align-items:start;
+  background:#202020;border:1px solid #333;border-radius:10px;
+  padding:10px;margin-bottom:10px;
+}
+#resTable td{border:0;padding:0;font-size:14px;min-width:0}
+#resTable td.previewCell{grid-row:span 3;text-align:center;color:#777}
+#resTable td.cName{overflow-wrap:anywhere}
+#resTable td.cId{color:var(--gold);font-weight:600}
+#resTable td.cSize{color:#999;font-size:12px}
+#resTable td.cActions{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px}
+#resTable td.cActions button{margin:0;flex:1 1 auto;min-width:44%}
+
+.galGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px;margin-top:10px}
+.galCell{background:#202020;border:1px solid #333;border-radius:10px;padding:8px 4px;margin:0;
+  min-height:0;display:flex;flex-direction:column;align-items:center;gap:6px;color:inherit}
+.galCell:active{background:#2a2a2a}
+.galArt{width:56px;height:56px;display:flex;align-items:center;justify-content:center;
+  background:#555;border-radius:6px;overflow:hidden}
+.galArt canvas,.galArt img{max-width:56px;max-height:56px;image-rendering:pixelated;margin:0}
+.galChars{font:8px/1.15 ui-monospace,Menlo,monospace;color:#cfc9b8;background:#0d0d0d;
+  width:56px;height:56px;padding:3px;overflow:hidden;word-break:break-all;text-align:left}
+.galId{font-size:11px;color:#aaa;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.truncBanner{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#2a2418;
+  border:1px solid #5a4a22;border-radius:8px;padding:8px 10px;margin:8px 0;font-size:13px;color:#e8d9a8}
+.truncBanner button{margin:0;padding:6px 10px;min-height:34px;font-size:13px}
+
+/* ---------- preview: bottom sheet on mobile ---------- */
+#preview{background:var(--panel);border:1px solid var(--edge);border-radius:10px;
+  padding:12px;min-height:120px}
+#sheetBackdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:40}
+#sheetBackdrop.on{display:block}
+#rightPane.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  max-height:88vh;max-height:88dvh;
+  background:var(--panel);border-top:2px solid var(--gold);
+  border-radius:14px 14px 0 0;
+  padding:8px var(--sp) calc(14px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;
+  transform:translateY(100%);transition:transform .22s ease-out;
+}
+#rightPane.sheet.on{transform:translateY(0)}
+#rightPane.sheet h2{display:none}
+#rightPane.sheet #preview{
+  border:0;background:transparent;padding:0;overflow:auto;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1;
+}
+#sheetBar{display:none;align-items:center;gap:10px;padding:4px 0 10px;flex:0 0 auto}
+#rightPane.sheet #sheetBar{display:flex}
+#sheetGrab{width:38px;height:4px;border-radius:2px;background:#555;margin:0 auto}
+#sheetClose{margin:0;padding:8px 14px;min-height:38px;background:#333;font-size:14px}
+
+@media (prefers-reduced-motion:reduce){#rightPane.sheet{transition:none}}
+
+/* ---------- desktop ---------- */
+@media (min-width:900px){
+  body{padding:16px 20px}
+  #workspace{display:grid;grid-template-columns:minmax(360px,1fr) minmax(340px,1.05fr);
+    gap:16px;align-items:start}
+  #leftPane,#rightPane{min-width:0}
+  #rightPane.sheet{position:sticky;top:12px;transform:none;max-height:80vh;
+    border-radius:10px;border:1px solid var(--edge);border-top:1px solid var(--edge);
+    padding:0;display:block}
+  #rightPane.sheet h2{display:block}
+  #rightPane.sheet #preview{max-height:74vh;padding:12px;background:var(--panel);
+    border:1px solid var(--edge)}
+  #rightPane.sheet #sheetBar{display:none}
+  #sheetBackdrop{display:none!important}
+  #resTable thead{display:table-header-group}
+  #resTable,#resTable tbody{display:table;width:100%}
+  #resTable tr{display:table-row;background:transparent;border:0;
+    border-radius:0;padding:0;margin:0}
+  #resTable tr:hover{background:#262626}
+  #resTable th,#resTable td{display:table-cell;border:1px solid var(--edge);
+    padding:6px 8px;text-align:left;font-size:13px;vertical-align:middle}
+  #resTable th{background:#2a2a2a;color:var(--gold)}
+  #resTable td.previewCell{width:70px}
+  #resTable td.cActions{display:table-cell}
+  #resTable td.cActions button{min-width:0;flex:none;margin:2px 4px 2px 0;
+    min-height:34px;padding:6px 10px;font-size:13px}
+}
+</style>
+</head>
+<body>
+<h2>1. Load a Resource Fork</h2>
+<p style="font-size:13px;color:#aaa">Accepts raw resource-fork files, MacBinary (.bin), or BinHex 4.0 (.hqx). For MacBinary and BinHex it separates both forks locally and offers the recovered data and resource forks for download. Everything is decoded in your browser — nothing is uploaded.</p>
+<div id="dropZone">
+  <input type="file" id="fileInput" onchange="loadFile()">
+  <span id="dropHint">…or drop a file anywhere on this page</span>
+</div>
+<div id="status" role="status" aria-live="polite">No file loaded.</div>
+<div id="error" role="alert"></div>
+
+<div id="browser" style="display:none">
+<h2>2. Resource Types</h2>
+<select id="typeSelect" onchange="onTypeChange()" aria-label="Resource type"></select>
+<div class="toolbar">
+<button class="secondary" onclick="exportAllText()">Export all text as .txt</button>
+<button class="secondary" onclick="exportSummary()">Export summary as .txt</button>
+<button class="secondary" onclick="exportEverything()">Export everything as .zip</button>
+<button class="secondary" id="cursorGalleryBtn" onclick="showCursorGallery()" style="display:none">Cursor gallery</button>
+<button class="secondary" id="saveForksBtn" onclick="downloadExtractedForks()" style="display:none">Download extracted forks</button>
+</div>
+
+<div id="workspace"><div id="leftPane"><h2>3. Resources</h2>
+<p class="hint">Press <kbd>/</kbd> to search, <kbd>↑</kbd><kbd>↓</kbd> to move through the list, <kbd>Esc</kbd> to close the preview.</p>
+<input type="text" id="searchBox" placeholder="Filter by ID or name…" aria-label="Filter resources">
+<div class="toolbar">
+<button class="secondary" id="viewToggle" onclick="toggleView()">▦ Gallery view</button>
+<select id="sortSelect" onchange="setSort(this.value)" aria-label="Sort order" style="width:auto;margin:0;min-height:38px;padding:6px 10px">
+<option value="fork">Fork order</option><option value="id">By ID</option><option value="name">By name</option><option value="size">By size</option>
+</select>
+<label class="checkLabel"><input type="checkbox" id="searchAll" onchange="onTypeChange()"> Search all types</label>
+<span id="resCount" class="previewMeta" style="align-self:center"></span></div>
+<div id="resGallery" style="display:none"></div>
+<table id="resTable">
+<thead><tr><th>Preview</th><th>ID</th><th>Name</th><th>Size</th><th>Actions</th></tr></thead>
+<tbody id="resTableBody"></tbody>
+</table></div><div id="rightPane" class="sheet"><div id="sheetBar"><div id="sheetGrab"></div><button id="sheetClose" onclick="closeSheet()">Close</button></div><h2>Preview</h2><div id="preview"></div></div></div>
+</div>
+<div id="sheetBackdrop" onclick="closeSheet()"></div>
+
+<script>
+let rsrcBytes = null;
+let extractedDataFork = null, extractedResourceFork = null, extractedBaseName = 'classic_mac_file';
+let dataOff=0, mapOff=0, dataLen=0, mapLen=0;
+let typeList = []; // {type, count, refListOff}
+let resourcesByType = {}; // type -> [{id,nameOff,attrs,dataOffRel,name}]
+
+function u8(b,i){return b[i];}
+function u16(b,i){return (b[i]<<8)|b[i+1];}
+function u32(b,i){return ((b[i]<<24)>>>0)+(b[i+1]<<16)+(b[i+2]<<8)+b[i+3];}
+function i8(b,i){let v=b[i]; return v>127?v-256:v;}
+
+function macRomanDecode(bytes){
+  const HIGH=[0xC4,0xC5,0xC7,0xC9,0xD1,0xD6,0xDC,0xE1,0xE0,0xE2,0xE4,0xE3,0xE5,0xE7,0xE9,0xE8,0xEA,0xEB,0xED,0xEC,0xEE,0xEF,0xF1,0xF3,0xF2,0xF4,0xF6,0xF5,0xFA,0xF9,0xFB,0xFC,0x2020,0xB0,0xA2,0xA3,0xA7,0x2022,0xB6,0xDF,0xAE,0xA9,0x2122,0xB4,0xA8,0x2260,0xC6,0xD8,0x221E,0xB1,0x2264,0x2265,0xA5,0xB5,0x2202,0x2211,0x220F,0x3C0,0x222B,0xAA,0xBA,0x3A9,0xE6,0xF8,0xBF,0xA1,0xAC,0x221A,0x192,0x2248,0x2206,0xAB,0xBB,0x2026,0xA0,0xC0,0xC3,0xD5,0x152,0x153,0x2013,0x2014,0x201C,0x201D,0x2018,0x2019,0xF7,0x25CA,0xFF,0x178,0x2044,0x20AC,0x2039,0x203A,0xFB01,0xFB02,0x2021,0xB7,0x201A,0x201E,0x2030,0xC2,0xCA,0xC1,0xCB,0xC8,0xCD,0xCE,0xCF,0xCC,0xD3,0xD4,0xF8FF,0xD2,0xDA,0xDB,0xD9,0x131,0x2C6,0x2DC,0xAF,0x2D8,0x2D9,0x2DA,0xB8,0x2DD,0x2DB,0x2C7];
+  let s='';
+  for(let i=0;i<bytes.length;i++){
+    let b=bytes[i];
+    s+= b<0x80 ? String.fromCharCode(b) : String.fromCodePoint(HIGH[b-0x80]);
+  }
+  return s;
+}
+
+// MacBinary I/II header: byte0=0, byte1=namelen, name, type/creator,
+// dataForkLen at 83, rsrcForkLen at 87. Bytes 74 and 82 are reserved and must
+// be zero -- checking them is what stops an ordinary binary file from being
+// mistaken for a container and "extracted" into nonsense.
+function tryParseAsMacBinary(bytes){
+  if(bytes.length<128) return null;
+  if(bytes[0]!==0 || bytes[74]!==0 || bytes[82]!==0) return null;
+  const nameLen = bytes[1];
+  if(nameLen<1||nameLen>63) return null;
+  const dataLen = u32(bytes,83), rsrcLen = u32(bytes,87);
+  const dataStart = 128, rsrcStart = dataStart + Math.ceil(dataLen/128)*128;
+  if(rsrcLen<=0 || rsrcStart+rsrcLen > bytes.length) return null;
+  return {
+    name: macRomanDecode(bytes.slice(2,2+nameLen)),
+    dataFork: bytes.slice(dataStart, dataStart+dataLen),
+    resourceFork: bytes.slice(rsrcStart, rsrcStart+rsrcLen)
+  };
+}
+
+function hqxDecode(text){
+  // The payload starts at the first ':' AFTER the "must be converted" banner.
+  // Files mirrored from old FTP/BBS archives often carry comment lines with a
+  // colon in them (a URL, "Date:", etc), which used to truncate the payload.
+  const banner=text.search(/BinHex\s*4\.0/i);
+  const start=text.indexOf(':', banner>=0?banner:0);
+  const end=text.indexOf(':',start+1);
+  if(start<0||end<0) throw new Error('No BinHex payload delimiters found');
+  const alphabet="!\"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr";
+  const lut=new Int8Array(128).fill(-1);
+  for(let i=0;i<alphabet.length;i++) lut[alphabet.charCodeAt(i)]=i;
+  const body=text.slice(start+1,end);
+  const vals=new Uint8Array(body.length); let vn=0;
+  for(let i=0;i<body.length;i++){const c=body.charCodeAt(i); if(c<128){const v=lut[c]; if(v>=0) vals[vn++]=v;}}
+  const raw=new Uint8Array(Math.floor(vn*6/8));let acc=0,bits=0,o=0;
+  for(let i=0;i<vn;i++){acc=((acc<<6)|vals[i])&0xFFFF;bits+=6;while(bits>=8){bits-=8;if(o<raw.length)raw[o++]=(acc>>bits)&255;}}
+  // BinHex's 0x90 run-length encoding. 0x90 00 means literal 0x90; otherwise
+  // repeat the preceding byte (count - 1) more times.
+  // A plain JS array here meant ~7 million boxed Numbers for Cythera Data,
+  // which is enough to kill the tab on a phone. Grow a Uint8Array instead.
+  let cap=Math.max(1024,raw.length*2), out=new Uint8Array(cap), n=0;
+  const push=b=>{ if(n===cap){ cap*=2; const g=new Uint8Array(cap); g.set(out); out=g; } out[n++]=b; };
+  for(let i=0;i<raw.length;i++){
+    const b=raw[i];
+    if(b===0x90&&i+1<raw.length){const count=raw[++i];if(count===0)push(0x90);else if(n){const prev=out[n-1];for(let k=1;k<count;k++)push(prev);}}
+    else push(b);
+  }
+  return out.slice(0,n);
+}
+function parseBinHexForks(bytes){
+  let p=0, nameLen=bytes[p++];
+  if(nameLen<1||nameLen>63||p+nameLen+17>bytes.length)throw new Error('Invalid decoded BinHex header');
+  const name=macRomanDecode(bytes.slice(p,p+nameLen));p+=nameLen;
+  p+=1+4+4+2; const dataLen=u32(bytes,p);p+=4;const rsrcLen=u32(bytes,p);p+=4;p+=2; // header CRC
+  if(p+dataLen+2+rsrcLen+2>bytes.length)throw new Error('BinHex fork lengths exceed decoded payload');
+  const dataFork=bytes.slice(p,p+dataLen);p+=dataLen+2; // data CRC
+  const resourceFork=bytes.slice(p,p+rsrcLen);
+  return {name,dataFork,resourceFork};
+}
+function safeFilename(s){return s.replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_')||'classic_mac_file';}
+function downloadExtractedForks(){
+  if(!extractedResourceFork)return;
+  downloadBlob(extractedResourceFork,`${extractedBaseName}.rsrc.bin`);
+  if(extractedDataFork) setTimeout(()=>downloadBlob(extractedDataFork,`${extractedBaseName}.data.bin`),200);
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  // Re-rendering on every keystroke is visibly slow on a type with hundreds of
+  // resources, and nobody needs a result after one character of a five-letter
+  // word, so the filter settles first.
+  const sb=document.getElementById('searchBox');
+  if(sb){ let t=null; sb.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(onTypeChange,140); }); }
+  installDropTarget();
+  installKeyboardNav();
+});
+
+// Dropping a file on the window is the fastest way in, and it also works when
+// the file picker is awkward (iPadOS, kiosk browsers).
+function installDropTarget(){
+  const zone=document.getElementById('dropZone');
+  let depth=0;
+  const stop=e=>{e.preventDefault();e.stopPropagation();};
+  window.addEventListener('dragenter',e=>{stop(e);if(++depth===1&&zone)zone.classList.add('drag');});
+  window.addEventListener('dragover',e=>{stop(e);if(e.dataTransfer)e.dataTransfer.dropEffect='copy';});
+  window.addEventListener('dragleave',e=>{stop(e);if(--depth<=0){depth=0;if(zone)zone.classList.remove('drag');}});
+  window.addEventListener('drop',e=>{
+    stop(e); depth=0; if(zone)zone.classList.remove('drag');
+    const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+    if(f) readFile(f);
+  });
+}
+
+// The tool was mouse/touch only: 0 key handlers in the original file.
+function installKeyboardNav(){
+  document.addEventListener('keydown',e=>{
+    const inField=/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName||'');
+    if(e.key==='Escape'){ closeSheet(); if(inField) document.activeElement.blur(); return; }
+    if(e.key==='/'&&!inField){ e.preventDefault(); document.getElementById('searchBox')?.focus(); return; }
+    if(inField) return;
+    if(e.key!=='ArrowDown'&&e.key!=='ArrowUp'&&e.key!=='j'&&e.key!=='k') return;
+    const rows=[...document.querySelectorAll('#resTableBody tr.resRow, .galCell')];
+    if(!rows.length) return;
+    e.preventDefault();
+    const dir = (e.key==='ArrowDown'||e.key==='j') ? 1 : -1;
+    const at = rows.indexOf(document.activeElement);
+    const next = rows[Math.max(0, Math.min(rows.length-1, at<0 ? 0 : at+dir))];
+    next.focus(); next.scrollIntoView({block:'nearest'});
+    if(at>=0) next.click();
+  });
+}
+function loadFile(){
+  const f=document.getElementById('fileInput').files[0];
+  if(f) readFile(f);
+}
+function readFile(f){
+  const reader=new FileReader();
+  document.getElementById('error').textContent='';
+  document.getElementById('status').textContent=`Reading ${f.name} (${(f.size/1048576).toFixed(1)} MB)…`;
+  reader.onerror=()=>{document.getElementById('error').textContent='Could not read that file.';};
+  reader.onload=(e)=>{
+    // BinHex decoding of a multi-megabyte archive blocks the main thread, so
+    // yield once first: without this the "Decoding…" status never paints and
+    // the page looks hung.
+    document.getElementById('status').textContent=`Decoding ${f.name}…`;
+    setTimeout(()=>handleBytes(f, new Uint8Array(e.target.result)), 0);
+  };
+  reader.readAsArrayBuffer(f);
+}
+function handleBytes(f, initialBytes){
+  let bytes=initialBytes,sourceLabel='raw resource fork';
+  extractedDataFork=null;extractedResourceFork=null;extractedBaseName=safeFilename(f.name.replace(/\.(hqx|txt|bin)$/i,''));
+  document.getElementById('error').textContent='';
+  clearPreview();
+  try{
+    // Order matters: BinHex is checked first because its 7-bit text can, by
+    // coincidence, satisfy the looser MacBinary shape test.
+    let parsed = false;
+    const asText = looksLikeBinHex(bytes);
+    if(asText){
+      const forks=parseBinHexForks(hqxDecode(asText));
+      bytes=forks.resourceFork; extractedDataFork=forks.dataFork; extractedResourceFork=forks.resourceFork;
+      extractedBaseName=safeFilename(forks.name); sourceLabel=`BinHex decoded — ${forks.name}`; parsed = true;
+      if(!bytes.length) throw new Error(`"${forks.name}" has an empty resource fork (its ${forks.dataFork.length.toLocaleString()}-byte data fork is still downloadable)`);
+    }
+    if(!parsed){
+      const mb=tryParseAsMacBinary(bytes);
+      if(mb){
+        bytes=mb.resourceFork; extractedResourceFork=mb.resourceFork;
+        if(mb.dataFork.length) extractedDataFork=mb.dataFork;
+        if(mb.name) extractedBaseName=safeFilename(mb.name);
+        sourceLabel=`MacBinary — ${mb.name||'unnamed'}`; parsed = true;
+      }
+    }
+    if(!parsed){
+      try{
+        parseResourceFork(bytes);
+        extractedResourceFork=bytes; sourceLabel='raw resource fork'; parsed = true;
+      }catch(_e){}
+    }
+    if(!parsed) throw new Error('Unable to recognize file format');
+    parseResourceFork(bytes);
+    document.getElementById('saveForksBtn').style.display=extractedDataFork?'inline-block':'none';
+    const total=Object.values(resourcesByType).reduce((a,l)=>a+l.length,0);
+    document.getElementById('status').textContent=
+      `Loaded ${f.name} (${sourceLabel}) — ${total.toLocaleString()} resources across ${typeList.length} types, ${bytes.length.toLocaleString()} bytes.`;
+    document.getElementById('browser').style.display='block';populateTypeSelect();
+  }catch(err){
+    document.getElementById('error').textContent='Parse error: '+err.message+'. This may not be a valid raw resource fork, MacBinary, or BinHex 4.0 file.';
+    document.getElementById('status').textContent=`Could not read ${f.name}.`;
+    document.getElementById('browser').style.display='none';
+    document.getElementById('saveForksBtn').style.display=extractedDataFork?'inline-block':'none';
+  }
+}
+// BinHex is 7-bit ASCII. Deciding on "the file contains two colons" also
+// matched plenty of binary forks, so require the banner or a run of the
+// BinHex alphabet after the opening colon.
+function looksLikeBinHex(bytes){
+  const head=new TextDecoder('latin1').decode(bytes.slice(0,4096));
+  if(head.includes('must be converted with BinHex') || /BinHex\s*4\.0/i.test(head))
+    return new TextDecoder('latin1').decode(bytes);
+  // No banner: only claim it if the file is plausible 7-bit text AND the run
+  // after the first colon is all BinHex alphabet. Either test alone is too
+  // weak -- this check now runs before the raw-fork one, so a false positive
+  // would stop a real resource fork from opening at all.
+  const sevenBit=!bytes.slice(0,4096).some(b=>b>0x7E || (b<0x20 && b!==9 && b!==10 && b!==13));
+  if(!sevenBit) return null;
+  const c=head.indexOf(':');
+  if(c<0) return null;
+  const probe=head.slice(c+1,c+65).replace(/[\r\n]/g,'');
+  if(probe.length>=32 && /^[!-r]+$/.test(probe) && !/[.:;<=>?\\^_{|}~]/.test(probe))
+    return new TextDecoder('latin1').decode(bytes);
+  return null;
+}
+
+// Every structural offset is validated before it is followed. Two reasons:
+// a fork whose map is truncated or garbage should say so instead of listing
+// invented resources, and loadFile() uses "does this parse?" as its format
+// sniff, so a parser that accepts anything makes the sniff useless.
+function parseResourceFork(bytes){
+  const inRange=(off,len,what)=>{
+    if(!(off>=0) || off+len > bytes.length)
+      throw new Error(`${what} runs past the end of the fork (offset ${off}, ${len} bytes, file is ${bytes.length})`);
+  };
+  if(bytes.length < 286) throw new Error('too small to be a resource fork (header + map need 286 bytes)');
+  rsrcBytes = bytes;
+  dataOff = u32(bytes,0);
+  mapOff = u32(bytes,4);
+  dataLen = u32(bytes,8);
+  mapLen = u32(bytes,12);
+  inRange(mapOff,30,'resource map');
+  inRange(dataOff,0,'resource data area');
+  const typeListOffRel = u16(bytes, mapOff+24);
+  const nameListOffRel = u16(bytes, mapOff+26);
+  const typeListAbs = mapOff + typeListOffRel;
+  inRange(typeListAbs,2,'type list');
+  const numTypes = u16(bytes, typeListAbs) + 1;
+  inRange(typeListAbs+2, numTypes*8, `type list (${numTypes} types)`);
+  typeList = [];
+  resourcesByType = {};
+  resDataCache = new Map();
+  let pos = typeListAbs + 2;
+  for(let i=0;i<numTypes;i++){
+    const rtype = String.fromCharCode(bytes[pos],bytes[pos+1],bytes[pos+2],bytes[pos+3]);
+    const numRes = u16(bytes,pos+4)+1;
+    const refListOffRel = u16(bytes,pos+6);
+    typeList.push({type:rtype, count:numRes, refListOff:refListOffRel});
+    pos += 8;
+  }
+  const nameListAbs = mapOff + nameListOffRel;
+  typeList.forEach(t=>{
+    const refListAbs = typeListAbs + t.refListOff;
+    inRange(refListAbs, t.count*12, `reference list for '${t.type}'`);
+    const list = [];
+    let rp = refListAbs;
+    for(let i=0;i<t.count;i++){
+      const id = s16(bytes,rp);   // resource IDs are signed; system resources are negative
+      const nameOffSigned = s16(bytes,rp+2);   // -1 when the resource has no name
+      const attrsAndDataOff = u32(bytes,rp+4);
+      const attrs = (attrsAndDataOff>>>24)&0xFF;
+      const dataOffRel = attrsAndDataOff & 0xFFFFFF;
+      let name = null;
+      if(nameOffSigned !== -1){
+        const nAbs = nameListAbs + nameOffSigned;
+        // A bad name offset should cost one name, not the whole fork.
+        if(nAbs>=0 && nAbs<bytes.length){
+          const nLen = Math.min(bytes[nAbs], bytes.length-nAbs-1);
+          name = macRomanDecode(bytes.slice(nAbs+1, nAbs+1+nLen));
+        }
+      }
+      list.push({id, name, attrs, dataOffRel});
+      rp += 12;
+    }
+    resourcesByType[t.type] = list;
+  });
+}
+
+// Resource attribute bits, Inside Macintosh: More Macintosh Toolbox p.1-121.
+const RES_ATTRS=[[0x40,'system heap'],[0x20,'purgeable'],[0x10,'locked'],
+                 [0x08,'protected'],[0x04,'preload'],[0x02,'changed']];
+function attrNames(a){ return RES_ATTRS.filter(([b])=>a&b).map(([,n])=>n); }
+
+// Slicing every resource of a type on every keystroke was the single biggest
+// cost in the list/gallery render; the fork never changes while it is loaded,
+// so each resource is sliced once.
+let resDataCache = new Map();
+// Reading a length costs nothing; copying the bytes does. The list only needs
+// sizes, so it asks for this and never touches the payload.
+function resourceSize(type, entry){
+  const abs = dataOff + entry.dataOffRel;
+  if(abs+4 > rsrcBytes.length)
+    throw new Error(`data offset ${abs} is past the end of the fork (${rsrcBytes.length} bytes)`);
+  const len = u32(rsrcBytes, abs);
+  // slice() clamps, so without this an overlong length silently yields a short
+  // buffer and the decoders report a corrupt resource instead of a corrupt map.
+  if(abs+4+len > rsrcBytes.length)
+    throw new Error(`declares ${len.toLocaleString()} bytes but only ${(rsrcBytes.length-abs-4).toLocaleString()} remain in the fork`);
+  return len;
+}
+function getResourceData(type, entry){
+  const key = type+'\u0000'+entry.id;   // NUL: type names can contain spaces
+  const hit = resDataCache.get(key);
+  if(hit) return hit;
+  const abs = dataOff + entry.dataOffRel;
+  const d = rsrcBytes.slice(abs+4, abs+4+resourceSize(type,entry));
+  resDataCache.set(key, d);
+  return d;
+}
+
+function populateTypeSelect(){
+  const sel = document.getElementById('typeSelect');
+  const current = sel.value;
+  sel.innerHTML='';
+  const sorted = [...typeList].sort((a,b)=>a.type.localeCompare(b.type));
+  sorted.forEach(t=>{
+    const opt = document.createElement('option');
+    opt.value = t.type;
+    opt.textContent = `'${t.type}'  —  ${t.count} resource${t.count>1?'s':''}`;
+    sel.appendChild(opt);
+  });
+  if(sorted.length){
+    sel.value = sorted.some(t=>t.type===current) ? current : sorted[0].type;
+    onTypeChange();
+  }
+  // The cursor gallery only makes sense for a fork that has cursors in it.
+  const hasCursors=['crsr','CURS','acur'].some(t=>(resourcesByType[t]||[]).length);
+  document.getElementById('cursorGalleryBtn').style.display=hasCursors?'inline-block':'none';
+}
+
+let viewMode='list';
+function toggleView(){
+  viewMode = viewMode==='list' ? 'gallery' : 'list';
+  document.getElementById('viewToggle').textContent =
+    viewMode==='list' ? '\u25a6 Gallery view' : '\u2630 List view';
+  onTypeChange();
+}
+let sortMode='fork';
+function setSort(mode){ sortMode=mode; onTypeChange(); }
+// A resource whose map entry is broken must still be listed -- knowing that
+// 'PICT #128 is unreadable' is more useful than silently dropping it.
+function readEntry(type, entry){
+  try{
+    // `data` is a getter so that listing hundreds of resources does not copy
+    // hundreds of buffers; only what is previewed or thumbnailed gets sliced.
+    return {entry, type, size:resourceSize(type,entry),
+            get data(){ return getResourceData(type,entry); }};
+  }
+  catch(err){ return {entry, type, size:0, data:new Uint8Array(0), err:err.message}; }
+}
+function visibleResources(){
+  const type=document.getElementById('typeSelect').value;
+  const q=(document.getElementById('searchBox')?.value||'').trim().toLowerCase();
+  const allTypes=!!document.getElementById('searchAll')?.checked;
+  // Searching every type at once is how you find a string when you don't
+  // already know which type it lives in.
+  const scope = allTypes && q ? typeList.map(t=>t.type) : [type];
+  let out=[];
+  for(const t of scope){
+    for(const entry of (resourcesByType[t]||[])){
+      if(q){ const idM=String(entry.id).includes(q);
+             const nM=entry.name&&entry.name.toLowerCase().includes(q);
+             const tM=allTypes&&t.toLowerCase().includes(q);
+             if(!idM&&!nM&&!tM) continue; }
+      out.push(readEntry(t,entry));
+    }
+  }
+  if(sortMode==='id')   out.sort((a,b)=>a.entry.id-b.entry.id);
+  if(sortMode==='name') out.sort((a,b)=>(a.entry.name||'\uffff').localeCompare(b.entry.name||'\uffff'));
+  if(sortMode==='size') out.sort((a,b)=>b.size-a.size);
+  return {type, items:out, mixed:scope.length>1};
+}
+function onTypeChange(){
+  const {type, items, mixed} = visibleResources();
+  const tbody=document.getElementById('resTableBody');
+  const gal=document.getElementById('resGallery');
+  const table=document.getElementById('resTable');
+  const count=document.getElementById('resCount');
+  tbody.innerHTML=''; gal.innerHTML='';
+  if(count) count.textContent = items.length + (items.length===1?' resource':' resources') +
+    (mixed?' across all types':'');
+  const gallery = viewMode==='gallery';
+  table.style.display = gallery?'none':'';
+  gal.style.display   = gallery?'':'none';
+  if(gallery) renderGallery(type, items); else renderList(type, items);
+  if(items.length && !isMobile() && !gallery) previewItem(items[0]);
+  else if(!items.length && !isMobile()) clearPreview();
+}
+function previewItem(it){
+  if(it.err) previewUndecoded(`${it.type.trim()} #${it.entry.id}`, it.type, it.entry, it.data, 'Unreadable: '+it.err);
+  else previewResource(it.type, it.entry, it.data);
+}
+// Thumbnails decode the resource, so a type with 180 PICTs used to decode all
+// 180 on every keystroke. Only tiles that reach the viewport are decoded now.
+let thumbObserver=null;
+function lazyThumb(host, make){
+  if(!('IntersectionObserver' in window)){ const t=make(); if(t) host.appendChild(t); return; }
+  if(!thumbObserver) thumbObserver=new IntersectionObserver(es=>{
+    for(const e of es){ if(!e.isIntersecting) continue;
+      thumbObserver.unobserve(e.target);
+      const fn=e.target._makeThumb; if(!fn) continue;
+      e.target._makeThumb=null;
+      const t=fn(); if(t) { e.target.textContent=''; e.target.appendChild(t); }
+    }
+  },{rootMargin:'300px'});
+  host._makeThumb=make;
+  thumbObserver.observe(host);
+}
+function renderList(type, items){
+  const tbody=document.getElementById('resTableBody');
+  const frag=document.createDocumentFragment();
+  for(const it of items){
+    const {entry,err}=it, t=it.type, badge=decodableBadge(t);
+    const tr=document.createElement('tr');
+    tr.tabIndex=0; tr.className='resRow';
+    tr.innerHTML='<td class="previewCell"></td><td class="cId">'+(it.type!==type?escapeHtml("'"+t.trim()+"' ") : '')+entry.id+'</td><td class="cName">'+
+      (entry.name?escapeHtml(entry.name):'<span style="color:#777">(unnamed)</span>')+
+      '</td><td class="cSize">'+(err?'<span style="color:#e77">unreadable</span>':it.size.toLocaleString()+' bytes')+'</td><td class="cActions"></td>';
+    if(err) tr.children[0].textContent='!';
+    else lazyThumb(tr.children[0], ()=>{
+      const thumb=makeThumbnail(t,it.data);
+      if(thumb){ thumb.onclick=e=>{e.stopPropagation();previewItem(it);}; return thumb; }
+      tr.children[0].textContent='\u2014'; return null;
+    });
+    const open=()=>previewItem(it);
+    tr.onclick=open;
+    tr.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); open(); } };
+    const view=document.createElement('button'); view.className='secondary'; view.textContent='Open';
+    view.onclick=e=>{e.stopPropagation();open();}; tr.children[4].appendChild(view);
+    if(!err){
+      const dl=document.createElement('button'); dl.className='secondary'; dl.textContent='Download raw';
+      dl.onclick=e=>{e.stopPropagation();downloadBlob(it.data,`${t.trim()}_${entry.id}.bin`);}; tr.children[4].appendChild(dl);
+    }
+    if(entry.attrs&&attrNames(entry.attrs).length){
+      const a=document.createElement('span'); a.className='badge'; a.style.background='#2a2a3a';
+      a.textContent=attrNames(entry.attrs).join(', '); tr.children[2].appendChild(a);
+    }
+    if(badge){const b=document.createElement('span');b.className='badge';b.textContent=badge;tr.children[2].appendChild(b);}
+    frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);
+  if(!items.length) tbody.appendChild(emptyRow());
+}
+function emptyRow(){
+  const tr=document.createElement('tr'); const td=document.createElement('td');
+  td.colSpan=5; td.className='previewMeta'; td.textContent='Nothing matches that filter.';
+  tr.appendChild(td); return tr;
+}
+// Contact-sheet view: every resource of the current type as one tile.
+function renderGallery(type, items){
+  const gal=document.getElementById('resGallery');
+  const grid=document.createElement('div'); grid.className='galGrid'; gal.appendChild(grid);
+  for(const it of items){
+    const {entry,err}=it, t=it.type;
+    const cell=document.createElement('button'); cell.className='galCell';
+    cell.onclick=()=>previewItem(it);
+    const box=document.createElement('div'); box.className='galArt';
+    if(err){ box.textContent='!'; box.style.color='#e77'; }
+    else lazyThumb(box, ()=>{
+      const thumb=makeThumbnail(t,it.data);
+      if(thumb){ thumb.className=''; thumb.onclick=null; return thumb; }
+      // No renderer for this type: show what the leading bytes spell.
+      const d=document.createElement('div'); d.className='galChars';
+      d.textContent=charDump(it.data,64); return d;
+    });
+    const lab=document.createElement('span'); lab.className='galId';
+    lab.textContent = (it.type!==type?"'"+t.trim()+"' ":'') + (entry.name ? entry.id+' \u00b7 '+entry.name : String(entry.id));
+    cell.title = lab.textContent;
+    cell.append(box,lab); grid.appendChild(cell);
+  }
+  if(!items.length) gal.appendChild(Object.assign(document.createElement('div'),
+    {className:'previewMeta',textContent:'Nothing matches that filter.'}));
+}
+function makeThumbnail(type,data){
+  try{
+    let c=null;
+    if(type==='ICN#')c=decode1bitIcon(data,32); else if(type==='ics#')c=decode1bitIcon(data,16);
+    else if(type==='icl4')c=drawIndexedIcon(data,32,4,MAC_4BIT_PAL); else if(type==='icl8')c=drawIndexedIcon(data,32,8,MAC_8BIT_PAL_APPROX);
+    else if(type==='ics4')c=drawIndexedIcon(data,16,4,MAC_4BIT_PAL); else if(type==='ics8')c=drawIndexedIcon(data,16,8,MAC_8BIT_PAL_APPROX);
+    else if(type==='ICON')c=decodeICON(data); else if(type==='SICN')c=decodeSICN(data)[0];
+    else if(type==='PAT#')c=decodePATList(data)[0]; else if(type==='pltt')c=decodePltt(data).canvas;
+    // A font's thumbnail is its 'A' if it has one, else the whole strike.
+    else if(type==='NFNT'||type==='FONT'){ const f=decodeNFNT(data); c=(f.glyphs.find(g=>g.code===65)||f.glyphs[0]||{}).canvas||f.canvas; }
+    else if(COLOR_TABLE_TYPES[type])c=decodeClut(data).canvas;
+    else if(type==='cicn')c=decodeCicn(data); else if(type==='CURS')c=decodeCURS(data).canvas; else if(type==='crsr')c=decodeCrsr(data).canvas; else if(type==='PAT ')c=decodePAT(data); else if(type==='ppat')c=decodePpat(data); else if(type==='PICT'){ try { const p=decodePict(data); if(p.kind==='canvas') c=p.canvas; } catch(e){} }
+    if(c){c.className='thumb';return c;}
+    if(type==='STR '||type==='TEXT'||type==='STR#'){
+      const div=document.createElement('div'); div.className='thumb'; div.style.display='flex'; div.style.alignItems='center'; div.style.justifyContent='center'; div.style.padding='4px'; div.style.fontSize='10px'; div.style.lineHeight='1.1'; div.style.color='#ddd'; div.style.textAlign='left'; div.style.overflow='hidden'; div.style.whiteSpace='normal';
+      let txt='';
+      try{ txt = type==='STR#' ? decodeSTRList(data).slice(0,2).join(' / ') : (type==='STR ' ? decodeSTR(data) : decodeTEXT(data)); }catch(e){ txt='text'; }
+      div.textContent=(txt||'text').slice(0,42);
+      return div;
+    }
+  }catch(e){} return null;
+}
+
+function exportAllText(){
+  let out = '';
+  ['STR#','STR ','TEXT'].forEach(type=>{
+    const list = resourcesByType[type];
+    if(!list) return;
+    out += `\n===== ${type.trim()} =====\n`;
+    let firstShown = null;
+  list.forEach(entry=>{
+      out += `\n--- #${entry.id}${entry.name?' ('+entry.name+')':''} ---\n`;
+      let data;
+      try{ data = getResourceData(type, entry); }
+      catch(e){ out += `(unreadable: ${e.message})\n`; return; }
+      try{
+        if(type==='STR#'){
+          out += decodeSTRList(data).map((s,i)=>`[${i}] ${s}`).join('\n') + '\n';
+        } else if(type==='STR '){
+          out += decodeSTR(data) + '\n';
+        } else {
+          out += decodeTEXT(data) + '\n';
+        }
+      }catch(e){ out += `(decode error: ${e.message})\n`; }
+    });
+  });
+  if(!out.trim()){ out = 'No STR#, STR , or TEXT resources found in this fork.'; }
+  dlBlob(new Blob([out],{type:'text/plain'}), 'all_text_resources.txt');
+}
+
+function exportSummary(){
+  let out = `Resource Fork Summary\nTypes: ${typeList.length}\n`;
+  typeList.forEach(t=>{
+    out += `\n'${t.type}'  (${t.count} resources)\n`;
+    (resourcesByType[t.type]||[]).forEach(entry=>{
+      let size;
+      try{ size = getResourceData(t.type, entry).length.toLocaleString()+' bytes'; }
+      catch(e){ size = 'UNREADABLE — '+e.message; }
+      const attrs=attrNames(entry.attrs);
+      out += `  #${entry.id}${entry.name?'  "'+entry.name+'"':''}  —  ${size}`+
+             `${attrs.length?'  ['+attrs.join(', ')+']':''}\n`;
+    });
+  });
+  dlBlob(new Blob([out],{type:'text/plain'}), 'resource_fork_summary.txt');
+}
+
+
+
+// ---- preview lifecycle ----------------------------------------------------
+// Everything that has to be undone when the preview pane is replaced. The
+// original code only stopped an animation when the mobile sheet was closed, so
+// on desktop an animated cursor kept its setInterval running against a
+// detached canvas for the life of the page, one more each time you opened one.
+// Object URLs for WAV/PICT payloads were never revoked either.
+let previewCleanups=[];
+function onPreviewTeardown(fn){ previewCleanups.push(fn); }
+function clearPreview(){
+  for(const fn of previewCleanups){ try{ fn(); }catch(_){} }
+  previewCleanups=[];
+  const out=document.getElementById('preview');
+  if(out) out.innerHTML='';
+  return out;
+}
+function previewObjectURL(blob){
+  const url=URL.createObjectURL(blob);
+  onPreviewTeardown(()=>URL.revokeObjectURL(url));
+  return url;
+}
+
+// ============================================================
+//  Bulk export: every resource, raw and decoded, as one .zip
+// ============================================================
+// Store-only (method 0). Deflate would need a compressor; the point here is
+// getting a whole fork out in one click, and PNG/WAV payloads barely compress.
+const CRC_TABLE=(()=>{const t=new Uint32Array(256);
+  for(let i=0;i<256;i++){let c=i;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[i]=c>>>0;}
+  return t;})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_TABLE[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function buildZip(files){
+  const enc=new TextEncoder(), parts=[], central=[];
+  const d=new Date();
+  const dosTime=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF;
+  const dosDate=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+  let offset=0;
+  for(const f of files){
+    const name=enc.encode(f.name), crc=crc32(f.bytes), size=f.bytes.length;
+    const lh=new Uint8Array(30+name.length), lv=new DataView(lh.buffer);
+    lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true); lv.setUint16(6,0x0800,true);
+    lv.setUint16(8,0,true); lv.setUint16(10,dosTime,true); lv.setUint16(12,dosDate,true);
+    lv.setUint32(14,crc,true); lv.setUint32(18,size,true); lv.setUint32(22,size,true);
+    lv.setUint16(26,name.length,true); lh.set(name,30);
+    parts.push(lh,f.bytes);
+    const ch=new Uint8Array(46+name.length), cv=new DataView(ch.buffer);
+    cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
+    cv.setUint16(8,0x0800,true); cv.setUint16(10,0,true);
+    cv.setUint16(12,dosTime,true); cv.setUint16(14,dosDate,true);
+    cv.setUint32(16,crc,true); cv.setUint32(20,size,true); cv.setUint32(24,size,true);
+    cv.setUint16(28,name.length,true); cv.setUint32(42,offset,true); ch.set(name,46);
+    central.push(ch);
+    offset += lh.length + size;
+  }
+  const cdSize=central.reduce((a,c)=>a+c.length,0);
+  const eocd=new Uint8Array(22), ev=new DataView(eocd.buffer);
+  ev.setUint32(0,0x06054b50,true); ev.setUint16(8,files.length,true); ev.setUint16(10,files.length,true);
+  ev.setUint32(12,cdSize,true); ev.setUint32(16,offset,true);
+  return new Blob([...parts,...central,eocd],{type:'application/zip'});
+}
+const canvasToPngBytes=c=>new Promise(res=>c.toBlob(async b=>res(b?new Uint8Array(await b.arrayBuffer()):new Uint8Array(0))));
+
+// What files can this resource become? One list, so the ZIP export and the
+// preview cannot drift apart about which types are decodable.
+function exportArtifacts(type, entry, data){
+  const out=[], txt=s=>out.push({ext:'txt', text:s}), cvs=(c,tag)=>out.push({ext:'png', canvas:c, tag});
+  if(type==='STR#') txt(decodeSTRList(data).map((s,i)=>`[${i}] ${s}`).join('\n'));
+  else if(type==='STR ') txt(decodeSTR(data));
+  else if(type==='TEXT') txt(decodeTEXT(data));
+  else if(type==='vers') txt(decodeVers(data));
+  else if(type==='DITL') txt(decodeDITL(data));
+  else if(type==='MENU') txt(decodeMENU(data));
+  else if(type==='WIND') txt(decodeWIND(data));
+  else if(type==='ALRT') txt(decodeALRT(data));
+  else if(type==='DLOG') txt(decodeDLOG(data));
+  else if(type==='MBAR') txt(decodeMBAR(data));
+  else if(type==='FREF') txt(decodeFREF(data));
+  else if(type==='BNDL') txt(decodeBNDL(data));
+  else if(type==='SIZE') txt(decodeSIZE(data));
+  else if(type==='TMPL') txt(decodeTMPL(data));
+  else if(type==='CNTL') txt(decodeCNTL(data));
+  else if(type==='nrct') txt(decodeNrct(data));
+  else if(type==='styl') txt(decodeStyl(data));
+  else if(type==='FOND') txt(decodeFOND(data).text);
+  else if(type==='ICN#') cvs(decode1bitIcon(data,32));
+  else if(type==='ics#') cvs(decode1bitIcon(data,16));
+  else if(type==='ICON') cvs(decodeICON(data));
+  else if(type==='icl4') cvs(drawIndexedIcon(data,32,4,MAC_4BIT_PAL,iconMaskFor(32)(entry.id)));
+  else if(type==='icl8') cvs(drawIndexedIcon(data,32,8,MAC_8BIT_PAL,iconMaskFor(32)(entry.id)));
+  else if(type==='ics4') cvs(drawIndexedIcon(data,16,4,MAC_4BIT_PAL,iconMaskFor(16)(entry.id)));
+  else if(type==='ics8') cvs(drawIndexedIcon(data,16,8,MAC_8BIT_PAL,iconMaskFor(16)(entry.id)));
+  else if(type==='SICN') decodeSICN(data).forEach((c,i)=>cvs(c,String(i+1)));
+  else if(type==='PAT ') cvs(decodePAT(data));
+  else if(type==='PAT#') decodePATList(data).forEach((c,i)=>cvs(c,String(i+1)));
+  else if(type==='ppat') cvs(decodePpat(data));
+  else if(type==='cicn') cvs(decodeCicn(data));
+  else if(type==='CURS') cvs(decodeCURS(data).canvas);
+  else if(type==='crsr') cvs(decodeCrsr(data).canvas);
+  else if(type==='pltt') cvs(decodePltt(data).canvas);
+  else if(COLOR_TABLE_TYPES[type]) cvs(decodeClut(data).canvas);
+  else if(type==='NFNT'||type==='FONT'){
+    const f=decodeNFNT(data); txt(f.info); cvs(f.canvas,'strike');
+    f.glyphs.forEach(g=>cvs(g.canvas, g.missing?'missing':'char'+g.code));
+  }
+  else if(type==='sfnt') out.push({ext:'ttf', bytes:data});
+  else if(type==='snd ') out.push({ext:'wav', blob:decodeSndToWav(data).blob});
+  else if(type==='PICT'){
+    const r=decodePict(data);
+    if(r.kind==='embedded') out.push({ext:r.ext, blob:r.blob});
+    else cvs(r.canvas);
+  }
+  return out;
+}
+
+async function exportEverything(){
+  if(!typeList.length) return;
+  const status=document.getElementById('status'), was=status.textContent;
+  const files=[], index=[`Resource fork export — ${extractedBaseName}`,
+    `${typeList.length} types, ${Object.values(resourcesByType).reduce((a,l)=>a+l.length,0)} resources`, ''];
+  let done=0, failed=0;
+  const total=Object.values(resourcesByType).reduce((a,l)=>a+l.length,0);
+  try{
+    for(const t of typeList){
+      const dir=safeFilename(t.type.trim())||'unnamed_type';
+      index.push(`'${t.type}'  (${t.count})`);
+      for(const entry of resourcesByType[t.type]||[]){
+        const stem=`${entry.id}${entry.name?'_'+safeFilename(entry.name).slice(0,40):''}`;
+        let data;
+        try{ data=getResourceData(t.type,entry); }
+        catch(err){ index.push(`  #${entry.id}  UNREADABLE: ${err.message}`); failed++; continue; }
+        files.push({name:`raw/${dir}/${stem}.bin`, bytes:data});
+        index.push(`  #${entry.id}${entry.name?'  "'+entry.name+'"':''}  —  ${data.length.toLocaleString()} bytes`);
+        let arts=[];
+        try{ arts=exportArtifacts(t.type,entry,data); }
+        catch(err){
+          files.push({name:`decoded/${dir}/${stem}.error.txt`, bytes:new TextEncoder().encode(String(err.message))});
+          index.push(`     decode error: ${err.message}`); failed++;
+        }
+        for(const a of arts){
+          const nm=`decoded/${dir}/${stem}${a.tag?'_'+a.tag:''}.${a.ext}`;
+          if(a.text!==undefined) files.push({name:nm, bytes:new TextEncoder().encode(a.text)});
+          else if(a.bytes) files.push({name:nm, bytes:a.bytes});
+          else if(a.blob) files.push({name:nm, bytes:new Uint8Array(await a.blob.arrayBuffer())});
+          else if(a.canvas) files.push({name:nm, bytes:await canvasToPngBytes(a.canvas)});
+        }
+        // Yield periodically: PNG encoding for a few hundred images would
+        // otherwise freeze the tab with no sign of progress.
+        if(++done % 25 === 0){
+          status.textContent=`Exporting… ${done} of ${total} resources`;
+          await new Promise(r=>setTimeout(r,0));
+        }
+      }
+    }
+    files.unshift({name:'index.txt', bytes:new TextEncoder().encode(index.join('\n'))});
+    status.textContent=`Packing ${files.length.toLocaleString()} files…`;
+    await new Promise(r=>setTimeout(r,0));
+    dlBlob(buildZip(files), `${extractedBaseName}_resources.zip`);
+    status.textContent=`Exported ${files.length.toLocaleString()} files from ${done} resources`+
+                       (failed?`, ${failed} could not be decoded.`:'.');
+  }catch(err){
+    document.getElementById('error').textContent='Export failed: '+err.message;
+    status.textContent=was;
+  }
+}
+
+const TEXT_PREVIEW_LIMIT = 4000;
+function previewTextBlock(titleText, bodyText, metaText='', dlName=''){
+  const out = clearPreview();
+  const title = document.createElement('div');
+  title.className='previewTitle';
+  title.textContent = titleText;
+  out.appendChild(title);
+  if(metaText){ const meta=document.createElement('div'); meta.className='previewMeta'; meta.textContent=metaText; out.appendChild(meta); }
+  bodyText = bodyText==null ? '' : String(bodyText);
+  const pre = document.createElement('div');
+  pre.className='textPreview';
+  const full = bodyText.length > TEXT_PREVIEW_LIMIT;
+  // Never let a preview silently look like the whole resource: say exactly how
+  // much is on screen, and give a one-tap way to see the rest.
+  const banner = document.createElement('div');
+  banner.className='truncBanner';
+  const fmt=n=>n.toLocaleString();
+  const setBody=showAll=>{
+    pre.textContent = showAll ? bodyText : bodyText.slice(0,TEXT_PREVIEW_LIMIT);
+    if(!full){ banner.style.display='none'; return; }
+    banner.innerHTML='';
+    const msg=document.createElement('span');
+    msg.textContent = showAll
+      ? `Showing all ${fmt(bodyText.length)} characters.`
+      : `Truncated — showing the first ${fmt(TEXT_PREVIEW_LIMIT)} of ${fmt(bodyText.length)} characters.`;
+    banner.appendChild(msg);
+    const b=document.createElement('button'); b.className='secondary'; b.textContent=showAll?'Show less':'Show all';
+    b.onclick=()=>setBody(!showAll); banner.appendChild(b);
+    const d=document.createElement('button'); d.className='secondary'; d.textContent='Save .txt';
+    d.onclick=()=>downloadBlob(new TextEncoder().encode(bodyText), (dlName||'resource')+'.txt');
+    banner.appendChild(d);
+  };
+  setBody(false);
+  if(full) out.appendChild(banner);
+  out.appendChild(pre);
+  if(!full && bodyText.length===0){
+    pre.textContent='(empty)'; pre.style.color='#777';
+  }
+}
+function previewHeading(out, text){
+  const t=document.createElement('div'); t.className='previewTitle'; t.textContent=text;
+  out.appendChild(t); return t;
+}
+function previewNode(titleText, node, metaText=''){
+  const out = clearPreview();
+  const title = document.createElement('div');
+  title.className='previewTitle';
+  title.textContent = titleText;
+  out.appendChild(title);
+  if(metaText){ const meta=document.createElement('div'); meta.className='previewMeta'; meta.textContent=metaText; out.appendChild(meta); }
+  const wrap = document.createElement('div');
+  wrap.className='toolbar';
+  out.appendChild(wrap);
+  out.appendChild(node);
+  return {out, toolbar:wrap};
+}
+
+function addCanvasPngButton(out, canvas, filename){
+  const dl = document.createElement('button');
+  dl.className='secondary'; dl.textContent='Save as PNG';
+  dl.style.display='block'; dl.style.marginTop='8px';
+  dl.onclick=()=>canvas.toBlob(b=>dlBlob(b,filename));
+  out.appendChild(dl);
+}
+const TYPE_BADGES={
+  'STR#':'text','STR ':'text','TEXT':'text','vers':'version info','DITL':'dialog items',
+  'MENU':'menu','WIND':'window','ALRT':'alert','DLOG':'dialog','MBAR':'menu bar',
+  'CNTL':'control','FREF':'file reference','BNDL':'bundle','SIZE':'memory sizes',
+  'TMPL':'template','nrct':'rectangles','styl':'text styles','snd ':'audio',
+  'CURS':'cursor','crsr':'colour cursor','acur':'animated cursor control',
+  'ICN#':'image','ics#':'image','icl4':'image','icl8':'image','ics4':'image','ics8':'image',
+  'ICON':'image','SICN':'small icons','cicn':'colour image','PICT':'image',
+  'ppat':'pattern','PAT ':'pattern','PAT#':'patterns','pltt':'palette',
+  'sfnt':'font','NFNT':'bitmap font','FONT':'bitmap font','FOND':'font family'
+};
+function decodableBadge(type){
+  return TYPE_BADGES[type] || COLOR_TABLE_TYPES[type] || null;
+}
+
+function escapeHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+function downloadBlob(bytes, filename){
+  dlBlob(new Blob([bytes], {type:'application/octet-stream'}), filename);
+}
+// Revoking the URL in the same tick as .click() cancels the download in
+// Firefox, so every save in this file goes through here.
+function dlBlob(blob, filename){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+
+// ---- Decoders ----
+
+function decodeSTRList(data){
+  let p=0; if(data.length<2) throw new Error('STR# too short');
+  const count = u16(data,0); p=2;
+  const out=[];
+  for(let i=0;i<count;i++){
+    if(p>=data.length) break;
+    const len = data[p]; p+=1;
+    if(p+len>data.length) throw new Error('STR# entry overruns resource');
+    out.push(macRomanDecode(data.slice(p,p+len)));
+    p+=len;
+  }
+  return out;
+}
+
+function decodeSTR(data){
+  if(!data.length) return '';
+  const len = data[0];
+  if(1+len>data.length) throw new Error('STR resource overruns length');
+  return macRomanDecode(data.slice(1,1+len));
+}
+
+function decodeTEXT(data){
+  return macRomanDecode(data);
+}
+
+// 'snd ' resource -> WAV. Handles the standard sound header (8-bit unsigned
+// mono) and the extended header (encode 0xFF), which is how 16-bit and stereo
+// sounds are stored; the original code rejected everything but the former.
+function decodeSndToWav(data){
+  let p=0;
+  const format = u16(data,p); p+=2;
+  if(format===1){
+    const numDataFormats = u16(data,p); p+=2;
+    p += numDataFormats*6; // skip data format list
+  } else if(format===2){
+    p+=2; // refCount
+  } else {
+    throw new Error('unsupported snd format '+format);
+  }
+  const numCommands = u16(data,p); p+=2;
+  let soundHeaderOff = null;
+  for(let i=0;i<numCommands && p+8<=data.length;i++){
+    const cmd = u16(data,p);
+    const param2 = u32(data,p+4);
+    // bufferCmd/soundCmd with the dataOffsetFlag (0x8000) set: param2 is an
+    // offset from the start of the resource to the sound header.
+    if(cmd===0x8051 || cmd===0x8050){ soundHeaderOff = param2; }
+    p+=8;
+  }
+  if(soundHeaderOff===null) throw new Error('no bufferCmd/soundCmd found in this snd resource');
+  if(soundHeaderOff+22 > data.length) throw new Error('sound header offset is past the end of the resource');
+  let hp = soundHeaderOff;
+  hp+=4;                                   // samplePtr (0 when the samples follow the header)
+  const lengthOrChannels = u32(data,hp); hp+=4;
+  const rateFixed = u32(data,hp); hp+=4;
+  hp+=4; hp+=4;                            // loopStart, loopEnd
+  const encode = data[hp]; hp+=1;
+  hp+=1;                                   // baseFrequency
+  const rate = (rateFixed>>>0)/65536;   // 16.16 Fixed
+
+  let samples, bits=8, channels=1, frames;
+  if(encode===0x00){
+    channels=1; bits=8; frames=lengthOrChannels;
+    samples=data.slice(hp, hp+frames);
+  } else if(encode===0xFF){
+    channels=Math.max(1,lengthOrChannels);
+    frames=u32(data,hp); hp+=4;
+    hp+=10;                                // AIFF sample rate (80-bit extended)
+    hp+=4+4+4;                             // markerChunk, instrumentChunks, AESRecording
+    bits=u16(data,hp); hp+=2;
+    hp+=2+2+2+2;                           // futureUse 1..4
+    if(bits!==8 && bits!==16) throw new Error(`unsupported sample size (${bits}-bit)`);
+    samples=data.slice(hp, hp+frames*channels*bits/8);
+  } else if(encode===0xFE){
+    throw new Error('this sound is MACE/IMA compressed (encode 0xFE), which this tool cannot decompress');
+  } else {
+    throw new Error('unknown sound header encoding 0x'+encode.toString(16));
+  }
+  if(!samples.length) throw new Error('sound header declares no samples');
+  const blob=samplesToWav(samples, Math.round(rate), bits, channels);
+  const secs=frames/(rate||1);
+  return {blob, rate, bits, channels, frames,
+          description:`${bits}-bit ${channels===1?'mono':'stereo'}, ${Math.round(rate).toLocaleString()} Hz, ${frames.toLocaleString()} frames (${secs.toFixed(2)} s)`};
+}
+
+// Mac 8-bit samples are unsigned and 16-bit samples are signed big-endian;
+// WAV wants unsigned 8-bit and signed little-endian 16-bit.
+function samplesToWav(samples, rate, bits, channels){
+  const bytesPerFrame = channels*bits/8;
+  const dataSize = samples.length - (samples.length % bytesPerFrame || 0);
+  const buffer = new ArrayBuffer(44+dataSize);
+  const view = new DataView(buffer);
+  const ws=(off,str)=>{ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); };
+  ws(0,'RIFF'); view.setUint32(4,36+dataSize,true); ws(8,'WAVE');
+  ws(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true);
+  view.setUint16(22,channels,true); view.setUint32(24,rate,true);
+  view.setUint32(28, rate*bytesPerFrame, true);
+  view.setUint16(32, bytesPerFrame, true);
+  view.setUint16(34, bits, true);
+  ws(36,'data'); view.setUint32(40,dataSize,true);
+  if(bits===8){ for(let i=0;i<dataSize;i++) view.setUint8(44+i, samples[i]); }
+  else { for(let i=0;i+1<dataSize;i+=2) view.setInt16(44+i, (samples[i]<<24>>16)|samples[i+1], true); }
+  return new Blob([buffer], {type:'audio/wav'});
+}
+
+// 1-bit ICN#/ics# icon -> canvas (32x32 or 16x16), mask ignored for simplicity
+function decode1bitIcon(data, size){
+  const rowBytes = size/8;
+  const canvas = document.createElement('canvas');
+  canvas.width=size; canvas.height=size;
+  const ctx = canvas.getContext('2d');
+  const imgData = ctx.createImageData(size,size);
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const byteIdx = y*rowBytes + Math.floor(x/8);
+      const bit = 7-(x%8);
+      const val = (data[byteIdx]>>bit)&1;
+      const idx=(y*size+x)*4;
+      const c = val?0:255;
+      imgData.data[idx]=c; imgData.data[idx+1]=c; imgData.data[idx+2]=c; imgData.data[idx+3]=255;
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+  return canvas;
+}
+
+
+
+// ---- Cursor decoders ----
+function drawCursorBits(imageBits, maskBits, W, H){
+  const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d'), im=ctx.createImageData(W,H);
+  const rb=Math.ceil(W/8);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const bit=7-(x&7), off=(y*W+x)*4, by=y*rb+(x>>3);
+    const ink=(imageBits[by]>>bit)&1, mask=maskBits?((maskBits[by]>>bit)&1):1;
+    const v=ink?0:255; im.data[off]=v;im.data[off+1]=v;im.data[off+2]=v;im.data[off+3]=mask?255:0;
+  }
+  ctx.putImageData(im,0,0); return canvas;
+}
+function decodeCURS(data){
+  if(data.length<68)throw new Error('CURS resource is shorter than 68 bytes');
+  const hotY=u16(data,64),hotX=u16(data,66);
+  return {canvas:drawCursorBits(data.slice(0,32),data.slice(32,64),16,16),hotX,hotY};
+}
+function decodeCrsr(data){
+  if(data.length<96)throw new Error('crsr resource is too short');
+  // CCrsr record, Inside Macintosh: Imaging With QuickDraw p.4-104. This is NOT
+  // the cicn layout -- the offsets below are fixed, and the PixMap lives at the
+  // offset named by crsrMap rather than at the start of the resource.
+  //    0 crsrType 2 | 2 crsrMap 4 | 6 crsrData 4 | 10 crsrXData 4
+  //   14 crsrXValid 2 | 16 crsrXHandle 4 | 20 crsr1Data 32 | 52 crsrMask 32
+  //   84 crsrHotSpot 4 | 88 crsrXTable 4 | 92 crsrID 4 | then PixMap, pixels, clut
+  const crsrType=u16(data,0);
+  if(crsrType!==0x8001&&crsrType!==0x8000) throw new Error('Not a colour cursor (crsrType 0x'+crsrType.toString(16)+')');
+  const mapOff=u32(data,2), pixOff0=u32(data,6);
+  const hotY=s16(data,84), hotX=s16(data,86);
+  const mask=data.slice(52,84);
+  // PixMap at mapOff: baseAddr 4, rowBytes 2, bounds 8, ... pixelSize at +32, pmTable at +42
+  const rowBytes=u16(data,mapOff+4)&0x3fff;
+  const bounds=readRect(data,mapOff+6);
+  const pixelSize=u16(data,mapOff+32);
+  const ctOff=u32(data,mapOff+42);
+  const W=bounds.right-bounds.left,H=bounds.bottom-bounds.top;
+  if(W<=0||H<=0||rowBytes<=0||pixelSize>8)throw new Error(`Unsupported crsr PixMap (${W}×${H}, ${pixelSize}-bit)`);
+  const ct=readColorTable(data,ctOff);
+  const c=renderIndexedPixels(data,pixOff0,rowBytes,W,H,pixelSize,ct.palette,mask,2);
+  return {canvas:c,hotX,hotY,pixelSize};
+}
+
+
+function decodeDLOG(data){
+  if(data.length<18) throw new Error('DLOG too short');
+  const r=readRect(data,0), procID=u16(data,8), visible=!!data[10], goAway=!!data[12], refCon=u32(data,14);
+  let title=''; if(data.length>18){ const len=data[18]||0; if(19+len<=data.length) title=macRomanDecode(data.slice(19,19+len)); }
+  return `Dialog: "${title}"\nBounds: (${r.left},${r.top}) to (${r.right},${r.bottom})\nProc ID: ${procID}  Visible: ${visible}  Close box: ${goAway}  RefCon: ${refCon}`;
+}
+function decodeMBAR(data){
+  if(data.length<2) throw new Error('MBAR too short');
+  const count=u16(data,0); const ids=[]; let p=2; for(let i=0;i<count && p+2<=data.length;i++,p+=2) ids.push(u16(data,p));
+  return `Menu bar with ${ids.length} menu IDs\n` + ids.map((id,i)=>`${i+1}. MENU ${id}`).join('\n');
+}
+function decodeFREF(data){
+  if(data.length<7) throw new Error('FREF too short');
+  const type=String.fromCharCode(data[0],data[1],data[2],data[3]), iconListID=u16(data,4), flags=u16(data,6);
+  return `File reference\nType: ${type}\nIcon list ID: ${iconListID}\nFlags: 0x${flags.toString(16)}`;
+}
+function decodeBNDL(data){
+  if(data.length<8) throw new Error('BNDL too short');
+  const sig=String.fromCharCode(data[0],data[1],data[2],data[3]), version=u16(data,4), arrayCount=u16(data,6);
+  return `Bundle\nSignature: ${sig}\nVersion: ${version}\nMapping arrays: ${arrayCount}`;
+}
+function decodeSIZE(data){
+  if(data.length<10) throw new Error('SIZE too short');
+  const flags=u16(data,0), pref=u32(data,2), minimum=u32(data,6);
+  return `SIZE resource\nFlags: 0x${flags.toString(16)}\nPreferred memory: ${pref} bytes\nMinimum memory: ${minimum} bytes`;
+}
+function decodeTMPL(data){
+  let p=0, out=[];
+  while(p+5<=data.length){
+    const labelLen=data[p]; p+=1; if(p+labelLen+4>data.length) break;
+    const label=macRomanDecode(data.slice(p,p+labelLen)); p+=labelLen;
+    const kind=String.fromCharCode(data[p],data[p+1],data[p+2],data[p+3]); p+=4;
+    out.push(`${label} : ${kind}`);
+  }
+  return out.join('\n') || 'TMPL resource';
+}
+function decodePAT(data){
+  if(data.length<8) throw new Error('PAT too short');
+  const canvas=document.createElement('canvas'); canvas.width=8; canvas.height=8;
+  const ctx=canvas.getContext('2d'), im=ctx.createImageData(8,8);
+  for(let y=0;y<8;y++) for(let x=0;x<8;x++){
+    const b=data[y], bit=(b>>(7-x))&1, o=(y*8+x)*4, c=bit?0:255; im.data[o]=c; im.data[o+1]=c; im.data[o+2]=c; im.data[o+3]=255;
+  }
+  ctx.putImageData(im,0,0); return canvas;
+}
+// PixPat record, Inside Macintosh: Imaging With QuickDraw p.4-104:
+//   0 patType 2 | 2 patMap 4 | 6 patData 4 | 10 patXData 4 | 14 patXValid 2
+//  16 patXMap 4 | 20 pat1Data 8   -> 28 bytes, then PixMap, pixels, ColorTable
+// (the same field order as the CCrsr record decoded above it).
+// patType 1 is a colour pattern, 2 an RGB pattern, 0 a plain 1-bit one.
+// The previous version scanned for a 0x0001 word, threw the result away, and
+// always drew data[0..8] -- which is the header, not pattern pixels, so every
+// colour ppat rendered as noise.
+function decodePpat(data){
+  if(data.length===8) return decodePAT(data);        // a bare PAT stored as ppat
+  if(data.length<28) throw new Error('ppat resource is shorter than a PixPat record');
+  const patType=u16(data,0), mapOff=u32(data,2), pixOff=u32(data,6);
+  if((patType===1||patType===2) && mapOff+50<=data.length && pixOff<data.length){
+    const rowBytes=u16(data,mapOff+4)&0x3fff;
+    const bounds=readRect(data,mapOff+6);
+    const pixelSize=u16(data,mapOff+32);
+    const ctOff=u32(data,mapOff+42);
+    const W=bounds.right-bounds.left, H=bounds.bottom-bounds.top;
+    if(W>0&&H>0&&rowBytes>0&&pixelSize>0&&pixelSize<=8&&ctOff+8<=data.length){
+      const ct=readColorTable(data,ctOff);
+      const c=renderIndexedPixels(data,pixOff,rowBytes,W,H,pixelSize,ct.palette);
+      c.info=`${W}×${H} colour pattern, ${pixelSize}-bit, ${ct.palette.filter(Boolean).length} colours`;
+      return c;
+    }
+  }
+  // pat1Data: the 1-bit pattern every PixPat carries for black-and-white
+  // screens. It is at offset 20, not 0.
+  const c=decodePAT(data.slice(20,28));
+  c.info = patType===0 ? '8×8 monochrome pattern (patType 0)'
+                       : `patType ${patType}: colour pixels unreadable, showing the 1-bit equivalent`;
+  return c;
+}
+// cicn, crsr and ppat all finish with the same loop: indexed pixels through a
+// colour table, optionally cut out by a 1-bit mask.
+function renderIndexedPixels(data,pixOff,rowBytes,W,H,pixelSize,palette,maskBits,maskRowBytes){
+  const ppb=8/pixelSize, pmask=(1<<pixelSize)-1;
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx=c.getContext('2d'), im=ctx.createImageData(W,H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const byte=data[pixOff + y*rowBytes + Math.floor(x/ppb)] || 0;
+    const pi = pixelSize===8 ? byte : (byte >> ((ppb-1-(x%ppb))*pixelSize)) & pmask;
+    const col=palette[pi]||[255,0,255], o=(y*W+x)*4;
+    im.data[o]=col[0]; im.data[o+1]=col[1]; im.data[o+2]=col[2];
+    im.data[o+3] = maskBits ? ((((maskBits[y*maskRowBytes+(x>>3)]||0)>>(7-(x&7)))&1)?255:0) : 255;
+  }
+  ctx.putImageData(im,0,0); return c;
+}
+// ---- PICT v2 decoder: indexed PackBitsRect/Rgn AND true-color DirectBitsRect/Rgn ----
+// Opcode data-length table derived from Apple's "PICT File Format Notes" (1990).
+// Most opcodes carry fixed-size data we don't render (pen state, colors, text,
+// shapes, etc); we walk past all of them until we reach the actual image opcode.
+// QuickDraw Rect fields are SIGNED 16-bit; reading them unsigned turns any
+// negative origin into ~65000 and yields nonsense widths.
+function s16(b,i){const v=(b[i]<<8)|b[i+1];return v>32767?v-65536:v;}
+function readRect(data,p){return {top:s16(data,p),left:s16(data,p+2),bottom:s16(data,p+4),right:s16(data,p+6)};}
+function readColorTable(data,p){
+  p+=4; p+=2; const count=u16(data,p)+1;p+=2; const pal=[];
+  for(let i=0;i<count;i++){const val=u16(data,p);pal[val]=[u16(data,p+2)>>8,u16(data,p+4)>>8,u16(data,p+6)>>8];p+=8;}
+  return {palette:pal,p};
+}
+// hasBaseAddr: DirectBits opcodes (0x9A/0x9B) store a 4-byte placeholder Ptr
+// before rowBytes; the indexed opcodes (0x98/0x99) omit it on disk.
+function readPictPixmap(data,p,hasBaseAddr){
+  if(hasBaseAddr) p+=4;
+  const rowWord=u16(data,p),rowBytes=rowWord&0x3fff; p+=2;
+  const bounds=readRect(data,p);p+=8;
+  p+=2; const packType=u16(data,p);p+=2;p+=4;p+=4;p+=4; const pixelType=u16(data,p);p+=2; const pixelSize=u16(data,p);p+=2;const cmpCount=u16(data,p);p+=2;const cmpSize=u16(data,p);p+=2;p+=4;p+=4;p+=4;
+  return {rowBytes,bounds,packType,pixelType,pixelSize,cmpCount,cmpSize,p};
+}
+function unpackBitsPict(data,p,packedLen,want){
+  const src=data.slice(p,p+packedLen),out=new Uint8Array(want);let si=0,oi=0;
+  while(si<src.length&&oi<want){let n=i8(src,si++);if(n>=0){let ct=n+1;while(ct--&&si<src.length&&oi<want)out[oi++]=src[si++];}else if(n!==-128){if(si>=src.length)break;let ct=1-n,v=src[si++];while(ct--&&oi<want)out[oi++]=v;}}
+  return out;
+}
+function renderPictIndexed(pm,palette,rows){
+  const W=pm.bounds.right-pm.bounds.left,H=pm.bounds.bottom-pm.bounds.top,c=document.createElement('canvas');c.width=W;c.height=H;const ctx=c.getContext('2d'),im=ctx.createImageData(W,H),ppb=8/pm.pixelSize,mask=(1<<pm.pixelSize)-1;
+  for(let y=0;y<H;y++){const row=rows[y]||new Uint8Array(pm.rowBytes);for(let x=0;x<W;x++){const b=row[Math.floor(x/ppb)]||0,pi=(b>>((ppb-1-(x%ppb))*pm.pixelSize))&mask,col=palette[pi]||[255,0,255],o=(y*W+x)*4;im.data[o]=col[0];im.data[o+1]=col[1];im.data[o+2]=col[2];im.data[o+3]=255;}}
+  ctx.putImageData(im,0,0);return c;
+}
+function renderPictDirect(pm,rows){
+  const W=pm.bounds.right-pm.bounds.left,H=pm.bounds.bottom-pm.bounds.top,c=document.createElement('canvas');c.width=W;c.height=H;const ctx=c.getContext('2d'),im=ctx.createImageData(W,H);
+  for(let y=0;y<H;y++){
+    const row=rows[y];
+    for(let x=0;x<W;x++){
+      const o=(y*W+x)*4; let r=255,g=0,b=255;
+      if(row){
+        if(pm.packType===4 && row.planes){ r=row.planes[0][x]??0; g=row.planes[1][x]??0; b=row.planes[2][x]??0; }
+        else if(pm.pixelSize===16){ const w=(row[x*2]<<8)|row[x*2+1]; const r5=(w>>10)&0x1f,g5=(w>>5)&0x1f,b5=w&0x1f; r=Math.round(r5*255/31);g=Math.round(g5*255/31);b=Math.round(b5*255/31); }
+        else if(pm.pixelSize===32){ r=row[x*4+1]??0; g=row[x*4+2]??0; b=row[x*4+3]??0; }
+      }
+      im.data[o]=r;im.data[o+1]=g;im.data[o+2]=b;im.data[o+3]=255;
+    }
+  }
+  ctx.putImageData(im,0,0);return c;
+}
+function decodeDirectBitsRows(data,p,pm){
+  const H=pm.bounds.bottom-pm.bounds.top, rowBytes=pm.rowBytes, cmpCount=pm.cmpCount||3, rows=[];
+  for(let y=0;y<H;y++){
+    if(rowBytes<8){ rows.push(data.slice(p,p+rowBytes)); p+=rowBytes; }
+    else if(pm.packType===4){
+      // packType 4 stores ONE PackBits stream per row (one length prefix),
+      // which unpacks to cmpCount planes of `width` bytes each -- not one
+      // stream per plane, and not rowBytes/cmpCount per plane (rowBytes is
+      // width*4 for 32-bit, so that division gives the wrong plane stride).
+      const W=pm.bounds.right-pm.bounds.left;
+      const plen = rowBytes>250?u16(data,p):data[p]; p += rowBytes>250?2:1;
+      const flat = unpackBitsPict(data,p,plen,W*cmpCount); p+=plen;
+      const planes=[];
+      const base = cmpCount===4 ? W : 0; // skip alpha plane when present
+      for(let c=0;c<3;c++) planes.push(flat.subarray(base+c*W, base+(c+1)*W));
+      rows.push({planes});
+    } else {
+      const plen = rowBytes>250?u16(data,p):data[p]; p += rowBytes>250?2:1;
+      rows.push(unpackBitsPict(data,p,plen,rowBytes)); p+=plen;
+    }
+  }
+  return {rows,p};
+}
+const PICT_FIXED_LEN = {
+  0x0002:8,0x0003:2,0x0004:2,0x0005:2,0x0006:4,0x0007:4,0x0008:2,0x0009:8,
+  0x000A:8,0x000B:4,0x000C:4,0x000D:2,0x000E:4,0x000F:4,0x0010:8,
+  0x0015:2,0x0016:2,0x0017:0,0x0018:0,0x0019:0,
+  0x001A:6,0x001B:6,0x001C:0,0x001D:6,0x001E:0,0x001F:6,
+  0x0020:8,0x0021:4,0x0022:6,0x0023:2,
+  0x0030:8,0x0031:8,0x0032:8,0x0033:8,0x0034:8,0x0035:8,0x0036:8,0x0037:8,
+  0x0038:0,0x0039:0,0x003A:0,0x003B:0,0x003C:0,0x003D:0,0x003E:0,0x003F:0,
+  0x0040:8,0x0041:8,0x0042:8,0x0043:8,0x0044:8,0x0045:8,0x0046:8,0x0047:8,
+  0x0048:0,0x0049:0,0x004A:0,0x004B:0,0x004C:0,0x004D:0,0x004E:0,0x004F:0,
+  0x0050:8,0x0051:8,0x0052:8,0x0053:8,0x0054:8,0x0055:8,0x0056:8,0x0057:8,
+  0x0058:0,0x0059:0,0x005A:0,0x005B:0,0x005C:0,0x005D:0,0x005E:0,0x005F:0,
+  0x0060:12,0x0061:12,0x0062:12,0x0063:12,0x0064:12,0x0065:12,0x0066:12,0x0067:12,
+  0x0068:4,0x0069:4,0x006A:4,0x006B:4,0x006C:4,0x006D:4,0x006E:4,0x006F:4,
+  0x0078:0,0x0079:0,0x007A:0,0x007B:0,0x007C:0,0x007D:0,0x007E:0,0x007F:0,
+  0x0088:0,0x0089:0,0x008A:0,0x008B:0,0x008C:0,0x008D:0,0x008E:0,0x008F:0,
+  0x00A0:2, 0x8000:0
+};
+const PICT_LEN_PREFIXED_2 = new Set([0x0024,0x0025,0x0026,0x0027,0x002C,0x002D,0x002E,0x002F,0x0092,0x0093,0x0094,0x0095,0x0096,0x0097,0x009C,0x009D,0x009E,0x009F]);
+for(let o=0x00A2;o<0x00FF;o++) PICT_LEN_PREFIXED_2.add(o);
+const PICT_REGION_OPS = new Set([0x0001,0x0080,0x0081,0x0082,0x0083,0x0084,0x0085,0x0086,0x0087]);
+const PICT_POLY_OPS = new Set([0x0070,0x0071,0x0072,0x0073,0x0074,0x0075,0x0076]);
+const PICT_IMAGE_OPS = new Set([0x0098,0x0099,0x009A,0x009B]);
+// Walk the opcode stream (skipping every opcode we don't render) until we
+// reach a bitmap opcode. This replaces a byte-by-byte signature scan, which
+// could false-match inside pixel/text data and silently mis-locate images.
+function findPictImageOpcode(data){
+  // Version 1 pictures use ONE-byte opcodes; version 2 uses two. The word at
+  // offset 10 is 0x0011 for v2 and 0x1101 for v1, so this must be detected
+  // before any opcode is read or the whole walk is misaligned.
+  let p=2+8;
+  const verWord=u16(data,p);
+  const v2 = (verWord===0x0011);
+  if(v2){ p+=4; } else { p+=2; }   // v2: 0x0011 0x02FF | v1: 0x11 0x01
+  if(v2 && u16(data,p)===0x0C00){ p+=2+24; }
+  let guard=0;
+  while(p<data.length && guard++<20000){
+    if(v2){ if(p%2) p+=1; if(p+2>data.length) break; }
+    let op;
+    if(v2){ op=u16(data,p); p+=2; } else { op=data[p]; p+=1; }
+    if(op===0x0000) continue;
+    // QuickTime-compressed opcodes carry a 4-byte payload length; the JPEG or
+    // PNG lives INSIDE that payload. Return it so the caller can look there
+    // instead of scanning the whole resource for a signature.
+    if(op===0x8200||op===0x8201){ const size=u32(data,p); return {op,p:p+4,size,quicktime:true}; }
+    if(PICT_REGION_OPS.has(op)||PICT_POLY_OPS.has(op)){ const size=u16(data,p); p+=size; continue; }
+    if(op===0x0028){ p+=4; const len=data[p]; p+=1+len; if(p%2)p+=1; continue; } // LongText
+    if(op===0x0029||op===0x002A){ p+=1; const len=data[p]; p+=1+len; if(p%2)p+=1; continue; } // DHText/DVText
+    if(op===0x002B){ p+=2; const len=data[p]; p+=1+len; if(p%2)p+=1; continue; } // DHDVText
+    if(op===0x0012||op===0x0013||op===0x0014){ // Bk/Pn/FillPixPat, best effort skip
+      const patType=u16(data,p); p+=2; p+=8;
+      if(patType===2){ p+=6; }
+      else{
+        const pm=readPictPixmap(data,p,false); p=pm.p;
+        if(pm.pixelType===0){ const ct=readColorTable(data,p); p=ct.p; }
+        const H=pm.bounds.bottom-pm.bounds.top;
+        if(pm.rowBytes<8){ p+=pm.rowBytes*H; }
+        else{ for(let y=0;y<H;y++){ const rl=pm.rowBytes>250?u16(data,p):data[p]; p+=(pm.rowBytes>250?2:1)+rl; } }
+      }
+      continue;
+    }
+    if(op===0x0090||op===0x0091){ // BitsRect/BitsRgn (unpacked 1-bit bitmap, no color table)
+      const rowWord=u16(data,p); const rowBytes=rowWord&0x3fff; p+=2;
+      const bounds=readRect(data,p); p+=8; p+=8+8+2;
+      if(op===0x0091){ const rs=u16(data,p); p+=rs; }
+      p += rowBytes*(bounds.bottom-bounds.top);
+      continue;
+    }
+    if(PICT_IMAGE_OPS.has(op)) return {op,p};
+    if(op===0x00A1){ p+=2; const size=u16(data,p); p+=2+size; if(p%2)p+=1; continue; } // LongComment
+    if(op===0x00FF) return null; // end of picture, nothing to draw
+    if(op in PICT_FIXED_LEN){ p+=PICT_FIXED_LEN[op]; continue; }
+    if(PICT_LEN_PREFIXED_2.has(op)){ const size=u16(data,p); p+=2+size; continue; }
+    if(op>=0x0100 && op<=0x7FFF){ p+=(op>>8)*2; continue; }
+    if(op>=0x8000 && op<=0x80FF){ continue; }
+    if(op>=0x8100 && op<=0xFFFF){ const size=u32(data,p); p+=4+size; continue; }
+    // Truly unknown opcode: Apple's own convention for future/reserved
+    // opcodes in this range is a 2-byte length prefix, so fall back to that
+    // rather than throwing away the whole picture.
+    { const size=u16(data,p); p+=2+size; }
+  }
+  return null;
+}
+function decodePictPackBits(data,pre){
+  const found = (pre && !pre.quicktime) ? pre : findPictImageOpcode(data);
+  if(!found||found.quicktime) throw new Error('No PackBitsRect/PackBitsRgn/DirectBitsRect/DirectBitsRgn image opcode found in this PICT.');
+  const foundOp=found.op; let p=found.p;
+  if(foundOp===0x0098||foundOp===0x0099){
+    // PackBitsRect/Rgn may carry either a PixMap (high bit of rowBytes set) or
+    // an old-style 1-bit BitMap. The BitMap header is only rowBytes+bounds and
+    // has no colour table, so parsing it as a PixMap reads 36 bytes of garbage.
+    if(!(u16(data,p)&0x8000)){
+      const rowBytes=u16(data,p)&0x3fff; p+=2;
+      const bounds=readRect(data,p); p+=8;
+      p+=8; const dst=readRect(data,p); p+=8; const mode=u16(data,p); p+=2;
+      if(foundOp===0x0099){ const rgnSize=u16(data,p); p+=rgnSize; }
+      const W=bounds.right-bounds.left, H=bounds.bottom-bounds.top;
+      if(W<=0||H<=0||rowBytes<=0) throw new Error(`Unsupported BitMap (${W}×${H})`);
+      const rows=[];
+      for(let y=0;y<H;y++){
+        if(rowBytes<8){ rows.push(data.slice(p,p+rowBytes)); p+=rowBytes; }
+        else{ const plen=rowBytes>250?u16(data,p):data[p]; p+=rowBytes>250?2:1;
+              rows.push(unpackBitsPict(data,p,plen,rowBytes)); p+=plen; }
+      }
+      const pm1={rowBytes,bounds,pixelSize:1};
+      // QuickDraw 1-bit: set bit = black.
+      const canvas=renderPictIndexed(pm1,[[255,255,255],[0,0,0]],rows);
+      return {canvas,width:W,height:H,pixelSize:1,mode,opcode:foundOp,opcodeOffset:found.p-2,colorSpace:'1-bit bitmap'};
+    }
+    const pm=readPictPixmap(data,p,false); p=pm.p;
+    const ct=readColorTable(data,p); p=ct.p;
+    const src=readRect(data,p); p+=8; const dst=readRect(data,p); p+=8; const mode=u16(data,p); p+=2;
+    if(foundOp===0x0099){ const rgnSize=u16(data,p); p+=rgnSize; }
+    const W=pm.bounds.right-pm.bounds.left, H=pm.bounds.bottom-pm.bounds.top;
+    if(W<=0||H<=0||pm.rowBytes<=0||pm.pixelSize>8) throw new Error(`Unsupported indexed PixMap (${W}×${H}, ${pm.pixelSize}-bit)`);
+    const rows=[];
+    for(let y=0;y<H;y++){
+      let packedLen = pm.rowBytes>250 ? u16(data,p) : data[p];
+      p += pm.rowBytes>250 ? 2 : 1;
+      if(p+packedLen>data.length) throw new Error('PICT row data ends unexpectedly');
+      rows.push(unpackBitsPict(data,p,packedLen,pm.rowBytes)); p+=packedLen;
+    }
+    return {canvas:renderPictIndexed(pm,ct.palette,rows),width:W,height:H,pixelSize:pm.pixelSize,mode,opcode:foundOp,opcodeOffset:found.p-2,colorSpace:`${pm.pixelSize}-bit indexed`};
+  } else {
+    // DirectBitsRect (0x9A) / DirectBitsRgn (0x9B): true-color pixels, no palette.
+    const pm=readPictPixmap(data,p,true); p=pm.p;
+    const src=readRect(data,p); p+=8; const dst=readRect(data,p); p+=8; const mode=u16(data,p); p+=2;
+    if(foundOp===0x009B){ const rgnSize=u16(data,p); p+=rgnSize; }
+    const W=pm.bounds.right-pm.bounds.left, H=pm.bounds.bottom-pm.bounds.top;
+    if(W<=0||H<=0||pm.rowBytes<=0) throw new Error(`Unsupported DirectBits PixMap (${W}×${H})`);
+    if(pm.pixelSize!==16 && pm.pixelSize!==32) throw new Error(`Unsupported DirectBits pixel depth (${pm.pixelSize}-bit)`);
+    const {rows}=decodeDirectBitsRows(data,p,pm);
+    return {canvas:renderPictDirect(pm,rows),width:W,height:H,pixelSize:pm.pixelSize,mode,opcode:foundOp,opcodeOffset:found.p-2,colorSpace:`${pm.pixelSize}-bit direct`};
+  }
+}
+
+// Search a BOUNDED slice for a JPEG/PNG signature. Scanning the whole
+// resource false-matched inside PackBits pixel data: 5 of the 83 PICTs in
+// Cythera/Cythera Data contain a stray FF D8 FF and were silently decoded as
+// broken JPEGs instead of QuickDraw bitmaps.
+function findEmbeddedImage(data,from,to){
+  const lo=from||0, hi=Math.min(to===undefined?data.length:to, data.length);
+  for(let i=lo;i<hi-4;i++){
+    if(data[i]===0xFF && data[i+1]===0xD8 && data[i+2]===0xFF){
+      return {type:'jpeg', bytes:data.slice(i,hi)};
+    }
+    if(data[i]===0x89 && data[i+1]===0x50 && data[i+2]===0x4E && data[i+3]===0x47){
+      return {type:'png', bytes:data.slice(i,hi)};
+    }
+  }
+  return null;
+}
+
+function decodePict(data){
+  const found=findPictImageOpcode(data);
+  if(found && found.quicktime){
+    const embedded=findEmbeddedImage(data,found.p,found.p+found.size);
+    if(embedded){const blob=new Blob([embedded.bytes],{type:embedded.type==='jpeg'?'image/jpeg':'image/png'});return {kind:'embedded',blob,ext:embedded.type==='jpeg'?'jpg':'png'};}
+  }
+  const parsed=decodePictPackBits(data,found);return {kind:'canvas',...parsed};
+}
+
+// ---- clut (color table) — same on-disk layout as a PICT's embedded color table ----
+function decodeClut(data){
+  const ct=readColorTable(data,0);
+  const n=ct.palette.length, perRow=16, cell=20;
+  const canvas=document.createElement('canvas');
+  canvas.width=perRow*cell; canvas.height=Math.ceil(n/perRow)*cell;
+  const ctx=canvas.getContext('2d');
+  for(let i=0;i<n;i++){
+    const col=ct.palette[i]||[0,0,0];
+    ctx.fillStyle=`rgb(${col[0]},${col[1]},${col[2]})`;
+    ctx.fillRect((i%perRow)*cell,Math.floor(i/perRow)*cell,cell,cell);
+  }
+  return {canvas,count:n};
+}
+
+// ---- sfnt (raw TrueType/OpenType font data) ----
+function decodeSfntInfo(data){
+  if(data.length<12) throw new Error('sfnt resource too short');
+  const numTables=u16(data,4); const tables=[];
+  let p=12;
+  for(let i=0;i<numTables && p+16<=data.length;i++){
+    tables.push(String.fromCharCode(data[p],data[p+1],data[p+2],data[p+3])); p+=16;
+  }
+  return {numTables,tables};
+}
+
+
+// ============================================================
+//  Classic Mac system palettes + indexed icon families
+// ============================================================
+// Standard Mac OS 16-colour palette (icl4 / ics4).
+const MAC_4BIT_PAL = [
+  [255,255,255],[252,243,5],[255,100,3],[221,9,7],[242,8,132],[71,0,165],
+  [0,0,211],[2,171,234],[31,183,20],[0,100,18],[86,44,5],[144,113,58],
+  [192,192,192],[128,128,128],[64,64,64],[0,0,0]
+];
+// Standard Mac OS 256-colour system palette (icl8 / ics8). Indices 0-214 are
+// the 6x6x6 colour cube with black removed, 215-254 are the pure red, green,
+// blue and grey ramps, and 255 is black.
+const MAC_8BIT_PAL = (function(){
+  const p=[], lv=[255,204,153,102,51,0];
+  for(const r of lv) for(const g of lv) for(const b of lv){
+    if(r===0&&g===0&&b===0) continue;   // black is reserved for index 255
+    p.push([r,g,b]);
+  }
+  const ramp=[238,221,187,170,136,119,85,68,34,17];
+  for(const v of ramp) p.push([v,0,0]);
+  for(const v of ramp) p.push([0,v,0]);
+  for(const v of ramp) p.push([0,0,v]);
+  for(const v of ramp) p.push([v,v,v]);
+  p.push([0,0,0]);
+  return p;
+})();
+// Kept for the older call sites that used the "approximate" name.
+const MAC_8BIT_PAL_APPROX = MAC_8BIT_PAL;
+
+// icl4/icl8/ics4/ics8 are bare pixel arrays: no header, no mask, no colour
+// table. The mask lives in the matching ICN#/ics# resource, so if one is
+// present in the same fork we use it for transparency.
+function drawIndexedIcon(data, size, depth, palette, maskBits){
+  const need = size*size*depth/8;
+  if(data.length < need) throw new Error(`${size}\u00d7${size} ${depth}-bit icon needs ${need} bytes, got ${data.length}`);
+  const ppb = 8/depth, mask=(1<<depth)-1, rowBytes=size*depth/8, mRow=size/8;
+  const c=document.createElement('canvas'); c.width=size; c.height=size;
+  const ctx=c.getContext('2d'), im=ctx.createImageData(size,size);
+  for(let y=0;y<size;y++) for(let x=0;x<size;x++){
+    const byte = data[y*rowBytes + Math.floor(x/ppb)] || 0;
+    const pi = depth===8 ? byte : (byte >> ((ppb-1-(x%ppb))*depth)) & mask;
+    const col = palette[pi] || [255,0,255];
+    const o=(y*size+x)*4;
+    let a=255;
+    if(maskBits){ const mb=maskBits[y*mRow+(x>>3)]||0; a=((mb>>(7-(x&7)))&1)?255:0; }
+    im.data[o]=col[0]; im.data[o+1]=col[1]; im.data[o+2]=col[2]; im.data[o+3]=a;
+  }
+  ctx.putImageData(im,0,0); return c;
+}
+// ICN#/ics# hold a 1-bit image followed by a 1-bit mask of the same size.
+function iconMaskFor(size){
+  const t = size===32 ? 'ICN#' : 'ics#';
+  return id=>{
+    const list=(typeof resourcesByType!=='undefined' && resourcesByType[t])||null;
+    if(!list) return null;
+    const e=list.find(r=>r.id===id); if(!e) return null;
+    const d=getResourceData(t,e), half=size*size/8;
+    return d.length>=half*2 ? d.slice(half, half*2) : null;
+  };
+}
+
+// ============================================================
+//  cicn (colour icon)
+// ============================================================
+// PixMap(50) | mask BitMap(14) | icon BitMap(14) | iconData handle(4) |
+// mask bits | icon bits | ColorTable | pixel data
+function decodeCicn(data){
+  let p=0;
+  p+=4;                                     // baseAddr placeholder
+  const pmRowBytes=u16(data,p)&0x3fff; p+=2;
+  const pmBounds=readRect(data,p); p+=8;
+  p+=2+2+4+4+4;                             // version, packType, packSize, hRes, vRes
+  p+=2;                                     // pixelType
+  const pixelSize=u16(data,p); p+=2;
+  p+=2+2+4+4+4;                             // cmpCount, cmpSize, planeBytes, pmTable, pmReserved
+  const maskRowBytes=u16(data,p+4)&0x3fff, maskBounds=readRect(data,p+6); p+=14;
+  const iconRowBytes=u16(data,p+4)&0x3fff, iconBounds=readRect(data,p+6); p+=14;
+  p+=4;                                     // iconData handle
+  const mH=maskBounds.bottom-maskBounds.top, iH=iconBounds.bottom-iconBounds.top;
+  const maskBits=data.slice(p, p+maskRowBytes*mH); p+=maskRowBytes*mH;
+  p+=iconRowBytes*iH;                       // 1-bit icon bits (unused when colour data exists)
+  const ct=readColorTable(data,p); p=ct.p;
+  const W=pmBounds.right-pmBounds.left, H=pmBounds.bottom-pmBounds.top;
+  if(W<=0||H<=0||pixelSize>8) throw new Error(`Unsupported cicn (${W}\u00d7${H}, ${pixelSize}-bit)`);
+  return renderIndexedPixels(data,p,pmRowBytes,W,H,pixelSize,ct.palette,maskBits,maskRowBytes);
+}
+
+// ============================================================
+//  Structured text resources
+// ============================================================
+function pstr(data,p){ const n=data[p]||0; return {s:macRomanDecode(data.slice(p+1,p+1+n)), p:p+1+n}; }
+
+function decodeVers(data){
+  if(data.length<6) throw new Error('vers too short');
+  const maj=data[0].toString(16), min=(data[1]>>4)&0xf, bug=data[1]&0xf;
+  const stageCode=data[2], nonRel=data[3], region=u16(data,4);
+  const stage={0x20:'development',0x40:'alpha',0x60:'beta',0x80:'released'}[stageCode]||('0x'+stageCode.toString(16));
+  const a=pstr(data,6), b=pstr(data,a.p);
+  return `Version: ${maj}.${min}${bug?'.'+bug:''}\nStage: ${stage}${stageCode!==0x80?' (build '+nonRel+')':''}\nRegion code: ${region}\nShort: ${a.s}\nLong: ${b.s}`;
+}
+
+const DITL_TYPES={0:'user item',1:'help item',4:'button',5:'check box',6:'radio button',7:'control',8:'static text',16:'edit text',32:'icon',64:'picture'};
+function decodeDITL(data){
+  const n=u16(data,0)+1; let p=2, out=[`${n} item${n===1?'':'s'}`,''];
+  for(let i=0;i<n && p+13<=data.length;i++){
+    p+=4;
+    const r=readRect(data,p); p+=8;
+    const raw=data[p++], enabled=!(raw&0x80), kind=raw&0x7f;
+    const len=data[p++]; let text='';
+    if(kind===32||kind===64){ text='resource #'+u16(data,p); }
+    else text=macRomanDecode(data.slice(p,p+len));
+    p+=len; if(p%2)p++;
+    out.push(`[${i+1}] ${DITL_TYPES[kind]||('type '+kind)}${enabled?'':' (disabled)'}`);
+    out.push(`     (${r.left},${r.top})-(${r.right},${r.bottom})  ${text?'"'+text+'"':''}`);
+  }
+  return out.join('\n');
+}
+
+function decodeMENU(data){
+  if(data.length<14) throw new Error('MENU too short');
+  const id=u16(data,0), procID=u32(data,6), enable=u32(data,10);
+  let p=14; const t=pstr(data,p); p=t.p;
+  const out=[`Menu #${id}  "${t.s}"`, `Proc ID: ${procID}   Enable flags: 0x${(enable>>>0).toString(16)}`, ''];
+  let i=1;
+  while(p<data.length && data[p]!==0){
+    const it=pstr(data,p); p=it.p;
+    if(p+4>data.length) break;
+    const icon=data[p], key=data[p+1], mark=data[p+2], style=data[p+3]; p+=4;
+    const bits=[]; if(style&1)bits.push('bold'); if(style&2)bits.push('italic');
+    if(style&4)bits.push('underline'); if(style&8)bits.push('outline'); if(style&16)bits.push('shadow');
+    let extra=[];
+    if(key>0x1f) extra.push('Cmd-'+String.fromCharCode(key));
+    if(mark) extra.push('mark '+String.fromCharCode(mark));
+    if(icon) extra.push('icon '+(icon+256));
+    if(bits.length) extra.push(bits.join('+'));
+    out.push(it.s==='-' ? `[${i}] ---- separator ----`
+                        : `[${i}] ${it.s}${extra.length?'   ('+extra.join(', ')+')':''}`);
+    i++;
+  }
+  return out.join('\n');
+}
+
+function decodeWIND(data){
+  if(data.length<18) throw new Error('WIND too short');
+  const r=readRect(data,0), procID=u16(data,8), visible=!!data[11], goAway=!!data[13], refCon=u32(data,14);
+  const t=data.length>18?pstr(data,18).s:'';
+  return `Window: "${t}"\nBounds: (${r.left},${r.top})-(${r.right},${r.bottom})  ${r.right-r.left}\u00d7${r.bottom-r.top}\nProc ID: ${procID}   Visible: ${visible}   Close box: ${goAway}\nRefCon: ${refCon}`;
+}
+
+function decodeALRT(data){
+  if(data.length<12) throw new Error('ALRT too short');
+  const r=readRect(data,0), itemsID=u16(data,8), stages=u16(data,10);
+  return `Alert\nBounds: (${r.left},${r.top})-(${r.right},${r.bottom})  ${r.right-r.left}\u00d7${r.bottom-r.top}\nDITL resource: #${itemsID}\nStages word: 0x${stages.toString(16).padStart(4,'0')}`;
+}
+
+function decodeCNTL(data){
+  if(data.length<22) throw new Error('CNTL too short');
+  const r=readRect(data,0), value=s16(data,8), visible=!!data[10],
+        max=s16(data,12), min=s16(data,14), procID=s16(data,16), refCon=u32(data,18);
+  const title=pstr(data,22).s;
+  // procID is CDEF resource id * 16 + variant code.
+  return `Control: "${title}"\nBounds: (${r.left},${r.top})-(${r.right},${r.bottom})  ${r.right-r.left}×${r.bottom-r.top}\n`+
+         `Value: ${value}   Range: ${min}–${max}   Visible: ${visible}\n`+
+         `Proc ID: ${procID}  (CDEF ${procID>>4}, variant ${procID&15})\nRefCon: ${refCon}`;
+}
+
+// A bare list of QuickDraw rectangles; ResEdit calls it "rectangle list".
+function decodeNrct(data){
+  if(data.length<2) throw new Error('nrct too short');
+  const n=u16(data,0), out=[`${n} rectangle${n===1?'':'s'}`,''];
+  for(let i=0;i<n && 2+i*8+8<=data.length;i++){
+    const r=readRect(data,2+i*8);
+    out.push(`[${i+1}] (${r.left},${r.top})-(${r.right},${r.bottom})   ${r.right-r.left}×${r.bottom-r.top}`);
+  }
+  return out.join('\n');
+}
+
+// TextEdit style scrap: numRuns, then 20-byte ScrpSTElement records.
+const FACE_BITS=[[1,'bold'],[2,'italic'],[4,'underline'],[8,'outline'],[16,'shadow'],[32,'condensed'],[64,'extended']];
+function decodeStyl(data){
+  if(data.length<2) throw new Error('styl too short');
+  const n=u16(data,0), out=[`${n} style run${n===1?'':'s'}`,''];
+  for(let i=0;i<n && 2+i*20+20<=data.length;i++){
+    const p=2+i*20;
+    const start=u32(data,p), height=s16(data,p+4), ascent=s16(data,p+6),
+          font=u16(data,p+8), face=data[p+10], size=u16(data,p+12);
+    const rgb=[u16(data,p+14)>>8,u16(data,p+16)>>8,u16(data,p+18)>>8];
+    const faces=FACE_BITS.filter(([b])=>face&b).map(([,n])=>n);
+    out.push(`[${i+1}] from character ${start}: font ${font}, ${size} pt${faces.length?', '+faces.join('+'):''}`);
+    out.push(`     height ${height}, ascent ${ascent}, colour rgb(${rgb.join(',')})`);
+  }
+  return out.join('\n');
+}
+
+// Palette resource. The header is 16 bytes (pmEntries plus seven reserved
+// words), then one 16-byte ColorInfo per entry -- verified against a 4,112
+// byte / 256-entry pltt, which only adds up with a 16-byte header.
+const PLTT_USAGE={0x0000:'courteous',0x0001:'tolerant',0x0002:'animated',0x0004:'explicit'};
+function decodePltt(data){
+  if(data.length<16) throw new Error('pltt too short');
+  const n=u16(data,0);
+  if(16+n*16>data.length) throw new Error(`pltt declares ${n} entries but is only ${data.length} bytes`);
+  const pal=[], usage=[];
+  for(let i=0;i<n;i++){
+    const p=16+i*16;
+    pal.push([u16(data,p)>>8,u16(data,p+2)>>8,u16(data,p+4)>>8]);
+    usage.push(u16(data,p+6));
+  }
+  const kinds=[...new Set(usage.map(u=>PLTT_USAGE[u&7]||'0x'+u.toString(16)))];
+  return {canvas:swatchGrid(pal), count:n, usage:kinds.join(', ')};
+}
+function swatchGrid(pal){
+  const perRow=16, cell=20;
+  const canvas=document.createElement('canvas');
+  canvas.width=perRow*cell; canvas.height=Math.max(1,Math.ceil(pal.length/perRow))*cell;
+  const ctx=canvas.getContext('2d');
+  for(let i=0;i<pal.length;i++){
+    const col=pal[i]||[0,0,0];
+    ctx.fillStyle=`rgb(${col[0]},${col[1]},${col[2]})`;
+    ctx.fillRect((i%perRow)*cell,Math.floor(i/perRow)*cell,cell,cell);
+  }
+  return canvas;
+}
+
+// ICON is a bare 32x32 1-bit image (no mask); SICN is a run of 16x16 ones.
+function decodeICON(data){
+  if(data.length<128) throw new Error(`ICON needs 128 bytes, got ${data.length}`);
+  return decode1bitIcon(data,32);
+}
+function decodeSICN(data){
+  const n=Math.floor(data.length/32);
+  if(!n) throw new Error('SICN is shorter than one 16×16 icon');
+  const out=[];
+  for(let i=0;i<n;i++) out.push(decode1bitIcon(data.slice(i*32,(i+1)*32),16));
+  return out;
+}
+// PAT# is a count followed by that many 8-byte patterns.
+function decodePATList(data){
+  if(data.length<2) throw new Error('PAT# too short');
+  const n=u16(data,0), out=[];
+  for(let i=0;i<n && 2+i*8+8<=data.length;i++) out.push(decodePAT(data.slice(2+i*8,10+i*8)));
+  if(!out.length) throw new Error('PAT# contains no patterns');
+  return out;
+}
+
+// ============================================================
+//  Bitmap fonts (NFNT/FONT) and font families (FOND)
+// ============================================================
+// FontRec: a single wide bitmap holding every glyph side by side, plus a
+// location table giving each glyph's left edge in that strip.
+function decodeNFNT(data){
+  if(data.length<26) throw new Error('NFNT too short');
+  const fontType=u16(data,0), firstChar=u16(data,2), lastChar=u16(data,4),
+        widMax=u16(data,6), kernMax=s16(data,8), nDescent=s16(data,10),
+        fRectWidth=u16(data,12), fRectHeight=u16(data,14), owTLoc=u16(data,16),
+        ascent=u16(data,18), descent=u16(data,20), leading=u16(data,22), rowWords=u16(data,24);
+  if(lastChar<firstChar || lastChar>255) throw new Error(`implausible character range ${firstChar}–${lastChar}`);
+  if(!rowWords || !fRectHeight) throw new Error('font has an empty bit image');
+  const strikeBytes=rowWords*2*fRectHeight;
+  if(26+strikeBytes>data.length) throw new Error('bit image runs past the end of the resource');
+  const strike=data.slice(26,26+strikeBytes);
+  const strikeW=rowWords*16;
+  const canvas=drawBits(strike,strikeW,fRectHeight,rowWords*2);
+  // Location table: one entry per glyph plus the missing-symbol and a final
+  // sentinel, so glyph i occupies columns loc[i]..loc[i+1].
+  const nGlyphs=lastChar-firstChar+2;          // includes the missing symbol
+  const locOff=26+strikeBytes;
+  const loc=[];
+  for(let i=0;i<=nGlyphs && locOff+i*2+2<=data.length;i++) loc.push(u16(data,locOff+i*2));
+  const glyphs=[];
+  for(let i=0;i<nGlyphs && i+1<loc.length;i++){
+    const w=loc[i+1]-loc[i];
+    if(w<=0) continue;                          // no image: this code is unmapped
+    glyphs.push({code:firstChar+i, width:w, canvas:cropBits(strike,rowWords*2,fRectHeight,loc[i],w),
+                 missing:i===nGlyphs-1});
+  }
+  return {canvas, glyphs, firstChar, lastChar, ascent, descent, leading, widMax,
+          fRectWidth, fRectHeight, strikeW, kernMax, nDescent, fontType, owTLoc,
+          info:`chars ${firstChar}–${lastChar} · ${glyphs.length} glyphs · ${fRectWidth}×${fRectHeight} cell · `+
+               `ascent ${ascent}, descent ${descent}, leading ${leading} · strike ${strikeW}×${fRectHeight}`};
+}
+// 1-bit rows, set bit = black, transparent background.
+function drawBits(bits,W,H,rowBytes){
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx=c.getContext('2d'), im=ctx.createImageData(W,H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const on=((bits[y*rowBytes+(x>>3)]||0)>>(7-(x&7)))&1, o=(y*W+x)*4;
+    im.data[o]=im.data[o+1]=im.data[o+2]=on?0:255;
+    im.data[o+3]=on?255:0;
+  }
+  ctx.putImageData(im,0,0); return c;
+}
+function cropBits(bits,rowBytes,H,x0,W){
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx=c.getContext('2d'), im=ctx.createImageData(W,H);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const sx=x0+x, on=((bits[y*rowBytes+(sx>>3)]||0)>>(7-(sx&7)))&1, o=(y*W+x)*4;
+    im.data[o]=im.data[o+1]=im.data[o+2]=on?0:255;
+    im.data[o+3]=on?255:0;
+  }
+  ctx.putImageData(im,0,0); return c;
+}
+// FOND: 52-byte family record, then the font association table that says
+// which NFNT resource holds which size and style.
+const FOND_STYLES=[[1,'bold'],[2,'italic'],[4,'underline'],[8,'outline'],[16,'shadow'],[32,'condensed'],[64,'extended']];
+function decodeFOND(data){
+  if(data.length<54) throw new Error('FOND too short');
+  const famID=u16(data,2), first=u16(data,4), last=u16(data,6);
+  // ascent/descent/leading/widMax are fractions of an em in 1/4096 units.
+  const em=v=>(s16(data,v)/4096).toFixed(3);
+  const n=u16(data,52)+1, entries=[];
+  for(let i=0;i<n && 54+i*6+6<=data.length;i++){
+    const size=u16(data,54+i*6), style=u16(data,56+i*6), id=u16(data,58+i*6);
+    const names=FOND_STYLES.filter(([b])=>style&b).map(([,s])=>s);
+    entries.push({size,style,id,label:`${size?size+' pt':'scalable'}${names.length?' '+names.join('+'):''} → ${size?'NFNT':'sfnt'} ${id}`});
+  }
+  return {famID, first, last, entries,
+    text:`Font family #${famID}\nCharacters ${first}–${last}\n`+
+         `Ascent ${em(8)} em, descent ${em(10)} em, leading ${em(12)} em, widest ${em(14)} em\n\n`+
+         `${n} font${n===1?'':'s'} in this family:\n`+entries.map(e=>'  '+e.label).join('\n')};
+}
+
+// ============================================================
+//  Character interpretation for resources we can't decode
+// ============================================================
+// Show what the bytes spell as Mac Roman text rather than a wall of hex:
+// resource forks are full of embedded names, paths and messages, and those
+// are what you actually want to see when there's no decoder.
+const MACROMAN_HIGH="\u00C4\u00C5\u00C7\u00C9\u00D1\u00D6\u00DC\u00E1\u00E0\u00E2\u00E4\u00E3\u00E5\u00E7\u00E9\u00E8"+
+"\u00EA\u00EB\u00ED\u00EC\u00EE\u00EF\u00F1\u00F3\u00F2\u00F4\u00F6\u00F5\u00FA\u00F9\u00FB\u00FC"+
+"\u2020\u00B0\u00A2\u00A3\u00A7\u2022\u00B6\u00DF\u00AE\u00A9\u2122\u00B4\u00A8\u2260\u00C6\u00D8"+
+"\u221E\u00B1\u2264\u2265\u00A5\u00B5\u2202\u2211\u220F\u03C0\u222B\u00AA\u00BA\u03A9\u00E6\u00F8"+
+"\u00BF\u00A1\u00AC\u221A\u0192\u2248\u2206\u00AB\u00BB\u2026\u00A0\u00C0\u00C3\u00D5\u0152\u0153"+
+"\u2013\u2014\u201C\u201D\u2018\u2019\u00F7\u25CA\u00FF\u0178\u2044\u20AC\u2039\u203A\uFB01\uFB02"+
+"\u2021\u00B7\u201A\u201E\u2030\u00C2\u00CA\u00C1\u00CB\u00C8\u00CD\u00CE\u00CF\u00CC\u00D3\u00D4"+
+"\uF8FF\u00D2\u00DA\u00DB\u00D9\u0131\u02C6\u02DC\u00AF\u02D8\u02D9\u02DA\u00B8\u02DD\u02DB\u02C7";
+function charDump(bytes, limit){
+  const n=Math.min(bytes.length, limit);
+  let s='';
+  for(let i=0;i<n;i++){
+    const b=bytes[i];
+    if(b===9||b===10||b===13) s+=' ';
+    else if(b<32||b===127) s+='\u00b7';       // control bytes -> middle dot
+    else if(b<128) s+=String.fromCharCode(b);
+    else s+=MACROMAN_HIGH[b-128];
+  }
+  return s;
+}
+function hexDump(bytes, limit){
+  const n=Math.min(bytes.length,limit); let out=[];
+  for(let i=0;i<n;i+=16){
+    const row=Array.from(bytes.slice(i,i+16));
+    out.push(i.toString(16).padStart(6,'0')+'  '+
+      row.map(b=>b.toString(16).padStart(2,'0')).join(' ').padEnd(47)+'  '+
+      charDump(new Uint8Array(row),16));
+  }
+  return out.join('\n');
+}
+
+// Default view for anything without a decoder: the bytes as Mac Roman text.
+// Resource forks are full of embedded names, paths and messages, and those are
+// what you want to see first -- hex is available behind a toggle.
+function previewUndecoded(heading, type, entry, data, errMsg){
+  const out=clearPreview();
+  const title=document.createElement('div'); title.className='previewTitle'; title.textContent=heading; out.appendChild(title);
+  const meta=document.createElement('div'); meta.className='previewMeta';
+  meta.textContent = (errMsg ? errMsg+' \u2014 ' : `No decoder for '${type}' yet \u2014 `) +
+    `${data.length.toLocaleString()} bytes, shown as text.`;
+  if(errMsg) meta.style.color='#e77';
+  out.appendChild(meta);
+
+  const LIMIT=4000;
+  const bar=document.createElement('div'); bar.className='truncBanner'; out.appendChild(bar);
+  const pre=document.createElement('div'); pre.className='textPreview'; pre.style.fontFamily='ui-monospace,Menlo,monospace';
+  out.appendChild(pre);
+  let mode='chars', all=false;
+  const render=()=>{
+    const lim = all ? data.length : LIMIT;
+    pre.textContent = mode==='chars' ? charDump(data,lim) : hexDump(data,lim);
+    bar.innerHTML='';
+    const msg=document.createElement('span');
+    msg.textContent = data.length>lim
+      ? `Truncated \u2014 first ${lim.toLocaleString()} of ${data.length.toLocaleString()} bytes.`
+      : `Showing all ${data.length.toLocaleString()} bytes.`;
+    bar.appendChild(msg);
+    const t=document.createElement('button'); t.className='secondary';
+    t.textContent = mode==='chars' ? 'Show hex' : 'Show text';
+    t.onclick=()=>{mode = mode==='chars'?'hex':'chars'; render();}; bar.appendChild(t);
+    if(data.length>LIMIT){
+      const a=document.createElement('button'); a.className='secondary';
+      a.textContent = all ? 'Show less' : 'Show all';
+      a.onclick=()=>{all=!all; render();}; bar.appendChild(a);
+    }
+    const d=document.createElement('button'); d.className='secondary'; d.textContent='Download raw';
+    d.onclick=()=>downloadBlob(data, `${type.trim()}_${entry.id}.bin`); bar.appendChild(d);
+  };
+  render();
+}
+
+// dctb/actb/mctb/cctb/wctb/fctb are all plain ColorTables on disk, the same
+// layout clut uses, so one decoder covers the family.
+const COLOR_TABLE_TYPES={'clut':'colour table','dctb':'dialog colour table','actb':'alert colour table',
+  'mctb':'menu colour table','cctb':'control colour table','wctb':'window colour table',
+  'fctb':'finder icon colour table'};
+
+// Shared layout for the resources that decode to several small images.
+function previewCanvasGrid(heading, metaText, canvases, px, onSave){
+  const out=clearPreview();
+  previewHeading(out, heading);
+  const meta=document.createElement('div'); meta.className='previewMeta'; meta.textContent=metaText+' — tap a tile to save it as PNG.';
+  out.appendChild(meta);
+  const grid=document.createElement('div');
+  grid.style.cssText=`display:grid;grid-template-columns:repeat(auto-fill,minmax(${px+16}px,1fr));gap:8px`;
+  canvases.forEach((c,i)=>{
+    const b=document.createElement('button');
+    b.style.cssText='background:#222;border:1px solid #444;border-radius:6px;padding:6px;margin:0;min-height:0';
+    c.style.cssText=`width:${px}px;height:${px}px;image-rendering:pixelated;background:#555;display:block;margin:0 auto`;
+    b.appendChild(c); b.title=`#${i+1}`;
+    b.onclick=()=>onSave(c,i);
+    grid.appendChild(b);
+  });
+  out.appendChild(grid);
+}
+
+function previewFont(out, heading, entry, font){
+  previewHeading(out, heading);
+  const meta=document.createElement('div'); meta.className='previewMeta'; meta.textContent=font.info;
+  out.appendChild(meta);
+  // The strike is the whole font as one wide bitmap; it is how the resource
+  // is actually stored, and it is worth seeing.
+  const strip=document.createElement('div');
+  strip.style.cssText='overflow-x:auto;background:#f4e9c8;border-radius:6px;padding:8px;margin-bottom:10px';
+  font.canvas.style.cssText=`image-rendering:pixelated;height:${Math.min(96,font.fRectHeight*4)}px;width:auto;max-width:none;display:block`;
+  strip.appendChild(font.canvas); out.appendChild(strip);
+
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:6px';
+  for(const g of font.glyphs){
+    const cell=document.createElement('button');
+    cell.style.cssText='background:#f4e9c8;border:1px solid #444;border-radius:6px;padding:4px;margin:0;min-height:0;display:flex;flex-direction:column;align-items:center;gap:2px';
+    g.canvas.style.cssText=`image-rendering:pixelated;height:${Math.min(40,font.fRectHeight*2)}px;width:auto;background:transparent`;
+    const lab=document.createElement('span');
+    lab.style.cssText='font-size:9px;color:#444';
+    lab.textContent = g.missing ? 'miss' : (g.code>32&&g.code<127 ? String.fromCharCode(g.code) : g.code);
+    cell.title = g.missing ? 'missing-character symbol' : `character ${g.code} (${g.width} px wide)`;
+    cell.append(g.canvas,lab);
+    cell.onclick=()=>saveCanvasPng(g.canvas,4,`font_${entry.id}_char${g.code}_4x.png`);
+    grid.appendChild(cell);
+  }
+  out.appendChild(grid);
+  const bar=document.createElement('div'); bar.className='toolbar'; out.appendChild(bar);
+  const b=document.createElement('button'); b.className='secondary'; b.textContent='Save strike as PNG';
+  b.onclick=()=>saveCanvasPng(font.canvas,2,`font_${entry.id}_strike_2x.png`); bar.appendChild(b);
+}
+
+function previewResource(type, entry, data){
+  const out = clearPreview();
+  const heading = `${type.trim()} #${entry.id}${entry.name?' — '+entry.name:''}`;
+  try{
+    if(type==='STR#'){
+      previewTextBlock(heading, decodeSTRList(data).map((s,i)=>`[${i}] ${s}`).join('\n'), `${decodeSTRList(data).length} strings`, `STR_${entry.id}`);
+    } else if(type==='STR '){
+      previewTextBlock(heading, decodeSTR(data), '', `STR_${entry.id}`);
+    } else if(type==='TEXT'){
+      previewTextBlock(heading, decodeTEXT(data), `${data.length.toLocaleString()} bytes`, `TEXT_${entry.id}`);
+    } else if(type==='vers'){
+      previewTextBlock(heading, decodeVers(data));
+    } else if(type==='DITL'){
+      previewTextBlock(heading, decodeDITL(data));
+    } else if(type==='MENU'){
+      previewTextBlock(heading, decodeMENU(data));
+    } else if(type==='WIND'){
+      previewTextBlock(heading, decodeWIND(data));
+    } else if(type==='ALRT'){
+      previewTextBlock(heading, decodeALRT(data));
+    } else if(type==='snd '){
+      previewHeading(out, heading);
+      const snd = decodeSndToWav(data);
+      const audio = document.createElement('audio'); audio.controls=true; audio.src = previewObjectURL(snd.blob); out.appendChild(audio);
+      const meta = document.createElement('div'); meta.className='previewMeta'; meta.textContent = snd.description; out.appendChild(meta);
+      const dl = document.createElement('button'); dl.className='secondary'; dl.textContent='Save as WAV'; dl.style.display='block'; dl.style.marginTop='8px'; dl.onclick=()=>dlBlob(snd.blob,`snd_${entry.id}.wav`); out.appendChild(dl);
+    } else if(type==='CURS'){
+      previewHeading(out, heading);
+      const cur=decodeCURS(data); cur.canvas.style.width='256px'; cur.canvas.style.height='256px'; cur.canvas.className='pictCanvas'; out.appendChild(cur.canvas);
+      const info=document.createElement('div'); info.className='cursorInfo'; info.textContent=`16×16 monochrome cursor; hotspot: (${cur.hotX}, ${cur.hotY})`; out.appendChild(info);
+      const b1=document.createElement('button'); b1.className='secondary'; b1.textContent='PNG 1×'; b1.onclick=()=>saveCanvasPng(cur.canvas,1,`cursor_${entry.id}_1x.png`); out.appendChild(b1);
+      const b4=document.createElement('button'); b4.className='secondary'; b4.textContent='PNG 4×'; b4.onclick=()=>saveCanvasPng(cur.canvas,4,`cursor_${entry.id}_4x.png`); out.appendChild(b4);
+    } else if(type==='crsr'){
+      previewHeading(out, heading);
+      let cur;
+      try { cur = decodeCrsr(data); }
+      catch(_e){ cur = decodeCURS(data.slice(0,68)); }
+      cur.canvas.style.width='256px'; cur.canvas.style.height='256px'; cur.canvas.className='pictCanvas'; out.appendChild(cur.canvas);
+      const info=document.createElement('div'); info.className='cursorInfo'; info.textContent=`${cur.canvas.width}×${cur.canvas.height} cursor; hotspot: (${cur.hotX}, ${cur.hotY})`; out.appendChild(info);
+      const c1=document.createElement('button'); c1.className='secondary'; c1.textContent='PNG 1×'; c1.onclick=()=>saveCanvasPng(cur.canvas,1,`color_cursor_${entry.id}_1x.png`); out.appendChild(c1);
+      const c4=document.createElement('button'); c4.className='secondary'; c4.textContent='PNG 4×'; c4.onclick=()=>saveCanvasPng(cur.canvas,4,`color_cursor_${entry.id}_4x.png`); out.appendChild(c4);
+    } else if(type==='acur'){
+      { const a=decodeAcur(data); const item=cursorGalleryItems().find(i=>i.anim&&i.id===entry.id);
+        if(item) showCursorDetail(item);
+        else previewTextBlock(heading, 'Animated cursor: '+a.count+' frames referencing cursor IDs '+a.ids.join(', ')+'. None of those cursors are present in this fork.'); }
+    } else if(type==='ICN#'){
+      previewHeading(out, heading);
+      const canvas = decode1bitIcon(data, 32); canvas.style.width='128px'; canvas.style.height='128px'; out.appendChild(canvas); addCanvasPngButton(out, canvas, `icon_${entry.id}.png`);
+    } else if(type==='ics#'){
+      previewHeading(out, heading);
+      const canvas = decode1bitIcon(data, 16); canvas.style.width='96px'; canvas.style.height='96px'; out.appendChild(canvas); addCanvasPngButton(out, canvas, `icon_${entry.id}.png`);
+    } else if(type==='icl4'){
+      previewHeading(out, heading);
+      const canvas = drawIndexedIcon(data, 32, 4, MAC_4BIT_PAL, iconMaskFor(32)(entry.id)); canvas.style.width='128px'; canvas.style.height='128px'; out.appendChild(canvas); addCanvasPngButton(out, canvas, `icon_${entry.id}.png`);
+    } else if(type==='icl8'){
+      previewHeading(out, heading);
+      const canvas = drawIndexedIcon(data, 32, 8, MAC_8BIT_PAL, iconMaskFor(32)(entry.id)); canvas.style.width='128px'; canvas.style.height='128px'; out.appendChild(canvas); addCanvasPngButton(out, canvas, `icon_${entry.id}.png`);
+    } else if(type==='ics4'){
+      previewHeading(out, heading);
+      const canvas = drawIndexedIcon(data, 16, 4, MAC_4BIT_PAL, iconMaskFor(16)(entry.id)); canvas.style.width='96px'; canvas.style.height='96px'; out.appendChild(canvas); addCanvasPngButton(out, canvas, `icon_${entry.id}.png`);
+    } else if(type==='ics8'){
+      previewHeading(out, heading);
+      const canvas = drawIndexedIcon(data, 16, 8, MAC_8BIT_PAL, iconMaskFor(16)(entry.id)); canvas.style.width='96px'; canvas.style.height='96px'; out.appendChild(canvas); addCanvasPngButton(out, canvas, `icon_${entry.id}.png`);
+    } else if(type==='cicn'){
+      previewHeading(out, heading);
+      const canvas = decodeCicn(data); canvas.style.width='128px'; canvas.style.height='128px'; out.appendChild(canvas); addCanvasPngButton(out, canvas, `cicn_${entry.id}.png`);
+    } else if(type==='ICON'){
+      previewHeading(out, heading);
+      const canvas = decodeICON(data); canvas.style.width='128px'; canvas.style.height='128px';
+      out.appendChild(canvas); addCanvasPngButton(out, canvas, `icon_${entry.id}.png`);
+    } else if(type==='SICN'){
+      const icons=decodeSICN(data);
+      previewCanvasGrid(heading, `${icons.length} small icon${icons.length===1?'':'s'}, 16×16`, icons, 48,
+                        (c,i)=>saveCanvasPng(c,4,`sicn_${entry.id}_${i+1}_4x.png`));
+    } else if(type==='PAT#'){
+      const pats=decodePATList(data);
+      previewCanvasGrid(heading, `${pats.length} pattern${pats.length===1?'':'s'}, 8×8`, pats, 48,
+                        (c,i)=>saveCanvasPng(c,8,`pattern_${entry.id}_${i+1}_8x.png`));
+    } else if(type==='pltt'){
+      const {canvas,count,usage}=decodePltt(data); canvas.style.border='1px solid #444';
+      const pv=previewNode(heading, canvas, `${count}-colour palette (pltt) — usage: ${usage}`);
+      addCanvasPngButton(pv.toolbar, canvas, `pltt_${entry.id}.png`);
+    } else if(COLOR_TABLE_TYPES[type]){
+      const {canvas,count}=decodeClut(data); canvas.style.border='1px solid #444';
+      const pv=previewNode(heading, canvas, `${COLOR_TABLE_TYPES[type]} — ${count} colours`);
+      addCanvasPngButton(pv.toolbar, canvas, `${type.trim()}_${entry.id}.png`);
+    } else if(type==='CNTL'){
+      previewTextBlock(heading, decodeCNTL(data));
+    } else if(type==='nrct'){
+      previewTextBlock(heading, decodeNrct(data));
+    } else if(type==='styl'){
+      previewTextBlock(heading, decodeStyl(data));
+    } else if(type==='FOND'){
+      previewTextBlock(heading, decodeFOND(data).text, 'Font family record');
+    } else if(type==='NFNT'||type==='FONT'){
+      previewFont(out, heading, entry, decodeNFNT(data));
+    } else if(type==='DLOG'){
+      previewTextBlock(heading, decodeDLOG(data));
+    } else if(type==='MBAR'){
+      previewTextBlock(heading, decodeMBAR(data));
+    } else if(type==='FREF'){
+      previewTextBlock(heading, decodeFREF(data));
+    } else if(type==='BNDL'){
+      previewTextBlock(heading, decodeBNDL(data));
+    } else if(type==='SIZE'){
+      previewTextBlock(heading, decodeSIZE(data));
+    } else if(type==='TMPL'){
+      previewTextBlock(heading, decodeTMPL(data));
+    } else if(type==='PAT '){
+      const canvas=decodePAT(data); canvas.style.width='192px'; canvas.style.height='192px'; const pv=previewNode(heading, canvas, '8×8 monochrome pattern'); addCanvasPngButton(pv.toolbar, canvas, `pattern_${entry.id}.png`);
+    } else if(type==='ppat'){
+      const canvas=decodePpat(data); canvas.style.width='192px'; canvas.style.height='192px'; const pv=previewNode(heading, canvas, 'Pattern resource'); addCanvasPngButton(pv.toolbar, canvas, `ppat_${entry.id}.png`);
+    } else if(type==='clut'){
+      previewHeading(out, heading);
+      const {canvas,count}=decodeClut(data); canvas.style.border='1px solid #444';
+      const pv=previewNode(heading, canvas, `${count}-color palette (clut)`); addCanvasPngButton(pv.toolbar, canvas, `clut_${entry.id}.png`);
+    } else if(type==='sfnt'){
+      previewHeading(out, heading);
+      let info=null; try{ info=decodeSfntInfo(data); }catch(e){}
+      const meta=document.createElement('div'); meta.className='previewMeta';
+      meta.textContent = info ? `Embedded TrueType/OpenType font — ${info.numTables} tables (${info.tables.join(', ')})` : 'Embedded font resource (sfnt)';
+      out.appendChild(meta);
+      const sample=document.createElement('div');
+      sample.style.fontSize='22px'; sample.style.padding='10px'; sample.style.background='#0d0d0d'; sample.style.borderRadius='6px'; sample.style.color='#f4e9c8';
+      sample.textContent='The quick brown fox jumps over the lazy dog. 0123456789';
+      out.appendChild(sample);
+      const fontName='sfntPreview_'+entry.id;
+      try{
+        const face=new FontFace(fontName, data.buffer.slice(data.byteOffset,data.byteOffset+data.byteLength));
+        face.load().then(loaded=>{ document.fonts.add(loaded); sample.style.fontFamily=fontName; }).catch(()=>{ sample.title='This browser could not render a live preview of this font.'; });
+      }catch(e){}
+      const dl=document.createElement('button'); dl.className='secondary'; dl.textContent='Download as .ttf'; dl.style.display='block'; dl.style.marginTop='8px';
+      dl.onclick=()=>downloadBlob(data, `font_${entry.id}.ttf`);
+      out.appendChild(dl);
+    } else if(type==='PICT'){
+      previewHeading(out, heading);
+      const result=decodePict(data);
+      if(result.kind==='embedded'){
+        const img=document.createElement('img'); img.style.maxWidth='100%'; const pv=previewNode(heading, img, 'Embedded image payload inside PICT'); img.src=previewObjectURL(result.blob); const dl=document.createElement('button'); dl.className='secondary'; dl.textContent='Save image'; dl.onclick=()=>dlBlob(result.blob,`pict_${entry.id}.${result.ext}`); pv.toolbar.appendChild(dl);
+      } else if(result.kind==='canvas'){
+        result.canvas.className='pictCanvas'; const pv=previewNode(heading, result.canvas, `${result.width}×${result.height}, ${result.colorSpace} PICT, opcode 0x${result.opcode.toString(16).padStart(4,'0')} at offset ${result.opcodeOffset}`); addCanvasPngButton(pv.toolbar, result.canvas, `pict_${entry.id}.png`);
+      }
+    } else {
+      previewUndecoded(heading, type, entry, data);
+    }
+  }catch(err){
+    previewUndecoded(heading, type, entry, data, 'Decode error: ' + err.message);
+  }
+}
+
+// ============================================================
+//  Cursor gallery: one tile per cursor, PNG 1x/4x, animated GIF
+// ============================================================
+
+// ---- nearest-neighbour upscale -----------------------------
+function scaleCanvas(src, mult){
+  if(mult===1) return src;
+  const c=document.createElement('canvas');
+  c.width=src.width*mult; c.height=src.height*mult;
+  const x=c.getContext('2d');
+  x.imageSmoothingEnabled=false;
+  x.drawImage(src,0,0,c.width,c.height);
+  return c;
+}
+function saveCanvasPng(canvas, mult, filename){
+  scaleCanvas(canvas,mult).toBlob(b=>dlBlob(b,filename));
+}
+
+// ---- minimal GIF89a encoder (LZW), with transparency -------
+function encodeGIF(canvases, delayMs){
+  const W=canvases[0].width, H=canvases[0].height;
+  // Build a shared palette. Index 0 is reserved for fully transparent pixels.
+  const key=(r,g,b)=>(r<<16)|(g<<8)|b;
+  const seen=new Map(); const pal=[[0,0,0]];
+  const framesIdx=[];
+  for(const cv of canvases){
+    const d=cv.getContext('2d').getImageData(0,0,W,H).data;
+    const idx=new Uint8Array(W*H);
+    for(let i=0;i<W*H;i++){
+      if(d[i*4+3]<128){ idx[i]=0; continue; }
+      const k=key(d[i*4],d[i*4+1],d[i*4+2]);
+      let v=seen.get(k);
+      if(v===undefined){
+        if(pal.length>=256){ v=1; }
+        else { v=pal.length; pal.push([d[i*4],d[i*4+1],d[i*4+2]]); seen.set(k,v); }
+      }
+      idx[i]=v;
+    }
+    framesIdx.push(idx);
+  }
+  let bits=1; while((1<<bits)<pal.length) bits++;
+  if(bits<2) bits=2;
+  const palSize=1<<bits;
+
+  const buf=[];
+  const byte=b=>buf.push(b&255);
+  const short=v=>{byte(v);byte(v>>8);};
+  const str=t=>{for(let i=0;i<t.length;i++) byte(t.charCodeAt(i));};
+
+  str('GIF89a'); short(W); short(H);
+  byte(0x80 | ((bits-1)&7));   // global colour table, size
+  byte(0); byte(0);
+  for(let i=0;i<palSize;i++){const c=pal[i]||[0,0,0]; byte(c[0]);byte(c[1]);byte(c[2]);}
+  // Netscape loop-forever extension
+  byte(0x21); byte(0xFF); byte(11); str('NETSCAPE2.0'); byte(3); byte(1); short(0); byte(0);
+
+  const delayCs=Math.max(1,Math.round(delayMs/10));
+  for(const idx of framesIdx){
+    byte(0x21); byte(0xF9); byte(4);
+    byte(0x08 | 0x01);          // disposal = restore to background, transparency on
+    short(delayCs); byte(0); byte(0);
+    byte(0x2C); short(0); short(0); short(W); short(H); byte(0);
+    lzw(idx, bits, buf);
+  }
+  byte(0x3B);
+  return new Blob([new Uint8Array(buf)],{type:'image/gif'});
+}
+function lzw(pixels, minBits, buf){
+  const clearCode=1<<minBits, eoi=clearCode+1;
+  let codeSize=minBits+1, next=eoi+1;
+  let dict=new Map();
+  const reset=()=>{dict=new Map(); next=eoi+1; codeSize=minBits+1;};
+  let acc=0, accBits=0; const block=[];
+  const flushBlock=()=>{ if(!block.length) return; buf.push(block.length); for(const b of block) buf.push(b); block.length=0; };
+  const emit=code=>{
+    acc |= code<<accBits; accBits+=codeSize;
+    while(accBits>=8){ block.push(acc&255); acc>>=8; accBits-=8; if(block.length===255) flushBlock(); }
+  };
+  buf.push(minBits);
+  emit(clearCode);
+  let prev=pixels[0];
+  for(let i=1;i<pixels.length;i++){
+    const c=pixels[i], k=prev*4096+c;
+    if(dict.has(k)){ prev=dict.get(k); }
+    else{
+      emit(prev);
+      if(next<4096){ dict.set(k,next++); if(next>(1<<codeSize) && codeSize<12) codeSize++; }
+      else { emit(clearCode); reset(); }
+      prev=c;
+    }
+  }
+  emit(prev); emit(eoi);
+  while(accBits>0){ block.push(acc&255); acc>>=8; accBits-=8; if(block.length===255) flushBlock(); }
+  flushBlock();
+  buf.push(0);
+}
+
+// ---- acur ---------------------------------------------------
+// acur is 4-byte header (count, current index) then one 4-byte entry per
+// frame: cursor resource ID + a reserved word. It carries NO timing data --
+// the advance rate lived in the application's event loop, so any frame
+// duration here is our choice, not the resource's.
+function decodeAcur(data){
+  const n=u16(data,0), ids=[];
+  for(let i=0;i<n && 4+i*4+2<=data.length;i++) ids.push(u16(data,4+i*4));
+  return {count:n, ids};
+}
+// A crsr and a CURS can share one resource ID (Cythera has both as 138), so
+// callers must be able to pin the type; otherwise the CURS tile renders the
+// crsr's artwork.
+function lookupCursor(id, preferType){
+  for(const t of (preferType?[preferType]:['crsr','CURS'])){
+    const list=resourcesByType[t]; if(!list) continue;
+    const e=list.find(r=>r.id===id); if(!e) continue;
+    const data=getResourceData(t,e);
+    try{ return {type:t, entry:e, ...(t==='crsr'?decodeCrsr(data):decodeCURS(data))}; }catch(_){ }
+  }
+  return null;
+}
+
+let ANIM_DELAY_MS=100;
+
+function cursorGalleryItems(){
+  const inAnim=new Set(), anims=[];
+  for(const e of (resourcesByType['acur']||[])){
+    const a=decodeAcur(getResourceData('acur',e));
+    // .map(lookupCursor) passed the array index as preferType, so every frame
+    // after the first looked up resource type 1, found nothing, and was
+    // dropped: animated cursors silently played a single frame.
+    const frames=a.ids.map(id=>lookupCursor(id)).filter(Boolean);
+    if(frames.length){ a.ids.forEach(i=>inAnim.add(i)); anims.push({anim:true, id:e.id, ids:a.ids, frames}); }
+  }
+  const singles=[];
+  for(const t of ['crsr','CURS']){
+    for(const e of (resourcesByType[t]||[])){
+      if(inAnim.has(e.id)) continue;
+      const c=lookupCursor(e.id, t);
+      if(c) singles.push({anim:false, id:e.id, type:t, cur:c});
+    }
+  }
+  singles.sort((a,b)=>a.id-b.id);
+  return [...anims, ...singles];
+}
+
+function showCursorGallery(){
+  const out=clearPreview();
+  const items=cursorGalleryItems();
+  const h=document.createElement('div'); h.className='previewTitle';
+  h.textContent=`Cursor gallery — ${items.length} cursors`;
+  out.appendChild(h);
+  if(!items.length){ out.appendChild(Object.assign(document.createElement('div'),
+    {className:'previewMeta',textContent:'This fork has no crsr, CURS or acur resources.'})); return; }
+  const meta=document.createElement('div'); meta.className='previewMeta';
+  meta.textContent='Each cursor appears once; animated sets are collapsed into a single entry. Tap for downloads.';
+  out.appendChild(meta);
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px';
+  out.appendChild(grid);
+  for(const it of items){
+    const b=document.createElement('button');
+    b.style.cssText='background:#222;border:1px solid #444;border-radius:6px;padding:8px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;margin:0';
+    const cv=scaleCanvas(it.anim?it.frames[0].canvas:it.cur.canvas,3);
+    cv.style.cssText='width:48px;height:48px;image-rendering:pixelated;background:#555';
+    const lab=document.createElement('span');
+    lab.style.cssText='font-size:11px;color:'+(it.anim?'#C4A464':'#aaa');
+    lab.textContent=it.anim?'anim':(it.cur.type==='CURS'?'C'+it.id:String(it.id));
+    if(!it.anim) b.title=it.cur.type+' '+it.id;
+    b.append(cv,lab);
+    b.onclick=()=>showCursorDetail(it);
+    grid.appendChild(b);
+  }
+}
+
+function showCursorDetail(it){
+  const out=clearPreview();
+  const back=document.createElement('button'); back.className='secondary';
+  back.textContent='← Back to gallery'; back.onclick=showCursorGallery; out.appendChild(back);
+
+  const title=document.createElement('div'); title.className='previewTitle';
+  title.textContent = it.anim ? `acur #${it.id} — animated cursor, ${it.frames.length} frames`
+                              : `${it.cur.type} #${it.id}`;
+  out.appendChild(title);
+
+  const stage=document.createElement('canvas');
+  const first = it.anim?it.frames[0].canvas:it.cur.canvas;
+  stage.width=first.width; stage.height=first.height;
+  stage.style.cssText='width:192px;height:192px;image-rendering:pixelated;background:#333;display:block;margin:10px auto';
+  const sx=stage.getContext('2d');
+  const hot = it.anim?it.frames[0]:it.cur;
+  let f=0, timer=null;
+  const paint=()=>{
+    sx.clearRect(0,0,stage.width,stage.height);
+    sx.drawImage(it.anim?it.frames[f].canvas:it.cur.canvas,0,0);
+    if(!it.anim){ sx.fillStyle='#D24B3E'; sx.globalAlpha=.9; sx.fillRect(hot.hotX,hot.hotY,1,1); sx.globalAlpha=1; }
+  };
+  paint();
+  if(it.anim){ timer=setInterval(()=>{ f=(f+1)%it.frames.length; paint(); }, ANIM_DELAY_MS);
+               onPreviewTeardown(()=>clearInterval(timer)); }
+  out.appendChild(stage);
+
+  const info=document.createElement('div'); info.className='cursorInfo';
+  info.innerHTML = it.anim
+    ? `${first.width}×${first.height} · frame order <b>${it.ids.join(' → ')}</b><br>`+
+      `acur stores no timing; showing ${Math.round(1000/ANIM_DELAY_MS)} fps by choice.`
+    : `${it.cur.type} #${it.id} · ${first.width}×${first.height} · ${it.cur.pixelSize||1}-bit · hotspot (${it.cur.hotX}, ${it.cur.hotY})`;
+  out.appendChild(info);
+
+  const bar=document.createElement('div'); bar.className='toolbar'; out.appendChild(bar);
+  const btn=(label,fn)=>{const b=document.createElement('button');b.className='secondary';b.textContent=label;b.onclick=fn;bar.appendChild(b);};
+
+  if(it.anim){
+    const cvs=it.frames.map(fr=>fr.canvas);
+    btn('GIF 1×',()=>dlBlob(encodeGIF(cvs,ANIM_DELAY_MS),`cursor_anim_${it.id}_1x.gif`));
+    btn('GIF 4×',()=>dlBlob(encodeGIF(cvs.map(c=>scaleCanvas(c,4)),ANIM_DELAY_MS),`cursor_anim_${it.id}_4x.gif`));
+    btn('PNG 1× (frame 1)',()=>saveCanvasPng(cvs[0],1,`cursor_anim_${it.id}_f1_1x.png`));
+    btn('PNG 4× (frame 1)',()=>saveCanvasPng(cvs[0],4,`cursor_anim_${it.id}_f1_4x.png`));
+    btn('All frames as PNG',()=>it.frames.forEach((fr,i)=>
+      setTimeout(()=>saveCanvasPng(fr.canvas,4,`cursor_anim_${it.id}_f${i+1}_${it.ids[i]}_4x.png`), i*250)));
+    const sp=document.createElement('div'); sp.className='cursorInfo';
+    sp.innerHTML='Frame rate <input type="range" min="40" max="400" step="10" value="'+ANIM_DELAY_MS+
+      '" style="vertical-align:middle" oninput="ANIM_DELAY_MS=+this.value;this.nextElementSibling.textContent=this.value+\' ms\'"> <span>'+ANIM_DELAY_MS+' ms</span>';
+    out.appendChild(sp);
+  } else {
+    const stem=`${it.cur.type}_${it.id}`;
+    btn('PNG 1×',()=>saveCanvasPng(it.cur.canvas,1,`${stem}_1x.png`));
+    btn('PNG 4×',()=>saveCanvasPng(it.cur.canvas,4,`${stem}_4x.png`));
+  }
+}
+
+// ---- mobile bottom-sheet controller -------------------------------
+function isMobile(){ return window.matchMedia('(max-width:899px)').matches; }
+function openSheet(){
+  if(!isMobile()) return;
+  document.getElementById('rightPane').classList.add('on');
+  document.getElementById('sheetBackdrop').classList.add('on');
+  document.body.style.overflow='hidden';
+}
+function closeSheet(){
+  document.getElementById('rightPane').classList.remove('on');
+  document.getElementById('sheetBackdrop').classList.remove('on');
+  document.body.style.overflow='';
+}
+// Any code path that fills #preview should raise the sheet on a phone.
+['previewResource','previewUndecoded','showCursorGallery','showCursorDetail'].forEach(fn=>{
+  const orig=window[fn];
+  if(typeof orig==='function') window[fn]=function(){ const r=orig.apply(this,arguments); openSheet(); return r; };
+});
+// Swipe the sheet down to dismiss.
+(function(){
+  const bar=document.getElementById('sheetBar'); let y0=null;
+  if(!bar) return;
+  bar.addEventListener('touchstart',e=>{y0=e.touches[0].clientY;},{passive:true});
+  bar.addEventListener('touchmove',e=>{
+    if(y0===null) return;
+    const dy=e.touches[0].clientY-y0;
+    if(dy>0) document.getElementById('rightPane').style.transform='translateY('+dy+'px)';
+  },{passive:true});
+  bar.addEventListener('touchend',e=>{
+    const pane=document.getElementById('rightPane');
+    const dy=parseFloat((pane.style.transform.match(/-?[\d.]+/)||[0])[0]);
+    pane.style.transform='';
+    if(dy>90) closeSheet();
+    y0=null;
+  },{passive:true});
+})();
+window.addEventListener('resize',()=>{ if(!isMobile()) closeSheet(); });
+
+</script>
+</body>
+</html>
