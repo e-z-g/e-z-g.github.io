@@ -316,8 +316,9 @@ const WORD_PATTERNS = [
 
 // Every built-in dataset in this repo numbers its faces in the same order —
 // MAWWnodes-8..13, LEIS661..666, ENCHnodes-277..282 — so six files sorted by
-// trailing number assign correctly with no renaming. (Read off getCubemapUrls
-// in index.html.)
+// trailing number assign correctly with no renaming. This is getCubemapUrls'
+// ordering in index.html, which is also what FACE_INDEX is pinned to; verified
+// by diffing the stitched result against the built-in Amateria rendering.
 const NUMERIC_ORDER = ['front', 'bottom', 'back', 'right', 'left', 'top'];
 
 function inferAssignment(files) {
