@@ -508,31 +508,86 @@ const $ = (id) => document.getElementById(id);
  * Google Fonts loading
  * ------------------------------------------------------------------ */
 
-const requestedFonts = new Set();
+const fontLinks = new Map();
 const fontStatus = new Map();
 
-function requestFont(family) {
-  if (!family || requestedFonts.has(family)) return;
-  requestedFonts.add(family);
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = "https://fonts.googleapis.com/css2?family=" +
-    encodeURIComponent(family).replace(/%20/g, "+") + ":wght@400;700&display=swap";
-  document.head.appendChild(link);
+// Resolves once the stylesheet for `family` has actually loaded (or failed).
+// Without this wait, document.fonts.load() finds no matching @font-face yet and
+// resolves empty, which used to make the first paint after every era change
+// silently fall back to a generic serif.
+function fontEntry(family) {
+  let e = fontLinks.get(family);
+  if (e) return e;
+  e = { loaded: false, failed: false };
+  e.promise = new Promise((resolve) => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=" +
+      encodeURIComponent(family).replace(/%20/g, "+") + ":wght@400;700&display=swap";
+    link.onload = () => { e.loaded = true; resolve(true); };
+    link.onerror = () => { e.failed = true; resolve(false); };
+    // Don't hold a render hostage to a slow or hanging CDN: give up waiting
+    // after 3s and paint with the fallback. If the stylesheet lands later,
+    // e.loaded flips and the next render picks the real font up.
+    setTimeout(() => resolve(e.loaded), 3000);
+    document.head.appendChild(link);
+  });
+  fontLinks.set(family, e);
+  return e;
+}
+
+async function requestFont(family) {
+  const e = fontEntry(family);
+  await e.promise;
+  return e.loaded;
 }
 
 async function ensureFont(family) {
   if (!family) return false;
-  if (fontStatus.has(family)) return fontStatus.get(family);
-  requestFont(family);
-  let ok = false;
+  if (fontStatus.get(family) === true) return true;
+  const linkOk = await requestFont(family);
+  if (!linkOk) { fontStatus.set(family, false); return false; }
+  const spec7 = '700 40px "' + family + '"';
+  const spec4 = '400 20px "' + family + '"';
   try {
-    const a = await document.fonts.load('700 40px "' + family + '"');
-    const b = await document.fonts.load('400 20px "' + family + '"');
-    ok = (a.length + b.length) > 0;
-  } catch (e) { ok = false; }
-  fontStatus.set(family, ok);
+    await Promise.all([document.fonts.load(spec7), document.fonts.load(spec4)]);
+  } catch (e) { /* fall through to the check */ }
+  // Both weights are required: the title paints at 700 and the body at 400,
+  // and they can finish downloading at different times.
+  let ok = false;
+  try { ok = document.fonts.check(spec7) && document.fonts.check(spec4); } catch (e) { ok = false; }
+  // Only positives are cached: a negative may just be a slow network, and the
+  // memoised link promise makes re-checking essentially free.
+  if (ok) fontStatus.set(family, true);
   return ok;
+}
+
+// document.fonts.load() can resolve while a face is still being rasterised, and
+// canvas silently falls back to a generic serif for anything not ready at the
+// moment fillText runs. Poll until every weight we paint with is truly usable.
+async function fontsUsable(families, timeoutMs) {
+  const specs = [];
+  for (const f of families) {
+    if (!f) continue;
+    // If the stylesheet failed outright (offline, blocked CDN, invented font
+    // name) the face can never appear — don't sit out the timeout for it.
+    const e = fontEntry(f);
+    await e.promise;
+    if (e.failed || !e.loaded) continue;
+    specs.push('700 40px "' + f + '"');
+    specs.push('400 20px "' + f + '"');
+  }
+  if (!specs.length) return false;
+  const deadline = Date.now() + (timeoutMs || 4000);
+  for (;;) {
+    let all = true;
+    for (const s of specs) {
+      try { if (!document.fonts.check(s)) { all = false; break; } } catch (e) { /* ignore */ }
+    }
+    if (all) return true;
+    if (Date.now() > deadline) return false;
+    await new Promise((r) => setTimeout(r, 90));
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -763,6 +818,68 @@ function palette(style) {
            panel: dark ? [255, 255, 255] : [255, 255, 255], panelAlpha: dark ? 0.05 : 0.42 };
 }
 
+const STAMP_R = 58;
+
+// Wrapped text inside a circle has to respect the chord width at each line's
+// own height, not one flat max width — otherwise the middle lines fit and the
+// top and bottom ones spill over the ring.
+function fitStampText(ctx, text, family, radius) {
+  const inner = radius - 8;
+  for (let size = 12; size >= 8; size -= 0.5) {
+    ctx.font = fontSpec(size, family, 700, false);
+    const lh = size * 1.22;
+    const lines = wrap(ctx, text, inner * 1.55);
+    if (lines.length > 5) continue;
+    // Block sits below the "CERTIFIED BY" label, so bias it downward a little.
+    const top = -(lines.length * lh) / 2 + lh * 0.55;
+    let fits = true;
+    for (let i = 0; i < lines.length; i++) {
+      const y = Math.abs(top + i * lh) + lh * 0.5;
+      const chord = 2 * Math.sqrt(Math.max(0, inner * inner - y * y)) - 6;
+      if (ctx.measureText(lines[i]).width > chord) { fits = false; break; }
+    }
+    if (fits) return { size: size, lh: lh, lines: lines };
+  }
+  // Nothing fits cleanly: keep what we can and say so, rather than dropping
+  // words silently mid-phrase.
+  ctx.font = fontSpec(8, family, 700, false);
+  const all = wrap(ctx, text, inner * 1.55);
+  const lines = all.slice(0, 4);
+  if (all.length > lines.length) lines[lines.length - 1] += "…";
+  return { size: 8, lh: 9.8, lines: lines };
+}
+
+function drawStamp(ctx, agency, pal, family, cx, cy, R) {
+  const fit = fitStampText(ctx, agency.toUpperCase(), family, R);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-14 * Math.PI / 180);
+
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2);
+  ctx.fillStyle = rgba(pal.primary, pal.dark ? 0.16 : 0.09);
+  ctx.fill();
+  ctx.strokeStyle = hex(pal.primary);
+  ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, R - 7, 0, Math.PI * 2);
+  ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.fillStyle = hex(pal.primary);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const blockTop = -(fit.lines.length * fit.lh) / 2 + fit.lh * 0.55;
+  ctx.font = fontSpec(9, family, 700, false);
+  ctx.fillText("CERTIFIED BY", 0, blockTop - fit.lh * 0.85);
+  ctx.font = fontSpec(fit.size, family, 700, false);
+  for (let i = 0; i < fit.lines.length; i++) {
+    ctx.fillText(fit.lines[i], 0, blockTop + i * fit.lh);
+  }
+
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.restore();
+}
+
 function fitTitle(ctx, text, maxWidth, family, maxSize, minSize, maxLines) {
   let size = maxSize;
   while (size > minSize) {
@@ -788,13 +905,16 @@ function paint(ctx, D, pal, fonts, draw) {
   const setStroke = (c) => { if (draw) ctx.strokeStyle = c; };
 
   // ---- header ----
+  // Centred header text is kept clear of the stamp's gutter on the right so a
+  // long product name can never run underneath it.
+  const headW = inner - (D.agency && D.agency.trim() ? 300 : 140);
   ctx.font = fontSpec(20, F2, 400, true);
   setFill(hex(pal.secondary));
-  const eraLines = wrap(ctx, D.era, inner - 220);
+  const eraLines = wrap(ctx, D.era, headW);
   if (draw) drawLines(ctx, eraLines, pad, y, 28, "center", inner);
   y += eraLines.length * 28 + 8;
 
-  const title = fitTitle(measureCtx, (D.name || "Untitled Device").toUpperCase(), inner - 200, F1, 62, 30, 3);
+  const title = fitTitle(measureCtx, (D.name || "Untitled Device").toUpperCase(), headW, F1, 62, 30, 3);
   ctx.font = fontSpec(title.size, F1, 700, false);
   setFill(hex(pal.primary));
   if (draw) {
@@ -805,12 +925,12 @@ function paint(ctx, D, pal, fonts, draw) {
     drawLines(ctx, title.lines, pad, y, title.size * 1.18, "center", inner);
     ctx.restore();
   }
-  y += title.lines.length * title.size * 1.18 + 6;
+  y += title.lines.length * title.size * 1.18 + 12;
 
   ctx.font = fontSpec(17, F2, 400, true);
   setFill(rgba(pal.text, 0.85));
   const sub = "(Historical reimagining of " + (D.thing || "a modern thing") + ")";
-  const subLines = wrap(ctx, sub, inner - 220);
+  const subLines = wrap(ctx, sub, headW);
   if (draw) drawLines(ctx, subLines, pad, y, 24, "center", inner);
   y += subLines.length * 24 + 22;
 
@@ -832,9 +952,23 @@ function paint(ctx, D, pal, fonts, draw) {
   const rightW = inner - imgSize - gap;
   const descPad = 24;
 
-  ctx.font = fontSpec(19.5, F2, 400, false);
-  const descLines = wrap(ctx, D.description || "", rightW - descPad * 2);
-  const descH = descLines.length * 30 + descPad * 2;
+  // Short copy is set larger so it fills the panel beside the illustration
+  // instead of stranding a third of it empty; long copy stays at the base size
+  // and the panel grows downward instead.
+  let descSize = 19.5, descLH = 30, descLines = null;
+  for (let s = 26; s >= 20; s -= 0.5) {
+    ctx.font = fontSpec(s, F2, 400, false);
+    const lines = wrap(ctx, D.description || "", rightW - descPad * 2);
+    if (lines.length * (s * 1.55) + descPad * 2 <= imgSize) {
+      descSize = s; descLH = s * 1.55; descLines = lines;
+      break;
+    }
+  }
+  if (!descLines) {
+    ctx.font = fontSpec(descSize, F2, 400, false);
+    descLines = wrap(ctx, D.description || "", rightW - descPad * 2);
+  }
+  const descH = descLines.length * descLH + descPad * 2;
   const rowH = Math.max(imgSize, descH);
 
   if (draw) {
@@ -872,10 +1006,10 @@ function paint(ctx, D, pal, fonts, draw) {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(rightX + 0.75, y + 0.75, rightW - 1.5, rowH - 1.5);
 
-    ctx.font = fontSpec(19.5, F2, 400, false);
+    ctx.font = fontSpec(descSize, F2, 400, false);
     ctx.fillStyle = hex(pal.text);
-    const startY = y + Math.max(descPad, (rowH - descLines.length * 30) / 2) - 4;
-    drawLines(ctx, descLines, rightX + descPad, startY, 30, "left", rightW);
+    const startY = y + Math.max(descPad, (rowH - descLines.length * descLH) / 2) - 4;
+    drawLines(ctx, descLines, rightX + descPad, startY, descLH, "left", rightW);
   }
   y += rowH + 30;
 
@@ -991,50 +1125,16 @@ function paint(ctx, D, pal, fonts, draw) {
 
     // certification stamp
     const agency = (D.agency || "").trim();
-    if (agency) {
-      const sx = W - pad - 22, sy = pad + 62;
-      ctx.save();
-      ctx.translate(sx, sy);
-      ctx.rotate(-14 * Math.PI / 180);
-      ctx.beginPath(); ctx.arc(0, 0, 62, 0, Math.PI * 2);
-      ctx.fillStyle = rgba(pal.primary, pal.dark ? 0.16 : 0.09);
-      ctx.fill();
-      ctx.strokeStyle = hex(pal.primary);
-      ctx.lineWidth = 2.5; ctx.stroke();
-      ctx.beginPath(); ctx.arc(0, 0, 55, 0, Math.PI * 2);
-      ctx.lineWidth = 1; ctx.stroke();
-
-      ctx.font = fontSpec(10, F2, 700, false);
-      ctx.fillStyle = hex(pal.primary);
-      ctx.textAlign = "center";
-      ctx.fillText("CERTIFIED BY", 0, -30);
-      ctx.font = fontSpec(11.5, F2, 700, false);
-      const aLines = wrap(ctx, agency.toUpperCase(), 96).slice(0, 4);
-      const startY = -(aLines.length * 14) / 2 + 12;
-      for (let i = 0; i < aLines.length; i++) ctx.fillText(aLines[i], 0, startY + i * 14);
-      ctx.textAlign = "left";
-      ctx.restore();
-    }
+    if (agency) drawStamp(ctx, agency, pal, F2, W - pad - 26, pad + 58, STAMP_R);
   }
 
   return H;
 }
 
 let currentH = 900;
+let renderToken = 0;
 
-async function render() {
-  const st = state.style;
-  const pal = palette(st);
-  const okP = await ensureFont(st.primary_font);
-  const okS = await ensureFont(st.secondary_font);
-  const fallbackEra = ERAS.find((e) => e.label === state.era);
-  const fonts = {
-    primary: okP ? st.primary_font : (fallbackEra ? fallbackEra.style.primary_font : "Cinzel"),
-    secondary: okS ? st.secondary_font : (fallbackEra ? fallbackEra.style.secondary_font : "EB Garamond")
-  };
-  if (!okP) await ensureFont(fonts.primary);
-  if (!okS) await ensureFont(fonts.secondary);
-
+function paintPoster(pal, fonts) {
   const D = {
     era: state.era, thing: state.thing, name: state.name,
     description: state.description,
@@ -1057,6 +1157,39 @@ async function render() {
   ctx.fillRect(0, 0, POSTER_W, H);
   drawTexture(ctx, POSTER_W, H, D.texture, pal);
   paint(ctx, D, pal, fonts, true);
+  return canvas;
+}
+
+async function render() {
+  const token = ++renderToken;
+  const st = state.style;
+  const pal = palette(st);
+  const fallbackEra = ERAS.find((e) => e.label === state.era);
+
+  // Paint straight away with whatever is already loaded, so the poster is never
+  // blank while a webfont is in flight; it is repainted below once the real
+  // faces are usable. (document.fonts.check() can't answer this: it reports
+  // true for a family that has no @font-face rule at all.)
+  const verified = fontStatus.get(st.primary_font) === true &&
+                   fontStatus.get(st.secondary_font) === true;
+  if (!verified) paintPoster(pal, { primary: st.primary_font, secondary: st.secondary_font });
+
+  const [okP, okS] = await Promise.all([
+    ensureFont(st.primary_font), ensureFont(st.secondary_font)
+  ]);
+  const fonts = {
+    primary: okP ? st.primary_font : (fallbackEra ? fallbackEra.style.primary_font : "Cinzel"),
+    secondary: okS ? st.secondary_font : (fallbackEra ? fallbackEra.style.secondary_font : "EB Garamond")
+  };
+  // A model-invented font name falls back to the era's own pairing, which still
+  // has to be loaded before it can be measured.
+  if (!okP) await ensureFont(fonts.primary);
+  if (!okS) await ensureFont(fonts.secondary);
+  await fontsUsable([fonts.primary, fonts.secondary], 2500);
+  // A newer render started while we were waiting on the network — drop this one.
+  if (token !== renderToken) return;
+
+  const canvas = paintPoster(pal, fonts);
 
   $("dims").textContent = canvas.width + " × " + canvas.height + " px";
   $("rawstyle").value = JSON.stringify(state.style, null, 2);
