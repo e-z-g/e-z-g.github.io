@@ -66,6 +66,10 @@
       background-repeat: no-repeat; background-position: right 8px top 50%; background-size: 10px auto;
     }
 
+    /* Long version labels would otherwise size the select wide enough to push
+       the whole row off a narrow screen. */
+    #version-selector { max-width: 46vw; }
+
     .upload-btn {
       background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
       border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer;
@@ -169,7 +173,8 @@
       <select id="location-selector"></select>
       <div style="width:1px; height:16px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
       <div id="quality-buttons" style="display:flex; gap:2px;"></div>
-      
+      <select id="version-selector" style="display:none;"></select>
+
       <div id="custom-upload-controls" style="display:none; flex-direction:column; gap:4px; width: 100%; max-width: 320px;">
         <div style="display:flex; gap:6px; width: 100%;">
             <label class="upload-btn" id="lbl-upload-fg-color">FG Color <input type="file" id="upload-fg-color" accept="image/*" style="display:none;"></label>
@@ -252,22 +257,39 @@
     // handshake, avoids raw's throttling, and lets the viewer run from a local server.
     const rawUrl = './';
 
+    // A location either names six per-face images or points at a single
+    // stitched atlas.
+    //
+    // Per-face locations list `nodes` — the six face ids in material-slot order
+    // (left, right, top, bottom, back, front) — plus a `prefix`; each version
+    // supplies the `suffix` that picks one render of that set, and may override
+    // `prefix` when a set was exported under a different naming scheme.
+    //
+    // Atlas locations (`type: 'atlas'`) give a version a `color` URL and an
+    // optional `depth` URL, and run through the same code path as a custom LDI
+    // upload. The layout is read off the image's aspect ratio, as it is there.
     const locations = [
       {
         name: 'Amateria',
         baseUrl: rawUrl + 'amateria/',
-        type: 'side-numbered',
+        prefix: 'MAWWnodes-',
+        nodes: ['12', '11', '13', '9', '10', '8'],
         audio: rawUrl + 'amateria/audio_amateria.mp3',
         hasDepth: false,
         versions: [
-          { label: 'Original', suffix: '_orig.jpeg' },
-          { label: '4K',       suffix: '_seamless.webp' }
+          { label: 'Original (640)',      suffix: '_orig.jpeg' },
+          { label: 'Upscale (2.5K)',      prefix: 'MAWW', suffix: '_jay.webp' },
+          { label: 'Seamless (3.5K)',     suffix: '_seamless.webp' },
+          { label: 'Seamless v2 (3.5K)',  suffix: '_seamless2.webp' },
+          { label: 'Colormatch (3.6K)',   suffix: '_colormatch.webp' },
+          { label: 'Trimmed (3.9K)',      prefix: 'MAWW', suffix: '_ud_trimmed.webp' }
         ]
       },
       {
         name: 'Voltaic',
         baseUrl: rawUrl + 'voltaic/',
-        type: 'voltaic',
+        prefix: 'ENCHnodes-',
+        nodes: ['281', '280', '282', '278', '279', '277'],
         audio: rawUrl + 'amateria/audio_amateria.mp3',
         hasDepth: true,
         depthSuffix: '-depth.jpeg',
@@ -278,13 +300,46 @@
       {
         name: "J'nanin",
         baseUrl: rawUrl + 'jnanin/',
-        type: 'classic-leis',
+        prefix: 'LEIS',
+        nodes: ['665', '664', '666', '662', '663', '661'],
         audio: null,
         hasDepth: false,
+        // Several of these are the same render re-exported: -mod.webp is pixel
+        // for pixel -hdmod.webp, and -seamless.jpg / -4096.jpg are the seamless
+        // render at another size or in another container. They are all listed
+        // anyway so every set in the folder can be looked at; the "v2" and
+        // format-suffixed labels mark the ones that differ only slightly.
+        //
+        // The -mod.jpg set is deliberately absent: those six files are DDS
+        // (DXT-compressed) textures carrying a .jpg name, which no browser can
+        // decode. Listing them would only offer a button that always errors.
         versions: [
-          { label: 'Original',    suffix: '-orig.jpg' },
-          { label: '2K (HD)',     suffix: '-hdmod.webp' },
-          { label: '6K',          suffix: '-seamless.webp' }
+          { label: 'Original (640)',          suffix: '-orig.jpg' },
+          { label: 'Original PNG (640)',      suffix: '-j90.png' },
+          { label: 'Retouched (2K)',          suffix: '-hdmod.webp' },
+          { label: 'Retouched v2 (2K)',       suffix: '-mod.webp' },
+          { label: 'Base (4K)',               suffix: '.jpg' },
+          { label: 'Seed (4K)',               suffix: '-seed.jpg' },
+          { label: 'Seamless (4K)',           suffix: '-4096.jpg' },
+          { label: 'Seamless (6K)',           suffix: '-seamless.webp' },
+          { label: 'Seamless v2 (6K)',        suffix: '-6144.webp' },
+          { label: 'Seamless JPEG (6K)',      suffix: '-seamless.jpg' },
+          { label: 'Original upscaled (6K)',  suffix: '-orig-up.jpg' }
+        ]
+      },
+      {
+        // Edanna ships as one 5x3 atlas plus a matching depth atlas rather than
+        // six separate faces, so it loads through the atlas path.
+        name: 'Edanna',
+        type: 'atlas',
+        audio: null,
+        hasDepth: true,
+        versions: [
+          {
+            label: 'Full scene',
+            color: rawUrl + 'edanna/edanna.jpeg',
+            depth: rawUrl + 'edanna/edanna_depth.png'
+          }
         ]
       },
       {
@@ -1065,17 +1120,15 @@
     }
 
     function getCubemapUrls(loc, version, fetchDepth = false) {
-      const s = fetchDepth ? loc.depthSuffix : (typeof version === 'string' ? version : (version.suffix || ''));
-      const type = fetchDepth ? loc.type : ((typeof version === 'object' && version.type) ? version.type : loc.type);
-      
-      let p;
-      if (type === 'side-numbered') { p = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s }; }
-      else if (type === 'voltaic') { 
-        p = { left: loc.baseUrl+'ENCHnodes-281'+s, front: loc.baseUrl+'ENCHnodes-277'+s, right: loc.baseUrl+'ENCHnodes-280'+s, back: loc.baseUrl+'ENCHnodes-279'+s, top: loc.baseUrl+'ENCHnodes-282'+s, bottom: loc.baseUrl+'ENCHnodes-278'+s }; 
-      } 
-      else { p = { left: loc.baseUrl+'LEIS665'+s, front: loc.baseUrl+'LEIS661'+s, right: loc.baseUrl+'LEIS664'+s, back: loc.baseUrl+'LEIS663'+s, top: loc.baseUrl+'LEIS666'+s, bottom: loc.baseUrl+'LEIS662'+s }; }
-      
-      return [p.left, p.right, p.top, p.bottom, p.back, p.front]; 
+      const suffix = fetchDepth ? loc.depthSuffix : (version.suffix || '');
+      // A version may carry its own prefix for a set exported under a different
+      // naming scheme: Amateria's `_jay` and `_ud_trimmed` faces are MAWW8..13
+      // where the rest of that folder is MAWWnodes-8..13. Depth maps always use
+      // the location's own prefix.
+      const prefix = (!fetchDepth && version.prefix) || loc.prefix;
+      // `loc.nodes` is already in material-slot order, so the six URLs come
+      // straight off it.
+      return loc.nodes.map(node => loc.baseUrl + prefix + node + suffix);
     }
 
     function buildTransitionDepthTex(depthTextures) {
@@ -1140,7 +1193,10 @@
       const targetVersion = currentLocation.versions[currentVersionIndex];
       const isVideo = targetVersion.type === 'video-5x3';
       const isCustom = currentLocation.type === 'custom';
-      
+      // Built-in atlas locations (Edanna) and custom uploads differ only in
+      // where the four atlas URLs come from, so they share one branch.
+      const isAtlas = isCustom || currentLocation.type === 'atlas';
+
       try {
           const oldTextures = safeDisposeTextures();
 
@@ -1179,17 +1235,26 @@
 
             pendingTransitionDepth = buildTransitionDepthTex(depthTextures);
             
-          } else if (isCustom) {
+          } else if (isAtlas) {
             videoToggleBtn.style.display = 'none';
             sourceVideo.pause();
-            
-            const isDualLayer = !!customMaps.bgColor;
-            
+
+            // Uploads read their four slots out of customMaps; a built-in atlas
+            // location names them on the version itself.
+            const maps = isCustom ? customMaps : {
+                fgColor: targetVersion.color   || null,
+                fgDepth: targetVersion.depth   || null,
+                bgColor: targetVersion.bgColor || null,
+                bgDepth: targetVersion.bgDepth || null
+            };
+
+            const isDualLayer = !!maps.bgColor;
+
             const loaded = await Promise.all([
-                customMaps.fgColor ? textureLoader.loadAsync(customMaps.fgColor) : Promise.resolve(defaultCustomTex),
-                customMaps.fgDepth ? textureLoader.loadAsync(customMaps.fgDepth) : Promise.resolve(dummyDepthTex),
-                isDualLayer ? textureLoader.loadAsync(customMaps.bgColor) : Promise.resolve(defaultCustomTex),
-                (isDualLayer && customMaps.bgDepth) ? textureLoader.loadAsync(customMaps.bgDepth) : Promise.resolve(dummyDepthTex)
+                maps.fgColor ? textureLoader.loadAsync(maps.fgColor) : Promise.resolve(defaultCustomTex),
+                maps.fgDepth ? textureLoader.loadAsync(maps.fgDepth) : Promise.resolve(dummyDepthTex),
+                isDualLayer ? textureLoader.loadAsync(maps.bgColor) : Promise.resolve(defaultCustomTex),
+                (isDualLayer && maps.bgDepth) ? textureLoader.loadAsync(maps.bgDepth) : Promise.resolve(dummyDepthTex)
             ]);
             
             const processAtlasTex = (tex, isColor) => {
@@ -1227,7 +1292,7 @@
             }
             const layoutId = detected.id;
 
-            hasActiveDepth = !!customMaps.fgDepth || !!customMaps.bgDepth;
+            hasActiveDepth = !!maps.fgDepth || !!maps.bgDepth;
             depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
             tearControls.style.display = isDualLayer ? 'flex' : 'none';
             
@@ -1466,21 +1531,52 @@
       }
       
       const qBar = document.getElementById('quality-buttons');
+      const vSelect = document.getElementById('version-selector');
       const uploadUI = document.getElementById('custom-upload-controls');
-      
+
+      const pickVersion = (idx) => {
+        if (currentVersionIndex === idx || isTransitioning) return false;
+        currentVersionIndex = idx; updateUI(); loadPanorama('fade');
+        return true;
+      };
+
       if (currentLocation.type === 'custom') {
           qBar.style.display = 'none';
+          vSelect.style.display = 'none';
           uploadUI.style.display = 'flex';
       } else {
-          qBar.style.display = 'flex';
           uploadUI.style.display = 'none';
-          qBar.innerHTML = '';
-          currentLocation.versions.forEach((v, idx) => {
-            const btn = document.createElement('button'); btn.textContent = v.label;
-            if (idx === currentVersionIndex) btn.classList.add('active');
-            btn.onclick = () => { if (currentVersionIndex !== idx && !isTransitioning) { currentVersionIndex = idx; updateUI(); loadPanorama('fade'); } };
-            qBar.appendChild(btn);
-          });
+          const versions = currentLocation.versions;
+          // Amateria and J'nanin carry every render that exists in their folder,
+          // which is far more than fits as a row of chips on a phone. Past four
+          // the picker becomes a select, which stays one line however long the
+          // list gets.
+          const useSelect = versions.length > 4;
+          qBar.style.display = useSelect ? 'none' : 'flex';
+          vSelect.style.display = useSelect ? '' : 'none';
+
+          if (useSelect) {
+            vSelect.innerHTML = '';
+            versions.forEach((v, idx) => {
+              const opt = document.createElement('option');
+              opt.value = idx; opt.textContent = v.label;
+              if (idx === currentVersionIndex) opt.selected = true;
+              vSelect.appendChild(opt);
+            });
+            // Same guard as the location select: snap back rather than let the
+            // control drift ahead of a scene that refused to change.
+            vSelect.onchange = (e) => {
+              if (!pickVersion(parseInt(e.target.value, 10))) e.target.value = currentVersionIndex;
+            };
+          } else {
+            qBar.innerHTML = '';
+            versions.forEach((v, idx) => {
+              const btn = document.createElement('button'); btn.textContent = v.label;
+              if (idx === currentVersionIndex) btn.classList.add('active');
+              btn.onclick = () => pickVersion(idx);
+              qBar.appendChild(btn);
+            });
+          }
       }
     }
 
