@@ -119,6 +119,21 @@
     #gyro-toggle { display: inline-flex; align-items: center; justify-content: center; }
     #video-toggle { font-size: 14px; }
     
+    #load-error {
+      position: fixed; left: 50%; transform: translateX(-50%);
+      top: calc(env(safe-area-inset-top, 0px) + 50%);
+      z-index: 1002; display: none; align-items: center; gap: 12px;
+      background: rgba(40, 10, 10, 0.92); border: 1px solid rgba(255, 120, 120, 0.4);
+      color: #ffdcdc; padding: 12px 16px; border-radius: 8px; font-size: 13px;
+      max-width: 85vw; text-align: center; line-height: 1.4;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    #load-error.active { display: flex; }
+    #load-error button {
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+      color: #fff; font-size: 12px; padding: 5px 12px; flex-shrink: 0;
+    }
+
     #loader {
       position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;
       width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.1); border-top-color: #fff; border-radius: 50%;
@@ -142,6 +157,11 @@
 
   <div id="viewer-container"></div>
   <div id="loader"></div>
+  <div id="load-error" role="alert" aria-live="assertive">
+    <span id="load-error-msg"></span>
+    <button id="load-error-retry" type="button">Retry</button>
+    <button id="load-error-dismiss" type="button" aria-label="Dismiss error">&times;</button>
+  </div>
 
   <div class="ui-container">
     <div class="controls-row">
@@ -164,6 +184,9 @@
               + 3D Decal Video <input type="file" id="upload-decal" accept="video/*" style="display:none;">
             </label>
         </div>
+        <a class="upload-btn" href="./stitcher.html" style="text-decoration:none; display:block;">
+          Build an atlas from 6 faces →
+        </a>
       </div>
     </div>
     
@@ -222,15 +245,19 @@
 
   <script type="module">
     import * as THREE from 'three';
+    import { sampleAtlasGlsl, detectLayout, layoutUsesGutter, GUTTER_PX, LAYOUTS } from './atlas-layout.js';
 
-    const rawUrl = 'https://raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/';
+    // Assets live next to this page. Loading them relatively (rather than from
+    // raw.githubusercontent.com) keeps them on the Pages CDN, drops a cross-origin
+    // handshake, avoids raw's throttling, and lets the viewer run from a local server.
+    const rawUrl = './';
 
     const locations = [
       {
         name: 'Amateria',
-        baseUrl: rawUrl + 'cube/amateria/',
+        baseUrl: rawUrl + 'amateria/',
         type: 'side-numbered',
-        audio: rawUrl + 'cube/amateria/audio_amateria.mp3',
+        audio: rawUrl + 'amateria/audio_amateria.mp3',
         hasDepth: false,
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' },
@@ -239,20 +266,18 @@
       },
       {
         name: 'Voltaic',
-        baseUrl: rawUrl + 'cube/voltaic/',
+        baseUrl: rawUrl + 'voltaic/',
         type: 'voltaic',
-        audio: rawUrl + 'cube/amateria/audio_amateria.mp3',
+        audio: rawUrl + 'amateria/audio_amateria.mp3',
         hasDepth: true,
-        depthSuffix: '-depth.jpeg', 
+        depthSuffix: '-depth.jpeg',
         versions: [
-          { label: 'Original', suffix: '_orig.jpeg' },
-          { label: 'Alt (IMG)', type: 'img-seq' },
-          { label: 'Video (5x3)', type: 'video-5x3', url: rawUrl + 'cubemapvr/voltaic_video.mp4' }
+          { label: 'Original', suffix: '_orig.jpeg' }
         ]
       },
       {
         name: "J'nanin",
-        baseUrl: rawUrl + 'cube/jnanin/',
+        baseUrl: rawUrl + 'jnanin/',
         type: 'classic-leis',
         audio: null,
         hasDepth: false,
@@ -263,7 +288,7 @@
         ]
       },
       {
-        name: 'Custom (5x3 LDI Upload)',
+        name: 'Custom (LDI Upload)',
         type: 'custom',
         audio: null,
         hasDepth: false,
@@ -314,6 +339,51 @@
     setupUploader('bg-color', 'bgColor');
     setupUploader('bg-depth', 'bgDepth');
 
+    // --- Handoff from the stitcher ---
+    // The stitcher stashes freshly built atlases in IndexedDB and sends the user
+    // here, so an atlas doesn't have to be downloaded and re-uploaded by hand.
+    const HANDOFF_DB = 'cubemap-handoff', HANDOFF_STORE = 'atlases';
+    const HANDOFF_SLOTS = {
+      'fg-color': 'fgColor', 'fg-depth': 'fgDepth',
+      'bg-color': 'bgColor', 'bg-depth': 'bgDepth',
+    };
+
+    async function takeHandoffAtlases() {
+      if (!window.indexedDB) return false;
+      let db;
+      try {
+        db = await new Promise((resolve, reject) => {
+          const req = indexedDB.open(HANDOFF_DB, 1);
+          req.onupgradeneeded = () => req.result.createObjectStore(HANDOFF_STORE);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      } catch (e) { return false; }
+
+      const found = await new Promise((resolve) => {
+        const out = {};
+        const tx = db.transaction(HANDOFF_STORE, 'readwrite');
+        const store = tx.objectStore(HANDOFF_STORE);
+        for (const slot of Object.keys(HANDOFF_SLOTS)) {
+          const get = store.get(slot);
+          get.onsuccess = () => { if (get.result) { out[slot] = get.result; store.delete(slot); } };
+        }
+        tx.oncomplete = () => resolve(out);
+        tx.onerror = () => resolve(out);
+      });
+      db.close();
+
+      let any = false;
+      for (const [slot, blob] of Object.entries(found)) {
+        const mapKey = HANDOFF_SLOTS[slot];
+        if (customMaps[mapKey]) URL.revokeObjectURL(customMaps[mapKey]);
+        customMaps[mapKey] = URL.createObjectURL(blob);
+        document.getElementById(`lbl-upload-${slot}`).classList.add('active');
+        any = true;
+      }
+      return any;
+    }
+
     // --- Audio System ---
     const audioSystem = { active: new Audio(), fading: new Audio(), isMuted: true, masterVolume: 0, currentUrl: currentLocation.audio, fadeInterval: null };
     audioSystem.active.loop = true; audioSystem.fading.loop = true;
@@ -333,7 +403,7 @@
       } else {
         audioSystem.isMuted = false; audioToggleBtn.classList.add('active');
         if (audioSystem.currentUrl && (!audioSystem.active.src || audioSystem.active.src === '')) playOrCrossfadeAudio(audioSystem.currentUrl);
-        else if (audioSystem.active.paused) audioSystem.active.play().catch(e => console.warn(e));
+        else if (audioSystem.active.src && audioSystem.active.paused) audioSystem.active.play().catch(e => console.warn(e));
         audioSystem.active.volume = audioSystem.masterVolume;
       }
       targetDniState = dniStates[val];
@@ -344,8 +414,28 @@
     volumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
     largeVolumeSlider.addEventListener('input', (e) => setVolume(e.target.value));
 
+    // Ramp a media element's volume to a target over ~1s, then run onDone.
+    function rampVolume(el, from, to, onDone) {
+      if (audioSystem.fadeInterval) clearInterval(audioSystem.fadeInterval);
+      let step = 0; const steps = 20;
+      audioSystem.fadeInterval = setInterval(() => {
+        step++; const progress = step / steps;
+        el.volume = Math.max(0, Math.min(1, from + (to - from) * progress));
+        if (step >= steps) { clearInterval(audioSystem.fadeInterval); if (onDone) onDone(); }
+      }, 50);
+    }
+
+    // Locations with `audio: null` used to leave the previous track playing,
+    // because playOrCrossfadeAudio bails on a falsy URL. Fade out instead.
+    function fadeOutAudio() {
+      audioSystem.currentUrl = null;
+      if (!audioSystem.active.src) return;
+      const el = audioSystem.active;
+      rampVolume(el, el.volume, 0, () => { el.pause(); el.removeAttribute('src'); });
+    }
+
     function playOrCrossfadeAudio(newUrl) {
-      if (!newUrl) return;
+      if (!newUrl) { fadeOutAudio(); return; }
       if (audioSystem.currentUrl === newUrl && audioSystem.active.src) {
         if (!audioSystem.isMuted && audioSystem.masterVolume > 0 && audioSystem.active.paused) audioSystem.active.play().catch(e=>console.warn(e));
         return;
@@ -426,13 +516,20 @@
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 500); 
     const renderer = new THREE.WebGLRenderer({ antialias: false });
+    // Cap the ratio: at 3x on a phone this shades 9 pixels per CSS pixel across
+    // ~200k triangles per mesh, for no visible gain over 2x.
+    const pixelRatio = Math.min(window.devicePixelRatio, 2);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(pixelRatio);
     container.appendChild(renderer.domElement);
+
+    // Largest texture this GPU will accept. Mobile parts commonly cap at 4096,
+    // where an oversized upload silently fails or drops the context.
+    const maxTextureSize = renderer.capabilities.maxTextureSize;
 
     // --- SPHEREIFIED CUBE GEOMETRY ---
     const geometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128);
-    geometry.scale(-1, 1, 1); 
+    geometry.scale(-1, 1, 1);
     const pos = geometry.attributes.position;
     const vTemp = new THREE.Vector3();
     for(let i=0; i<pos.count; i++) {
@@ -440,19 +537,16 @@
         vTemp.normalize().multiplyScalar(50);
         pos.setXYZ(i, vTemp.x, vTemp.y, vTemp.z);
     }
-    geometry.computeVertexNormals();
-    
+    // The shaders read neither normals nor the built-in uv (vUv is derived from
+    // position via gnomonicUV), so both are dead weight on ~99k vertices per mesh.
+    geometry.deleteAttribute('normal');
+    geometry.deleteAttribute('uv');
+
     // BG sphere at radius 56 — well outside max fg displacement so there is always
     // solid bg geometry visible behind any fg tear or displacement gap.
-    const bgGeometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128);
-    bgGeometry.scale(-1, 1, 1);
-    const bgPos = bgGeometry.attributes.position;
-    for(let i=0; i<bgPos.count; i++) {
-        vTemp.fromBufferAttribute(bgPos, i);
-        vTemp.normalize().multiplyScalar(56);
-        bgPos.setXYZ(i, vTemp.x, vTemp.y, vTemp.z);
-    }
-    bgGeometry.computeVertexNormals();
+    // Cloning and scaling beats re-running the sphereification loop on the CPU.
+    const bgGeometry = geometry.clone();
+    bgGeometry.scale(56 / 50, 56 / 50, 56 / 50);
     
     const dummyDepthData = new Uint8Array([0, 0, 0, 255]); 
     const dummyDepthTex = new THREE.DataTexture(dummyDepthData, 1, 1, THREE.RGBAFormat);
@@ -480,55 +574,14 @@
     `;
 
     // --- UNIFIED MATERIAL ENGINE ---
-    const atlasLogic = `
-      vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 5.0, (2.0 - row + localUv.y) / 3.0); }
-      vec2 rotateUV(vec2 uv, float angleDeg) {
-        float a = radians(angleDeg); float s = sin(a), c = cos(a);
-        vec2 p = uv - 0.5; return vec2(p.x * c - p.y * s, p.x * s + p.y * c) + 0.5;
-      }
-      vec4 sampleAtlas(sampler2D tex, int face, vec2 local) {
-        if (face == 4) return texture2D(tex, getGrid(1.0, 1.0, local));
-        if (face == 0) return texture2D(tex, getGrid(2.0, 1.0, local));
-        if (face == 5) return texture2D(tex, getGrid(3.0, 1.0, local));
-        
-        if (face == 1) {
-          vec4 c4 = texture2D(tex, getGrid(4.0, 1.0, local));
-          vec4 c0 = texture2D(tex, getGrid(0.0, 1.0, local));
-          return mix(c4, c0, smoothstep(0.25, 0.75, local.x));
-        }
-
-        float d1 = local.x - local.y; 
-        float d2 = (1.0 - local.x) - local.y;
-        float t1 = smoothstep(-0.1, 0.1, d1); 
-        float t2 = smoothstep(-0.1, 0.1, d2);
-        
-        float wBottom = t1 * t2;
-        float wTop    = (1.0 - t1) * (1.0 - t2);
-        float wLeft   = (1.0 - t1) * t2;
-        float wRight  = t1 * (1.0 - t2);
-
-        if (face == 2) {
-          vec4 cFront = texture2D(tex, getGrid(1.0, 0.0, local));
-          vec4 cBack  = texture2D(tex, getGrid(3.0, 0.0, rotateUV(local, 180.0)));
-          vec4 cLeft  = texture2D(tex, getGrid(0.0, 0.0, rotateUV(local, 90.0)));
-          vec4 cRight = texture2D(tex, getGrid(2.0, 0.0, rotateUV(local, -90.0)));
-          return cFront * wBottom + cBack * wTop + cLeft * wLeft + cRight * wRight;
-        }
-        
-        if (face == 3) {
-          vec4 cFront = texture2D(tex, getGrid(1.0, 2.0, local));
-          vec4 cBack  = texture2D(tex, getGrid(3.0, 2.0, rotateUV(local, 180.0)));
-          vec4 cLeft  = texture2D(tex, getGrid(0.0, 2.0, rotateUV(local, -90.0))); 
-          vec4 cRight = texture2D(tex, getGrid(2.0, 2.0, rotateUV(local, 90.0)));
-          return cFront * wTop + cBack * wBottom + cLeft * wLeft + cRight * wRight;
-        }
-        return vec4(0.0);
-      }
-    `;
+    // Atlas sampling GLSL lives in atlas-layout.js, shared with the stitcher.
 
     // seamFill=true adds a tBgColor sampler so torn/discarded fg pixels fall back
     // to the bg colour instead of showing black void.
-    const createMaterials = (colorMode, depthMode, seamFill = false) => {
+    const createMaterials = (colorMode, depthMode, seamFill = false, layoutId = '5x3') => {
+        const usesAtlas = colorMode === 'atlas' || depthMode === 'atlas';
+        const atlasLogic = usesAtlas ? sampleAtlasGlsl(layoutId) : '';
+        const gutterUniform = (usesAtlas && layoutUsesGutter(layoutId)) ? { uGutterFrac: { value: 0.0 } } : {};
         const mats = [];
         for (let i = 0; i < 6; i++) {
           const colorSample     = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv)` : `texture2D(tColor, vUv)`;
@@ -545,6 +598,7 @@
               uFace: { value: i },
               uIsForeground: { value: 0 },
               uTearThreshold: { value: 0.0 },
+              ...gutterUniform,
               ...extraUniforms
             },
             transparent: true, 
@@ -554,7 +608,7 @@
               uniform int uFace;
               varying vec2 vUv;
               ${gnomonicUvGlsl}
-              ${colorMode === 'atlas' || depthMode === 'atlas' ? atlasLogic : ''}
+              ${atlasLogic}
               void main() {
                 vec3 dir = normalize(position);
                 vec2 rawUv = gnomonicUV(dir, uFace);
@@ -572,7 +626,7 @@
               uniform float uTearThreshold;
               ${seamFill ? 'uniform sampler2D tBgColor;' : ''}
               varying vec2 vUv;
-              ${colorMode === 'atlas' || depthMode === 'atlas' ? atlasLogic : ''}
+              ${atlasLogic}
               void main() {
                 float texDepth = clamp(${fragDepthSample}.r, 0.0, 1.0);
                 float alpha = 1.0;
@@ -627,18 +681,53 @@
         return mats;
     };
 
-    const matSets = {
-        standard:      createMaterials('standard', 'standard'),
-        atlasStandard: createMaterials('atlas', 'standard'), 
-        atlasFg:       createMaterials('atlas', 'atlas', true),  // seamFill enabled
-        atlasBg:       createMaterials('atlas', 'atlas')
+    // Atlas material sets depend on the layout of the atlas being shown, and an
+    // atlas layout is only known once an image has loaded. Build them on first
+    // use for a given layout rather than compiling every combination up front.
+    const MAT_KINDS = {
+        standard:      ['standard', 'standard', false],
+        atlasStandard: ['atlas',    'standard', false],
+        atlasFg:       ['atlas',    'atlas',    true],   // seamFill enabled
+        atlasBg:       ['atlas',    'atlas',    false],
     };
+    const matSetCache = new Map();
 
-    const bgCubeMesh = new THREE.Mesh(bgGeometry, matSets.atlasBg);
-    bgCubeMesh.renderOrder = 0; 
+    function getMatSet(kind, layoutId = '5x3') {
+        const key = kind === 'standard' ? kind : `${kind}|${layoutId}`;
+        let set = matSetCache.get(key);
+        if (!set) {
+            const [colorMode, depthMode, seamFill] = MAT_KINDS[kind];
+            set = createMaterials(colorMode, depthMode, seamFill, layoutId);
+            set.forEach(m => { m.userData.isBg = kind === 'atlasBg'; });
+            matSetCache.set(key, set);
+        }
+        return set;
+    }
+
+    const eachMaterial = (fn) => { for (const set of matSetCache.values()) set.forEach(fn); };
+
+    // The bg sphere displaces at half the fg rate so it stays behind the fg.
+    function setDisplacement(val) {
+        const fgScale = val * 0.95;
+        eachMaterial(m => {
+            m.uniforms.uDisplacementScale.value = m.userData.isBg ? fgScale * 0.5 : fgScale;
+        });
+    }
+
+    // Atlases written in a gutter layout reserve a border of GUTTER_PX per cell;
+    // the shader insets its UVs by the matching fraction.
+    function setGutterFrac(mats, atlasWidth, layoutId) {
+        const l = LAYOUTS[layoutId];
+        if (!l || !l.gutter || !atlasWidth) return;
+        const frac = GUTTER_PX / (atlasWidth / l.cols);
+        mats.forEach(m => { if (m.uniforms.uGutterFrac) m.uniforms.uGutterFrac.value = frac; });
+    }
+
+    const bgCubeMesh = new THREE.Mesh(bgGeometry, getMatSet('atlasBg'));
+    bgCubeMesh.renderOrder = 0;
     scene.add(bgCubeMesh);
 
-    const fgCubeMesh = new THREE.Mesh(geometry, matSets.standard);
+    const fgCubeMesh = new THREE.Mesh(geometry, getMatSet('standard'));
     fgCubeMesh.renderOrder = 1;
     scene.add(fgCubeMesh);
 
@@ -685,20 +774,12 @@
     const tearControls = document.getElementById('tear-controls');
     
     document.getElementById('displacement-slider').addEventListener('input', (e) => {
-      const val = parseFloat(e.target.value) / 100.0;
-      const fgScale = val * 0.95;
-      const bgScale = val * 0.95 * 0.5; // BG displaces at half the fg rate
-      ['standard', 'atlasStandard', 'atlasFg'].forEach(k => {
-        matSets[k].forEach(m => m.uniforms.uDisplacementScale.value = fgScale);
-      });
-      matSets.atlasBg.forEach(m => m.uniforms.uDisplacementScale.value = bgScale);
+      setDisplacement(parseFloat(e.target.value) / 100.0);
     });
-    
+
     document.getElementById('tear-slider').addEventListener('input', (e) => {
         const val = parseFloat(e.target.value) / 100.0;
-        Object.values(matSets).forEach(mats => {
-            mats.forEach(m => m.uniforms.uTearThreshold.value = val);
-        });
+        eachMaterial(m => { m.uniforms.uTearThreshold.value = val; });
     });
 
     const videoTexture = new THREE.VideoTexture(sourceVideo);
@@ -834,8 +915,13 @@
     const transitionScene = new THREE.Scene();
     const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     
-    let rtOld = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType });
-    let rtNew = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, { type: THREE.HalfFloatType });
+    // Match the drawing buffer, not the CSS size — otherwise the transition
+    // composites a low-res buffer onto a hi-dpi canvas and looks soft throughout.
+    const rtWidth  = () => Math.floor(window.innerWidth  * pixelRatio);
+    const rtHeight = () => Math.floor(window.innerHeight * pixelRatio);
+
+    let rtOld = new THREE.WebGLRenderTarget(rtWidth(), rtHeight(), { type: THREE.HalfFloatType });
+    let rtNew = new THREE.WebGLRenderTarget(rtWidth(), rtHeight(), { type: THREE.HalfFloatType });
 
     const FRAG_BLOCK = `
       uniform sampler2D tOld;
@@ -860,9 +946,10 @@
         vec2 blockCenter = (blockId + 0.5) / vec2(gridCols, gridRows);
         float depthVal = texture2D(tDepthNew, blockCenter).r;
 
-        float weightedNoise = noise;
-        float depthWeighted = noise * (1.0 - uDepthBias) + (noise * 0.5 + depthVal * 0.5) * uDepthBias;
-        float threshold = mix(weightedNoise, depthWeighted, uDepthBias);
+        // Blend the block's reveal threshold from pure noise toward depth-ordered.
+        // (This used to apply uDepthBias twice, once inside depthWeighted and again
+        // in the mix, which flattened the bias curve.)
+        float threshold = mix(noise, noise * 0.5 + depthVal * 0.5, uDepthBias);
 
         if (uProgress > threshold) {
           gl_FragColor = texture2D(tNew, vUv);
@@ -877,10 +964,7 @@
     const FRAG_FADE = `
       uniform sampler2D tOld;
       uniform sampler2D tNew;
-      uniform sampler2D tDepthNew;
       uniform float uProgress;
-      uniform float uAspect;
-      uniform float uDepthBias;
       varying vec2 vUv;
       void main() {
         gl_FragColor = mix(texture2D(tOld, vUv), texture2D(tNew, vUv), smoothstep(0.0, 1.0, uProgress));
@@ -889,25 +973,33 @@
       }
     `;
 
-    const dummyTransDepthData = new Uint8Array([0, 0, 0, 255]);
-    const dummyTransDepthTex  = new THREE.DataTexture(dummyTransDepthData, 1, 1, THREE.RGBAFormat);
-    dummyTransDepthTex.needsUpdate = true;
+    // Two materials sharing one uniforms object, rather than swapping
+    // fragmentShader + needsUpdate on a single material — that forced a shader
+    // recompile at the start of every transition, which stalls on mobile.
+    const transitionUniforms = {
+      tOld:      { value: null },
+      tNew:      { value: null },
+      tDepthNew: { value: dummyDepthTex },
+      uProgress: { value: 0 },
+      uAspect:   { value: 1.0 },
+      uDepthBias:{ value: 0.6 }
+    };
+    const makeTransitionMat = (fragmentShader) => {
+      const m = new THREE.ShaderMaterial({
+        uniforms: transitionUniforms,
+        vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
+        fragmentShader,
+        depthTest: false,
+        depthWrite: false
+      });
+      m.uniforms = transitionUniforms; // share, don't clone
+      return m;
+    };
+    const transitionMats = { block: makeTransitionMat(FRAG_BLOCK), fade: makeTransitionMat(FRAG_FADE) };
+    const setTransitionUniform = (name, value) => { transitionUniforms[name].value = value; };
 
-    const transitionMat = new THREE.ShaderMaterial({
-      uniforms: {
-        tOld:      { value: null },
-        tNew:      { value: null },
-        tDepthNew: { value: dummyTransDepthTex },
-        uProgress: { value: 0 },
-        uAspect:   { value: 1.0 },
-        uDepthBias:{ value: 0.6 }
-      },
-      vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
-      fragmentShader: FRAG_BLOCK,
-      depthTest: false,
-      depthWrite: false
-    });
-    transitionScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), transitionMat));
+    const transitionMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), transitionMats.block);
+    transitionScene.add(transitionMesh);
 
     let pendingTransitionDepth = null;
 
@@ -915,39 +1007,52 @@
 
     function safeDisposeTextures() {
         const toDispose = new Set();
-        Object.values(matSets).forEach(mats => {
-            mats.forEach(mat => {
-                const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
-                if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
-                if (d && d !== dummyDepthTex) toDispose.add(d);
-            });
+        eachMaterial(mat => {
+            const c = mat.uniforms.tColor.value; const d = mat.uniforms.tDepth.value;
+            if (c && c !== videoTexture && c !== defaultCustomTex) toDispose.add(c);
+            if (d && d !== dummyDepthTex) toDispose.add(d);
         });
         return toDispose;
     }
 
-    function upscaleDepthTex(dTex, targetWidth, targetHeight) {
-        if (!dTex || dTex === dummyDepthTex || !dTex.image) return dTex;
-        const dImg = dTex.image;
-        if (dImg.width === targetWidth && dImg.height === targetHeight) return dTex;
+    // Downscale anything the GPU won't accept. J'nanin's "6K" faces are 6144px,
+    // which exceeds the 4096 limit common on mobile parts — the upload then fails
+    // silently (black faces) or drops the context. Downscaling is preferable to
+    // either, and is a no-op on desktop GPUs that can take the full size.
+    function fitToGpu(tex) {
+        const img = tex && tex.image;
+        if (!img || (img.width <= maxTextureSize && img.height <= maxTextureSize)) return tex;
 
+        const scale = maxTextureSize / Math.max(img.width, img.height);
         const canvas = document.createElement('canvas');
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
+        canvas.width  = Math.max(1, Math.floor(img.width  * scale));
+        canvas.height = Math.max(1, Math.floor(img.height * scale));
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(dImg, 0, 0, targetWidth, targetHeight);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        console.info(`Downscaled ${img.width}x${img.height} texture to ${canvas.width}x${canvas.height} (GPU limit ${maxTextureSize}).`);
 
-        const newTex = new THREE.CanvasTexture(canvas);
-        newTex.colorSpace = THREE.NoColorSpace;
-        newTex.minFilter = THREE.LinearFilter;
-        newTex.magFilter = THREE.LinearFilter;
-        newTex.wrapS = THREE.ClampToEdgeWrapping;
-        newTex.wrapT = THREE.ClampToEdgeWrapping;
-        newTex.generateMipmaps = false;
+        const fitted = new THREE.CanvasTexture(canvas);
+        fitted.colorSpace = tex.colorSpace;
+        tex.dispose();
+        return fitted;
+    }
 
-        dTex.dispose();
-        return newTex;
+    // Depth is sampled with normalised UVs, so its resolution never had to match
+    // the colour map. This used to resample every depth map onto a canvas at the
+    // colour map's size — a full-size canvas plus a CanvasTexture per face, for
+    // no visual difference. Now we just apply the sampling settings in place.
+    function prepareDepthTex(dTex) {
+        if (!dTex || dTex === dummyDepthTex || !dTex.image) return dTex;
+        dTex.colorSpace = THREE.NoColorSpace;
+        dTex.minFilter = THREE.LinearFilter;
+        dTex.magFilter = THREE.LinearFilter;
+        dTex.wrapS = THREE.ClampToEdgeWrapping;
+        dTex.wrapT = THREE.ClampToEdgeWrapping;
+        dTex.generateMipmaps = false;
+        dTex.needsUpdate = true;
+        return dTex;
     }
 
     function getCubemapUrls(loc, version, fetchDepth = false) {
@@ -955,11 +1060,7 @@
       const type = fetchDepth ? loc.type : ((typeof version === 'object' && version.type) ? version.type : loc.type);
       
       let p;
-      if (type === 'img-seq') { 
-          const b = rawUrl + 'cubemapvr/'; 
-          p = { front: b+'IMG_5228.jpeg', bottom: b+'IMG_5229.jpeg', back: b+'IMG_5230.jpeg', left: b+'IMG_5232.jpeg', right: b+'IMG_5231.jpeg', top: b+'IMG_5233.jpeg' }; 
-      } 
-      else if (type === 'side-numbered') { p = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s }; } 
+      if (type === 'side-numbered') { p = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s }; }
       else if (type === 'voltaic') { 
         p = { left: loc.baseUrl+'ENCHnodes-281'+s, front: loc.baseUrl+'ENCHnodes-277'+s, right: loc.baseUrl+'ENCHnodes-280'+s, back: loc.baseUrl+'ENCHnodes-279'+s, top: loc.baseUrl+'ENCHnodes-282'+s, bottom: loc.baseUrl+'ENCHnodes-278'+s }; 
       } 
@@ -969,9 +1070,9 @@
     }
 
     function buildTransitionDepthTex(depthTextures) {
-      if (!depthTextures) return dummyTransDepthTex;
+      if (!depthTextures) return dummyDepthTex;
       const frontTex = depthTextures[4] || depthTextures[0];
-      if (!frontTex || frontTex === dummyDepthTex || !frontTex.image) return dummyTransDepthTex;
+      if (!frontTex || frontTex === dummyDepthTex || !frontTex.image) return dummyDepthTex;
       const SIZE = 64;
       const canvas = document.createElement('canvas');
       canvas.width = SIZE; canvas.height = SIZE;
@@ -986,19 +1087,46 @@
       return tex;
     }
 
+    // --- Load error surfacing ---
+    // Failures used to be console-only: the spinner vanished and the previous
+    // scene just stayed put with no explanation.
+    const loadErrorEl = document.getElementById('load-error');
+    let pendingRetry = null;
+
+    function showLoadError(locationName, retryFn, detail) {
+      document.getElementById('load-error-msg').textContent = detail
+        ? `${locationName}: ${detail}`
+        : `Couldn't load ${locationName}. Check your connection and try again.`;
+      pendingRetry = retryFn;
+      loadErrorEl.classList.add('active');
+    }
+    function hideLoadError() {
+      loadErrorEl.classList.remove('active');
+      pendingRetry = null;
+    }
+    document.getElementById('load-error-retry').addEventListener('click', () => {
+      const retry = pendingRetry;
+      hideLoadError();
+      if (retry) retry();
+    });
+    document.getElementById('load-error-dismiss').addEventListener('click', hideLoadError);
+
     async function loadPanorama(mode = 'block') {
       if (isTransitioning) return;
       const loadId = ++currentLoadId;
       isTransitioning = true;
+      // Tracks whether we reached the tween, which then owns clearing isTransitioning.
+      let handedOffToTween = false;
       document.getElementById('loader').style.display = 'block';
-      if (currentLocation.audio) playOrCrossfadeAudio(currentLocation.audio);
+      hideLoadError();
+      // Always call: a location with `audio: null` needs the previous track faded out.
+      playOrCrossfadeAudio(currentLocation.audio);
 
       renderer.setRenderTarget(rtOld); renderer.render(scene, camera); renderer.setRenderTarget(null);
-      transitionMat.uniforms.tOld.value = rtOld.texture;
-      transitionMat.uniforms.tNew.value = rtNew.texture;
-      transitionMat.uniforms.uProgress.value = 0;
-      transitionMat.fragmentShader = mode === 'block' ? FRAG_BLOCK : FRAG_FADE;
-      transitionMat.needsUpdate = true;
+      setTransitionUniform('tOld', rtOld.texture);
+      setTransitionUniform('tNew', rtNew.texture);
+      setTransitionUniform('uProgress', 0);
+      transitionMesh.material = mode === 'block' ? transitionMats.block : transitionMats.fade;
 
       const targetVersion = currentLocation.versions[currentVersionIndex];
       const isVideo = targetVersion.type === 'video-5x3';
@@ -1024,14 +1152,13 @@
                     try { return await textureLoader.loadAsync(url); } 
                     catch(e) { console.warn("Missing depth map:", url); return dummyDepthTex; }
                 }));
-                const faceW = Math.floor(sourceVideo.videoWidth / 5);
-                const faceH = Math.floor(sourceVideo.videoHeight / 3);
-                depthTextures = loadedDepths.map(dTex => upscaleDepthTex(dTex, faceW, faceH));
+                depthTextures = loadedDepths.map(prepareDepthTex);
             }
             
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
             
-            fgCubeMesh.material = hasActiveDepth ? matSets.atlasStandard : matSets.atlasFg; 
+            // Video atlases are 5x3 by definition of the version's type.
+            fgCubeMesh.material = getMatSet(hasActiveDepth ? 'atlasStandard' : 'atlasFg', '5x3');
             bgCubeMesh.visible = false;
             
             fgCubeMesh.material.forEach((mat, i) => {
@@ -1059,6 +1186,7 @@
             const processAtlasTex = (tex, isColor) => {
                 if (tex === defaultCustomTex || tex === dummyDepthTex) return tex;
                 tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                tex = fitToGpu(tex);
                 tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
                 tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
                 tex.needsUpdate = true;
@@ -1069,20 +1197,26 @@
             let fgD = loaded[1];
             const bgC = processAtlasTex(loaded[2], true);
             let bgD = loaded[3];
-            
-            if (customMaps.fgColor && customMaps.fgDepth) {
-                const fw = (fgC !== defaultCustomTex && fgC.image) ? fgC.image.width : 1;
-                const fh = (fgC !== defaultCustomTex && fgC.image) ? fgC.image.height : 1;
-                fgD = upscaleDepthTex(fgD, fw, fh);
-            } else { fgD = processAtlasTex(fgD, false); }
-            
-            if (customMaps.bgColor && customMaps.bgDepth) {
-                const bw = (bgC !== defaultCustomTex && bgC.image) ? bgC.image.width : 1;
-                const bh = (bgC !== defaultCustomTex && bgC.image) ? bgC.image.height : 1;
-                bgD = upscaleDepthTex(bgD, bw, bh);
-            } else { bgD = processAtlasTex(bgD, false); }
+
+            fgD = prepareDepthTex(fgD);
+            bgD = prepareDepthTex(bgD);
 
             if (loadId !== currentLoadId) return;
+
+            // Which atlas layout is this? Read it off the aspect ratio of the
+            // first real image we have; a mis-shaped upload used to render as
+            // garbage with no explanation.
+            const shapeSource = [fgC, bgC, fgD, bgD]
+              .find(t => t !== defaultCustomTex && t !== dummyDepthTex && t.image);
+            const atlasW = shapeSource ? shapeSource.image.width : 0;
+            const atlasH = shapeSource ? shapeSource.image.height : 0;
+            const detected = shapeSource ? detectLayout(atlasW, atlasH) : LAYOUTS['5x3'];
+            if (!detected) {
+              throw new Error(
+                `Atlas is ${atlasW}x${atlasH} (${(atlasW / atlasH).toFixed(2)}:1). ` +
+                `Expected 5:3 or 3:2 — stitch it with the face stitcher first.`);
+            }
+            const layoutId = detected.id;
 
             hasActiveDepth = !!customMaps.fgDepth || !!customMaps.bgDepth;
             depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
@@ -1093,9 +1227,11 @@
             const fgScale = currentSliderVal * 0.95;
             const bgScale = currentSliderVal * 0.95 * 0.5;
             
-            fgCubeMesh.material = matSets.atlasFg;
-            bgCubeMesh.material = matSets.atlasBg;
+            fgCubeMesh.material = getMatSet('atlasFg', layoutId);
+            bgCubeMesh.material = getMatSet('atlasBg', layoutId);
             bgCubeMesh.visible = isDualLayer;
+            setGutterFrac(fgCubeMesh.material, atlasW, layoutId);
+            setGutterFrac(bgCubeMesh.material, atlasW, layoutId);
             
             fgCubeMesh.material.forEach((mat) => {
               mat.uniforms.tColor.value = fgC;
@@ -1140,11 +1276,7 @@
                     catch(e) { console.warn("Missing depth map:", url); return dummyDepthTex; }
                 }));
                 
-                depthTextures = loadedDepths.map((dTex, i) => {
-                    const cw = loadedColors[i].image ? loadedColors[i].image.width : 1024;
-                    const ch = loadedColors[i].image ? loadedColors[i].image.height : 1024;
-                    return upscaleDepthTex(dTex, cw, ch);
-                });
+                depthTextures = loadedDepths.map(prepareDepthTex);
             } else {
                 depthControlsContainer.style.display = 'none';
             }
@@ -1152,12 +1284,12 @@
             hasActiveDepth = currentLocation.hasDepth;
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
             
-            fgCubeMesh.material = matSets.standard;
+            fgCubeMesh.material = getMatSet('standard');
             bgCubeMesh.visible = false;
             
             fgCubeMesh.material.forEach((mat, i) => {
-              const tex = loadedColors[i];
-              tex.colorSpace = THREE.SRGBColorSpace;
+              loadedColors[i].colorSpace = THREE.SRGBColorSpace;
+              const tex = loadedColors[i] = fitToGpu(loadedColors[i]);
               tex.minFilter = THREE.LinearMipmapLinearFilter;
               tex.magFilter = THREE.LinearFilter;
               tex.generateMipmaps = true;
@@ -1180,36 +1312,43 @@
           }
           
           oldTextures.forEach(t => t.dispose());
+          // Load body completed; the tween below now owns isTransitioning.
+          handedOffToTween = true;
 
       } catch (err) {
           console.error("Failed to load panorama:", err);
-          isTransitioning = false;
-          document.getElementById('loader').style.display = 'none';
+          // Our own validation errors carry a message worth showing verbatim.
+          showLoadError(currentLocation.name, () => loadPanorama(mode),
+                        err instanceof Error && err.message ? err.message : null);
           return;
+      } finally {
+          // Every exit path clears the spinner. isTransitioning is only left set
+          // when the tween below has taken ownership of it — previously a stale-load
+          // return skipped both and locked the viewer permanently.
+          document.getElementById('loader').style.display = 'none';
+          if (!handedOffToTween) isTransitioning = false;
       }
 
       if (mode === 'block' && pendingTransitionDepth) {
-        transitionMat.uniforms.tDepthNew.value = pendingTransitionDepth;
+        setTransitionUniform('tDepthNew', pendingTransitionDepth);
       } else {
-        transitionMat.uniforms.tDepthNew.value = dummyTransDepthTex;
+        setTransitionUniform('tDepthNew', dummyDepthTex);
       }
-
-      document.getElementById('loader').style.display = 'none';
 
       const duration = mode === 'block' ? 1400 : 600;
       const startTime = performance.now();
       function animateTween(now) {
-        if (loadId !== currentLoadId) return; 
+        if (loadId !== currentLoadId) return;
         const p = Math.min((now - startTime) / duration, 1);
-        transitionMat.uniforms.uProgress.value = p;
+        setTransitionUniform('uProgress', p);
         if (p < 1) requestAnimationFrame(animateTween);
         else {
           isTransitioning = false;
-          if (pendingTransitionDepth && pendingTransitionDepth !== dummyTransDepthTex) {
+          if (pendingTransitionDepth && pendingTransitionDepth !== dummyDepthTex) {
             pendingTransitionDepth.dispose();
             pendingTransitionDepth = null;
           }
-          transitionMat.uniforms.tDepthNew.value = dummyTransDepthTex;
+          setTransitionUniform('tDepthNew', dummyDepthTex);
         }
       }
       requestAnimationFrame(animateTween);
@@ -1296,8 +1435,8 @@
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      rtOld.setSize(window.innerWidth, window.innerHeight); rtNew.setSize(window.innerWidth, window.innerHeight);
-      transitionMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
+      rtOld.setSize(rtWidth(), rtHeight()); rtNew.setSize(rtWidth(), rtHeight());
+      setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
     });
 
     function updateUI() {
@@ -1305,6 +1444,12 @@
       if (locSelect.options.length === 0) {
         locations.forEach((loc, i) => { const opt = document.createElement('option'); opt.value = i; opt.textContent = loc.name; if (loc === currentLocation) opt.selected = true; locSelect.appendChild(opt); });
         locSelect.onchange = (e) => {
+          // loadPanorama refuses to start mid-transition. Without this guard the
+          // select and the rebuilt controls moved on while the scene did not.
+          if (isTransitioning) {
+            e.target.value = locations.indexOf(currentLocation);
+            return;
+          }
           const isLocChange = locations[e.target.value] !== currentLocation;
           currentLocation = locations[e.target.value]; currentVersionIndex = 0;
           updateUI(); loadPanorama(isLocChange ? 'block' : 'fade');
@@ -1330,8 +1475,21 @@
       }
     }
 
-    transitionMat.uniforms.uAspect.value = window.innerWidth / window.innerHeight;
-    updateUI(); loadPanorama('block'); render(); 
+    setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
+    updateUI();
+    // Compile the currently bound programs up front so the shader build doesn't
+    // land inside the first rendered frame.
+    renderer.compile(scene, camera);
+    renderer.compile(transitionScene, transitionCamera);
+    render();
+
+    // Arriving from the stitcher (or with #custom) opens straight into the
+    // custom slot, with any handed-off atlases already filled in.
+    (async () => {
+      const handedOff = await takeHandoffAtlases();
+      if (handedOff || location.hash === '#custom') forceCustomSelection();
+      loadPanorama('block');
+    })();
 
   </script>
 </body>
