@@ -19,32 +19,33 @@
 // the stitcher can resample across face boundaries when building gutters.
 //
 // ---------------------------------------------------------------------------
-// A naming caveat, worth knowing before you trust either label set
+// Face names are pinned to the working separate-image path
 //
-// The viewer's *separate-image* path (getCubemapUrls) hands its six URLs to the
-// material slots in the order [left, right, top, bottom, back, front], i.e. it
-// considers slot 4 to be "back" and slot 5 "front". The *atlas* path assigns
-// slot 4 to the cell this module calls "front" and slot 5 to "back" — the
-// opposite, and likewise for left/right.
+// The viewer's separate-image path (getCubemapUrls) hands its six URLs to the
+// material slots in the order [left, right, top, bottom, back, front], and the
+// built-in locations render correctly, so that is the authoritative meaning of
+// each name: left = slot 0, right = 1, top = 2, bottom = 3, back = 4, front = 5.
 //
-// The two paths never meet, so each is self-consistent, but a set of six files
-// stitched into an atlas comes out rotated 180 degrees in yaw compared with the
-// same files loaded through the separate-image path. That is a different
-// starting heading, not a mirrored or broken cube. The atlas convention below
-// is the one both this module and sampleAtlas() follow; it is left as-is so
-// existing atlases keep working.
+// The stitcher's cell labels used to disagree — its "Left" cell was the one slot
+// 1 (+X, the right-hand face) reads, and likewise front/back were transposed.
+// Placing files by those labels built a cube whose wall ring was yawed 180
+// degrees while the poles were not, so the walls no longer met top and bottom.
+// The labels below are corrected to match the separate-image path; the cell
+// *geometry* is untouched, so the fix is a relabelling, not a format change.
+// Verified by diffing a stitched atlas against the built-in Amateria rendering,
+// which has no depth and therefore a fixed, reproducible camera.
 // ============================================================================
 
 export const FACES = ['left', 'front', 'right', 'back', 'top', 'bottom'];
 
 export const FACE_LABELS = {
-  left:  'Left (−X)',  front: 'Front (+Z)',
-  right: 'Right (+X)', back:  'Back (−Z)',
+  left:  'Left (−X)',  front: 'Front (−Z)',
+  right: 'Right (+X)', back:  'Back (+Z)',
   top:   'Top (+Y)',   bottom:'Bottom (−Y)'
 };
 
-// Face name -> viewer material index, for the atlas paths.
-export const FACE_INDEX = { right: 0, left: 1, top: 2, bottom: 3, front: 4, back: 5 };
+// Face name -> viewer material index. Matches getCubemapUrls' ordering.
+export const FACE_INDEX = { left: 0, right: 1, top: 2, bottom: 3, back: 4, front: 5 };
 export const INDEX_FACE = Object.fromEntries(Object.entries(FACE_INDEX).map(([k, v]) => [v, k]));
 
 // ---------------------------------------------------------------------------
@@ -80,11 +81,13 @@ export const LAYOUTS = {
       { face: 'top',    rot:  90, note: 'Top\n+90°' },
       { face: 'top',    rot: 180, note: 'Top\n180°' },
       { face: 'top',    rot: -90, note: 'Top\ndup'  },
-      { face: 'left',   rot:   0, note: 'Left'  },
-      { face: 'front',  rot:   0, note: 'Front' },
+      // Column order follows sampleAtlas below: col0 is read by slot 1 (right),
+      // col1 by slot 4 (back), col2 by slot 0 (left), col3 by slot 5 (front).
       { face: 'right',  rot:   0, note: 'Right' },
       { face: 'back',   rot:   0, note: 'Back'  },
-      { face: 'left',   rot:   0, note: 'L dup' },
+      { face: 'left',   rot:   0, note: 'Left'  },
+      { face: 'front',  rot:   0, note: 'Front' },
+      { face: 'right',  rot:   0, note: 'R dup' },
       { face: 'bottom', rot:  90, note: 'Bot\n+90°' },
       { face: 'bottom', rot:   0, note: 'Bot\n0°'   },
       { face: 'bottom', rot: -90, note: 'Bot\n-90°' },
@@ -97,12 +100,12 @@ export const LAYOUTS = {
     label: '3×2 (compact)',
     note: 'No duplication; edges filled by a resampled gutter.',
     cells: [
-      { face: 'left',  rot: 0, note: 'Left'  },
-      { face: 'front', rot: 0, note: 'Front' },
-      { face: 'right', rot: 0, note: 'Right' },
-      { face: 'back',  rot: 0, note: 'Back'   },
-      { face: 'top',   rot: 0, note: 'Top'    },
-      { face: 'bottom',rot: 0, note: 'Bottom' },
+      { face: 'left',   rot: 0, note: 'Left'   },
+      { face: 'front',  rot: 0, note: 'Front'  },
+      { face: 'right',  rot: 0, note: 'Right'  },
+      { face: 'back',   rot: 0, note: 'Back'   },
+      { face: 'top',    rot: 0, note: 'Top'    },
+      { face: 'bottom', rot: 0, note: 'Bottom' },
     ],
   },
 };
@@ -128,34 +131,45 @@ export function detectLayout(width, height) {
 // Projection, shared by the viewer's shader and the stitcher's gutter builder
 // ---------------------------------------------------------------------------
 
+// These must stay the exact inverse/forward of gnomonicUV in index.html. u runs
+// with increasing yaw on all four walls; faces 2, 3, 4 and 5 take -x, not +x.
+// (They were written against an earlier gnomonicUV that had ±Z mirrored.)
+
 // Face-local UV in [0,1] -> unnormalised direction. Inverse of gnomonicUV.
 export function faceUvToDir(faceIndex, u, v) {
   const a = u * 2 - 1, b = v * 2 - 1;
   switch (faceIndex) {
     case 0: return [-1,  b, -a];
     case 1: return [ 1,  b,  a];
-    case 2: return [ a,  1, -b];
-    case 3: return [ a, -1,  b];
-    case 4: return [ a,  b,  1];
-    default:return [-a,  b, -1];
+    case 2: return [-a,  1, -b];
+    case 3: return [-a, -1,  b];
+    case 4: return [-a,  b,  1];
+    default:return [ a,  b, -1];
   }
+}
+
+// Project a direction onto one specific face, whether or not it belongs there.
+export function projectOntoFace(faceIndex, x, y, z) {
+  let a, b, m;
+  switch (faceIndex) {
+    case 0:  m = Math.abs(x); a = -z / m; b =  y / m; break;
+    case 1:  m = Math.abs(x); a =  z / m; b =  y / m; break;
+    case 2:  m = Math.abs(y); a = -x / m; b = -z / m; break;
+    case 3:  m = Math.abs(y); a = -x / m; b =  z / m; break;
+    case 4:  m = Math.abs(z); a = -x / m; b =  y / m; break;
+    default: m = Math.abs(z); a =  x / m; b =  y / m; break;
+  }
+  return { u: a * 0.5 + 0.5, v: b * 0.5 + 0.5 };
 }
 
 // Direction -> { faceIndex, u, v }. Forward gnomonic projection.
 export function dirToFaceUv(x, y, z) {
   const ax = Math.abs(x), ay = Math.abs(y), az = Math.abs(z);
-  let faceIndex, a, b;
-  if (ax >= ay && ax >= az) {
-    if (x < 0) { faceIndex = 0; a = -z / ax; b =  y / ax; }
-    else       { faceIndex = 1; a =  z / ax; b =  y / ax; }
-  } else if (ay >= az) {
-    if (y > 0) { faceIndex = 2; a =  x / ay; b = -z / ay; }
-    else       { faceIndex = 3; a =  x / ay; b =  z / ay; }
-  } else {
-    if (z > 0) { faceIndex = 4; a =  x / az; b =  y / az; }
-    else       { faceIndex = 5; a = -x / az; b =  y / az; }
-  }
-  return { faceIndex, u: a * 0.5 + 0.5, v: b * 0.5 + 0.5 };
+  let faceIndex;
+  if (ax >= ay && ax >= az) faceIndex = x < 0 ? 0 : 1;
+  else if (ay >= az)        faceIndex = y > 0 ? 2 : 3;
+  else                      faceIndex = z > 0 ? 4 : 5;
+  return { faceIndex, ...projectOntoFace(faceIndex, x, y, z) };
 }
 
 // ---------------------------------------------------------------------------
@@ -220,13 +234,14 @@ const GLSL_3X2 = `
   vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 3.0, (1.0 - row + localUv.y) / 2.0); }
   vec4 sampleAtlas(sampler2D tex, int face, vec2 local) {
     // Inset into the cell's content area; the border is neighbour bleed.
+    // Cell order is left, front, right / back, top, bottom — matching FACE_INDEX.
     vec2 inset = mix(vec2(uGutterFrac), vec2(1.0 - uGutterFrac), local);
-    if (face == 1) return texture2D(tex, getGrid(0.0, 0.0, inset));
-    if (face == 4) return texture2D(tex, getGrid(1.0, 0.0, inset));
-    if (face == 0) return texture2D(tex, getGrid(2.0, 0.0, inset));
-    if (face == 5) return texture2D(tex, getGrid(0.0, 1.0, inset));
-    if (face == 2) return texture2D(tex, getGrid(1.0, 1.0, inset));
-    return texture2D(tex, getGrid(2.0, 1.0, inset));
+    if (face == 0) return texture2D(tex, getGrid(0.0, 0.0, inset));  // left
+    if (face == 5) return texture2D(tex, getGrid(1.0, 0.0, inset));  // front
+    if (face == 1) return texture2D(tex, getGrid(2.0, 0.0, inset));  // right
+    if (face == 4) return texture2D(tex, getGrid(0.0, 1.0, inset));  // back
+    if (face == 2) return texture2D(tex, getGrid(1.0, 1.0, inset));  // top
+    return texture2D(tex, getGrid(2.0, 1.0, inset));                 // bottom
   }
 `;
 
