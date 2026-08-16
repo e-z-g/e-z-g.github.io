@@ -131,34 +131,45 @@ export function detectLayout(width, height) {
 // Projection, shared by the viewer's shader and the stitcher's gutter builder
 // ---------------------------------------------------------------------------
 
+// These must stay the exact inverse/forward of gnomonicUV in index.html. u runs
+// with increasing yaw on all four walls; faces 2, 3, 4 and 5 take -x, not +x.
+// (They were written against an earlier gnomonicUV that had ±Z mirrored.)
+
 // Face-local UV in [0,1] -> unnormalised direction. Inverse of gnomonicUV.
 export function faceUvToDir(faceIndex, u, v) {
   const a = u * 2 - 1, b = v * 2 - 1;
   switch (faceIndex) {
     case 0: return [-1,  b, -a];
     case 1: return [ 1,  b,  a];
-    case 2: return [ a,  1, -b];
-    case 3: return [ a, -1,  b];
-    case 4: return [ a,  b,  1];
-    default:return [-a,  b, -1];
+    case 2: return [-a,  1, -b];
+    case 3: return [-a, -1,  b];
+    case 4: return [-a,  b,  1];
+    default:return [ a,  b, -1];
   }
+}
+
+// Project a direction onto one specific face, whether or not it belongs there.
+export function projectOntoFace(faceIndex, x, y, z) {
+  let a, b, m;
+  switch (faceIndex) {
+    case 0:  m = Math.abs(x); a = -z / m; b =  y / m; break;
+    case 1:  m = Math.abs(x); a =  z / m; b =  y / m; break;
+    case 2:  m = Math.abs(y); a = -x / m; b = -z / m; break;
+    case 3:  m = Math.abs(y); a = -x / m; b =  z / m; break;
+    case 4:  m = Math.abs(z); a = -x / m; b =  y / m; break;
+    default: m = Math.abs(z); a =  x / m; b =  y / m; break;
+  }
+  return { u: a * 0.5 + 0.5, v: b * 0.5 + 0.5 };
 }
 
 // Direction -> { faceIndex, u, v }. Forward gnomonic projection.
 export function dirToFaceUv(x, y, z) {
   const ax = Math.abs(x), ay = Math.abs(y), az = Math.abs(z);
-  let faceIndex, a, b;
-  if (ax >= ay && ax >= az) {
-    if (x < 0) { faceIndex = 0; a = -z / ax; b =  y / ax; }
-    else       { faceIndex = 1; a =  z / ax; b =  y / ax; }
-  } else if (ay >= az) {
-    if (y > 0) { faceIndex = 2; a =  x / ay; b = -z / ay; }
-    else       { faceIndex = 3; a =  x / ay; b =  z / ay; }
-  } else {
-    if (z > 0) { faceIndex = 4; a =  x / az; b =  y / az; }
-    else       { faceIndex = 5; a = -x / az; b =  y / az; }
-  }
-  return { faceIndex, u: a * 0.5 + 0.5, v: b * 0.5 + 0.5 };
+  let faceIndex;
+  if (ax >= ay && ax >= az) faceIndex = x < 0 ? 0 : 1;
+  else if (ay >= az)        faceIndex = y > 0 ? 2 : 3;
+  else                      faceIndex = z > 0 ? 4 : 5;
+  return { faceIndex, ...projectOntoFace(faceIndex, x, y, z) };
 }
 
 // ---------------------------------------------------------------------------

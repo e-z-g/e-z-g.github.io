@@ -103,6 +103,9 @@
     .dl-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
     #status { font-size: 12px; color: #888; min-height: 18px; text-align: center; max-width: 560px; }
+    .align { font-size: 12px; min-height: 18px; text-align: center; max-width: 560px; margin-top: 4px; }
+    .align.ok   { color: #4ade80; }
+    .align.warn { color: #fbbf24; }
   </style>
 </head>
 <body>
@@ -153,6 +156,10 @@
   <button class="btn btn-secondary" id="clear-btn">Clear All</button>
 </div>
 <p id="status" role="status" aria-live="polite"></p>
+<p id="align-report" class="align" role="status" aria-live="polite"></p>
+<div class="action-row" style="margin-bottom:4px">
+  <button class="btn btn-secondary" id="align-fix" style="display:none">Apply suggested placement</button>
+</div>
 
 <div id="output-wrap">
   <h2 id="output-title">Output Atlas</h2>
@@ -166,7 +173,7 @@
 <script type="module">
 import {
   FACES, FACE_LABELS, FACE_INDEX, INDEX_FACE, LAYOUTS, GUTTER_PX,
-  faceUvToDir, dirToFaceUv,
+  faceUvToDir, dirToFaceUv, projectOntoFace,
 } from './atlas-layout.js';
 
 // ── State ────────────────────────────────────────────────────────
@@ -287,6 +294,7 @@ async function loadFaceFile(face, file) {
     document.getElementById(`prev-${face}`).classList.add('loaded');
     updateStitchBtn();
     warnAboutInputs();
+    checkAlignment();
   } catch (e) {
     setStatus(`Couldn't read "${file.name}" as an image — try PNG, JPEG or WEBP.`);
   }
@@ -393,6 +401,7 @@ grid.addEventListener('click', e => {
     });
     rot.classList.add('active'); rot.setAttribute('aria-pressed', 'true');
     updateThumb(face);
+    checkAlignment();
     return;
   }
   const flip = e.target.closest('.flip-btn');
@@ -404,6 +413,7 @@ grid.addEventListener('click', e => {
     flip.classList.toggle('active');
     flip.setAttribute('aria-pressed', String(flip.classList.contains('active')));
     updateThumb(face);
+    checkAlignment();
   }
 });
 
@@ -424,7 +434,8 @@ document.getElementById('clear-btn').addEventListener('click', () => {
     });
   });
   document.getElementById('output-wrap').style.display = 'none';
-  updateStitchBtn(); setStatus('');
+  document.getElementById('align-fix').style.display = 'none';
+  updateStitchBtn(); setStatus(''); checkAlignment();
 });
 
 function updateStitchBtn() {
@@ -485,6 +496,157 @@ function updateThumb(face) {
   tc.getContext('2d').drawImage(
     transformedFace(face, faceRot[face], faceFlipH[face], faceFlipV[face], SIZE), 0, 0);
 }
+
+// ── Alignment check ──────────────────────────────────────────────
+// Which file belongs on which face is the easiest thing to get wrong, and the
+// mistake is hard to see: a wrongly placed wall still leaves the horizon
+// continuous, so the result looks plausible until you study a seam.
+//
+// Across a shared cube edge the two faces show the same directions in space, so
+// their pixels there should agree. Score the current placement that way, then
+// score all 720 permutations. If a different arrangement is markedly better,
+// the current one is wrong and we can say exactly which faces to swap.
+
+const ALIGN_SIZE = 64;
+let edgeSamples = null;
+
+function buildEdgeSamples() {
+  if (edgeSamples) return edgeSamples;
+  const N = 24;
+  const out = [];
+  for (let f = 0; f < 6; f++) {
+    const edges = [t => [t, 0], t => [t, 1], t => [0, t], t => [1, t]];
+    for (const e of edges) {
+      const [mu, mv] = e(0.5);
+      const nud = [mu, mv].map(c => (c === 0 ? -0.02 : c === 1 ? 1.02 : c));
+      const d = faceUvToDir(f, nud[0], nud[1]);
+      const nf = dirToFaceUv(d[0], d[1], d[2]).faceIndex;
+      if (nf === f || nf < f) continue;   // each edge once
+      const pts = [];
+      for (let k = 0; k < N; k++) {
+        const t = (k + 0.5) / N;
+        let [u, v] = e(t);
+        u = u === 0 ? 0.01 : u === 1 ? 0.99 : u;
+        v = v === 0 ? 0.01 : v === 1 ? 0.99 : v;
+        const dir = faceUvToDir(f, u, v);
+        const q = projectOntoFace(nf, dir[0], dir[1], dir[2]);
+        pts.push([u, v, q.u, q.v]);
+      }
+      out.push({ f, nf, pts });
+    }
+  }
+  edgeSamples = out;
+  return out;
+}
+
+function alignBuffers() {
+  const bufs = {};
+  for (const f of FACES) {
+    if (!faceImages[f]) return null;
+    const c = transformedFace(f, faceRot[f], faceFlipH[f], faceFlipV[f], ALIGN_SIZE);
+    bufs[f] = c.getContext('2d', { willReadFrequently: true })
+               .getImageData(0, 0, ALIGN_SIZE, ALIGN_SIZE).data;
+  }
+  return bufs;
+}
+
+function alignPixel(buf, u, v) {
+  const S = ALIGN_SIZE;
+  const x = Math.min(S - 1, Math.max(0, Math.round(u * S - 0.5)));
+  const y = Math.min(S - 1, Math.max(0, Math.round((1 - v) * S - 0.5)));
+  return (y * S + x) * 4;
+}
+
+// assign[faceIndex] = slot name whose image sits on that face
+function scorePlacement(bufs, assign) {
+  let total = 0, n = 0;
+  for (const { f, nf, pts } of buildEdgeSamples()) {
+    const A = bufs[assign[f]], B = bufs[assign[nf]];
+    for (const [u, v, u2, v2] of pts) {
+      const i = alignPixel(A, u, v), j = alignPixel(B, u2, v2);
+      total += Math.abs(A[i] - B[j]) + Math.abs(A[i+1] - B[j+1]) + Math.abs(A[i+2] - B[j+2]);
+      n += 3;
+    }
+  }
+  return total / n;
+}
+
+function checkAlignment() {
+  const el = document.getElementById('align-report');
+  const bufs = alignBuffers();
+  if (!bufs) { el.textContent = ''; el.className = 'align'; return; }
+
+  const current = [];
+  for (let i = 0; i < 6; i++) current[i] = INDEX_FACE[i];
+  const currentScore = scorePlacement(bufs, current);
+
+  let best = { assign: current, score: currentScore };
+  const permute = (rest, acc) => {
+    if (!rest.length) {
+      const s = scorePlacement(bufs, acc);
+      if (s < best.score) best = { assign: acc.slice(), score: s };
+      return;
+    }
+    for (let i = 0; i < rest.length; i++) {
+      permute(rest.slice(0, i).concat(rest.slice(i + 1)), acc.concat(rest[i]));
+    }
+  };
+  permute(FACES.slice(), []);
+
+  const moved = [];
+  for (let i = 0; i < 6; i++) if (best.assign[i] !== current[i]) moved.push(i);
+
+  // Only speak up when the alternative is clearly better, so ordinary content
+  // variation across a seam does not trigger it.
+  if (!moved.length || best.score > currentScore * 0.75) {
+    el.className = 'align ok';
+    el.textContent = `Alignment looks right (seam mismatch ${currentScore.toFixed(1)}).`;
+    pendingFix = null;
+    return;
+  }
+
+  // Describe it as a swap when that is what it is.
+  const isSwap = moved.length === 2 &&
+    best.assign[moved[0]] === current[moved[1]] &&
+    best.assign[moved[1]] === current[moved[0]];
+  const desc = isSwap
+    ? `${FACE_LABELS[current[moved[0]]]} and ${FACE_LABELS[current[moved[1]]]} look swapped`
+    : `${moved.length} faces look misplaced`;
+
+  el.className = 'align warn';
+  el.textContent = `${desc} — seam mismatch ${currentScore.toFixed(1)}, ` +
+                   `${best.score.toFixed(1)} if rearranged.`;
+  pendingFix = best.assign;
+  document.getElementById('align-fix').style.display = 'inline-block';
+}
+
+let pendingFix = null;
+
+document.getElementById('align-fix').addEventListener('click', () => {
+  if (!pendingFix) return;
+  const img = {}, rot = {}, fh = {}, fv = {};
+  for (let i = 0; i < 6; i++) {
+    const from = pendingFix[i], to = INDEX_FACE[i];
+    img[to] = faceImages[from]; rot[to] = faceRot[from];
+    fh[to] = faceFlipH[from];   fv[to] = faceFlipV[from];
+  }
+  for (const f of FACES) {
+    faceImages[f] = img[f]; faceRot[f] = rot[f];
+    faceFlipH[f] = fh[f];   faceFlipV[f] = fv[f];
+    invalidateFace(f);
+    updateThumb(f);
+    document.querySelectorAll(`.rot-btn[data-face="${f}"]`).forEach(b => {
+      const on = +b.dataset.rot === faceRot[f];
+      b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on));
+    });
+    document.querySelectorAll(`.flip-btn[data-face="${f}"]`).forEach(b => {
+      const on = b.dataset.flip === 'h' ? faceFlipH[f] : faceFlipV[f];
+      b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on));
+    });
+  }
+  document.getElementById('align-fix').style.display = 'none';
+  checkAlignment();
+});
 
 // ── Gutter ───────────────────────────────────────────────────────
 // The 3×2 layout drops the pole duplication that gave the 5×3 atlas correct
