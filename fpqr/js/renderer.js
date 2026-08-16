@@ -239,13 +239,23 @@ function renderCanvas() {
         };
 
         const isFinder = (r, c) => (r<7&&c<7) || (r<7&&c>=gSz-7) || (r>=gSz-7&&c<7);
-        const isAlignment = (r, c) => {
-            if (isFinder(r, c)) return false;
-            for (let ax of aps) for (let ay of aps) {
-                if ((ax===6&&ay===6)||(ax===6&&ay===gSz-7)||(ax===gSz-7&&ay===6)) continue;
-                if (Math.abs(r-ay)<=2 && Math.abs(c-ax)<=2) return true;
+
+        // Alignment cells are stamped into a lookup grid once per render instead of
+        // rescanning every aps pair per module. High versions have up to 7 alignment
+        // coordinates (49 pairs), and this runs for every cell of a 177x177 grid.
+        const alignMask = new Uint8Array(gSz * gSz);
+        for (const ax of aps) for (const ay of aps) {
+            if ((ax===6&&ay===6)||(ax===6&&ay===gSz-7)||(ax===gSz-7&&ay===6)) continue;
+            for (let dr = -2; dr <= 2; dr++) for (let dc = -2; dc <= 2; dc++) {
+                const rr = ay + dr, cc = ax + dc;
+                if (rr < 0 || rr >= gSz || cc < 0 || cc >= gSz) continue;
+                alignMask[rr * gSz + cc] = 1;
             }
-            return false;
+        }
+        const isAlignment = (r, c) => {
+            if (r < 0 || r >= gSz || c < 0 || c >= gSz) return false;
+            if (isFinder(r, c)) return false;
+            return alignMask[r * gSz + c] === 1;
         };
 
         const isDarkData = (r, c) => {
@@ -583,10 +593,13 @@ function renderCanvas() {
         scanContainer.classList.remove('hidden');
         void scanContainer.offsetWidth;
         scanContainer.classList.add('opacity-100');
-        E('scan-status-text').textContent = 'ANALYZING...';
-        E('scan-score-num').textContent = '--%';
-        E('scan-score-bar').style.width = '0%';
-        E('scan-score-bar').className = 'h-full bg-slate-500 transition-all duration-300 ease-out';
+        safeSetText('scan-status-text', 'ANALYZING...');
+        safeSetText('scan-score-num', '--%');
+        const initBar = E('scan-score-bar');
+        if (initBar) {
+            initBar.style.width = '0%';
+            initBar.className = 'h-full bg-slate-500 transition-all duration-300 ease-out';
+        }
     }
 
     // Scannability is polled independently via setInterval — no per-frame scheduling needed.
