@@ -22,7 +22,17 @@
     p.subtitle {
       font-size: 0.9rem;
       color: #777;
-      margin-bottom: 2rem;
+      margin-bottom: 2.5rem;
+    }
+    h2 {
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #666;
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid #222;
     }
     ul {
       list-style: none;
@@ -47,44 +57,112 @@
       color: #888;
       margin-top: 0.15rem;
     }
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid #222;
+      font-size: 0.78rem;
+      color: #666;
+    }
+    footer a {
+      font-size: inherit;
+    }
   </style>
 </head>
 <body>
   <h1>e-z-g tools</h1>
-  <p class="subtitle">A collection of web-based tools and interactive viewers.</p>
+  <p class="subtitle">A collection of web-based tools and interactive viewers. Everything runs client-side in the browser.</p>
+
+  <h2>360° &amp; VR</h2>
   <ul>
     <li>
-      <a href="https://e-z-g.github.io/cube/">Cubemap VR Viewer</a>
+      <a href="cube/">Cubemap VR Viewer</a>
       <span class="desc">Interactive 360° parallax cubemap viewer with depth-driven square transitions, gyroscope support, and custom LDI upload.</span>
     </li>
     <li>
-      <a href="https://e-z-g.github.io/cube/stitcher.html">Cubemap Face Stitcher</a>
+      <a href="cube/stitcher.html">Cubemap Face Stitcher</a>
       <span class="desc">Assemble six cube faces into the atlas the viewer's custom LDI mode loads, with per-face rotation and flip.</span>
     </li>
     <li>
-      <a href="https://e-z-g.github.io/qr.html">QR Code Generator</a>
-      <span class="desc">Generate and download QR codes in the browser.</span>
+      <a href="vrvid.html">Video Sphere Viewer</a>
+      <span class="desc">Play any equirectangular 360° video on a sphere — pass one in with <code>?video=</code>, with gyroscope and fullscreen.</span>
+    </li>
+  </ul>
+
+  <h2>Image &amp; video</h2>
+  <ul>
+    <li>
+      <a href="pixelator.html">Pixelator</a>
+      <span class="desc">Nearest-neighbour image downscaler for clean pixel art.</span>
     </li>
     <li>
-      <a href="https://e-z-g.github.io/wine.html">Wine Tool</a>
-      <span class="desc">Wine reference/utility tool.</span>
+      <a href="unpremultiply.html">PNG Alpha Tools</a>
+      <span class="desc">Remove premultiplied alpha from PNG images, from a file or a URL, entirely in the browser.</span>
     </li>
     <li>
-      <a href="https://e-z-g.github.io/vrvid.html">VR Video</a>
-      <span class="desc">VR video player.</span>
+      <a href="gif2sheet.html">GIF Sprite Extractor</a>
+      <span class="desc">Split an animated GIF into its frames and export them as a sprite sheet.</span>
     </li>
     <li>
-      <a href="https://e-z-g.github.io/ev/">Star/Planet Viewer</a>
-      <span class="desc">Generative space scene with star field and planet image, with PNG export.</span>
+      <a href="vidscale.html">Custom Video Scaler</a>
+      <span class="desc">Rescale a video to arbitrary dimensions with smooth or pixelated sampling, and re-export it.</span>
     </li>
     <li>
-      <a href="https://e-z-g.github.io/scanimation.html">3D Print Scanimation Generator</a>
+      <a href="scanimation.html">3D Print Scanimation Generator</a>
       <span class="desc">Interlace up to six frames into a printable base plate and sliding barrier grid, with SVG and multi-colour 3MF export.</span>
     </li>
     <li>
-      <a href="https://e-z-g.github.io/fpqr/">FPQR</a>
-      <span class="desc">First-person QR experience.</span>
+      <a href="ev/">Star/Planet Viewer</a>
+      <span class="desc">Generative space scene with star field and planet image, with PNG export.</span>
     </li>
   </ul>
+
+  <h2>Codes &amp; utilities</h2>
+  <ul>
+    <li>
+      <a href="fpqr/">Fancy-Pants QR Encoder</a>
+      <span class="desc">QR generator with custom module geometry, halftone and emoji fills, gradients, and an anatomy view of the finder, alignment, and data blocks.</span>
+    </li>
+    <li>
+      <a href="ez-pw.html">Input-Optimized Passwords</a>
+      <span class="desc">Generate strong passwords that are quick to type on an on-screen keyboard, tuned to the keyboard layout and starting focus position.</span>
+    </li>
+    <li>
+      <a href="check.html">Instant Mobile Tester</a>
+      <span class="desc">Paste, drop, or upload an HTML file on your phone and run it immediately in a preview.</span>
+    </li>
+    <li>
+      <a href="wine/">VinoVision</a>
+      <span class="desc">Photograph a wine shelf to extract every visible bottle into a filterable database, with an AR finder for locating a pick back on the shelf.</span>
+    </li>
+  </ul>
+
+  <h2>Retro Mac</h2>
+  <ul>
+    <li>
+      <a href="cythera/databrowser.html">Cythera Graphics Browser</a>
+      <span class="desc">Browse the sprites, portraits, skill icons, and tile sheets inside a Cythera Data archive.</span>
+    </li>
+    <li>
+      <a href="cythera/cythera_data_viewer.html">Cythera Data Viewer</a>
+      <span class="desc">Expanded Cythera browser with decoded scripts, character and creature records, and full-text search across the archive.</span>
+    </li>
+    <li>
+      <a href="cythera/infinite.html">Cythera Mobile</a>
+      <span class="desc">Cythera running on an emulated Mac OS 7.6 with touch-friendly display and speed controls.</span>
+    </li>
+    <li>
+      <a href="cythera/resource_fork_browser.html">Mac Resource Fork Browser</a>
+      <span class="desc">Decode raw resource forks, MacBinary (.bin), and BinHex (.hqx) locally, with text, summary, and ZIP export.</span>
+    </li>
+    <li>
+      <a href="infj4.html">JumpStart 4th Grade Player</a>
+      <span class="desc">JumpStart 4th Grade: Haunted Island, booted in an emulated Power Macintosh G3.</span>
+    </li>
+  </ul>
+
+  <footer>
+    Source on <a href="https://github.com/e-z-g/e-z-g.github.io">GitHub</a>.
+  </footer>
 </body>
 </html>
