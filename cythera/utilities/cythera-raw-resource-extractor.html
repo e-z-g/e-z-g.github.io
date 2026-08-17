@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cythera Raw Resource Extractor</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111; color: #eee; font: 16px system-ui, sans-serif; }
+  main { box-sizing: border-box; width: min(560px, calc(100vw - 32px)); padding: 24px; border: 1px solid #555; border-radius: 12px; background: #1d1d1d; }
+  h1 { margin: 0 0 8px; font-size: 22px; }
+  p { color: #bbb; line-height: 1.45; }
+  label { display: grid; gap: 6px; margin: 18px 0; font-weight: 600; }
+  input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px; border: 1px solid #666; border-radius: 7px; background: #111; color: #fff; font: 16px ui-monospace, monospace; }
+  button { width: 100%; min-height: 48px; border: 0; border-radius: 7px; background: #e0b54b; color: #16120a; font: 700 16px system-ui, sans-serif; }
+  button:disabled { opacity: .5; }
+  #status { min-height: 24px; color: #b9d9a8; font: 14px ui-monospace, monospace; overflow-wrap: anywhere; }
+  .error { color: #ff9d8a !important; }
+  code { color: #f3cf70; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cythera Raw Resource Extractor</h1>
+  <p>Downloads the exact bytes stored in <em>Cythera Data</em>, before DCG decompression. Use this instead of a PNG when the undither tool needs a raw portrait, landscape, or tile-sheet resource.</p>
+
+  <label>
+    Cythera Data archive
+    <input id="archive" type="file">
+  </label>
+
+  <label>
+    Resource ID
+    <input id="resid" type="text" value="0x8809" inputmode="text" autocapitalize="off" autocomplete="off" spellcheck="false">
+  </label>
+
+  <button id="download" disabled>Download raw resource</button>
+  <p id="status">Choose a Cythera Data archive.</p>
+  <p>Examples: portraits are generally <code>0x88nn</code>; landscapes are <code>0x84nn</code>; tile sheets are <code>0x8Enn</code>.</p>
+</main>
+<script>
+'use strict';
+
+let archiveBytes = null;
+const archiveInput = document.getElementById('archive');
+const residInput = document.getElementById('resid');
+const button = document.getElementById('download');
+const status = document.getElementById('status');
+
+function setStatus(message, error = false) {
+  status.textContent = message;
+  status.classList.toggle('error', error);
+}
+
+function u32be(bytes, offset) {
+  if (offset < 0 || offset + 4 > bytes.length) throw new Error('Archive index points outside the selected file.');
+  return ((bytes[offset] * 0x1000000) + (bytes[offset + 1] << 16) + (bytes[offset + 2] << 8) + bytes[offset + 3]) >>> 0;
+}
+
+function parseResourceId(text) {
+  const cleaned = text.trim().replace(/^0x/i, '');
+  if (!/^[0-9a-f]{1,4}$/i.test(cleaned)) throw new Error('Enter a hexadecimal resource ID, such as 0x8809.');
+  const id = parseInt(cleaned, 16);
+  if (id < 0x0100 || id > 0xffff) throw new Error('Resource ID must be between 0x0100 and 0xFFFF.');
+  return id;
+}
+
+function extractRawResource(id) {
+  // Delver archive master-index: 256 big-endian offset/length records at 0x88.
+  // Resource 0xSSNN maps to subindex SS-1, resource slot NN.
+  const subindex = (id >>> 8) - 1;
+  const slot = id & 0xff;
+  const masterEntry = 0x88 + subindex * 8;
+  const resourceTableOffset = u32be(archiveBytes, masterEntry);
+  const resourceTableLength = u32be(archiveBytes, masterEntry + 4);
+  if (!resourceTableOffset || !resourceTableLength) throw new Error(`Subindex 0x${(subindex + 1).toString(16).toUpperCase()} has no resource table.`);
+  if (resourceTableOffset + resourceTableLength > archiveBytes.length) throw new Error('Resource table extends outside the selected archive.');
+
+  const record = resourceTableOffset + slot * 8;
+  if (record + 8 > resourceTableOffset + resourceTableLength) throw new Error('Resource slot is outside this subindex table.');
+  const dataOffset = u32be(archiveBytes, record);
+  const dataLength = u32be(archiveBytes, record + 4);
+  if (!dataOffset || !dataLength) throw new Error(`Resource 0x${id.toString(16).toUpperCase()} is absent or empty.`);
+  if (dataOffset + dataLength > archiveBytes.length) throw new Error('Resource bytes extend outside the selected archive.');
+  return archiveBytes.slice(dataOffset, dataOffset + dataLength);
+}
+
+archiveInput.addEventListener('change', () => {
+  const file = archiveInput.files[0];
+  archiveBytes = null;
+  button.disabled = true;
+  if (!file) return setStatus('Choose a Cythera Data archive.');
+  setStatus(`Reading ${file.name} (${file.size.toLocaleString()} bytes)…`);
+  const reader = new FileReader();
+  reader.onload = () => {
+    archiveBytes = new Uint8Array(reader.result);
+    if (archiveBytes.length < 0x888) {
+      archiveBytes = null;
+      return setStatus('That file is too small to be a Delver archive.', true);
+    }
+    button.disabled = false;
+    setStatus(`Loaded ${file.name}. Enter a resource ID and download its raw bytes.`);
+  };
+  reader.onerror = () => setStatus('Could not read that archive.', true);
+  reader.readAsArrayBuffer(file);
+});
+
+button.addEventListener('click', () => {
+  try {
+    if (!archiveBytes) throw new Error('Choose a Cythera Data archive first.');
+    const id = parseResourceId(residInput.value);
+    const bytes = extractRawResource(id);
+    const hex = id.toString(16).toUpperCase().padStart(4, '0');
+    const blob = new Blob([bytes], { type: 'application/octet-stream' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `cythera_0x${hex}.bin`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 3000);
+    setStatus(`Downloaded ${bytes.length.toLocaleString()} raw bytes for 0x${hex}.`);
+  } catch (error) {
+    setStatus(error.message || String(error), true);
+  }
+});
+</script>
+</body>
+</html>
