@@ -118,6 +118,31 @@
     #video-toggle, #gyro-toggle { display: none; padding: 6px 10px; }
     #gyro-toggle { display: inline-flex; align-items: center; justify-content: center; }
     #video-toggle { font-size: 14px; }
+    #fullscreen-toggle, #help-toggle {
+      display: inline-flex; align-items: center; justify-content: center; padding: 6px 10px;
+    }
+    #help-toggle { font-weight: 700; }
+
+    #help-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 9998;
+      display: flex; justify-content: center; align-items: center;
+      opacity: 0; pointer-events: none; transition: opacity 0.25s;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    }
+    #help-overlay.active { opacity: 1; pointer-events: auto; }
+    #help-panel {
+      background: rgba(18,18,20,0.9); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px; padding: 22px 26px; color: rgba(255,255,255,0.9);
+      font-size: 13px; line-height: 1.9; max-width: 90vw; max-height: 80vh; overflow-y: auto;
+    }
+    #help-panel h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+    #help-panel table { border-collapse: collapse; }
+    #help-panel td { padding: 1px 0; vertical-align: top; }
+    #help-panel td:first-child { padding-right: 20px; white-space: nowrap; }
+    #help-panel kbd {
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 4px; padding: 1px 6px; font-family: inherit; font-size: 11px;
+    }
     
     #load-error {
       position: fixed; left: 50%; transform: translateX(-50%);
@@ -140,6 +165,14 @@
       animation: spin 1s linear infinite; pointer-events: none; display: none;
     }
     @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+    /* Counter-rotates so the percentage stays upright inside the spinning ring. */
+    #loader-text {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      animation: counterspin 1s linear infinite;
+      color: rgba(255,255,255,0.9); font-size: 11px; font-weight: 600;
+      font-variant-numeric: tabular-nums; letter-spacing: -0.5px;
+    }
+    @keyframes counterspin { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(-360deg); } }
   </style>
 
   <script type="importmap">
@@ -156,7 +189,7 @@
   <video id="decal-video" crossOrigin="anonymous" loop playsInline muted style="display:none;"></video>
 
   <div id="viewer-container"></div>
-  <div id="loader"></div>
+  <div id="loader"><span id="loader-text"></span></div>
   <div id="load-error" role="alert" aria-live="assertive">
     <span id="load-error-msg"></span>
     <button id="load-error-retry" type="button">Retry</button>
@@ -199,8 +232,14 @@
           <ellipse cx="12" cy="12" rx="8" ry="3" transform="rotate(-45 12 12)"></ellipse>
         </svg>
       </button>
+      <button id="fullscreen-toggle" title="Fullscreen (F)" aria-label="Toggle fullscreen">
+        <svg viewBox="0 0 24 24" style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; vertical-align:middle;">
+          <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"></path>
+        </svg>
+      </button>
       <button id="audio-toggle" style="font-size: 16px;">&#9835;</button>
       <input type="range" id="volume-slider" min="0" max="25" value="0">
+      <button id="help-toggle" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
       <div id="dni-trigger" title="View large symbol">
         <svg viewBox="-15 -15 30 30" style="width:100%; height:100%; stroke: rgba(255,255,255,0.8); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;">
           <path d="M -12,-10 H 12 M -12,10 H 12 M -10,-10 V 10 M 10,-10 V 10" />
@@ -233,6 +272,24 @@
       <path id="dni-large-3" d="M 0,0 Q 0,0 0,0" />
     </svg>
     <input type="range" id="large-volume-slider" min="0" max="25" value="0">
+  </div>
+
+  <div id="help-overlay">
+    <div id="help-panel">
+      <h2>Controls</h2>
+      <table>
+        <tr><td><kbd>&larr;</kbd><kbd>&rarr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Look around</td></tr>
+        <tr><td>Drag / <kbd>Shift</kbd>+arrows</td><td>Look around (faster)</td></tr>
+        <tr><td>Scroll / pinch / <kbd>+</kbd> <kbd>&minus;</kbd></td><td>Zoom</td></tr>
+        <tr><td><kbd>1</kbd>&hellip;<kbd>9</kbd></td><td>Jump to an age</td></tr>
+        <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next age</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Fullscreen</td></tr>
+        <tr><td><kbd>G</kbd></td><td>Gyroscope</td></tr>
+        <tr><td><kbd>M</kbd></td><td>Mute / unmute</td></tr>
+        <tr><td><kbd>R</kbd></td><td>Reset view</td></tr>
+        <tr><td><kbd>?</kbd> / <kbd>Esc</kbd></td><td>Show / hide this panel</td></tr>
+      </table>
+    </div>
   </div>
 
   <div id="caption">
@@ -279,12 +336,27 @@
         name: "J'nanin",
         baseUrl: rawUrl + 'jnanin/',
         type: 'classic-leis',
-        audio: null,
+        // audio_jnanin.mp3 has been sitting in the folder unreferenced; J'nanin
+        // used to fall silent because this was null.
+        audio: rawUrl + 'jnanin/audio_jnanin.mp3',
         hasDepth: false,
         versions: [
           { label: 'Original',    suffix: '-orig.jpg' },
           { label: '2K (HD)',     suffix: '-hdmod.webp' },
           { label: '6K',          suffix: '-seamless.webp' }
+        ]
+      },
+      {
+        // Edanna ships as a pre-stitched 5x3 atlas plus a matching depth atlas,
+        // the same format the custom-LDI path reads, so it needs no per-face
+        // URL scheme — just the `atlas` type below.
+        name: 'Edanna',
+        baseUrl: rawUrl + 'edanna/',
+        type: 'atlas',
+        audio: null,
+        hasDepth: true,
+        versions: [
+          { label: 'Original', color: 'edanna.jpeg', depth: 'edanna_depth.png' }
         ]
       },
       {
@@ -295,7 +367,7 @@
         versions: [{ label: 'Local Files', type: 'custom' }]
       }
     ];
-    
+
     let currentLocation = locations[1];
     let currentVersionIndex = 0;
     let hasActiveDepth = false; 
@@ -514,21 +586,46 @@
     // --- Pure Three.js Core Engine ---
     const container = document.getElementById('viewer-container');
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 500); 
+    const camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 500);
+    // No MSAA: the scene is one continuous mesh with no internal silhouettes,
+    // so multisampling has almost no edge to find while still costing the
+    // bandwidth. What the depth pass actually needs is supersampling, which the
+    // resolution governor below provides where there is headroom for it.
     const renderer = new THREE.WebGLRenderer({ antialias: false });
     // Cap the ratio: at 3x on a phone this shades 9 pixels per CSS pixel across
     // ~200k triangles per mesh, for no visible gain over 2x.
-    const pixelRatio = Math.min(window.devicePixelRatio, 2);
+    const MAX_PIXEL_RATIO = 2;
+    let renderRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+    renderer.setPixelRatio(renderRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(pixelRatio);
     container.appendChild(renderer.domElement);
 
     // Largest texture this GPU will accept. Mobile parts commonly cap at 4096,
     // where an oversized upload silently fails or drops the context.
     const maxTextureSize = renderer.capabilities.maxTextureSize;
+    // With depth on, whole stretches of the mesh end up nearly edge-on to the
+    // camera, where an isotropic mip lookup either shimmers or smears to mush.
+    // Anisotropy costs nothing on the parts of the image that face us.
+    const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    // Phones pay for the finer mesh in memory and vertex work, and hide the
+    // artefacts it fixes behind a 2-3x device pixel ratio anyway.
+    const isLowPower = window.matchMedia('(pointer: coarse)').matches
+                    || (navigator.hardwareConcurrency || 4) < 4
+                    || maxTextureSize < 8192;
 
     // --- SPHEREIFIED CUBE GEOMETRY ---
-    const geometry = new THREE.BoxGeometry(100, 100, 100, 128, 128, 128);
+    // The mesh is what bends, so a depth edge can only turn where there is a
+    // vertex. At 128 segments a quad spans 0.7 degrees — about 17 screen pixels
+    // at the default field of view on a 1080p display — which is exactly the
+    // staircase that appears along every object edge once the depth slider goes
+    // up. 256 quarters the step, and is about where the ~300px-per-face depth
+    // maps stop having anything more to say.
+    const CUBE_SEGMENTS = isLowPower ? 128 : 256;
+    // Radius of the vertex-shader depth filter, in face UV — one quad wide, so
+    // it always tracks the mesh it is smoothing.
+    const DEPTH_SMOOTH_UV = 1.0 / CUBE_SEGMENTS;
+    const geometry = new THREE.BoxGeometry(100, 100, 100, CUBE_SEGMENTS, CUBE_SEGMENTS, CUBE_SEGMENTS);
     geometry.scale(-1, 1, 1);
     const pos = geometry.attributes.position;
     const vTemp = new THREE.Vector3();
@@ -593,9 +690,13 @@
         const gutterUniform = (usesAtlas && layoutUsesGutter(layoutId)) ? { uGutterFrac: { value: 0.0 } } : {};
         const mats = [];
         for (let i = 0; i < 6; i++) {
-          const colorSample     = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv)` : `texture2D(tColor, vUv)`;
-          const depthSample     = depthMode === 'atlas' ? `sampleAtlas(tDepth, uFace, vUv)` : `texture2D(tDepth, vUv)`;
-          const fragDepthSample = depthMode === 'atlas' ? `sampleAtlas(tDepth, uFace, vUv)` : `texture2D(tDepth, vUv)`;
+          const colorSample = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv)` : `texture2D(tColor, vUv)`;
+          // One depth reader for both stages, so the vertex filter, the fg mask
+          // and the tear gradient can never drift apart.
+          const depthAtGlsl = `
+              float depthAt(vec2 uv) {
+                return clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, uFace, uv)' : 'texture2D(tDepth, uv)'}.r, 0.0, 1.0);
+              }`;
 
           const extraUniforms = seamFill ? { tBgColor: { value: null } } : {};
 
@@ -607,22 +708,46 @@
               uFace: { value: i },
               uIsForeground: { value: 0 },
               uTearThreshold: { value: 0.0 },
+              uDepthSmooth: { value: DEPTH_SMOOTH_UV },
               ...gutterUniform,
               ...extraUniforms
             },
-            transparent: true, 
+            transparent: true,
             vertexShader: `
               uniform sampler2D tDepth;
               uniform float uDisplacementScale;
+              uniform float uDepthSmooth;
               uniform int uFace;
               varying vec2 vUv;
               ${gnomonicUvGlsl}
               ${atlasLogic}
+              ${depthAtGlsl}
+
+              // A step in the depth map lands wherever the vertex grid happens
+              // to fall, so the mesh reproduces it as a staircase along the
+              // grid rather than as the edge that is actually in the picture.
+              // Low-passing the depth over roughly one quad turns each step
+              // into a short ramp: the edge keeps its position and its contrast
+              // but stops snapping to the grid, which is what reads as jagged.
+              float smoothedDepth(vec2 uv) {
+                if (uDepthSmooth <= 0.0) return depthAt(uv);
+                vec2 dx = vec2(uDepthSmooth, 0.0);
+                vec2 dy = vec2(0.0, uDepthSmooth);
+                return depthAt(uv) * 0.4 + 0.15 * (
+                    depthAt(clamp(uv + dx, 0.001, 0.999))
+                  + depthAt(clamp(uv - dx, 0.001, 0.999))
+                  + depthAt(clamp(uv + dy, 0.001, 0.999))
+                  + depthAt(clamp(uv - dy, 0.001, 0.999)));
+              }
+
               void main() {
                 vec3 dir = normalize(position);
                 vec2 rawUv = gnomonicUV(dir, uFace);
                 vUv = clamp(rawUv, 0.001, 0.999);
-                float vDepth = clamp(${depthSample}.r, 0.0, 1.0);
+                // Ages without a depth map, and depth turned down to zero, skip
+                // the filter taps entirely rather than paying for five fetches
+                // per vertex to multiply the result by nothing.
+                float vDepth = uDisplacementScale > 0.0 ? smoothedDepth(vUv) : 0.0;
                 vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
               }
@@ -636,8 +761,9 @@
               ${seamFill ? 'uniform sampler2D tBgColor;' : ''}
               varying vec2 vUv;
               ${atlasLogic}
+              ${depthAtGlsl}
               void main() {
-                float texDepth = clamp(${fragDepthSample}.r, 0.0, 1.0);
+                float texDepth = depthAt(vUv);
                 float alpha = 1.0;
                 
                 if (uIsForeground == 1) {
@@ -652,11 +778,11 @@
                         vec2 uvU = clamp(vUv + stepY, 0.001, 0.999);
                         vec2 uvD = clamp(vUv - stepY, 0.001, 0.999);
                         
-                        float dR = clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, uFace, uvR)' : 'texture2D(tDepth, uvR)'}.r, 0.0, 1.0);
-                        float dL = clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, uFace, uvL)' : 'texture2D(tDepth, uvL)'}.r, 0.0, 1.0);
-                        float dU = clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, uFace, uvU)' : 'texture2D(tDepth, uvU)'}.r, 0.0, 1.0);
-                        float dD = clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, uFace, uvD)' : 'texture2D(tDepth, uvD)'}.r, 0.0, 1.0);
-                        
+                        float dR = depthAt(uvR);
+                        float dL = depthAt(uvL);
+                        float dU = depthAt(uvU);
+                        float dD = depthAt(uvD);
+
                         float texGrad = length(vec2(dR - dL, dU - dD));
                         float thresh = mix(0.20, 0.01, uTearThreshold);
                         alpha *= 1.0 - smoothstep(thresh * 0.5, thresh, texGrad);
@@ -698,6 +824,10 @@
         atlasStandard: ['atlas',    'standard', false],
         atlasFg:       ['atlas',    'atlas',    true],   // seamFill enabled
         atlasBg:       ['atlas',    'atlas',    false],
+        // Single-layer atlas with its own depth atlas (built-in `atlas` ages).
+        // Same shaders as atlasBg, but not flagged isBg, so it displaces at the
+        // full slider rate instead of the half rate the backdrop sphere uses.
+        atlasSolo:     ['atlas',    'atlas',    false],
     };
     const matSetCache = new Map();
 
@@ -838,17 +968,30 @@
 
     window.addEventListener('orientationchange', () => { screenOrientation = (screen.orientation || {}).angle || window.orientation || 0; baseGamma = null; });
     
+    // Recover lon/lat from wherever the camera is actually pointing, so handing
+    // control back from the gyroscope doesn't snap the view.
+    //
+    // The render loop aims at (sin(phi)cos(lon), cos(phi), sin(phi)sin(lon)), so
+    // lon is atan2(z, x). This used to read atan2(x, z), which is 90 - lon: every
+    // gyro-off jumped the view a quarter turn. acos also needs the clamp, since a
+    // y component of 1.0000001 makes it NaN and freezes the camera.
+    const _fwd = new THREE.Vector3(), _wq = new THREE.Quaternion();
+    function adoptCameraAngles() {
+      camera.getWorldQuaternion(_wq);
+      _fwd.set(0, 0, -1).applyQuaternion(_wq);
+      lat = 90 - THREE.MathUtils.radToDeg(Math.acos(THREE.MathUtils.clamp(_fwd.y, -1, 1)));
+      lon = THREE.MathUtils.radToDeg(Math.atan2(_fwd.z, _fwd.x));
+    }
+
     document.getElementById('gyro-toggle').addEventListener('click', () => {
       initTiltSensors();
       gyroActive = !gyroActive;
       document.getElementById('gyro-toggle').classList.toggle('active', gyroActive);
-      
+
       if (gyroActive) {
          panLon = 0; panLat = 0;
       } else {
-         const vector = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-         lat = 90 - THREE.MathUtils.radToDeg(Math.acos(vector.y)); 
-         lon = THREE.MathUtils.radToDeg(Math.atan2(vector.x, vector.z));
+         adoptCameraAngles();
       }
     });
 
@@ -920,14 +1063,136 @@
       else if (e.touches.length === 1) { initialPinchDistance = null; onPointerDown(e.touches[0].clientX, e.touches[0].clientY); }
     });
 
+    // --- Fullscreen ---
+    const fullscreenBtn = document.getElementById('fullscreen-toggle');
+    function toggleFullscreen() {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document);
+      }
+    }
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+      fullscreenBtn.classList.toggle('active', !!document.fullscreenElement);
+    });
+
+    // --- Help overlay ---
+    const helpOverlay = document.getElementById('help-overlay');
+    const toggleHelp = (force) => helpOverlay.classList.toggle('active', force);
+    document.getElementById('help-toggle').addEventListener('click', () => toggleHelp());
+    // Backdrop only — a click on the panel itself shouldn't dismiss it.
+    helpOverlay.addEventListener('click', (e) => { if (e.target === helpOverlay) toggleHelp(false); });
+
+    // --- Keyboard ---
+    // Held keys drive a per-frame turn rate rather than a per-keypress jump, so
+    // arrow-key looking has the same feel as dragging.
+    const heldKeys = new Set();
+    const LOOK_DEG_PER_SEC = 60;
+    let lastLookTime = performance.now();
+
+    function applyKeyboardLook() {
+      const now = performance.now();
+      const dt = Math.min((now - lastLookTime) / 1000, 0.1);
+      lastLookTime = now;
+      if (!heldKeys.size) return;
+
+      const rate = LOOK_DEG_PER_SEC * dt * (heldKeys.has('shift') ? 2.5 : 1);
+      let dLon = 0, dLat = 0;
+      if (heldKeys.has('arrowleft')  || heldKeys.has('a')) dLon -= rate;
+      if (heldKeys.has('arrowright') || heldKeys.has('d')) dLon += rate;
+      if (heldKeys.has('arrowup')    || heldKeys.has('w')) dLat += rate;
+      if (heldKeys.has('arrowdown')  || heldKeys.has('s')) dLat -= rate;
+      if (!dLon && !dLat) return;
+
+      if (gyroActive) {
+        panLon += dLon;
+        panLat = Math.max(-85, Math.min(85, panLat + dLat));
+      } else {
+        lon += dLon;
+        lat = Math.max(-85, Math.min(85, lat + dLat));
+      }
+    }
+
+    function zoomBy(delta) {
+      camera.fov = Math.max(30, Math.min(120, camera.fov + delta));
+      camera.updateProjectionMatrix();
+    }
+
+    function goToLocation(loc, versionIndex = 0) {
+      if (!loc || isTransitioning) return;
+      const isLocChange = loc !== currentLocation;
+      currentLocation = loc;
+      currentVersionIndex = Math.max(0, Math.min(loc.versions.length - 1, versionIndex));
+      updateUI();
+      loadPanorama(isLocChange ? 'block' : 'fade');
+    }
+
+    function stepLocation(dir) {
+      const i = locations.indexOf(currentLocation);
+      goToLocation(locations[(i + dir + locations.length) % locations.length]);
+    }
+
+    const LOOK_KEYS = new Set(['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'w', 'a', 's', 'd', 'shift']);
+
+    window.addEventListener('keydown', (e) => {
+      // Never steal keys from the file pickers or the range inputs.
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const k = e.key.toLowerCase();
+
+      if (LOOK_KEYS.has(k)) {
+        heldKeys.add(k);
+        if (k !== 'shift') e.preventDefault();
+        return;
+      }
+
+      switch (k) {
+        case 'escape':
+          toggleHelp(false);
+          closeOverlay();
+          return;
+        // preventDefault keeps '/' out of Firefox's quick-find bar.
+        case '?': case '/': case 'h': e.preventDefault(); toggleHelp(); return;
+        case 'f': toggleFullscreen(); return;
+        case 'g': document.getElementById('gyro-toggle').click(); return;
+        case 'm': audioToggleBtn.click(); return;
+        case 'r':
+          lon = 225; lat = 0; panLon = 0; panLat = 0;
+          camera.fov = 80; camera.updateProjectionMatrix();
+          return;
+        case '[': stepLocation(-1); return;
+        case ']': stepLocation(1); return;
+        case '+': case '=': zoomBy(-8); return;
+        case '-': case '_': zoomBy(8); return;
+        case ' ':
+          if (videoToggleBtn.style.display !== 'none') { e.preventDefault(); videoToggleBtn.click(); }
+          return;
+      }
+
+      if (k >= '1' && k <= '9') {
+        const loc = locations[parseInt(k, 10) - 1];
+        if (loc) goToLocation(loc);
+      }
+    });
+
+    window.addEventListener('keyup', (e) => heldKeys.delete(e.key.toLowerCase()));
+    // A tab-out never delivers keyup, which used to be how a held arrow key could
+    // leave the view spinning forever.
+    window.addEventListener('blur', () => heldKeys.clear());
+
     // --- TRANSITION SYSTEM ---
     const transitionScene = new THREE.Scene();
     const transitionCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     
     // Match the drawing buffer, not the CSS size — otherwise the transition
     // composites a low-res buffer onto a hi-dpi canvas and looks soft throughout.
-    const rtWidth  = () => Math.floor(window.innerWidth  * pixelRatio);
-    const rtHeight = () => Math.floor(window.innerHeight * pixelRatio);
+    // renderRatio, not devicePixelRatio: the governor below moves it.
+    const rtWidth  = () => Math.floor(window.innerWidth  * renderRatio);
+    const rtHeight = () => Math.floor(window.innerHeight * renderRatio);
 
     let rtOld = new THREE.WebGLRenderTarget(rtWidth(), rtHeight(), { type: THREE.HalfFloatType });
     let rtNew = new THREE.WebGLRenderTarget(rtWidth(), rtHeight(), { type: THREE.HalfFloatType });
@@ -1013,6 +1278,38 @@
     let pendingTransitionDepth = null;
 
     const textureLoader = new THREE.TextureLoader(); textureLoader.crossOrigin = 'anonymous';
+
+    // --- Load progress ---
+    // The bare spinner said nothing while J'nanin pulled ~9MB of faces. Count
+    // completed requests against the number this load asked for, so the spinner
+    // can show real progress instead of an indefinite wait.
+    const loaderEl = document.getElementById('loader');
+    const loaderTextEl = document.getElementById('loader-text');
+    let loadDone = 0, loadTotal = 0;
+
+    function beginProgress(total) {
+      loadDone = 0; loadTotal = total;
+      loaderEl.style.display = 'block';
+      renderProgress();
+    }
+    function renderProgress() {
+      if (!loadTotal) { loaderTextEl.textContent = ''; return; }
+      loaderTextEl.textContent = `${Math.round((loadDone / loadTotal) * 100)}%`;
+    }
+    function endProgress() {
+      loadTotal = 0;
+      loaderEl.style.display = 'none';
+      loaderTextEl.textContent = '';
+    }
+    // Counts the request whether it resolved or rejected, so a missing depth map
+    // can't strand the readout below 100%.
+    function trackedLoad(url) {
+      const tick = () => { loadDone++; renderProgress(); };
+      return textureLoader.loadAsync(url).then(
+        t => { tick(); return t; },
+        e => { tick(); throw e; }
+      );
+    }
 
     function safeDisposeTextures() {
         const toDispose = new Set();
@@ -1126,7 +1423,7 @@
       isTransitioning = true;
       // Tracks whether we reached the tween, which then owns clearing isTransitioning.
       let handedOffToTween = false;
-      document.getElementById('loader').style.display = 'block';
+      beginProgress(0);
       hideLoadError();
       // Always call: a location with `audio: null` needs the previous track faded out.
       playOrCrossfadeAudio(currentLocation.audio);
@@ -1140,7 +1437,8 @@
       const targetVersion = currentLocation.versions[currentVersionIndex];
       const isVideo = targetVersion.type === 'video-5x3';
       const isCustom = currentLocation.type === 'custom';
-      
+      const isAtlas = currentLocation.type === 'atlas';
+
       try {
           const oldTextures = safeDisposeTextures();
 
@@ -1179,17 +1477,84 @@
 
             pendingTransitionDepth = buildTransitionDepthTex(depthTextures);
             
+          } else if (isAtlas) {
+            // A built-in age that ships as one pre-stitched atlas (plus an
+            // optional depth atlas) rather than six separate face images.
+            videoToggleBtn.style.display = 'none';
+            sourceVideo.pause();
+
+            const wantsDepth = currentLocation.hasDepth && !!targetVersion.depth;
+            loadTotal = 1 + (wantsDepth ? 1 : 0); renderProgress();
+
+            const [rawColor, rawDepth] = await Promise.all([
+              trackedLoad(currentLocation.baseUrl + targetVersion.color),
+              wantsDepth
+                ? trackedLoad(currentLocation.baseUrl + targetVersion.depth)
+                    .catch(e => { console.warn('Missing depth atlas:', e); return dummyDepthTex; })
+                : Promise.resolve(dummyDepthTex)
+            ]);
+
+            if (loadId !== currentLoadId) return;
+
+            rawColor.colorSpace = THREE.SRGBColorSpace;
+            const colorTex = fitToGpu(rawColor);
+            colorTex.generateMipmaps = false;
+            colorTex.minFilter = THREE.LinearFilter; colorTex.magFilter = THREE.LinearFilter;
+            colorTex.wrapS = THREE.ClampToEdgeWrapping; colorTex.wrapT = THREE.ClampToEdgeWrapping;
+            colorTex.needsUpdate = true;
+
+            const depthTex = prepareDepthTex(rawDepth === dummyDepthTex ? rawDepth : fitToGpu(rawDepth));
+
+            // The colour and depth atlases are authored at different sizes, so
+            // the layout has to come from whichever one we actually have, and
+            // both must agree on it.
+            const layout = detectLayout(colorTex.image.width, colorTex.image.height);
+            if (!layout) {
+              throw new Error(
+                `Atlas is ${colorTex.image.width}x${colorTex.image.height} — expected a 5:3 or 3:2 cubemap atlas.`);
+            }
+            const layoutId = layout.id;
+
+            hasActiveDepth = depthTex !== dummyDepthTex;
+            depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
+            tearControls.style.display = 'none';
+
+            const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
+
+            fgCubeMesh.material = getMatSet('atlasSolo', layoutId);
+            bgCubeMesh.visible = false;
+            setGutterFrac(fgCubeMesh.material, colorTex.image.width, layoutId);
+
+            fgCubeMesh.material.forEach((mat) => {
+              mat.uniforms.tColor.value = colorTex;
+              mat.uniforms.tDepth.value = depthTex;
+              mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
+              mat.uniforms.uIsForeground.value = 0;
+              mat.uniforms.uTearThreshold.value = 0.0;
+            });
+
+            [colorTex, depthTex].forEach(t => oldTextures.delete(t));
+
+            const fakeDepthArr = depthTex !== dummyDepthTex
+              ? [depthTex, depthTex, depthTex, depthTex, depthTex, depthTex] : null;
+            pendingTransitionDepth = buildTransitionDepthTex(fakeDepthArr);
+
           } else if (isCustom) {
             videoToggleBtn.style.display = 'none';
             sourceVideo.pause();
-            
+
             const isDualLayer = !!customMaps.bgColor;
             
+            loadTotal = [customMaps.fgColor, customMaps.fgDepth,
+                         isDualLayer && customMaps.bgColor,
+                         isDualLayer && customMaps.bgDepth].filter(Boolean).length;
+            renderProgress();
+
             const loaded = await Promise.all([
-                customMaps.fgColor ? textureLoader.loadAsync(customMaps.fgColor) : Promise.resolve(defaultCustomTex),
-                customMaps.fgDepth ? textureLoader.loadAsync(customMaps.fgDepth) : Promise.resolve(dummyDepthTex),
-                isDualLayer ? textureLoader.loadAsync(customMaps.bgColor) : Promise.resolve(defaultCustomTex),
-                (isDualLayer && customMaps.bgDepth) ? textureLoader.loadAsync(customMaps.bgDepth) : Promise.resolve(dummyDepthTex)
+                customMaps.fgColor ? trackedLoad(customMaps.fgColor) : Promise.resolve(defaultCustomTex),
+                customMaps.fgDepth ? trackedLoad(customMaps.fgDepth) : Promise.resolve(dummyDepthTex),
+                isDualLayer ? trackedLoad(customMaps.bgColor) : Promise.resolve(defaultCustomTex),
+                (isDualLayer && customMaps.bgDepth) ? trackedLoad(customMaps.bgDepth) : Promise.resolve(dummyDepthTex)
             ]);
             
             const processAtlasTex = (tex, isColor) => {
@@ -1271,20 +1636,21 @@
             sourceVideo.pause();
             
             const urls = getCubemapUrls(currentLocation, targetVersion, false);
-            const loadedColors = await Promise.all(urls.map(url => textureLoader.loadAsync(url)));
-            
-            if (loadId !== currentLoadId) return; 
-            
+            loadTotal = urls.length + (currentLocation.hasDepth ? 6 : 0); renderProgress();
+            const loadedColors = await Promise.all(urls.map(url => trackedLoad(url)));
+
+            if (loadId !== currentLoadId) return;
+
             let depthTextures = null;
             if (currentLocation.hasDepth) {
                 depthControlsContainer.style.display = 'flex';
                 tearControls.style.display = 'none';
                 const dUrls = getCubemapUrls(currentLocation, targetVersion, true);
                 const loadedDepths = await Promise.all(dUrls.map(async (url) => {
-                    try { return await textureLoader.loadAsync(url); } 
+                    try { return await trackedLoad(url); }
                     catch(e) { console.warn("Missing depth map:", url); return dummyDepthTex; }
                 }));
-                
+
                 depthTextures = loadedDepths.map(prepareDepthTex);
             } else {
                 depthControlsContainer.style.display = 'none';
@@ -1301,6 +1667,9 @@
               const tex = loadedColors[i] = fitToGpu(loadedColors[i]);
               tex.minFilter = THREE.LinearMipmapLinearFilter;
               tex.magFilter = THREE.LinearFilter;
+              // Each face is its own clamped image, so nothing can bleed in from
+              // a neighbour: safe to filter along the stretch of a depth cliff.
+              tex.anisotropy = maxAnisotropy;
               tex.generateMipmaps = true;
               mat.uniforms.tColor.value = tex;
               
@@ -1334,7 +1703,7 @@
           // Every exit path clears the spinner. isTransitioning is only left set
           // when the tween below has taken ownership of it — previously a stale-load
           // return skipped both and locked the viewer permanently.
-          document.getElementById('loader').style.display = 'none';
+          endProgress();
           if (!handedOffToTween) isTransitioning = false;
       }
 
@@ -1363,9 +1732,74 @@
       requestAnimationFrame(animateTween);
     }
 
+    // --- Adaptive render resolution ---
+    // The jaggedness depth brings out is not a silhouette problem: the
+    // displaced mesh is continuous, and what steps along an edge is the
+    // texture discontinuity draped over it, which MSAA cannot touch.
+    // Supersampling can — draw above the display grid and let the compositor
+    // filter it back down — but how much of it a machine can afford is not
+    // knowable up front. So measure rather than guess: learn this display's
+    // frame interval first, then climb while frames stay on cadence and back
+    // off the moment they slip.
+    const RENDER_SCALES = [0.75, 1.0, 1.25, 1.5, 2.0];
+    const SETTLE_FRAMES = 30;   // frames to ignore after a change, while it beds in
+    const FRAME_SAMPLES = 30;   // frames per decision
+    const baseRatio = renderRatio;
+    let scaleStep = RENDER_SCALES.indexOf(1.0);
+    let frameSamples = [];
+    let lastFrameAt = 0;
+    let framePeriod = 0;      // ms per displayed frame, measured once
+    let settleFrames = SETTLE_FRAMES;
+
+    function tryScale(step) {
+      if (step < 0 || step >= RENDER_SCALES.length) return;
+      const next = Math.min(baseRatio * RENDER_SCALES[step], MAX_PIXEL_RATIO);
+      if (next === renderRatio) return;   // already at the cap; nothing to do
+      scaleStep = step;
+      renderRatio = next;
+      renderer.setPixelRatio(renderRatio);
+      rtOld.setSize(rtWidth(), rtHeight());
+      rtNew.setSize(rtWidth(), rtHeight());
+      settleFrames = SETTLE_FRAMES;
+    }
+
+    function governRenderScale(now) {
+      // Transition frames draw the scene into a target and composite on top of
+      // it; their cost says nothing about the steady state.
+      if (isTransitioning) { lastFrameAt = 0; return; }
+      const prev = lastFrameAt;
+      lastFrameAt = now;
+      if (!prev) return;
+
+      // Clamped rather than discarded: a machine slow enough that every frame
+      // looks like a stall is exactly the one that needs a smaller buffer, and
+      // dropping those samples would lock it out of ever getting one. A tab
+      // returning from the background contributes one clamped outlier, which
+      // the median below absorbs.
+      const dt = Math.min(now - prev, 500);
+      if (settleFrames > 0) { settleFrames--; return; }
+
+      frameSamples.push(dt);
+      if (frameSamples.length < FRAME_SAMPLES) return;
+      frameSamples.sort((a, b) => a - b);
+      const median = frameSamples[frameSamples.length >> 1];
+      frameSamples.length = 0;
+
+      // The first measurement fixes what "on cadence" means here — 16.7ms at
+      // 60Hz, 8.3ms at 120Hz — so a 120Hz machine is never talked into 50fps
+      // just because 50 is playable. Capped, so a machine that is already
+      // struggling doesn't enshrine its own stutter as the target.
+      if (!framePeriod) { framePeriod = Math.min(median, 17); return; }
+
+      if (median < framePeriod * 1.15) tryScale(scaleStep + 1);
+      else if (median > framePeriod * 1.4) tryScale(scaleStep - 1);
+    }
+
     // --- Main Render Loop ---
-    function render() {
+    function render(now) {
       requestAnimationFrame(render);
+      governRenderScale(now || performance.now());
+      applyKeyboardLook();
 
       currentMouseX += (targetMouseX - currentMouseX) * 0.1;
       currentMouseY += (targetMouseY - currentMouseY) * 0.1;
@@ -1446,6 +1880,9 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       rtOld.setSize(rtWidth(), rtHeight()); rtNew.setSize(rtWidth(), rtHeight());
       setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
+      // A new window size is a new per-frame cost; re-measure before judging it.
+      frameSamples.length = 0;
+      settleFrames = SETTLE_FRAMES;
     });
 
     function updateUI() {
@@ -1459,12 +1896,14 @@
             e.target.value = locations.indexOf(currentLocation);
             return;
           }
-          const isLocChange = locations[e.target.value] !== currentLocation;
-          currentLocation = locations[e.target.value]; currentVersionIndex = 0;
-          updateUI(); loadPanorama(isLocChange ? 'block' : 'fade');
+          goToLocation(locations[e.target.value]);
         };
       }
-      
+
+      // Keep the dropdown honest when the age was changed from the keyboard
+      // rather than by picking from the list.
+      locSelect.value = String(locations.indexOf(currentLocation));
+
       const qBar = document.getElementById('quality-buttons');
       const uploadUI = document.getElementById('custom-upload-controls');
       
@@ -1478,7 +1917,11 @@
           currentLocation.versions.forEach((v, idx) => {
             const btn = document.createElement('button'); btn.textContent = v.label;
             if (idx === currentVersionIndex) btn.classList.add('active');
-            btn.onclick = () => { if (currentVersionIndex !== idx && !isTransitioning) { currentVersionIndex = idx; updateUI(); loadPanorama('fade'); } };
+            btn.onclick = () => {
+              if (currentVersionIndex !== idx && !isTransitioning) {
+                currentVersionIndex = idx; updateUI(); loadPanorama('fade');
+              }
+            };
             qBar.appendChild(btn);
           });
       }
