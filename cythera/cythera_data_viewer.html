@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cythera Graphics Browser (v81)</title>
+<title>Cythera Graphics Browser (v87)</title>
 <style>
   body { background:#1a1a1a; color:#eee; font-family: system-ui, sans-serif; padding:16px; font-size:16px; line-height:1.5; }
   input[type=file] { margin-bottom:12px; }
@@ -293,37 +293,6 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
   box-shadow:none; text-shadow:none; letter-spacing:0; }
 .navChip::after { display:none; }
 .navChip.active { background:var(--gold); color:#141210; border-color:var(--gold); font-weight:600; }
-/* Phones. The plaque styling is deliberate, so the sizes come down rather
-   than the look: the nav labels are pinned small (the global
-   font-size:clamp(...) !important on `button` otherwise wins over .navBtn's
-   own 11px and blows the labels back up), the icons shrink to match, and the
-   category chips lose enough of their 24px plaque padding to fit two or three
-   to a row instead of one each. */
-@media (max-width:640px) {
-  #navBar { grid-template-columns:repeat(auto-fit,minmax(76px,1fr)); gap:5px; }
-  /* The plaque's 24px side padding is !important, so a narrow button spent
-     two thirds of its width on padding and hyphenated "Machinery" into
-     "Machi/nery". */
-  .navBtn { padding:6px 3px 5px !important; font-size:10.5px !important;
-    letter-spacing:0; line-height:1.15; }
-  .navBtn canvas { width:24px !important; height:24px !important; }
-  .navBtn span { margin-top:3px; }
-  #navSub { gap:4px; }
-  .navChip { font-size:11px !important; min-height:30px !important;
-    padding:5px 16px !important; }
-  .navChip::before { left:7px; right:7px; height:7px; margin-top:-3.5px; }
-  /* Cross-reference chips are narrow, and the bolt studs are positioned 16px
-     in from each end -- on a chip only 70px wide that put both studs on top of
-     the label. They are decoration on an element this small, so drop them and
-     keep the words legible. */
-  .sv-chip { font-size:11px !important; padding:4px 14px !important; }
-  .sv-chip::before { display:none; }
-}
-@media (max-width:380px) {
-  #navBar { grid-template-columns:repeat(auto-fit,minmax(66px,1fr)); gap:4px; }
-  .navBtn { font-size:9.5px !important; padding:5px 2px 4px !important; }
-  .navBtn canvas { width:22px !important; height:22px !important; }
-}
 #propFilterWrap { margin:8px 0 2px; }
 #propFilter { width:100%; box-sizing:border-box; padding:9px 12px; border-radius:8px;
   border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
@@ -334,10 +303,6 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
   border-bottom:1px solid var(--edge); padding-bottom:4px; }
 .cell.propCell { height:150px; justify-content:flex-start; }
 .cell.propCell .cellimgwrap { flex:0 0 78px; height:78px; }
-/* An item cell carries three facts (weight, count, id) where a prop cell
-   carries two, so the caption is given a smaller type size rather than a
-   third line. */
-.cell.itemCell .resid { font-size:10px; line-height:1.35; }
 #searchBox { width:100%; box-sizing:border-box; padding:11px 14px; border-radius:8px;
   border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
   font-family:Argos, Georgia, serif; font-size:16px; }
@@ -439,6 +404,52 @@ pre.sv-code { background:#090806; color:#f9f86f; padding:11px; overflow:auto; ma
 .sv-legend p { margin:0 0 8px; }
 .sv-legend code { background:#0d0c0a; color:#f9f86f; padding:1px 4px; border-radius:3px; font-size:12px; }
 
+/* Phones. The plaque styling is deliberate, so the sizes come down rather
+   than the look: the nav labels are pinned small (the global
+   font-size:clamp(...) !important on `button` otherwise wins over .navBtn's
+   own 11px and blows the labels back up), the icons shrink to match, and the
+   category chips lose enough of their 24px plaque padding to fit two or three
+   to a row instead of one each. */
+@media (max-width:640px) {
+  #navBar { grid-template-columns:repeat(auto-fit,minmax(76px,1fr)); gap:5px; }
+  /* The plaque's 24px side padding is !important, so a narrow button spent
+     two thirds of its width on padding and hyphenated "Machinery" into
+     "Machi/nery". */
+  .navBtn { padding:6px 3px 5px !important; font-size:10.5px !important;
+    letter-spacing:0; line-height:1.15; }
+  .navBtn canvas { width:24px !important; height:24px !important; }
+  .navBtn span { margin-top:3px; }
+  #navSub { gap:4px; }
+  .navChip { font-size:11px !important; min-height:30px !important;
+    padding:5px 16px !important; }
+  .navChip::before { left:7px; right:7px; height:7px; margin-top:-3.5px; }
+  /* Cross-reference chips are narrow, and the bolt studs are positioned 16px
+     in from each end -- on a chip only 70px wide that put both studs on top of
+     the label. They are decoration on an element this small, so drop them and
+     keep the words legible. */
+  .sv-chip { font-size:11px !important; padding:4px 14px !important; }
+  .sv-chip::before { display:none; }
+}
+@media (max-width:380px) {
+  #navBar { grid-template-columns:repeat(auto-fit,minmax(66px,1fr)); gap:4px; }
+  .navBtn { font-size:9.5px !important; padding:5px 2px 4px !important; }
+  .navBtn canvas { width:22px !important; height:22px !important; }
+}
+#propFilterWrap { margin:8px 0 2px; }
+#propFilter { width:100%; box-sizing:border-box; padding:9px 12px; border-radius:8px;
+  border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
+  font-family:Argos, Georgia, serif; font-size:15px; }
+#propFilter::placeholder { color:#7d745a; }
+.propHead { grid-column:1/-1; text-align:left; color:#9d9270; font-size:11px;
+  text-transform:uppercase; letter-spacing:1.2px; margin:12px 0 2px;
+  border-bottom:1px solid var(--edge); padding-bottom:4px; }
+.cell.propCell { height:150px; justify-content:flex-start; }
+.cell.propCell .cellimgwrap { flex:0 0 78px; height:78px; }
+/* An item cell carries three facts (weight, count, id) where a prop cell
+   carries two, so the caption is given a smaller type size rather than a
+   third line. */
+.cell.itemCell .resid { font-size:10px; line-height:1.35; }
+
 /* ---- Focus, keyboard and drop affordances -------------------------------
    The plaque `button` rule above sets clip-path with !important, and a
    clip-path clips the focus outline along with everything else -- so keyboard
@@ -534,6 +545,7 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
         <option value="CHARACTERS">Characters (all info)</option>
         <option value="PROPS">Creatures &amp; Props (all sprites)</option>
         <option value="ITEMS">Inventory Items</option>
+        <option value="RSRC">Editor Stamps &amp; Brushes</option>
         <option value="MONSTERS">Monster Stats (0xF008)</option>
         <option value="135">Portraits (64x64)</option>
         <option value="137">Skill Icons (32×16)</option>
@@ -644,6 +656,10 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
       <input type="checkbox" id="chkLighting" onchange="toggleLighting(this.checked)" style="width:auto;min-height:0;margin:0"> Lighting
     </label>
     <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
+      <input type="checkbox" id="chkRoofs" onchange="toggleRoofs(this.checked)" style="width:auto;min-height:0;margin:0"> Roofs
+    </label>
+    <span id="roofNote" style="font-size:12px; color:#9b8850;"></span>
+    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
       <input type="checkbox" id="chkWalk" onchange="toggleMapWalk(this.checked)" style="width:auto;min-height:0;margin:0"> Walk the day
     </label>
     <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
@@ -733,6 +749,16 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
 </div>
 <div id="sheetGrid" role="group" aria-label="Resource gallery"></div>
 <pre id="output" role="status" aria-live="polite">Load the archive to begin...</pre>
+
+<!-- Shared with resource_fork_browser.html. Classic scripts, in dependency
+     order, deliberately NOT type="module": a module is fetched with CORS and
+     a page opened from file:// has an opaque origin, so modules would not load
+     when this file is double-clicked instead of served. -->
+<script src="js/mac-bytes.js"></script>
+<script src="js/mac-containers.js"></script>
+<script src="js/mac-resfork.js"></script>
+<script src="js/mac-media.js"></script>
+<script src="js/mac-export.js"></script>
 
 <script>
 const PALETTE = ["ffffff","0000a8","00a800","00a8a8","a80000","a800a8","a85400","a8a8a8","545454","5454fc","54fc54","54fcfc","fc5454","fc54fc","fcfc54","fcfcfc","fcfcfc","ececec","d8d8d8","c8c8c8","b8b8b8","a8a8a8","989898","848484","747474","646464","545454","444444","343434","202020","101010","080808","fcf400","f8c800","f4a400","ec8000","e86000","e44000","e02000","dc0000","c80000","b40000","a00000","8c0000","7c0000","680000","540000","400000","fcfcfc","fcf4c0","fcec84","fce448","fcdc38","fcd024","fcc814","fcb800","e89000","d07000","bc5400","a83c00","942800","7c1800","680800","540000","e8905c","dc7848","d0603c","c04c2c","b4381c","a82414","9c1008","900000","800000","6c0000","5c0000","480000","380000","240000","100000","000000","f8fcd8","f4fcb8","e8fc9c","e0fc7c","d0fc5c","c4fc40","b4fc20","a0fc00","90e400","80cc00","74b400","609c00","508400","447000","345800","284000","d8fcd8","bcfcb8","9cfc9c","80fc7c","60fc5c","40fc40","20fc20","00fc00","00e400","04cc00","04b400","049c00","088400","047000","045800","044000","d8ecfc","b8dcfc","9cd0fc","7cbcfc","5cacfc","4094fc","2084fc","0070fc","0068e4","005ccc","0058b4","00509c","004484","003c70","003058","002440","fcc87c","f0b870","e8a868","dc9c60","d09058","c88450","bc784c","b46c44","a0643c","906034","80542c","6c4c24","5c401c","483818","382c10","28200c","fcd8fc","fcb8fc","fc9cfc","fc7cfc","fc5cfc","fc40fc","fc20fc","fc00fc","e000e4","c800cc","b400b4","9c009c","840084","6c0070","580058","400040","fce8dc","fce0d0","fcd8c4","fcd4bc","fcccb0","fcc4a4","fcbc9c","fcb890","e8a47c","d0946c","bc8458","a8744c","94643c","805830","684824","543c1c","fce8dc","f4c8b4","e8b090","e09470","d47850","cc6034","c44818","bc3400","a82800","981c00","881400","781000","680800","580400","480000","380000","fcf46c","f0f060","dce454","ccdc48","b8d040","a8c434","94b82c","84b024","749820","64841c","506c14","405810","30400c","202c08","101404","000000","fcfcfc","e8e8f0","d4d4e8","c0c4dc","b4b4d0","a0a0c8","9494bc","8484b4","74749c","646484","505470","404058","303044","20202c","101018","000000","fc0000","fc1c00","fc4000","fc6000","fc7c00","fc9800","fcbc00","fcdc00","0010fc","1028fc","1c44fc","2c5cfc","3874fc","4484fc","5498fc","60a8fc","d02094","dc34c0","ec48e8","ec60fc","704820","84542c","9c6038","b56d45","24a800","1cbc00","10d000","00e400","000000","000000","fcf4c0","000000"];
@@ -1087,26 +1113,12 @@ function decodeSound(resData) {
   return {rate: rate || 22050, samples};
 }
 
+// The shared writer in js/mac-media.js produces the bytes; this keeps the
+// Blob shape the sound preview and the WAV download already expect.
 function samplesToWavBlob(rate, samples) {
-  return new Blob([samplesToWav(rate, samples)], { type: 'audio/wav' });
+  return new Blob([wavFromInt16(samples, rate)], { type: 'audio/wav' });
 }
-// Split out from samplesToWavBlob so the bulk exporter can put the bytes
-// straight into a zip entry instead of unwrapping a Blob again.
-function samplesToWav(rate, samples) {
-  const bytesPerSample = 2, numChannels = 1;
-  const dataSize = samples.length * bytesPerSample;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-  function writeStr(off,str) { for (let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
-  writeStr(0,'RIFF'); view.setUint32(4, 36+dataSize, true); writeStr(8,'WAVE');
-  writeStr(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true);
-  view.setUint16(22,numChannels,true); view.setUint32(24,rate,true);
-  view.setUint32(28, rate*numChannels*bytesPerSample, true); view.setUint16(32, numChannels*bytesPerSample, true);
-  view.setUint16(34, 16, true); writeStr(36,'data'); view.setUint32(40, dataSize, true);
-  let off = 44;
-  for (let i=0;i<samples.length;i++) { view.setInt16(off, samples[i], true); off+=2; }
-  return new Uint8Array(buffer);
-}
+const samplesToWav = (rate, samples) => wavFromInt16(samples, rate);
 
 let currentWavBlob = null, currentSoundResid = null;
 
@@ -1692,7 +1704,9 @@ function propFrameFill(tile) {
 window.PROP_FILTER = '';
 function setPropFilter(v) {
   window.PROP_FILTER = v;
-  if (window.CUR_SUBN === 'ITEMS') renderItemSheet(); else renderPropTypeSheet();
+  if (window.CUR_SUBN === 'ITEMS') renderItemSheet();
+  else if (window.CUR_SUBN === 'RSRC') renderRsrcSheet();
+  else renderPropTypeSheet();
 }
 
 function renderPropTypeSheet() {
@@ -2252,6 +2266,247 @@ function showItemDetail(pt) {
     (idx && idx.total ? ', ' + idx.total + ' placed in the world' : '');
 }
 
+/* --- The resource fork ------------------------------------------------------
+   "Cythera Data" is a Mac file with two forks. The game archive is the data
+   fork, and everything else in this viewer reads that. The resource fork holds
+   113 resources of 18 types, and it arrives here for free: a .hqx, MacBinary or
+   AppleSingle container carries both forks, and binhexSplitForks already
+   decoded the second one before extractDelverArchive threw it away.
+
+   Most of it is ordinary Mac resources -- PICT, NFNT, clut, STR#, vers -- which
+   resource_fork_browser.html reads better than this file ever will. What that
+   tool cannot do is the four types that are Delver's own, because reading them
+   needs Cythera's tile system:
+
+     eSTM  16  editor stamps: an 8x8 patch of terrain the map editor could
+               stamp down in one go, with names like "Forest Medium 1"
+     eBRS  25  editor brushes: 16 tiles the editor joined up automatically to
+               draw a river or a wall, named "Adobe Wall, Grass" and so on
+     MSta   3  unknown
+     FILT   7  unknown
+
+   Stamps and brushes are documented on the wiki's "Delver editor stamp" and
+   "Delver editor brush" pages, and both are editor-only -- deleting them has no
+   effect on the game. A stamp is u16 width, u16 height, then width*height tile
+   ids; a brush is 16 tile ids and no header. Every one of the 64 tiles in every
+   stamp resolves to real artwork here and has a name in F004, which is the
+   check that the format is being read correctly.
+
+   The brush layout is a guess and is labelled as one on screen: 16 tiles with
+   "joining rules" looks like a 4-bit edge mask (which of the four neighbours
+   match), and the first tile of every brush is the F004 entry "Nothing", which
+   would be the isolated case. Nothing here depends on that being right -- the
+   tiles are drawn in file order either way.
+--------------------------------------------------------------------------- */
+window.CYTHERA_RSRC = null;
+
+// The two forks arrive together; this opens the second one. Failure is not
+// interesting enough to report: a bare .rsrc-less archive is the normal case.
+function openCytheraResourceFork(bytes) {
+  window.CYTHERA_RSRC = null;
+  if (!bytes || bytes.length < 286) return null;
+  try { window.CYTHERA_RSRC = openResourceFork(bytes); } catch (e) { window.CYTHERA_RSRC = null; }
+  return window.CYTHERA_RSRC;
+}
+
+const RSRC_DELVER_TYPES = {
+  eSTM: 'editor stamp',
+  eBRS: 'editor brush',
+  MSta: 'unknown ("MSta")',
+  FILT: 'unknown ("FILT")'
+};
+
+// A stamp declares its own dimensions; a brush is a flat run of tiles.
+function rsrcTilePattern(type, data) {
+  const u16 = o => (data[o] << 8) | data[o + 1];
+  if (type === 'eSTM') {
+    if (data.length < 8) return null;
+    const w = u16(0), h = u16(2);
+    if (w < 1 || h < 1 || w > 64 || h > 64) return null;
+    const n = Math.min(w * h, Math.floor((data.length - 4) / 2));
+    const tiles = [];
+    for (let i = 0; i < n; i++) tiles.push(u16(4 + i * 2));
+    // ID 128 is 164 bytes where the others are 132, so it carries 32 bytes this
+    // reading does not account for. The 8x8 grid it declares is complete, so
+    // the extra is reported rather than guessed at.
+    return { tiles, cols: w, rows: h, extraBytes: data.length - 4 - w * h * 2 };
+  }
+  const n = Math.floor(data.length / 2);
+  if (!n) return null;
+  const tiles = [];
+  for (let i = 0; i < n; i++) tiles.push(u16(i * 2));
+  const cols = n === 16 ? 4 : Math.min(n, 8);
+  return { tiles, cols, rows: Math.ceil(n / cols), extraBytes: data.length - n * 2, guessedShape: true };
+}
+
+function drawTilePattern(canvas, pat, px) {
+  const size = px || 16;
+  canvas.width = pat.cols * size;
+  canvas.height = pat.rows * size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < pat.tiles.length; i++) {
+    const x = (i % pat.cols) * size, y = Math.floor(i / pat.cols) * size;
+    try { drawTileAt(ctx, pat.tiles[i], x, y, false, size); } catch (e) { /* one blank tile */ }
+  }
+  canvas.style.imageRendering = 'pixelated';
+  return canvas;
+}
+
+// Everything in the fork, in one list, so a gallery can show the Delver types
+// and still say what else is in there.
+function rsrcInventory() {
+  const fork = window.CYTHERA_RSRC;
+  if (!fork) return null;
+  const delver = [], other = [];
+  for (const t of fork.typeList) {
+    const row = { type: t.type, count: t.count };
+    (RSRC_DELVER_TYPES[t.type] ? delver : other).push(row);
+  }
+  return { delver, other, total: fork.total(), types: fork.typeList.length };
+}
+
+function rsrcPatternList() {
+  const fork = window.CYTHERA_RSRC;
+  if (!fork) return [];
+  const out = [];
+  for (const type of ['eSTM', 'eBRS']) {
+    for (const entry of fork.resourcesByType[type] || []) {
+      let pat = null;
+      try { pat = rsrcTilePattern(type, fork.dataOf(type, entry)); } catch (e) { pat = null; }
+      if (pat) out.push({ type, entry, pat });
+    }
+  }
+  return out;
+}
+
+function renderRsrcSheet() {
+  stopSpriteAnimations();
+  const grid = document.getElementById('sheetGrid');
+  const out = document.getElementById('output');
+  grid.style.display = '';
+  grid.innerHTML = '';
+  document.getElementById('propFilterWrap').style.display = 'block';
+
+  const inv = rsrcInventory();
+  if (!inv) {
+    out.textContent = 'No resource fork. It comes from the container the archive was in — ' +
+      'a .hqx, MacBinary or AppleSingle file carries both forks, a bare data fork does not. ' +
+      'Re-open the archive from "Cythera Data.hqx" to get it.';
+    return;
+  }
+  const q = (window.PROP_FILTER || '').trim().toLowerCase();
+  const list = rsrcPatternList().filter(it =>
+    !q || (it.entry.name || '').toLowerCase().includes(q) ||
+    it.type.toLowerCase().includes(q) || String(it.entry.id).includes(q));
+
+  for (const it of list) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const imgwrap = document.createElement('div');
+    imgwrap.className = 'cellimgwrap';
+    const canvas = document.createElement('canvas');
+    imgwrap.appendChild(canvas);
+    cell.appendChild(imgwrap);
+
+    const lblDiv = document.createElement('div');
+    lblDiv.className = it.entry.name ? 'lbl' : 'lbl nolabel';
+    lblDiv.textContent = it.entry.name || ('(unnamed ' + it.type + ')');
+    cell.appendChild(lblDiv);
+
+    const residDiv = document.createElement('div');
+    residDiv.className = 'resid';
+    residDiv.textContent = it.type + ' #' + it.entry.id + ' · ' + it.pat.cols + '×' + it.pat.rows;
+    cell.appendChild(residDiv);
+
+    lazyTile(cell, () => {
+      drawTilePattern(canvas, it.pat, 12);
+      const scale = Math.min(84 / canvas.width, 96 / canvas.height, 4);
+      canvas.style.width = Math.round(canvas.width * scale) + 'px';
+      canvas.style.height = Math.round(canvas.height * scale) + 'px';
+    });
+    cell.title = 'Click for the tiles it is made of';
+    cell.onclick = () => showRsrcDetail(it.type, it.entry.id);
+    grid.appendChild(cell);
+  }
+  refreshLabelLegend();
+
+  const kinds = {};
+  for (const it of list) kinds[it.type] = (kinds[it.type] || 0) + 1;
+  out.textContent =
+    'Resource fork: ' + inv.total + ' resources in ' + inv.types + ' types. Showing ' +
+    Object.keys(kinds).map(k => kinds[k] + ' ' + RSRC_DELVER_TYPES[k]).join(' and ') +
+    (q ? ' matching “' + q + '”' : '') + '. ' +
+    'Also in the fork, and better read in resource_fork_browser.html: ' +
+    inv.other.map(r => r.count + ' ' + r.type.trim()).join(', ') + '.';
+}
+
+function showRsrcDetail(type, id) {
+  markDetailView('rsrc', type + ':' + id);
+  stopSpriteAnimations();
+  const fork = window.CYTHERA_RSRC;
+  const grid = document.getElementById('sheetGrid');
+  const out = document.getElementById('output');
+  grid.style.display = 'block';
+  grid.innerHTML = '';
+  if (!fork) { out.textContent = 'No resource fork is open.'; return; }
+  const entry = (fork.resourcesByType[type] || []).find(e => e.id === id);
+  if (!entry) { out.textContent = 'No ' + type + ' #' + id + ' in this fork.'; return; }
+
+  const back = document.createElement('button');
+  back.className = 'secondary';
+  back.textContent = '← Back to stamps & brushes';
+  back.onclick = () => { setMode('sheet'); };
+  grid.appendChild(back);
+
+  const data = fork.dataOf(type, entry);
+  const pat = rsrcTilePattern(type, data);
+  const head = document.createElement('div');
+  head.style.cssText = 'width:100%;text-align:center;margin:12px 0';
+  if (pat) {
+    const big = document.createElement('canvas');
+    drawTilePattern(big, pat, 32);
+    const scale = Math.min(384 / big.width, 384 / big.height, 4);
+    big.style.width = Math.round(big.width * scale) + 'px';
+    big.style.height = Math.round(big.height * scale) + 'px';
+    big.style.border = '1px solid #9b8850';
+    head.appendChild(big);
+  }
+  const cap = document.createElement('div');
+  cap.style.cssText = 'color:var(--gold);margin-top:8px;white-space:pre-line';
+  cap.textContent = (entry.name || '(unnamed)') + '\n' +
+    type + ' #' + entry.id + ' — ' + RSRC_DELVER_TYPES[type] + ', ' + data.length + ' bytes' +
+    (pat ? ', ' + pat.tiles.length + ' tiles in a ' + pat.cols + '×' + pat.rows + ' grid' : '') +
+    (pat && pat.extraBytes ? '\n' + pat.extraBytes + ' bytes past the end of the grid, unaccounted for' : '') +
+    (pat && pat.guessedShape ? '\nThe grid shape is this viewer’s guess; the file only gives a flat run of tiles.' : '') +
+    '\nEditor-only: the wiki notes that altering or deleting these has no effect on the game.';
+  head.appendChild(cap);
+  grid.appendChild(head);
+
+  if (pat) {
+    const table = document.createElement('div');
+    table.style.cssText = 'width:100%;max-width:720px;margin:0 auto;font-size:13px';
+    const rows = [];
+    for (let i = 0; i < pat.tiles.length; i++) {
+      const t = pat.tiles[i];
+      const nm = terrainNameFor(t) || compositeTileName(t) || '';
+      rows.push('<tr><td style="color:#9b8850;padding:1px 8px">' + i + '</td>' +
+        '<td style="font-family:ui-monospace,Menlo,monospace;padding:1px 8px">0x' +
+        t.toString(16).toUpperCase().padStart(4, '0') + '</td>' +
+        '<td style="padding:1px 8px">' + svEsc(nm) + '</td></tr>');
+    }
+    table.innerHTML = '<table style="margin:0 auto"><thead><tr>' +
+      '<th style="text-align:left;padding:1px 8px">#</th>' +
+      '<th style="text-align:left;padding:1px 8px">tile</th>' +
+      '<th style="text-align:left;padding:1px 8px">terrain (F004)</th></tr></thead><tbody>' +
+      rows.join('') + '</tbody></table>';
+    grid.appendChild(table);
+  }
+  out.textContent = (entry.name || type + ' #' + entry.id) +
+    (pat ? ' — ' + pat.tiles.length + ' tiles' : '');
+}
+
 function renderCharacterSheet() {
   stopSpriteAnimations();
   document.getElementById('sheetGrid').style.display = '';
@@ -2508,6 +2763,7 @@ function onCategoryChange() { onCategoryChangeImpl(); syncDeepLink(); updateGall
 // page. The map cycle and the audio element had the same problem: sound went
 // on playing from a panel that was no longer on screen.
 function stopAllViewActivity() {
+  stopLazyTiles();
   stopSpriteAnimations();
   stopMapAnimation();
   stopPaletteAnimation();
@@ -2534,6 +2790,10 @@ function setModeImpl(m) {
   if (window.CUR_SUBN === 'ITEMS') {
     document.getElementById('propFilterWrap').style.display = 'block';
     renderItemSheet();
+    return;
+  }
+  if (window.CUR_SUBN === 'RSRC') {
+    renderRsrcSheet();
     return;
   }
   if (window.CUR_SUBN === 'MONSTERS') { renderMonsterSheet(); return; }
@@ -2593,13 +2853,16 @@ function resetDerivedCaches() {
   window.ZONEPORTS = null;
   window.PROP_BLOCK = null;
   window.LIVING_PROPTYPES = null;
-  window.ITEM_CLASSES = null;
-  window.ITEM_INDEX = null;
-  window.ITEM_LIST = null;
   window.SCHEDULES = null;
   window.CHAR_TABLE = null;
   window._CHAR_PROPTYPES = null;
   window.CUR_MAP = null;
+  window.ITEM_CLASSES = null;
+  window.ITEM_INDEX = null;
+  window.ITEM_LIST = null;
+  // CYTHERA_RSRC is not reset here: it is set from the container by
+  // parseArchiveBytes immediately after this runs, and clearing it afterwards
+  // would throw the fork away every load.
   _propTileListCache = null; _propOffXCache = null;
   _propOffYCache = null; _compTableCache = null;
   tileAttrCache = null;
@@ -2612,153 +2875,27 @@ function resetDerivedCaches() {
   for (const k of Object.keys(_tileImageCache)) delete _tileImageCache[k];
 }
 
-function fmtBytes(n) {
-  if (n < 1024) return n + ' B';
-  if (n < 1024*1024) return (n/1024).toFixed(0) + ' KB';
-  return (n/1024/1024).toFixed(1) + ' MB';
-}
+// The one status line this page has: the small text under the nav bar, and the
+// only place a load failure or a download's progress is reported.
+//
+// This function was accidentally deleted during the js/ extraction, because it
+// sat between fmtBytes and u32be and the cut ran from one to the other. Nothing
+// noticed for several sessions: every harness hands the archive straight to
+// parseArchiveBytes or adoptArchive, so none of them ever ran the code that
+// loads one, and setStatus is only reached while loading or when a load fails.
+// In a browser it was fatal -- loadDefaultArchive calls it before each attempt,
+// so every candidate URL "failed", and archiveLoadFailed then called it outside
+// any try and threw. utilities/loader_test.mjs now drives that path.
 function setStatus(msg, failed) {
   const ss = document.getElementById('sourceStatus');
   if (!ss) return;
   ss.textContent = msg;
   ss.classList.toggle('failed', !!failed);
 }
-function u32be(b, p) { return ((b[p]*0x1000000) + (b[p+1]<<16) + (b[p+2]<<8) + b[p+3]) >>> 0; }
-function fourcc(b, p) {
-  let s = '';
-  for (let i = 0; i < 4; i++) { const c = b[p+i]; s += (c >= 32 && c < 127) ? String.fromCharCode(c) : '?'; }
-  return s;
-}
 
-// --- BinHex 4.0 ------------------------------------------------------------
-// Ported from utilities/binhex_decode.py, which is itself a replacement for
-// binascii.a2b_hqx/rledecode_hqx (removed in Python 3.11). Two stages: a
-// 64-character 6-bit alphabet, then a 0x90 run-length pass where `b 0x90 n`
-// means "b repeated n times" and `0x90 0x00` is a literal 0x90.
-const HQX_ALPHA = '!"#$%&\'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr';
-const HQX_REV = (() => {
-  const t = new Uint8Array(256).fill(255);
-  for (let i = 0; i < HQX_ALPHA.length; i++) t[HQX_ALPHA.charCodeAt(i)] = i;
-  return t;
-})();
-
-function looksLikeBinHex(bytes) {
-  const head = new TextDecoder('latin1').decode(bytes.subarray(0, Math.min(bytes.length, 4096)));
-  if (/converted\s+with\s+BinHex/i.test(head)) return true;
-  const c = head.indexOf(':');
-  if (c < 0) return false;
-  let good = 0;
-  for (let i = c + 1; i < Math.min(head.length, c + 40) && good < 24; i++) {
-    const ch = head.charCodeAt(i);
-    if (ch === 10 || ch === 13) continue;
-    if (HQX_REV[ch] === 255) return false;
-    good++;
-  }
-  return good >= 24;
-}
-
-function binhexDecode(bytes) {
-  const start = bytes.indexOf(0x3A);                 // ':' opens the payload
-  if (start < 0) throw new Error('no BinHex ":" start marker');
-  let end = bytes.length;
-  for (let i = start + 1; i < bytes.length; i++) if (bytes[i] === 0x3A) { end = i; break; }
-
-  // 6-bit values; anything outside the alphabet (newlines, padding) is dropped.
-  const vals = new Uint8Array(end - start - 1);
-  let n = 0;
-  for (let i = start + 1; i < end; i++) {
-    const v = HQX_REV[bytes[i]];
-    if (v !== 255) vals[n++] = v;
-  }
-  const n4 = n - (n % 4);
-  const packed = new Uint8Array((n4 >> 2) * 3 + 3);
-  let p = 0;
-  for (let i = 0; i < n4; i += 4) {
-    const a = vals[i], b = vals[i+1], c = vals[i+2], d = vals[i+3];
-    packed[p++] = ((a << 2) | (b >> 4)) & 0xFF;
-    packed[p++] = ((b << 4) | (c >> 2)) & 0xFF;
-    packed[p++] = ((c << 6) | d) & 0xFF;
-  }
-  let bits = 0, nbits = 0;                            // a partial final group
-  for (let i = n4; i < n; i++) {
-    bits = (bits << 6) | vals[i]; nbits += 6;
-    if (nbits >= 8) { nbits -= 8; packed[p++] = (bits >> nbits) & 0xFF; }
-  }
-
-  let cap = p + (p >> 1) + 64, out = new Uint8Array(cap), o = 0;
-  const ensure = need => {
-    if (o + need <= cap) return;
-    while (o + need > cap) cap *= 2;
-    const grown = new Uint8Array(cap); grown.set(out.subarray(0, o)); out = grown;
-  };
-  for (let i = 0; i < p; ) {
-    const b = packed[i];
-    if (b !== 0x90) { ensure(1); out[o++] = b; i++; continue; }
-    if (i + 1 >= p) { ensure(1); out[o++] = 0x90; break; }
-    const cnt = packed[i+1];
-    if (cnt === 0) { ensure(1); out[o++] = 0x90; }
-    else if (o > 0) { const last = out[o-1]; ensure(cnt - 1); for (let k = 1; k < cnt; k++) out[o++] = last; }
-    i += 2;
-  }
-  return out.subarray(0, o);
-}
-
-function binhexSplitForks(d) {
-  let p = 0;
-  const nlen = d[p++];
-  if (nlen < 1 || nlen > 63 || d.length < nlen + 22) throw new Error('BinHex header is malformed');
-  const name = decodeMacRoman(d.subarray(p, p + nlen)); p += nlen;
-  p += 1;                                             // version
-  const type = fourcc(d, p); p += 4;
-  const creator = fourcc(d, p); p += 4;
-  p += 2;                                             // finder flags
-  const dlen = u32be(d, p); p += 4;
-  const rlen = u32be(d, p); p += 4;
-  p += 2;                                             // header CRC
-  const data = d.subarray(p, p + dlen); p += dlen;
-  p += 2;                                             // data CRC
-  return { name, type, creator, data, rsrc: d.subarray(p, p + rlen) };
-}
-
-// --- The other two wrappers a classic Mac file arrives in ------------------
-function macBinaryForks(b) {
-  // Bytes 74 and 82 are reserved and must be zero; without checking them the
-  // test matches almost any file that starts with a zero byte.
-  if (b.length < 128 || b[0] !== 0 || b[74] !== 0 || b[82] !== 0) return null;
-  const nlen = b[1];
-  if (nlen < 1 || nlen > 63) return null;
-  const dlen = u32be(b, 83), rlen = u32be(b, 87);
-  const pad = v => (v + 127) & ~127;
-  if (128 + dlen > b.length) return null;
-  const rOff = 128 + pad(dlen);
-  return {
-    name: decodeMacRoman(b.subarray(2, 2 + nlen)),
-    type: fourcc(b, 65), creator: fourcc(b, 69),
-    data: b.subarray(128, 128 + dlen),
-    rsrc: (rlen && rOff + rlen <= b.length) ? b.subarray(rOff, rOff + rlen) : null
-  };
-}
-
-function appleSingleForks(b) {
-  if (b.length < 26) return null;
-  const magic = u32be(b, 0);
-  if (magic !== 0x00051600 && magic !== 0x00051607) return null;
-  const out = { name: '', type: '', creator: '', data: null, rsrc: null,
-                kind: magic === 0x00051600 ? 'AppleSingle' : 'AppleDouble' };
-  const n = (b[24] << 8) | b[25];
-  for (let i = 0; i < n; i++) {
-    const p = 26 + i*12;
-    if (p + 12 > b.length) break;
-    const id = u32be(b, p), off = u32be(b, p+4), len = u32be(b, p+8);
-    if (off + len > b.length) continue;
-    const seg = b.subarray(off, off + len);
-    if (id === 1) out.data = seg;
-    else if (id === 2) out.rsrc = seg;
-    else if (id === 3) out.name = decodeMacRoman(seg);
-    else if (id === 9 && len >= 8) { out.type = fourcc(seg, 0); out.creator = fourcc(seg, 4); }
-  }
-  return out;
-}
+// BinHex 4.0, MacBinary and AppleSingle/AppleDouble are decoded by
+// js/mac-containers.js, which resource_fork_browser.html loads as well -- both
+// pages had their own copy, and each had fixed a bug the other still had.
 
 // Does this buffer actually hold a Delver archive? The master index at 0x88 is
 // 256 (offset,length) pairs; a real one has dozens that point inside the file
@@ -2796,13 +2933,9 @@ function extractDelverArchive(bytes) {
   if (direct.ok) return { bytes, via: 'data fork', info: direct };
   notes.push('read as-is, ' + direct.reason);
 
-  // AppleSingle before MacBinary: AppleSingle has a real magic number, while
-  // MacBinary can only be recognised by a handful of zeroed reserved bytes --
-  // which an AppleSingle header also happens to satisfy.
-  let forks = null, kind = '';
-  if (looksLikeBinHex(bytes)) { kind = 'BinHex 4.0'; forks = binhexSplitForks(binhexDecode(bytes)); }
-  if (!forks && (forks = appleSingleForks(bytes))) kind = forks.kind;
-  if (!forks && (forks = macBinaryForks(bytes))) kind = 'MacBinary';
+  // sniffMacContainer knows the order these have to be tried in, and why.
+  const forks = sniffMacContainer(bytes);
+  const kind = forks ? forks.kind : '';
 
   if (forks) {
     for (const which of ['data', 'rsrc']) {
@@ -2894,9 +3027,13 @@ function adoptArchive(raw, sourceName, opts) {
   let found;
   try { found = extractDelverArchive(raw); }
   catch (err) { lastArchiveError = err.message; return false; }
-  parseArchiveBytes(found.bytes, sourceName, Object.assign({ via: found.via }, opts));
+  // The container carried both forks; the resource fork is the second one, and
+  // it used to be decoded and then dropped on the floor.
+  const rsrc = (opts.rsrc && opts.rsrc.length) ? opts.rsrc
+             : (found.forks && found.forks.rsrc && found.forks.rsrc.length ? found.forks.rsrc : null);
+  parseArchiveBytes(found.bytes, sourceName, Object.assign({ via: found.via, rsrc }, opts));
   if (opts.store) {
-    archiveCachePut({ name: sourceName, bytes: found.bytes, via: found.via,
+    archiveCachePut({ name: sourceName, bytes: found.bytes, via: found.via, rsrc: rsrc,
                       source: opts.url || 'local file', savedAt: Date.now() }).catch(() => {});
   }
   return true;
@@ -2938,7 +3075,8 @@ async function loadDefaultArchive() {
       const rec = await archiveCacheGet();
       if (rec && rec.bytes && rec.bytes.length) {
         const bytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
-        if (adoptArchive(bytes, rec.name || 'remembered archive', { cached: true, savedAt: rec.savedAt })) return;
+        if (adoptArchive(bytes, rec.name || 'remembered archive',
+                         { cached: true, savedAt: rec.savedAt, rsrc: rec.rsrc || null })) return;
       }
     } catch (e) { /* no IndexedDB here; carry on to the network */ }
   }
@@ -3005,8 +3143,10 @@ function currentSelectedResid() {
 const DETAIL_OPENERS = {
   char: i => showCharacterDetail(i),
   prop: i => showPropTypeDetail(i),
+  monster: i => showMonsterDetail(i),
   item: i => showItemDetail(i),
-  monster: i => showMonsterDetail(i)
+  // The only detail view whose id is not a number.
+  rsrc: v => { const [t, id] = String(v).split(':'); showRsrcDetail(t, Number(id)); }
 };
 function markDetailView(kind, id) {
   window.DETAIL_VIEW = { kind, id };
@@ -3061,9 +3201,11 @@ function applyDeepLink(q) {
   q = q || parseDeepLink();
   if (!q) return false;
   if (q.d && q.c) {
-    const [kind, id] = q.d.split(':');
+    const [kind, ...rest] = q.d.split(':');
     const open = DETAIL_OPENERS[kind];
-    if (open && showCategory(q.c)) { open(parseInt(id, 10)); return true; }
+    // rsrc's id is "eSTM:2558", so everything after the first colon is the id.
+    const id = rest.join(':');
+    if (open && showCategory(q.c)) { open(kind === 'rsrc' ? id : parseInt(id, 10)); return true; }
   }
   if (q.r) {
     const resid = parseInt(q.r, 16);
@@ -3108,6 +3250,7 @@ function parseArchiveBytes(bytes, sourceName, meta) {
     }
     masterIndexGlobal = masterIndex;
     resetDerivedCaches();
+    openCytheraResourceFork(meta.rsrc);
     loadDerivedNames();
     installBackgroundTexture();
     document.getElementById('pickerWrap').style.display = 'block';
@@ -3125,6 +3268,7 @@ function parseArchiveBytes(bytes, sourceName, meta) {
     ss.appendChild(document.createTextNode(
       'Loaded: ' + sourceName + ' — ' + fmtBytes(fileBytes.length) + ', ' +
       populated + ' subindexes' + (meta.via && meta.via !== 'data fork' ? ', unwrapped from ' + meta.via : '') +
+      (window.CYTHERA_RSRC ? ', plus a ' + window.CYTHERA_RSRC.total() + '-resource fork' : '') +
       (meta.cached ? ' (remembered from ' + new Date(meta.savedAt || Date.now()).toLocaleDateString() + ') ' : ' ')));
     if (meta.cached) {
       const forget = document.createElement('button');
@@ -3172,7 +3316,7 @@ function onCategoryChangeImpl() {
     setMode('sheet');
     return;
   }
-  if (rawval === 'PROPS' || rawval === 'ITEMS') {
+  if (rawval === 'PROPS' || rawval === 'ITEMS' || rawval === 'RSRC') {
     window.CUR_SUBN = rawval;
     document.getElementById('residSelect').innerHTML = '';
     setMode('sheet');
@@ -3264,6 +3408,21 @@ function bitsOf(data, size, index) {
   return result;
 }
 
+/* Delver Compressed Graphics.
+ *
+ * VERIFIED against delvmod's DelvImage.decompress (delv/graphics.py), which is
+ * an independent implementation of this format by the people who worked it out:
+ * all 441 images in the shipped archive decode to identical pixels. Re-run it
+ * with utilities/delv_graphics_check.mjs after touching anything in here --
+ * decoder_snapshot.mjs only proves this function is *unchanged*, which a
+ * decoder that has been wrong since it was written also passes.
+ *
+ * The two implementations differ deliberately in four places, all opcodes
+ * delvmod treats as fatal or undefined (0xD4-0xDF, 0xF1-0xF7, 0xFE, 0xF8-0xFD;
+ * each is commented at its branch below). That check walks every opcode stream
+ * and confirms this archive reaches none of them -- which is the other half of
+ * the argument, because identical pixels would equally be explained by a
+ * divergent branch that never fires. */
 function decompressDCG(data, width, height) {
   const image = new Uint8Array(width*height);
   let cursor = 0, dcursor = 0; const len = data.length;
@@ -4125,16 +4284,6 @@ function autoZoom(W, H) {
   return z;
 }
 
-// --- MacRoman decoding table (bytes 0x80-0xFF -> Unicode code points) ---
-const MACROMAN_HIGH = [0xC4,0xC5,0xC7,0xC9,0xD1,0xD6,0xDC,0xE1,0xE0,0xE2,0xE4,0xE3,0xE5,0xE7,0xE9,0xE8,0xEA,0xEB,0xED,0xEC,0xEE,0xEF,0xF1,0xF3,0xF2,0xF4,0xF6,0xF5,0xFA,0xF9,0xFB,0xFC,0x2020,0xB0,0xA2,0xA3,0xA7,0x2022,0xB6,0xDF,0xAE,0xA9,0x2122,0xB4,0xA8,0x2260,0xC6,0xD8,0x221E,0xB1,0x2264,0x2265,0xA5,0xB5,0x2202,0x2211,0x220F,0x3C0,0x222B,0xAA,0xBA,0x3A9,0xE6,0xF8,0xBF,0xA1,0xAC,0x221A,0x192,0x2248,0x2206,0xAB,0xBB,0x2026,0xA0,0xC0,0xC3,0xD5,0x152,0x153,0x2013,0x2014,0x201C,0x201D,0x2018,0x2019,0xF7,0x25CA,0xFF,0x178,0x2044,0x20AC,0x2039,0x203A,0xFB01,0xFB02,0x2021,0xB7,0x201A,0x201E,0x2030,0xC2,0xCA,0xC1,0xCB,0xC8,0xCD,0xCE,0xCF,0xCC,0xD3,0xD4,0xF8FF,0xD2,0xDA,0xDB,0xD9,0x131,0x2C6,0x2DC,0xAF,0x2D8,0x2D9,0x2DA,0xB8,0x2DD,0x2DB,0x2C7];
-function decodeMacRoman(bytes) {
-  let s = '';
-  for (let i = 0; i < bytes.length; i++) {
-    const b = bytes[i];
-    s += String.fromCodePoint(b < 0x80 ? b : MACROMAN_HIGH[b - 0x80]);
-  }
-  return s;
-}
 
 // --- Structured "Delver atom Array" parser -------------------------------
 // Ported from delv/script.py (Array.demarshal / read_atom). Character
@@ -4242,15 +4391,18 @@ function parseDelverPropList(data) {
     // read_xy24: 3 bytes packing 12-bit x, 12-bit y
     const raw = (data[p+1] << 16) | (data[p+2] << 8) | data[p+3];
     const x = raw >> 12, y = raw & 0x0FFF;
-    // ...except when the prop is not on the floor at all. delvmod's
-    // level.py (textual_location / inside_something) and the wiki's subindex
-    // 128 page agree that the location word doubles as a containment link:
-    // flags & 0x10 means a character is holding it and the low 16 bits are
-    // that character's number, flags & 0x08 means it is inside another prop
-    // in this same list at index (low16 - 0x100), and both bits together mean
-    // the character has it equipped. This viewer read those bytes as x,y
-    // unconditionally, so all 990 contained props in the shipped archive were
-    // being placed at coordinates that mean nothing. 0x01 is "okay to take".
+    // ...except when the prop is not on the floor at all. delvmod's level.py
+    // (textual_location / inside_something) and the wiki's subindex 128 page
+    // agree that the location word doubles as a containment link: flags & 0x10
+    // means a character is holding it and the low 16 bits are that character's
+    // number, flags & 0x08 means it is inside another prop in this same list at
+    // index (low16 - 0x100), and both bits together mean the character has it
+    // equipped. This viewer read those bytes as x,y unconditionally, so every
+    // contained prop in the shipped archive was being placed at coordinates
+    // that mean nothing: 985 of the 14,485 records -- 866 inside another prop,
+    // 119 carried by a character, 32 of those equipped -- plus 5 deleted
+    // records, which carry the same bits and are excluded here. 0x01 is
+    // "okay to take".
     const carried = !!(flags & 0x10), inside = !!(flags & 0x08);
     const holder = raw & 0xFFFF;
     const aw = (data[p+4] << 8) | data[p+5];
@@ -4870,6 +5022,117 @@ function classifyProp(pt, tileId) {
   return null;
 }
 
+/* ---------------------------------------------------------------------------
+   Roofs
+   ---------------------------------------------------------------------------
+   A roofed map carries a second tile layer. The header declares its size (two
+   uint16 fields that are always equal, hence the sum-and-halve in
+   parseDelverMap), and the block itself is 0x40 words per unit -- 64 tiles,
+   which is an 8x8 square. The wiki's Map page gets this far and stops: "The
+   roofs appear to be stored in 8-tile strips. Much is yet to be elucidated."
+
+   What was missing is where each square goes, and the answer is in the prop
+   list. delvmod's proptypename_with_flags names flags 0x44 "ROOF" -- it
+   declines to read the proptype field for those records, which is the hint.
+   That field is a roof-block index, and the location word is where the block
+   sits. Checked against the whole archive:
+
+     * the number of DISTINCT indices equals the declared block count on all
+       16 roofed maps, and the highest index is always count-1, so every block
+       is placed and none is invented (Cademia: 124 records, 102 blocks -- some
+       blocks are placed more than once, which is a terrace of identical
+       houses),
+     * the location is the block's BOTTOM-RIGHT corner, the same convention
+       multi-square props use. Anchored that way all 298 blocks land inside
+       their map; the other three corners spill 24 to 128 tiles off the edge,
+       and on the 16x16 map (Charax's house) top-left anchoring puts the block
+       at x=11..18 of a 16-wide map. Bottom-right also puts the most roof over
+       walls (33%, against 24-27%), which is what a roof does.
+
+   Charax's house is the whole format in miniature: walls enclosing x=5..11,
+   y=4..11, one block anchored at (11,11) covering exactly x=4..11, y=4..11 with
+   a one-tile overhang, and a second three-row block above it for the ridge.
+
+   Still unexplained: the aspect field. It is 0 on 127 of the 298 records and
+   takes 20 other values on the rest, and nothing here depends on it. Whatever
+   it selects, it is not the block.
+--------------------------------------------------------------------------- */
+window.MAP_ROOFS = false;
+
+// The flags-0x44 records of this map's prop list, as roof placements.
+function mapRoofSections(mapResid) {
+  const propResid = mapResid + 0x0100;
+  let recs = null;
+  try {
+    const raw = getResourceBytes(propResid);
+    if (raw) recs = parseDelverPropList(smartDecrypt(raw, propResid).data);
+  } catch (e) { return []; }
+  if (!recs) return [];
+  return recs.filter(r => r.flags === 0x44)
+             .map(r => ({ block: r.proptype, x: r.x, y: r.y, aspect: r.aspect }));
+}
+
+function ensureRoofLayer() {
+  const wrap = document.getElementById('mapCanvasWrap');
+  if (!wrap) return null;
+  let rc = document.getElementById('roofLayer');
+  if (!rc) {
+    rc = document.createElement('canvas');
+    rc.id = 'roofLayer';
+    // Above the terrain and the props, below the marks and the characters: a
+    // roof hides what is under it, which is the point of being able to lift it.
+    rc.style.cssText = 'position:absolute; top:0; left:0; image-rendering:pixelated; pointer-events:none; z-index:3;';
+    wrap.appendChild(rc);
+  } else if (rc.parentNode !== wrap) wrap.appendChild(rc);
+  return rc;
+}
+
+function drawRoofLayer() {
+  const cm = window.CUR_MAP;
+  const rc = ensureRoofLayer();
+  if (!rc || !cm) return;
+  rc.width = cm.width; rc.height = cm.height;
+  rc.style.width = cm.width + 'px'; rc.style.height = cm.height + 'px';
+  const ctx = rc.getContext('2d');
+  ctx.clearRect(0, 0, rc.width, rc.height);
+  cm.roofTilesDrawn = 0;
+  if (!window.MAP_ROOFS || !cm.roofSections || !cm.roofSections.length) return;
+  const m = cm.m, TS = cm.TS;
+  if (!m || !m.raw) return;
+  const u16 = o => (m.raw[o] << 8) | m.raw[o+1];
+  let drawn = 0;
+  // In prop-list order, so a later block laid over an earlier one wins -- which
+  // is how the ridge block finishes the roof of Charax's house.
+  for (const sec of cm.roofSections) {
+    const base = m.roofDataOffset + sec.block * 64 * 2;
+    if (base + 128 > m.raw.length) continue;
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const tile = u16(base + (row * 8 + col) * 2);
+        if (!tile) continue;                      // 0 is nothing, not a tile
+        const gx = sec.x - 7 + col, gy = sec.y - 7 + row;
+        if (gx < 0 || gy < 0 || gx >= m.width || gy >= m.height) continue;
+        drawTileAt(ctx, tile, gx * TS, gy * TS, true, TS);
+        drawn++;
+      }
+    }
+  }
+  cm.roofTilesDrawn = drawn;
+}
+
+function toggleRoofs(on) {
+  window.MAP_ROOFS = on;
+  drawRoofLayer();
+  const note = document.getElementById('roofNote');
+  const cm = window.CUR_MAP;
+  if (note) {
+    note.textContent = !cm || !cm.roofSections || !cm.roofSections.length
+      ? 'this map has no roof data'
+      : on ? (cm.roofSections.length + ' roof sections, ' + (cm.roofTilesDrawn || 0) + ' tiles')
+           : (cm.roofSections.length + ' roof sections hidden');
+  }
+}
+
 function ensureMarkLayer() {
   const wrap = document.getElementById('mapCanvasWrap');
   if (!wrap) return null;
@@ -5226,16 +5489,24 @@ function charactersOnLevel(level, hour) {
 // expression sub-stream, and when it closes an if / if_not / switch it also
 // carries a u16 branch target. Everywhere else it has no operand. Without an
 // expectation stack the decoder desyncs by two bytes after every conditional.
+// The mnemonics are delvmod's, from the OpTable in delv/ddasm.py, so that a
+// disassembly here and one from delvmod read the same way -- `bitwise_and`
+// rather than `bitand`, `left_shift` rather than `shl`, `string` rather than
+// `pushc`. utilities/delv_crosscheck.mjs compares the whole table on every run
+// and lists any deliberate divergence (there is one: `local`, which is more
+// readable than delvmod's `loc` and is not a name anyone greps for).
+// Each entry is [mnemonic, operand size, operand-expression count]; the last
+// is delvmod's `expect`, the number of nested expressions the opcode consumes.
 const DVM_OPS = {
-  0x41:['byte',1,0], 0x42:['short',2,0], 0x43:['word',4,0], 0x44:['pushc','c',0],
+  0x41:['byte',1,0], 0x42:['short',2,0], 0x43:['word',4,0], 0x44:['string','c',0],
   0x45:['data','D',0], 0x46:['index',0,0], 0x47:['load_near_word',2,0],
-  0x48:['global',1,0], 0x49:['read_far_word',4,0],
+  0x48:['global',1,0], 0x49:['load_far_word',4,0],
   0x4A:['add',0,0], 0x4B:['sub',0,0], 0x4C:['mul',0,0], 0x4D:['div',0,0],
   0x4E:['mod',0,0], 0x4F:['lt',0,0], 0x50:['le',0,0], 0x51:['gt',0,0],
   0x52:['ge',0,0], 0x53:['ne',0,0], 0x54:['eq',0,0], 0x55:['neg',0,0],
-  0x56:['bitand',0,0], 0x57:['bitor',0,0], 0x58:['bitxor',0,0], 0x59:['bitnot',0,0],
-  0x5A:['shl',0,0], 0x5B:['shr',0,0], 0x5C:['and',0,0], 0x5D:['or',0,0],
-  0x5E:['not',0,0], 0x5F:['len',0,0], 0x60:['has_member',1,0], 0x61:['class_var',2,0],
+  0x56:['bitwise_and',0,0], 0x57:['bitwise_or',0,0], 0x58:['bitwise_xor',0,0], 0x59:['bitwise_not',0,0],
+  0x5A:['left_shift',0,0], 0x5B:['right_shift',0,0], 0x5C:['and',0,0], 0x5D:['or',0,0],
+  0x5E:['not',0,0], 0x5F:['len',0,0], 0x60:['has_member',1,0], 0x61:['class_member',2,0],
   0x62:['get_field',1,0], 0x63:['cast',1,0], 0x64:['is_type',1,0],
   0x81:['subroutine',2,0], 0x82:['set_local',1,1], 0x83:['write_near_word',2,1],
   0x84:['set_index',0,3], 0x85:['write_far_word',4,1], 0x86:['set_field',1,2],
@@ -5253,24 +5524,83 @@ const DVM_TARGETED = new Set([0x8C, 0x8D, 0x89]);
 // operand, one expression list), otherwise the opcode table.
 // Word encoding, from the wiki's Word page. A 4-byte value is not just an
 // integer: the top nibble selects a type, and drefs are 0x80000000|(resid<<16)|offset.
+/* Which resource is being disassembled, so a reference into it can be shown as
+ * `here:` rather than repeating its own id on every line. delvmod calls this
+ * `context_resource`; it is set for the duration of a render. */
+let dvmContextResid = null;
+
+/* Name a resource id the way the disassembly should read it. */
+function dvmResourceName(rid) {
+  const sym = (typeof resourceSymbol === 'function' && resourceSymbol(rid)) ||
+              (DVM_SYM.resource && DVM_SYM.resource[String(rid)]);
+  const hex = '0x' + rid.toString(16).toUpperCase().padStart(4, '0');
+  return sym ? sym + ' (' + hex + ')' : hex;
+}
+
+/* A 4-byte value is not an integer with a tag on it: the top nibble selects a
+ * type, and each type reads the remaining bits differently. The cases below
+ * follow delvmod's word2str (delv/ddasm.py), which is the most complete
+ * reading of this anyone has written down. Three of them were missing here:
+ *
+ *   - Negative numbers. The range is 28 bits, sign-extended, so 0x0FFFFFF1 is
+ *     -15, not 268,435,441. Every negative constant in every script was being
+ *     shown as a nine-digit positive one; 34 lines of the archive's readable
+ *     disassembly were affected. `SetLandscapeImage -15` is a line you can
+ *     read, and `SetLandscapeImage 268435441` is not.
+ *   - Object references other than characters. Bits 16-23 are the class, so
+ *     0x40200005 is zone 5, not an unexplained hex constant. Only the
+ *     character case (class 0x40) was handled.
+ *   - 0x5000FFFE, which is `empty` -- the empty value, distinct from `none`.
+ */
 function dvmWord(v) {
   v = v >>> 0;
+  // Signed 28-bit integer.
+  if (v <= 0x07FFFFFF) return String(v);
+  if (v <= 0x0FFFFFFF) return String(v - 0x10000000);
+  // 0x1xxxxxxx: a reference to one of the enclosing function's locals.
+  //
+  // delvmod treats 0x10000000-0x2FFFFFFF as unidentified and the wiki's Word
+  // page reads the 0x1 nibble as a variable reference, so this was a guess
+  // where the rest of this function is evidence. It has since been checked
+  // against the whole archive, and the wiki is right:
+  //
+  //   * all 456 of these references have an index inside their own function's
+  //     declared local count -- not one lands outside,
+  //   * 441 of the 456 (97%) name a local that the same function also reads
+  //     directly with a `local` opcode, which is what a reference to a
+  //     variable should look like,
+  //   * the encoded values run 1..13 and 0 never appears, so the encoding is
+  //     1-based and the -1 below is right.
+  //
+  // Random 28-bit values would not land in a 13-wide window 456 times.
+  // utilities/delv_crosscheck.mjs re-runs the first two of those every time.
+  if ((v & 0xF0000000) >>> 0 === 0x10000000) return '&Var' + ((v & 0x0FFFFFFF) - 1);
+  if (v < 0x30000000) return '0x' + v.toString(16).toUpperCase();
+  // Resource with an index: `Resources.PickLock[2]`.
+  if (v < 0x40000000) return dvmResourceName(v & 0xFFFF) + '[' + ((v >>> 16) & 0x0FFF) + ']';
+  // Object reference: class in bits 16-23, instance in the low word.
+  if (v < 0x50000000) {
+    const cls = (v >> 16) & 0xFF, which = v & 0xFFFF;
+    const clsName = DVM_SYM.objtype && DVM_SYM.objtype[String(cls)];
+    if (cls === 0x40) {
+      const n = DVM_SYM.character && DVM_SYM.character[String(which)];
+      return 'Character.' + (n || ('0x' + which.toString(16).toUpperCase()));
+    }
+    const w = '0x' + which.toString(16).toUpperCase().padStart(4, '0');
+    return w + '@' + (clsName ? 'Type.' + clsName : '0x' + cls.toString(16).toUpperCase());
+  }
   if (v === 0x50000000) return 'False';
   if (v === 0x50000001) return 'True';
   if (v === 0x5000FFFF) return 'None';
-  if ((v & 0xFFFF0000) >>> 0 === 0x40400000) {
-    const n = DVM_SYM.character && DVM_SYM.character[String(v & 0xFFFF)];
-    return 'Character.' + (n || (v & 0xFFFF));
+  if (v === 0x5000FFFE) return 'Empty';
+  if (v < 0x80000000) return '0x' + v.toString(16).toUpperCase();
+  // dref: a resource id and a byte offset inside it.
+  {
+    const rid = (v & 0x7FFF0000) >>> 16, off = v & 0xFFFF;
+    const where = '0x' + off.toString(16).padStart(4, '0').toUpperCase();
+    if (dvmContextResid !== null && rid === dvmContextResid) return 'here:' + where;
+    return dvmResourceName(rid) + ':' + where;
   }
-  if ((v & 0xF0000000) >>> 0 === 0x10000000) return '&Var' + ((v & 0x0FFFFFFF) - 1);
-  if ((v & 0xF0000000) >>> 0 === 0x30000000)
-    return 'Resource 0x' + (v & 0xFFFF).toString(16).toUpperCase() +
-           '[' + ((v >>> 16) & 0x0FFF) + ']';
-  if (v & 0x80000000)
-    return 'ref 0x' + (((v & 0x7FFF0000) >>> 16)).toString(16).toUpperCase() +
-           ':0x' + (v & 0xFFFF).toString(16).padStart(4,'0').toUpperCase();
-  if ((v & 0xF0000000) === 0) return String(v & 0x0FFFFFFF);
-  return '0x' + v.toString(16).toUpperCase();
 }
 
 // Classes by resource range, from the wiki's Object page.
@@ -5634,6 +5964,8 @@ function dvmLooksLikeText(seg) {
 }
 
 function dvmRender(b, resid) {
+  // So a dref back into this same resource reads as `here:0x0031`.
+  dvmContextResid = (typeof resid === 'number') ? resid : null;
   const objs = dvmExtents(b, resid);
   const lines = [];
   let clean = 0, failed = 0;
@@ -5756,7 +6088,7 @@ function renderMapVisual(resid, mapData) {
 
   // Draw props on top, if the matching Prop List resource exists. Prop
   // Lists are binary structured data and must NOT be run through the
-  // speculative decryptor (see NEVER_ENCRYPTED_SUBN) -- doing so scrambled
+  // speculative decryptor (see DELV_CLEAR_SUBN) -- doing so scrambled
   // the packed 12-bit x/y fields and pushed every prop off the map.
   const propResid = resid + 0x0100;
   const propDataRaw = getResourceBytes(propResid);
@@ -5777,10 +6109,31 @@ function renderMapVisual(resid, mapData) {
       // container/inventory, so not drawn on the map itself).
       if (r.flags === 0xFF) continue;
       // delvmod's show_in_map() is commented "This is probably wrong - many
-      // details yet to be determined. FIXME", and it is: in Land King Hall it
-      // hides 21 of the 22 character props, including all nine throne-room
-      // guards (flags 0x09). Characters are never inventory contents, so the
-      // container test is only applied to non-character props.
+      // details yet to be determined. FIXME", and it is. Characters are never
+      // inventory contents, so the container test is applied only to
+      // non-character props. That divergence has now been measured across all
+      // 40 maps and 14,485 prop records:
+      //
+      //   * the two rules agree on 14,370 records,
+      //   * 115 are shown here and hidden by delvmod; none goes the other way,
+      //     so this rule is a strict superset and can only add people,
+      //   * for 111 of those 115, no scheduled character ever stands on or
+      //     beside that square at any hour -- the prop record is the only
+      //     thing placing them, and delvmod's rule would empty Land King
+      //     Hall's throne room (21 records) and 37 spots in Cademia.
+      //
+      // The 115 carry flags 0x08/0x09 (60 records, never scheduled) or
+      // 0x42/0x44 (55 records, 4 of which do coincide with a schedule and may
+      // therefore be drawn twice). utilities/delv_crosscheck.mjs re-measures
+      // this every run.
+      // ...but flags 0x42 and 0x44 are not people at all. delvmod's
+      // proptypename_with_flags names them EGG and ROOF and refuses to read
+      // their proptype, and it is right to: the 0x44 records are roof-block
+      // placements whose "proptype" is a block index (see drawRoofLayer), and
+      // 55 of them happened to have an index that also names a character, so
+      // this exemption was drawing 28 roofs and 27 eggs as people standing on
+      // the map. Roofs now have their own layer and their own toggle.
+      if (r.flags === 0x42 || r.flags === 0x44) continue;
       if ((r.flags & 0x58) && !characterProptypes().has(r.proptype)) continue;
       if (r.x >= m.width || r.y >= m.height) continue;
       const baseTile = propTiles[r.proptype];
@@ -6161,9 +6514,11 @@ function renderMapPreview() {
                        width: result.canvas.width, height: result.canvas.height,
                        canvas: result.canvas, m: result.m, animCells: result.animCells,
                        props: result.props, propResid: result.propResid,
-                       tilesW: result.width, tilesH: result.height };
+                       tilesW: result.width, tilesH: result.height,
+                       roofSections: mapRoofSections(resid) };
     clearMapInspector();
     startMapAnimation();
+    toggleRoofs(window.MAP_ROOFS);   // draws the layer and updates the note
     drawMapMarks();
     buildCharacterLayer();
     setupMapViewportInteraction();
@@ -6172,6 +6527,8 @@ function renderMapPreview() {
       '0x' + resid.toString(16).toUpperCase() + (lbl ? ' - ' + lbl : '') +
       '  |  ' + result.width + 'x' + result.height + ' tiles' +
       '  |  ' + result.propCount + ' props drawn' +
+      (window.CUR_MAP.roofSections.length
+        ? '  |  ' + window.CUR_MAP.roofSections.length + ' roof sections' : '') +
       (wasDecrypted ? '  |  decrypted' : '') +
       (usedFallback ? '  |  (auto-decrypt guess corrected)' : '');
     out.textContent = "Rendered map 0x" + resid.toString(16).toUpperCase() +
@@ -6246,18 +6603,49 @@ function byteEntropy(data) {
 // and running the speculative decryptor on them corrupts the bytes -- which
 // previously made 36 of 42 Map headers unparseable and pushed prop
 // coordinates far outside the map bounds (so props silently drew off-canvas).
-const NEVER_ENCRYPTED_SUBN = new Set([127, 128, 131, 135, 137, 141, 142, 143, 144, 239]);
+/* Which subindexes are encrypted is not something to guess at.
+ *
+ * The archive format does not flag it, so this file used to decrypt every
+ * resource speculatively and keep whichever version looked more like
+ * plaintext. That heuristic had already grown three escalating special cases
+ * (all-zero payloads, a container-structure test, a named-script test), each
+ * one added after it got a specific resource wrong -- which is what it looks
+ * like when a guess is standing in for knowledge.
+ *
+ * delvmod states it outright. From its Scenario class, in
+ * sources/github_delvmod/code/delv/archive.py:
+ *
+ *   known_encrypted = [1,2,4,7,8,9,10,11,12,13,14,15,16,19,20,23,24,25,26,27,29,47]
+ *   known_clear     = [0,3,127,128,131,135,137,141,142,143,144,187,239,254]
+ *   single_known    = {0x0210: False}
+ *
+ * Checked against the whole archive, the heuristic disagreed with that table
+ * on 18 of 1,558 resources, always by leaving an encrypted resource
+ * undecrypted. 0x1415 is the clearest of them: its decrypted form contains
+ * "Sewers" and readable structure, its stored form is noise, and the scores
+ * were 0.238 raw against 0.223 decrypted -- a coin flip, lost.
+ *
+ * The heuristic below is still here, and still needed: it now runs only for
+ * subindexes the table has no opinion about, which is exactly what a modded
+ * archive with new subindexes would be.
+ *
+ * utilities/delv_crosscheck.mjs re-reads these three lists out of the Python
+ * and fails if the copies here drift from them. */
+const DELV_ENCRYPTED_SUBN = new Set([1,2,4,7,8,9,10,11,12,13,14,15,16,19,20,23,24,25,26,27,29,47]);
+const DELV_CLEAR_SUBN = new Set([0,3,127,128,131,135,137,141,142,143,144,187,239,254]);
+const DELV_CLEAR_RESID = new Set([0x0210]);
 
 function smartDecrypt(data, resid) {
-  // The archive format never flags which resources are encrypted, so we
-  // decrypt speculatively and keep whichever version (raw vs. decrypted)
-  // looks more like plaintext: higher printable-ASCII ratio, lower entropy.
-  // Binary structured resources are exempt: their byte statistics can
-  // accidentally favour the decrypted form even though they are plaintext.
   const subn = Math.floor(resid / 0x100) - 1;
-  if (NEVER_ENCRYPTED_SUBN.has(subn)) {
-    return { data: data, wasDecrypted: false, rawScore: 0, decScore: 0, exempt: true };
+  if (DELV_CLEAR_RESID.has(resid) || DELV_CLEAR_SUBN.has(subn)) {
+    return { data: data, wasDecrypted: false, rawScore: 0, decScore: 0, exempt: true, known: true };
   }
+  if (DELV_ENCRYPTED_SUBN.has(subn)) {
+    return { data: decryptResource(data, resid), wasDecrypted: true, rawScore: 0, decScore: 0, known: true };
+  }
+  // Beyond here the archive is telling us nothing and neither is delvmod, so
+  // decrypt speculatively and keep whichever version looks more like
+  // plaintext: higher printable-ASCII ratio, lower entropy.
   const decrypted = decryptResource(data, resid);
   // A resource that decrypts to nothing but zero bytes is an empty
   // placeholder, and that is a certainty, not a guess -- the odds of the
@@ -6337,7 +6725,7 @@ function dvmStringObjects(b, resid) {
         let r;
         try { r = dvmDisassemble(seg, 3); } catch (e) { continue; }
         for (const op of r.ops) {
-          if (op[2] !== 'pushc' && op[2] !== 'string(implicit)') continue;
+          if (op[2] !== 'string' && op[2] !== 'string(implicit)') continue;
           let t;
           try { t = JSON.parse(op[3].replace(/ -> 0x[0-9A-F]{4}$/, '')); } catch (e) { continue; }
           if (t && t.trim() && /[A-Za-z]{2}/.test(t)) {
@@ -7041,6 +7429,8 @@ const NAV_GROUPS = [
     values: ['CHARACTERS', 'PROPS', 'MONSTERS', '135', '137', '24', '25'] },
   { id: 'items',  label: 'Items',      icon: 0x08D,
     values: ['ITEMS'] },
+  { id: 'fork',   label: 'Fork',       icon: 0x04B,
+    values: ['RSRC'] },
   { id: 'maps',   label: 'Maps',       icon: 0x111,
     values: ['127', '128', '131', '19', '20'] },
   { id: 'gfx',    label: 'Graphics',   icon: 0x158,
@@ -8031,156 +8421,9 @@ function renderImage() {
   } catch(err) { out.textContent = "Decode error: " + err.message; }
 }
 
-// --- PNG writer -----------------------------------------------------------
-// Browser canvas.toBlob() writes a truecolour PNG and, depending on the
-// engine, decorates it with an iCCP colour profile and sometimes an eXIf
-// block. Both are actively harmful for this workflow: the profile makes a
-// downstream tool colour-manage pixels that are already exactly the values we
-// want, and neither chunk carries the one piece of information that actually
-// matters, which is Cythera's own 256-entry CLUT.
-//
-// So images that still have their palette indices are written here by hand as
-// colour-type-3 (indexed) PNGs carrying PLTE and, where the resource has a
-// transparent slot, tRNS. Nothing else is emitted -- no iCCP, no eXIf, no
-// gAMA/cHRM/sRGB -- so a decoder reproduces the CLUT byte for byte.
-const _PNG_CRC = (() => {
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-    t[n] = c >>> 0;
-  }
-  return t;
-})();
-function pngCrc32(bytes) {
-  let c = 0xFFFFFFFF;
-  for (let i = 0; i < bytes.length; i++) c = _PNG_CRC[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
-  return (c ^ 0xFFFFFFFF) >>> 0;
-}
-function pngAdler32(bytes) {
-  let a = 1, b = 0;
-  for (let i = 0; i < bytes.length; i++) {
-    a = (a + bytes[i]) % 65521;
-    b = (b + a) % 65521;
-  }
-  return ((b << 16) | a) >>> 0;
-}
-function pngChunk(type, data) {
-  const out = new Uint8Array(12 + data.length);
-  const dv = new DataView(out.buffer);
-  dv.setUint32(0, data.length);
-  for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
-  out.set(data, 8);
-  dv.setUint32(8 + data.length, pngCrc32(out.subarray(4, 8 + data.length)));
-  return out;
-}
-// Stored (uncompressed) deflate inside a zlib wrapper. Always valid, needs no
-// platform support, and is the fallback when CompressionStream is missing --
-// these images are a few KB, so the size cost is not worth a bundled deflater.
-function zlibStored(data) {
-  const blocks = Math.max(1, Math.ceil(data.length / 65535));
-  const out = new Uint8Array(2 + blocks * 5 + data.length + 4);
-  let p = 0;
-  out[p++] = 0x78; out[p++] = 0x01;
-  for (let i = 0; i < blocks; i++) {
-    const off = i * 65535;
-    const len = Math.min(65535, data.length - off);
-    out[p++] = (i === blocks - 1) ? 1 : 0;
-    out[p++] = len & 0xFF; out[p++] = (len >> 8) & 0xFF;
-    out[p++] = (~len) & 0xFF; out[p++] = ((~len) >> 8) & 0xFF;
-    out.set(data.subarray(off, off + len), p); p += len;
-  }
-  new DataView(out.buffer).setUint32(p, pngAdler32(data));
-  return out;
-}
-// CompressionStream('deflate') emits the zlib container an IDAT wants, so its
-// output drops straight in.
-async function zlibDeflate(data) {
-  if (typeof CompressionStream === 'undefined') return zlibStored(data);
-  try {
-    const cs = new CompressionStream('deflate');
-    const w = cs.writable.getWriter();
-    w.write(data); w.close();
-    const buf = await new Response(cs.readable).arrayBuffer();
-    return new Uint8Array(buf);
-  } catch (e) {
-    return zlibStored(data);
-  }
-}
-// Build a colour-type-3 PNG. `palette` is an array of [r,g,b]; indices beyond
-// its end are clamped so a short palette can never write a malformed PLTE.
-async function encodeIndexedPNG(W, H, image, palette, transparentIndex) {
-  const pal = palette || PAL_RGB;
-  const n = Math.max(1, Math.min(256, pal.length));
-  // One filter byte (0 = None) per scanline, then the raw indices. None is the
-  // right filter for indexed art: the byte values are palette slots, so the
-  // differencing filters would just add noise for deflate to chew through.
-  const raw = new Uint8Array(H * (W + 1));
-  let p = 0;
-  for (let y = 0; y < H; y++) {
-    raw[p++] = 0;
-    for (let x = 0; x < W; x++) {
-      const v = image[y * W + x];
-      raw[p++] = (v >= 0 && v < n) ? v : 0;
-    }
-  }
-  const ihdr = new Uint8Array(13);
-  const dv = new DataView(ihdr.buffer);
-  dv.setUint32(0, W); dv.setUint32(4, H);
-  ihdr[8] = 8;    // bit depth
-  ihdr[9] = 3;    // colour type 3 = indexed
-  ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;  // deflate / adaptive filter / no interlace
-  const plte = new Uint8Array(n * 3);
-  for (let i = 0; i < n; i++) {
-    const c = pal[i] || [0, 0, 0];
-    plte[i*3] = c[0] & 0xFF; plte[i*3+1] = c[1] & 0xFF; plte[i*3+2] = c[2] & 0xFF;
-  }
-  const parts = [
-    new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
-    pngChunk('IHDR', ihdr),
-    pngChunk('PLTE', plte)
-  ];
-  // tRNS for colour type 3 is a run of alpha values starting at index 0, and
-  // it may stop early -- everything past its end is opaque. Delver's void slot
-  // is index 0, so the usual case is a single zero byte.
-  if (transparentIndex !== null && transparentIndex !== undefined && transparentIndex >= 0) {
-    const trns = new Uint8Array(transparentIndex + 1).fill(255);
-    trns[transparentIndex] = 0;
-    parts.push(pngChunk('tRNS', trns));
-  }
-  parts.push(pngChunk('IDAT', await zlibDeflate(raw)));
-  parts.push(pngChunk('IEND', new Uint8Array(0)));
-  let total = 0; for (const q of parts) total += q.length;
-  const out = new Uint8Array(total);
-  let o = 0; for (const q of parts) { out.set(q, o); o += q.length; }
-  return out;
-}
-// Strip everything the browser bolted on when we had to fall back to
-// canvas.toBlob(): iCCP profiles, stray eXIf blocks, and the gAMA/cHRM/sRGB
-// trio, all of which make a viewer transform pixels that are already final.
-// Whitelist rather than blacklist, so a chunk no one anticipated cannot ride
-// along either.
-const _PNG_KEEP = new Set(['IHDR', 'PLTE', 'tRNS', 'IDAT', 'IEND']);
-function stripPngMetadata(bytes) {
-  const sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-  for (let i = 0; i < 8; i++) if (bytes[i] !== sig[i]) return bytes;
-  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const parts = [bytes.subarray(0, 8)];
-  let p = 8;
-  while (p + 8 <= bytes.length) {
-    const len = dv.getUint32(p);
-    if (p + 12 + len > bytes.length) break;
-    let type = '';
-    for (let i = 0; i < 4; i++) type += String.fromCharCode(bytes[p + 4 + i]);
-    if (_PNG_KEEP.has(type)) parts.push(bytes.subarray(p, p + 12 + len));
-    p += 12 + len;
-    if (type === 'IEND') break;
-  }
-  let total = 0; for (const q of parts) total += q.length;
-  const out = new Uint8Array(total);
-  let o = 0; for (const q of parts) { out.set(q, o); o += q.length; }
-  return out;
-}
+// The indexed-PNG writer, the zlib stream and the metadata stripper are in
+// js/mac-media.js -- resource_fork_browser.html writes PNGs too, and used to
+// do it with canvas.toBlob(), which loses the palette.
 
 function downloadCurrentPNG() {
   const canvas = document.getElementById('canvas');
@@ -8282,10 +8525,10 @@ function sheetTextSnippet(resid, roff, rlen, limit) {
 // Maps are expensive to draw, so build thumbnails only as tiles scroll into
 // view and immediately downscale, discarding the full-size canvas.
 function attachMapThumb(canvas, resid) {
-  const io = new IntersectionObserver((entries) => {
-    for (const en of entries) {
-      if (!en.isIntersecting) continue;
-      io.disconnect();
+  // One shared observer for the whole grid; this used to create its own per
+  // tile, so a 42-map gallery held 42 of them.
+  lazyTile(canvas, () => {
+    {
       try {
         const raw = getResourceBytes(resid);
         if (!raw) return;
@@ -8304,8 +8547,7 @@ function attachMapThumb(canvas, resid) {
         src.width = src.height = 0;   // release the big backing store
       } catch (e) { /* leave the tile blank */ }
     }
-  }, { rootMargin: '200px' });
-  io.observe(canvas);
+  });
 }
 
 // Paint resource 0x8F00 to an offscreen canvas and hand the result to CSS as
@@ -8352,77 +8594,8 @@ function refreshLabelLegend() {
    near-incompressible, a stored archive needs no deflate implementation, and
    the CRC-32 it does need is the one the PNG writer above already has.
 --------------------------------------------------------------------------- */
-function zipDosStamp(d) {
-  return {
-    time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
-    date: ((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()
-  };
-}
-
-function buildZip(files) {
-  const enc = new TextEncoder();
-  const stamp = zipDosStamp(new Date());
-  const parts = [], centrals = [];
-  let offset = 0, centralSize = 0;
-  for (const f of files) {
-    const name = enc.encode(f.name);
-    const crc = pngCrc32(f.bytes);
-    const lh = new Uint8Array(30 + name.length);
-    const dv = new DataView(lh.buffer);
-    dv.setUint32(0, 0x04034b50, true);
-    dv.setUint16(4, 20, true);
-    dv.setUint16(6, 0x0800, true);          // names are UTF-8
-    dv.setUint16(8, 0, true);               // method 0 = stored
-    dv.setUint16(10, stamp.time, true); dv.setUint16(12, stamp.date, true);
-    dv.setUint32(14, crc, true);
-    dv.setUint32(18, f.bytes.length, true);
-    dv.setUint32(22, f.bytes.length, true);
-    dv.setUint16(26, name.length, true);
-    lh.set(name, 30);
-    parts.push(lh, f.bytes);
-
-    const cd = new Uint8Array(46 + name.length);
-    const cv = new DataView(cd.buffer);
-    cv.setUint32(0, 0x02014b50, true);
-    cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
-    cv.setUint16(8, 0x0800, true); cv.setUint16(10, 0, true);
-    cv.setUint16(12, stamp.time, true); cv.setUint16(14, stamp.date, true);
-    cv.setUint32(16, crc, true);
-    cv.setUint32(20, f.bytes.length, true);
-    cv.setUint32(24, f.bytes.length, true);
-    cv.setUint16(28, name.length, true);
-    cv.setUint32(42, offset, true);
-    cd.set(name, 46);
-    centrals.push(cd);
-    offset += lh.length + f.bytes.length;
-    centralSize += cd.length;
-  }
-  const eocd = new Uint8Array(22);
-  const ev = new DataView(eocd.buffer);
-  ev.setUint32(0, 0x06054b50, true);
-  ev.setUint16(8, files.length, true);
-  ev.setUint16(10, files.length, true);
-  ev.setUint32(12, centralSize, true);
-  ev.setUint32(16, offset, true);
-  return new Blob(parts.concat(centrals, [eocd]), { type: 'application/zip' });
-}
-
-function dlBlob(blob, filename) {
-  const href = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = href;
-  link.rel = 'noopener';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  // Revoking in the same tick cancels the download in Firefox.
-  setTimeout(() => URL.revokeObjectURL(href), 8000);
-}
-
-function safeFileName(s) {
-  return String(s).replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 72);
-}
+// buildZip, dlBlob and safeFileName are in js/mac-export.js: the resource
+// fork browser grew the same store-only ZIP writer, field for field.
 
 function galleryIsExportable() {
   return !!(window.CUR_RESIDS && window.CUR_RESIDS.length &&
@@ -8509,6 +8682,56 @@ function updateGalleryTools() {
   if (note && on) note.textContent = window.CUR_RESIDS.length + ' resources in this gallery';
 }
 
+/* ---------------------------------------------------------------------------
+   Decoding a gallery only as far as the eye gets
+   ---------------------------------------------------------------------------
+   Every tile in a gallery used to be decoded the moment the category changed:
+   180 tile sheets, or 142 portraits, decompressed and drawn before anything
+   appeared. resource_fork_browser.html already solved this with an
+   IntersectionObserver, and this is the same pattern with one observer for the
+   whole grid rather than one per tile (the map gallery had 42 of them).
+
+   The observer is disconnected by stopAllViewActivity() when a view is torn
+   down, so a gallery that is replaced does not leave its old tiles observed.
+--------------------------------------------------------------------------- */
+let _tileObserver = null;
+
+function lazyTile(host, work) {
+  if (typeof IntersectionObserver === 'undefined') { work(); return; }
+  if (!_tileObserver) {
+    _tileObserver = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        _tileObserver.unobserve(e.target);
+        const fn = e.target._tileWork;
+        e.target._tileWork = null;
+        if (fn) { try { fn(); } catch (err) { /* reported by the work itself */ } }
+      }
+    }, { rootMargin: '400px' });   // start a screen ahead of the scroll
+  }
+  host._tileWork = work;
+  _tileObserver.observe(host);
+}
+
+function stopLazyTiles() {
+  if (_tileObserver) { _tileObserver.disconnect(); _tileObserver = null; }
+}
+
+// The gallery tally cannot be printed once and left, now that tiles decode as
+// they scroll into view. It says what is known so far, and how much is not.
+let sheetStats = null;
+function updateSheetSummary() {
+  const s = sheetStats;
+  const out = document.getElementById('output');
+  if (!s || !out) return;
+  const pending = s.total - s.ok - s.err - s.blank;
+  out.textContent = 'Gallery: ' + s.ok + ' decoded, ' + s.err + ' errors' +
+    (s.blank ? ', ' + s.blank + ' blank hidden' : '') +
+    (pending > 0 ? ', ' + pending + ' still off screen' : '') +
+    ' (' + s.total + ' total) in ' + (CATEGORY_NAMES[s.subn] || 'Unknown Category') +
+    '. (Shift+click a tile to save its PNG.)';
+}
+
 function renderContactSheet() {
   const out = document.getElementById('output');
   const grid = document.getElementById('sheetGrid');
@@ -8517,7 +8740,7 @@ function renderContactSheet() {
   const subn = window.CUR_SUBN;
   const resids = window.CUR_RESIDS || [];
   const isText = (subn === 0 || subn === 1 || subn === 128 || subn === 239 || (!CANONICAL_SIZE[subn] && !HAS_HEADER[subn] && !UNCOMPRESSED[subn] && !SOUND_CATEGORIES.has(subn)));
-  let okCount = 0, errCount = 0, blankCount = 0;
+  let okCount = 0;   // the map/sound/text galleries below still tally directly
 
   // Maps render as real thumbnails rather than falling through to the
   // generic text branch.
@@ -8560,7 +8783,10 @@ function renderContactSheet() {
       cell.style.justifyContent = 'center';
       const miniWave = document.createElement('canvas');
       miniWave.width=160; miniWave.height=46; miniWave.style.cssText='width:84px;height:38px;background:#090806;border:1px solid #9b8850;margin-bottom:4px';
+      // Decoding 46 sounds to draw 46 waveforms was the slowest gallery here.
+      lazyTile(cell, () => {
       try { const snd=decodeSound(fileBytes.slice(roff,roff+rlen)); const c=miniWave.getContext('2d'), s=snd.samples, w=miniWave.width,h=miniWave.height,mid=h/2, step=Math.max(1,Math.ceil(s.length/w)); c.strokeStyle='#f9f86f'; c.beginPath(); for(let x=0;x<w;x++){let lo=32767,hi=-32768;for(let j=x*step;j<Math.min(s.length,(x+1)*step);j++){if(s[j]<lo)lo=s[j];if(s[j]>hi)hi=s[j];}c.moveTo(x,mid-hi/32768*(mid-2));c.lineTo(x,mid-lo/32768*(mid-2));}c.stroke(); } catch(e) {}
+      });
       cell.appendChild(miniWave);
       const lbl = labelFor(resid);
       const lblDiv = document.createElement('div');
@@ -8616,6 +8842,10 @@ function renderContactSheet() {
     return;
   }
 
+  // Seeded before the loop, not after it: the lazy work below writes into this
+  // object, and an IntersectionObserver that delivers its first callback
+  // promptly would otherwise be counting into the previous gallery's tally.
+  sheetStats = { subn, total: resids.length, ok: 0, err: 0, blank: 0 };
   for (const [resid, roff, rlen] of resids) {
     const cell = document.createElement('div');
     cell.className = 'cell';
@@ -8632,24 +8862,36 @@ function renderContactSheet() {
     const residDiv = document.createElement('div');
     residDiv.className = 'resid'; residDiv.textContent = '0x' + resid.toString(16).toUpperCase();
     cell.appendChild(residDiv);
-    try {
-      const resData = fileBytes.slice(roff, roff+rlen);
-      let {W,H,image} = decodeResource(resData, subn);
-      if (subn === 141) ({W,H,image} = reshapeTileSheetGrid(W,H,image));
-      if (isCompletelyWhite(image)) { blankCount++; continue; }
-      drawToCanvas(canvas, W, H, image, transparentIndexFor(subn));
-      const boxW = subn === 131 ? 320 : 84, boxH = subn === 131 ? 110 : 110;
-      const scale = Math.min(boxW / W, boxH / H, 8);
-      canvas.style.width = (W * scale) + 'px';
-      canvas.style.height = (H * scale) + 'px';
-      okCount++;
-    } catch(err) {
-      canvas.width=32; canvas.height=32;
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#500'; ctx.fillRect(0,0,32,32);
-      canvas.style.width = '48px'; canvas.style.height = '48px';
-      errCount++;
-    }
+    // Decoded when the tile is nearly on screen, not now. A blank resource is
+    // still hidden, but it can only be found to be blank by decoding it, so
+    // the cell is removed at that point instead of never being added.
+    lazyTile(cell, () => {
+      try {
+        const resData = fileBytes.slice(roff, roff+rlen);
+        let {W,H,image} = decodeResource(resData, subn);
+        if (subn === 141) ({W,H,image} = reshapeTileSheetGrid(W,H,image));
+        if (isCompletelyWhite(image)) {
+          sheetStats.blank++;
+          cell.remove();
+          updateSheetSummary();
+          return;
+        }
+        drawToCanvas(canvas, W, H, image, transparentIndexFor(subn));
+        const boxW = subn === 131 ? 320 : 84, boxH = subn === 131 ? 110 : 110;
+        const scale = Math.min(boxW / W, boxH / H, 8);
+        canvas.style.width = (W * scale) + 'px';
+        canvas.style.height = (H * scale) + 'px';
+        sheetStats.ok++;
+      } catch(err) {
+        canvas.width=32; canvas.height=32;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#500'; ctx.fillRect(0,0,32,32);
+        canvas.style.width = '48px'; canvas.style.height = '48px';
+        cell.title = 'Decode error: ' + err.message;
+        sheetStats.err++;
+      }
+      updateSheetSummary();
+    });
     cell.onclick = (ev) => {
       if (ev.shiftKey) { downloadCanvasAsPNG(canvas, resid); return; }
       openResource(resid);
@@ -8659,11 +8901,9 @@ function renderContactSheet() {
   }
   // Blank resources are hidden on purpose, but the tally has to admit it: the
   // old line read "50 decoded, 0 errors" while 12 tiles had quietly vanished.
+  // It now also admits how many have not been decoded yet.
   refreshLabelLegend();
-  out.textContent = "Gallery: " + okCount + " decoded, " + errCount + " errors"
-    + (blankCount ? ", " + blankCount + " blank hidden" : "")
-    + " (" + resids.length + " total) in " + (CATEGORY_NAMES[subn] || 'Unknown Category')
-    + ". (Shift+click a tile to save its PNG.)";
+  updateSheetSummary();
 }
 
 /* ---------------------------------------------------------------------------

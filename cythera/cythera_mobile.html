@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cythera Mobile - Stable OS 7.6</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0;
+            width: 100vw; height: 100dvh;
+            background-color: #000;
+            overflow: hidden;
+            touch-action: none;
+            font-family: 'Courier New', Courier, monospace;
+        }
+ 
+        #app-container {
+            width: 100vw; height: 100dvh;
+            position: relative;
+        }
+ 
+        /* STARTUP OVERLAY */
+        #start-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100dvh;
+            background: rgba(0, 0, 0, 0.9);
+            color: #FCE688;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            pointer-events: auto;
+        }
+        #start-overlay-text {
+            border: 2px solid #8B6914;
+            background: rgba(59, 0, 0, 0.9);
+            padding: 30px 50px;
+            text-align: center;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(139, 105, 20, 0.5);
+        }
+        #start-overlay h1 { margin: 0 0 10px 0; font-size: 1.8rem; }
+        #start-overlay p { margin: 0; font-size: 1rem; opacity: 0.8; }
+ 
+        /* CROSSHAIR */
+        #center-crosshair {
+            position: absolute; top: 50%; left: 50%; width: 20px; height: 20px;
+            transform: translate(-50%, -50%); pointer-events: none; z-index: 50; display: none; 
+        }
+        #center-crosshair::before, #center-crosshair::after {
+            content: ''; position: absolute; background: rgba(252, 230, 136, 0.8);
+        }
+        #center-crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
+        #center-crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
+ 
+ 
+        /* BOTTOM LAYER */
+        #emulator-wrapper { position: absolute; top: 0; left: 0; width: 100vw; height: 100dvh; overflow: hidden; z-index: 1; }
+        #pan-zoom-container { width: 100%; height: 100%; transform-origin: top left; will-change: transform; position: absolute; top: 0; left: 0; }
+        #scale-target { transform-origin: top left; position: absolute; top: 0; left: 0; }
+        #mac-iframe, #gl-canvas, #touch-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: block; }
+        #mac-iframe { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
+        #gl-canvas { pointer-events: none; display: none; }
+        #touch-overlay { z-index: 10; touch-action: none; pointer-events: none; }
+        #touch-overlay.active { pointer-events: auto; }
+ 
+ 
+        /* TOP LAYER */
+        #hud-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; 
+            z-index: 100; opacity: 0; transition: opacity 0.5s ease-in;
+        }
+        #hud-layer.active { opacity: 1; }
+ 
+        .hud-window {
+            position: absolute; pointer-events: auto; background-color: rgba(59, 0, 0, 0.85); 
+            border: 2px solid #8B6914; box-shadow: 4px 4px 10px rgba(0,0,0,0.7); display: flex;
+            flex-direction: column; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+            min-width: 140px; min-height: 140px;
+        }
+ 
+        .hud-header {
+            background-color: #C4A464; color: #3B0000; font-weight: bold; font-size: 0.75rem;
+            padding: 4px 8px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 2px solid #8B6914; touch-action: none;
+        }
+        
+        .drag-handle { flex-grow: 1; cursor: move; }
+        .drag-handle::before { content: '≡ '; opacity: 0.7; }
+        .mode-toggle { background: #1E0059; color: #FCE688; border: 1px solid #8B6914; font-size: 0.6rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-family: inherit; }
+        .mode-toggle.active { background: #7A0000; }
+        .hud-content { flex: 1; position: relative; padding: 6px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .resize-handle { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, #C4A464 50%); touch-action: none; }
+ 
+        .btn-grid { display: grid; gap: 4px; width: 100%; height: 100%; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
+        .gesture-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: rgba(255, 230, 136, 0.05); touch-action: none; }
+        #joy-base { position: absolute; width: 50%; height: 50%; max-width: 100px; max-height: 100px; border: 2px solid rgba(252, 230, 136, 0.3); border-radius: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
+        #joy-stick { position: absolute; width: 25%; height: 25%; max-width: 40px; max-height: 40px; background: rgba(252, 230, 136, 0.6); border-radius: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
+        #gesture-canvas { width: 100%; height: 100%; pointer-events: none; }
+ 
+        .btn {
+            background-color: #1E0059; border: 2px solid #8B6914; border-top-color: #C4A464; border-left-color: #C4A464;
+            color: #FCE688; font-size: 0.7rem; font-weight: bold; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; user-select: none; cursor: pointer;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.5); text-align: center; min-height: 35px;
+        }
+        .btn span.emoji { font-size: 1.2rem; margin-bottom: 2px; }
+        .btn:active { background-color: #150040; box-shadow: none; border-color: #8B6914; border-top-color: #3B0000; border-left-color: #3B0000; }
+        .active-action { background-color: #7A0000 !important; border-color: #FCE688 !important; }
+ 
+        #settings-drawer {
+            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); background: rgba(59, 0, 0, 0.95); border: 2px solid #8B6914; border-bottom: none;
+            border-radius: 12px 12px 0 0; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1000; width: 90%; max-width: 450px; backdrop-filter: blur(4px); pointer-events: auto;
+        }
+        #settings-drawer.collapsed { transform: translate(-50%, calc(100% - 28px)); }
+        .settings-handle { height: 28px; color: #FCE688; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.8rem; cursor: pointer; border-bottom: 1px solid rgba(196, 164, 100, 0.3); }
+        .settings-content { display: flex; flex-wrap: wrap; justify-content: space-around; padding: 10px; gap: 8px; }
+        .settings-btn { flex: 1 1 30%; padding: 8px 0; font-size: 0.7rem; height: auto; }
+ 
+        #action-toast {
+            position: absolute; top: 30%; left: 50%; transform: translate(-50%, -50%); background: rgba(252, 230, 136, 0.9); color: #3B0000; padding: 10px 20px;
+            font-size: 1.5rem; font-weight: bold; border: 2px solid #8B6914; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200;
+        }
+        #hidden-keyboard { position: absolute; top: -1000px; opacity: 0; pointer-events: none; }
+
+        #start-status { margin-top: 12px !important; font-size: 0.8rem !important; opacity: 0.65 !important; }
+        #start-overlay.ready #start-status { opacity: 0.9 !important; }
+        #start-overlay:not(.ready) #start-title { opacity: 0.45; }
+
+        /* Help, and the confirmation that replaced confirm() ------------------
+           A native confirm() is a modal system alert: on iOS it steals focus,
+           and every touch handler on the page is mid-gesture when it appears. */
+        #help-panel, #modal-confirm {
+            position: absolute; inset: 0; z-index: 2000; display: flex;
+            align-items: center; justify-content: center;
+            background: rgba(0, 0, 0, 0.75); pointer-events: auto;
+        }
+        #help-panel[hidden], #modal-confirm[hidden], #drop-hint[hidden] { display: none; }
+        #help-inner, #modal-inner {
+            position: relative; background: rgba(59, 0, 0, 0.97); border: 2px solid #8B6914;
+            border-radius: 12px; color: #FCE688; padding: 18px 20px;
+            max-width: min(560px, 92vw); max-height: 84dvh; overflow-y: auto;
+            -webkit-overflow-scrolling: touch; font-size: 0.82rem; line-height: 1.5;
+        }
+        #help-inner h2 { margin: 0 0 10px; font-size: 1.05rem; }
+        #help-inner h3 { margin: 16px 0 4px; font-size: 0.85rem; color: #C4A464; }
+        #help-inner p, #help-inner ul { margin: 4px 0; }
+        #help-inner ul { padding-left: 18px; }
+        #help-inner li { margin: 2px 0; }
+        #help-inner code { background: rgba(0,0,0,.35); padding: 0 3px; border-radius: 3px; }
+        #help-inner a { color: #FCE688; }
+        #help-close {
+            position: absolute; top: 8px; right: 8px; background: #1E0059; color: #FCE688;
+            border: 1px solid #8B6914; border-radius: 4px; font-family: inherit;
+            font-size: 0.9rem; width: 32px; height: 32px; cursor: pointer;
+        }
+        #modal-inner { max-width: min(460px, 88vw); text-align: center; }
+        #modal-text { white-space: pre-line; margin: 0; }
+        #modal-input {
+            width: 100%; margin-top: 12px; padding: 8px; box-sizing: border-box;
+            background: #1E0059; color: #FCE688; border: 1px solid #8B6914;
+            border-radius: 4px; font-family: inherit; font-size: 0.8rem;
+        }
+        #modal-input[hidden] { display: none; }
+        #modal-buttons { display: flex; gap: 10px; margin-top: 14px; }
+        #modal-buttons .btn { flex: 1; padding: 10px 0; }
+
+        #drop-hint {
+            position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 1500;
+            background: rgba(252, 230, 136, 0.94); color: #3B0000; border: 2px solid #8B6914;
+            border-radius: 8px; padding: 8px 16px; font-weight: bold; font-size: 0.8rem;
+            pointer-events: none;
+        }
+
+        .btn:focus-visible, #help-close:focus-visible, .mode-toggle:focus-visible {
+            outline: 3px solid #FCE688; outline-offset: 2px;
+        }
+        .btn.disabled { opacity: 0.4; }
+    </style>
+</head>
+<body>
+ 
+<div id="app-container">
+ 
+    <div id="start-overlay">
+        <div id="start-overlay-text">
+            <h1 id="start-title">▶ TAP TO START</h1>
+            <p id="start-sub">Mac OS 7.6 • Quadra 650</p>
+            <p id="start-status">Downloading the emulator and the Cythera disk…</p>
+        </div>
+    </div>
+
+    <div id="emulator-wrapper">
+        <div id="pan-zoom-container">
+            <div id="scale-target">
+                <!-- src is set by buildEmbedUrl() so the initial load and the
+                     rebuild after a speed change cannot drift apart; they used
+                     to be two hand-written copies of the same 300-character
+                     URL, and both carried the same wrong parameter name. -->
+                <iframe width="640" id="mac-iframe" title="Cythera running on an emulated Macintosh"
+                    allow="autoplay; cross-origin-isolated" frameborder="0"></iframe>
+                <canvas id="gl-canvas"></canvas>
+                <div id="touch-overlay"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="center-crosshair"></div>
+ 
+    <div id="hud-layer">
+        <div class="hud-window" id="hud-dpad" style="left: 10px; bottom: 50px; width: 160px; height: 180px;">
+            <div class="hud-header"><span class="drag-handle">MOVE</span><button class="mode-toggle">Gestures</button></div>
+            <div class="hud-content">
+                <div class="btn-grid">
+                    <div class="btn dir-btn" data-code="Numpad7">↖️</div><div class="btn dir-btn" data-code="Numpad8">⬆️</div><div class="btn dir-btn" data-code="Numpad9">↗️</div>
+                    <div class="btn dir-btn" data-code="Numpad4">⬅️</div><div class="btn" data-code="Space">⏱️</div><div class="btn dir-btn" data-code="Numpad6">➡️</div>
+                    <div class="btn dir-btn" data-code="Numpad1">↙️</div><div class="btn dir-btn" data-code="Numpad2">⬇️</div><div class="btn dir-btn" data-code="Numpad3">↘️</div>
+                </div>
+                <div class="gesture-area" id="move-gesture-zone"><div id="joy-base"></div><div id="joy-stick"></div></div>
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+ 
+        <div class="hud-window" id="hud-actions" style="right: 10px; bottom: 50px; width: 180px; height: 180px;">
+            <div class="hud-header"><span class="drag-handle">ACTIONS</span><button class="mode-toggle">Gestures</button></div>
+            <div class="hud-content">
+                <div class="btn-grid">
+                    <div class="btn action-btn" data-code="KeyG"><span class="emoji">💰</span>Get</div><div class="btn action-btn" data-code="KeyT"><span class="emoji">💬</span>Talk</div><div class="btn action-btn" data-code="KeyL"><span class="emoji">👁️</span>Look</div>
+                    <div class="btn action-btn" data-code="KeyU"><span class="emoji">🖐️</span>Use</div><div class="btn action-btn" data-code="KeyD"><span class="emoji">🫳</span>Drop</div><div class="btn action-btn" data-code="KeyA"><span class="emoji">⚔️</span>Atk</div>
+                    <div class="btn action-btn" data-code="KeyC"><span class="emoji">✨</span>Cast</div><div class="btn" id="kb-toggle"><span class="emoji">⌨️</span>Keyb</div><div class="btn" data-code="Enter"><span class="emoji">↩️</span>Ent</div>
+                </div>
+                <div class="gesture-area" id="action-gesture-zone"><canvas id="gesture-canvas"></canvas></div>
+            </div>
+            <div class="resize-handle"></div>
+        </div>
+        <div id="action-toast"></div>
+ 
+        <div id="settings-drawer" class="collapsed">
+            <div class="settings-handle" id="settings-handle">⚙️ DISPLAY & SETTINGS ⚙️</div>
+            <div class="settings-content">
+                <div class="btn settings-btn" id="touch-mode-toggle"><span class="emoji">👆</span>Direct</div>
+                <div class="btn settings-btn" id="filter-toggle"><span class="emoji">📺</span>Crisp</div>
+                <div class="btn settings-btn" id="pause-btn"><span class="emoji">⏸️</span>Pause</div>
+                <div class="btn settings-btn" id="speed-btn"><span class="emoji">⚡</span>4x</div>
+                <!-- The button that used to sit here said "Audio" and sent
+                     emulator_mute / emulator_set_volume. Neither exists: the
+                     embed API is emulator_pause/unpause, mouse, key and
+                     load_disk, and there is no volume setting. The messages
+                     were dropped on the floor and the button only ever changed
+                     its own label. Fullscreen is something the page can
+                     actually do. -->
+                <div class="btn settings-btn" id="fullscreen-btn"><span class="emoji">⛶</span>Full</div>
+                <div class="btn settings-btn" id="disk-btn"><span class="emoji">💿</span>Disk</div>
+                <div class="btn settings-btn" id="help-btn"><span class="emoji">❔</span>Help</div>
+            </div>
+        </div>
+        <input type="text" id="hidden-keyboard" autocomplete="off" spellcheck="false" autocorrect="off">
+    </div>
+
+    <div id="help-panel" hidden>
+        <div id="help-inner">
+            <button id="help-close" aria-label="Close">✕</button>
+            <h2>Cythera Mobile</h2>
+
+            <h3>Moving and acting</h3>
+            <p>The two floating windows are the numeric keypad and Cythera's action keys. Drag a
+            window by its <b>≡</b> header, resize it from the corner, or press <b>Gestures</b> in
+            its header to swap the buttons for a thumb control.</p>
+            <ul id="gesture-legend"></ul>
+
+            <h3>Touching the screen</h3>
+            <p><b>Direct</b> puts the pointer where your finger is — best for the game world.
+            <b>Trackpad</b> moves the pointer relatively and holds for 0.4 s to start a drag —
+            best for menus and small targets. <b>Pan View</b> keeps the pointer centred and moves
+            the view instead. Two fingers pinch to zoom anywhere, and a two-finger tap is a
+            right-click.</p>
+
+            <h3>Loading your own Cythera</h3>
+            <p><b>Drag a file onto the emulator</b> — a disk image (<code>.dsk</code>,
+            <code>.img</code>, <code>.iso</code>) mounts, and anything else, including the
+            <code>Cythera.hqx</code> and <code>Cythera&nbsp;Data.hqx</code> in this project's
+            <code>sources/</code> folder, is copied into the emulated Mac's <i>Downloads</i>
+            folder for StuffIt Expander to unpack. This is a desktop-only path: it is the
+            emulator's own file drop, and phones have nothing to drag with.</p>
+            <p><b>Disk</b> loads a disk image from a URL. The URL has to be reachable from the
+            public internet, because infinitemac.org's own server fetches it in ranges — it is not
+            your browser doing the download, so a <code>file://</code> path or a private address
+            will not work.</p>
+            <p>The same archive this emulator runs can be taken apart, resource by resource, in
+            <a href="cythera_data_viewer.html">the data viewer</a> beside this file — it reads
+            <code>Cythera Data.hqx</code> directly.</p>
+
+            <h3>The URL</h3>
+            <p>This page reads <code>?cdrom=</code>, <code>?disk=</code>, <code>?machine=</code>
+            and <code>?speed=</code>, so a particular build of the game can be bookmarked. Your
+            window layout and settings are remembered on this device.</p>
+        </div>
+    </div>
+
+    <div id="modal-confirm" hidden>
+        <div id="modal-inner">
+            <p id="modal-text"></p>
+            <input type="text" id="modal-input" hidden autocomplete="off" spellcheck="false">
+            <div id="modal-buttons">
+                <div class="btn" id="modal-cancel">Cancel</div>
+                <div class="btn" id="modal-ok">OK</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="drop-hint" hidden>Drop it on the emulator to load it into the Mac</div>
+</div>
+ 
+<script>
+    /* ======================================================================
+       A touch shell around an infinitemac.org embed, running Cythera on an
+       emulated Quadra 650.
+
+       Everything sent to the iframe below is part of infinite-mac's documented
+       embed API. The source of truth is the mihaip/infinite-mac checkout
+       beside this file:
+
+         src/embed-types.ts                  the message types, both directions
+         src/defs/run-def.ts                 the iframe query parameters
+         src/emulator/common/key-codes.ts    the key codes an emulator accepts
+         src/emulator/common/emulators.ts    the speed values and their names
+
+       `node utilities/mobile_api_check.mjs` re-reads those four files and
+       fails if this page sends anything they do not define. That check was
+       written because three things here had quietly drifted out of the API:
+       a misspelled query parameter, two messages that do not exist, and a
+       speed control labelled with numbers that mean something else.
+    ====================================================================== */
+
+    const iframe = document.getElementById('mac-iframe');
+    const scaleTarget = document.getElementById('scale-target');
+    const panZoomContainer = document.getElementById('pan-zoom-container');
+    const touchOverlay = document.getElementById('touch-overlay');
+    const hudLayer = document.getElementById('hud-layer');
+    const startOverlay = document.getElementById('start-overlay');
+    const glCanvas = document.getElementById('gl-canvas');
+    const centerCrosshair = document.getElementById('center-crosshair');
+
+    // ---- what to run ---------------------------------------------------
+    const EMBED_ORIGIN = 'https://infinitemac.org';
+    const DEFAULT_CDROM = 'https://gardenmirror.oldapplestuff.com/games/cythera_infinitemac.dsk';
+    // Basilisk II's speed table, copied from MACEMU_SPEED_CONFIG. The old
+    // control cycled [-2,-1,0,1,2] and printed the raw number, so it offered
+    // "Spd: -1" for what the emulator calls All Out, "Spd: 2" for 4x, and hid
+    // 8x/16x/32x entirely.
+    const SPEEDS = [[-2,'Default'], [0,'1x'], [1,'2x'], [2,'4x'], [3,'8x'], [4,'16x'], [5,'32x'], [-1,'All Out']];
+    const PREFS_KEY = 'cythera-mobile';
+
+    function loadPrefs() {
+        try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; }
+        catch (e) { return {}; }
+    }
+    function savePrefs(patch) {
+        try { localStorage.setItem(PREFS_KEY, JSON.stringify(Object.assign(loadPrefs(), patch))); }
+        catch (e) { /* private mode, or storage disabled -- not worth reporting */ }
+    }
+
+    const urlParams = new URLSearchParams(location.search);
+    const prefs = loadPrefs();
+    const config = {
+        disk:    urlParams.get('disk')    || 'Mac OS 7.6',
+        machine: urlParams.get('machine') || 'Quadra 650',
+        cdrom:   urlParams.get('cdrom')   || DEFAULT_CDROM,
+    };
+    let currentSpeed = 2;
+    {
+        const wanted = urlParams.has('speed') ? Number(urlParams.get('speed')) : prefs.speed;
+        if (SPEEDS.some(([v]) => v === wanted)) currentSpeed = wanted;
+    }
+    const speedName = v => (SPEEDS.find(([s]) => s === v) || [v, String(v)])[1];
+
+    function buildEmbedUrl(speed) {
+        const u = new URL(EMBED_ORIGIN + '/embed');
+        u.searchParams.set('disk', config.disk);
+        u.searchParams.set('infinite_hd', 'true');
+        u.searchParams.set('machine', config.machine);
+        // `paused`, not `pause`. run-def.ts reads searchParams.get("paused"),
+        // so the old spelling was ignored: the machine booted and ran behind
+        // the TAP TO START overlay, and the emulator_unpause sent on tap was
+        // unpausing something that had never been paused.
+        u.searchParams.set('paused', 'true');
+        u.searchParams.set('screen_update_messages', 'true');
+        u.searchParams.set('settings', JSON.stringify({
+            swapControlAndCommand: false,
+            speed: speed,
+            useMouseDeltas: false,
+            trackpadMode: false
+        }));
+        if (config.cdrom) u.searchParams.set('cdrom', config.cdrom);
+        return u.toString();
+    }
+
+    // ---- talking to the emulator ---------------------------------------
+    // Messages sent before the emulator has installed its listener are lost.
+    // Nothing used to wait for that, so a fast tap on TAP TO START threw the
+    // unpause away and the screen sat there. Anything sent early is now held
+    // and flushed when emulator_loaded arrives.
+    let emulatorReady = false;
+    let pendingMessages = [];
+
+    function post(msg) {
+        if (!emulatorReady) {
+            if (pendingMessages.length < 64) pendingMessages.push(msg);
+            return;
+        }
+        const w = iframe.contentWindow;
+        if (w) w.postMessage(msg, EMBED_ORIGIN);
+    }
+
+    function setStartStatus(text, ready) {
+        const el = document.getElementById('start-status');
+        if (el) el.textContent = text;
+        startOverlay.classList.toggle('ready', !!ready);
+    }
+
+    window.addEventListener('message', e => {
+        if (e.origin !== EMBED_ORIGIN || !e.data) return;
+        if (e.data.type === 'emulator_loaded') {
+            emulatorReady = true;
+            setStartStatus('Ready — tap to play', true);
+            const queued = pendingMessages;
+            pendingMessages = [];
+            for (const m of queued) post(m);
+        }
+    });
+
+    function startEmulator() {
+        startOverlay.style.display = 'none';
+        post({ type: 'emulator_unpause' });
+        // A click to give the emulated Mac keyboard focus.
+        post({ type: 'emulator_mouse_down', button: 0 });
+        post({ type: 'emulator_mouse_up', button: 0 });
+        touchOverlay.classList.add('active');
+        hudLayer.classList.add('active');
+    }
+    startOverlay.addEventListener('pointerdown', e => { e.preventDefault(); startEmulator(); });
+    startOverlay.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEmulator(); }
+    });
+    startOverlay.tabIndex = 0;
+
+    // ---- geometry ------------------------------------------------------
+    // The emulated screen's resolution is fixed when the machine boots, from
+    // the iframe's size, so baseWidth/baseHeight must not change afterwards.
+    // Only the CSS scale follows the window -- which it now does: these were
+    // computed once at load, so rotating a phone left every touch coordinate
+    // mapped to the wrong place on the emulated screen.
+    const baseWidth = 640;
+    const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
+    let cssScale = 1;
+    scaleTarget.style.width = `${baseWidth}px`;
+    scaleTarget.style.height = `${baseHeight}px`;
+    glCanvas.width = baseWidth; glCanvas.height = baseHeight;
+
+    function applyCssScale() {
+        // Fit rather than fill, so a rotated phone letterboxes instead of
+        // cropping the menu bar off the top of the emulated screen.
+        cssScale = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
+        const left = Math.max(0, (window.innerWidth - baseWidth * cssScale) / 2);
+        const top = Math.max(0, (window.innerHeight - baseHeight * cssScale) / 2);
+        scaleTarget.style.transform = `translate(${left}px, ${top}px) scale(${cssScale})`;
+    }
+    applyCssScale();
+
+    let resizeTimer = null;
+    function onViewportChange() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            applyCssScale();
+            pzScale = 1; pzX = 0; pzY = 0; updatePanZoom();
+            if (touchMode === 2) updatePanCursor();
+        }, 120);
+    }
+    window.addEventListener('resize', onViewportChange);
+    window.addEventListener('orientationchange', onViewportChange);
+
+    function sendKey(code, isKeyDown) {
+        post({ type: isKeyDown ? 'emulator_key_down' : 'emulator_key_up', code: code });
+    }
+
+    // emulator_mouse_move carries an absolute position *and* a delta. Basilisk
+    // II -- the Quadra 650's emulator -- reads the absolute pair, which is why
+    // sending only x/y worked, but the deltas are part of the message and the
+    // machines that are relative-only (Previous, DingusPPC, PearPC) read
+    // nothing else. Sending both costs two properties and means ?machine=
+    // can point at one of those without the pointer going dead.
+    let lastSentX = null, lastSentY = null;
+    function moveMouse(x, y) {
+        const rx = Math.round(x), ry = Math.round(y);
+        const deltaX = lastSentX === null ? 0 : rx - lastSentX;
+        const deltaY = lastSentY === null ? 0 : ry - lastSentY;
+        lastSentX = rx; lastSentY = ry;
+        post({ type: 'emulator_mouse_move', x: rx, y: ry, deltaX: deltaX, deltaY: deltaY });
+    }
+    function mouseButton(button, down) {
+        post({ type: down ? 'emulator_mouse_down' : 'emulator_mouse_up', button: button });
+    }
+
+    // Every key this page can send, so that a key held when the page is hidden
+    // or a pointer is cancelled can be released. A movement key stuck down in
+    // Cythera means the character keeps walking, which is the single most
+    // annoying way for a touch control to fail.
+    const heldKeys = new Set();
+    function pressKey(code) { heldKeys.add(code); sendKey(code, true); }
+    function releaseKey(code) { if (heldKeys.delete(code)) sendKey(code, false); }
+    function releaseAllKeys() { for (const code of Array.from(heldKeys)) releaseKey(code); }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllKeys(); });
+    window.addEventListener('blur', releaseAllKeys);
+
+    // Windows Drag/Resize/Toggles
+    // Pointer events rather than touch events: the same code now works with a
+    // mouse, so the windows can be arranged on a desktop too -- they could only
+    // ever be moved by a finger. Pointer capture also means a fast drag that
+    // outruns the handle keeps going instead of stopping dead.
+    const hudWindows = [];
+    document.querySelectorAll('.hud-window').forEach(win => {
+        const dragHandle = win.querySelector('.drag-handle'), resizeHandle = win.querySelector('.resize-handle');
+        const toggleBtn = win.querySelector('.mode-toggle'), btnGrid = win.querySelector('.btn-grid'), gestureArea = win.querySelector('.gesture-area');
+        hudWindows.push(win);
+
+        let dragId = null, dragStartX = 0, dragStartY = 0, initialLeft = 0, initialTop = 0;
+        dragHandle.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            dragId = e.pointerId;
+            dragHandle.setPointerCapture?.(e.pointerId);
+            dragStartX = e.clientX; dragStartY = e.clientY;
+            const rect = win.getBoundingClientRect(); initialLeft = rect.left; initialTop = rect.top;
+            win.style.zIndex = 200;
+        });
+        dragHandle.addEventListener('pointermove', e => {
+            if (dragId !== e.pointerId) return;
+            e.preventDefault();
+            placeWindow(win, initialLeft + (e.clientX - dragStartX), initialTop + (e.clientY - dragStartY));
+        });
+        const endDrag = e => {
+            if (dragId !== e.pointerId) return;
+            dragId = null; win.style.zIndex = '';
+            saveHudLayout();
+        };
+        dragHandle.addEventListener('pointerup', endDrag);
+        dragHandle.addEventListener('pointercancel', endDrag);
+
+        let resizeId = null, resizeStartX = 0, resizeStartY = 0, initialWidth = 0, initialHeight = 0;
+        resizeHandle.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            resizeId = e.pointerId;
+            resizeHandle.setPointerCapture?.(e.pointerId);
+            resizeStartX = e.clientX; resizeStartY = e.clientY;
+            initialWidth = win.offsetWidth; initialHeight = win.offsetHeight;
+        });
+        resizeHandle.addEventListener('pointermove', e => {
+            if (resizeId !== e.pointerId) return;
+            e.preventDefault(); e.stopPropagation();
+            win.style.width = `${Math.max(140, initialWidth + (e.clientX - resizeStartX))}px`;
+            win.style.height = `${Math.max(140, initialHeight + (e.clientY - resizeStartY))}px`;
+            if (win.id === 'hud-actions' && gestureArea.style.display === 'block') resizeGestureCanvas();
+        });
+        const endResize = e => {
+            if (resizeId !== e.pointerId) return;
+            resizeId = null;
+            saveHudLayout();
+        };
+        resizeHandle.addEventListener('pointerup', endResize);
+        resizeHandle.addEventListener('pointercancel', endResize);
+
+        toggleBtn.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            setWindowMode(win, toggleBtn.classList.toggle('active'));
+            saveHudLayout();
+        });
+        win.addEventListener('touchstart', e => e.stopPropagation()); win.addEventListener('touchmove', e => e.stopPropagation()); win.addEventListener('touchend', e => e.stopPropagation());
+    });
+
+    function setWindowMode(win, gestures) {
+        const btnGrid = win.querySelector('.btn-grid'), gestureArea = win.querySelector('.gesture-area');
+        const toggleBtn = win.querySelector('.mode-toggle');
+        toggleBtn.classList.toggle('active', gestures);
+        if (gestures) {
+            btnGrid.style.display = 'none'; gestureArea.style.display = 'block';
+            if (win.id === 'hud-actions') resizeGestureCanvas();
+            // A dragging finger that leaves the joystick still has to stop the
+            // character; releasing every held key when the mode changes is the
+            // cheap way to be sure nothing is left down.
+            releaseAllKeys();
+        } else { btnGrid.style.display = 'grid'; gestureArea.style.display = 'none'; }
+    }
+
+    // Keep a window on screen. Without this a window dragged to the bottom of a
+    // tall phone was simply gone after rotating to landscape, with no way back.
+    function placeWindow(win, left, top) {
+        const w = win.offsetWidth, h = win.offsetHeight;
+        const x = Math.max(0, Math.min(window.innerWidth - Math.min(w, window.innerWidth), left));
+        const y = Math.max(0, Math.min(window.innerHeight - Math.min(h, window.innerHeight), top));
+        win.style.left = `${x}px`; win.style.top = `${y}px`;
+        win.style.bottom = 'auto'; win.style.right = 'auto';
+    }
+
+    function saveHudLayout() {
+        const layout = {};
+        for (const win of hudWindows) {
+            const r = win.getBoundingClientRect();
+            layout[win.id] = {
+                left: Math.round(r.left), top: Math.round(r.top),
+                width: Math.round(r.width), height: Math.round(r.height),
+                gestures: win.querySelector('.mode-toggle').classList.contains('active')
+            };
+        }
+        savePrefs({ hud: layout });
+    }
+
+    function restoreHudLayout() {
+        const layout = loadPrefs().hud;
+        if (!layout) return;
+        for (const win of hudWindows) {
+            const s = layout[win.id];
+            if (!s) continue;
+            win.style.width = `${s.width}px`; win.style.height = `${s.height}px`;
+            placeWindow(win, s.left, s.top);
+            if (s.gestures) setWindowMode(win, true);
+        }
+    }
+
+    // Joystick Logic
+    const moveZone = document.getElementById('move-gesture-zone'), joyBase = document.getElementById('joy-base'), joyStick = document.getElementById('joy-stick');
+    let moveStartX = 0, moveStartY = 0, currentMoveKey = null;
+    function applyMovementKey(angleDeg, dist) {
+        if (dist < 15) return null; 
+        if (angleDeg >= -22.5 && angleDeg < 22.5) return 'Numpad6'; if (angleDeg >= 22.5 && angleDeg < 67.5) return 'Numpad3'; 
+        if (angleDeg >= 67.5 && angleDeg < 112.5) return 'Numpad2'; if (angleDeg >= 112.5 && angleDeg < 157.5) return 'Numpad1'; 
+        if (angleDeg >= 157.5 || angleDeg < -157.5) return 'Numpad4'; if (angleDeg >= -157.5 && angleDeg < -112.5) return 'Numpad7'; 
+        if (angleDeg >= -112.5 && angleDeg < -67.5) return 'Numpad8'; if (angleDeg >= -67.5 && angleDeg < -22.5) return 'Numpad9'; 
+        return null;
+    }
+    moveZone.addEventListener('touchstart', e => {
+        const rect = moveZone.getBoundingClientRect();
+        moveStartX = e.touches[0].clientX - rect.left; moveStartY = e.touches[0].clientY - rect.top;
+        joyBase.style.left = `${moveStartX}px`; joyBase.style.top = `${moveStartY}px`; joyStick.style.left = `${moveStartX}px`; joyStick.style.top = `${moveStartY}px`;
+        joyBase.style.display = 'block'; joyStick.style.display = 'block';
+    });
+    moveZone.addEventListener('touchmove', e => {
+        const rect = moveZone.getBoundingClientRect();
+        let dx = (e.touches[0].clientX - rect.left) - moveStartX, dy = (e.touches[0].clientY - rect.top) - moveStartY;
+        let dist = Math.hypot(dx, dy), angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+        let displayDist = Math.min(dist, moveZone.offsetWidth / 3);
+        joyStick.style.left = `${moveStartX + Math.cos(angleDeg * Math.PI/180) * displayDist}px`;
+        joyStick.style.top = `${moveStartY + Math.sin(angleDeg * Math.PI/180) * displayDist}px`;
+        let newKey = applyMovementKey(angleDeg, dist);
+        if (newKey !== currentMoveKey) {
+            if (currentMoveKey) releaseKey(currentMoveKey);
+            if (newKey) pressKey(newKey);
+            currentMoveKey = newKey;
+        }
+    });
+    function stopMovement() {
+        if (currentMoveKey) { releaseKey(currentMoveKey); currentMoveKey = null; }
+        joyBase.style.display = 'none'; joyStick.style.display = 'none';
+    }
+    moveZone.addEventListener('touchend', stopMovement); moveZone.addEventListener('touchcancel', stopMovement);
+ 
+    /* ---- Gesture Logic -------------------------------------------------
+       A stroke is reduced to the sequence of directions it turns through --
+       "DRU" is down, then right, then up, which is the shape of a U -- and
+       matched against this table, most specific first.
+
+       ORDER IS THE WHOLE POINT. The tests used to run with the loosest one
+       third, so `dirs.includes("DR")` claimed LOOK before USE ("DRU") or CAST
+       ("LDR") were ever considered, and both of those gestures were dead: you
+       drew a U and the game looked at something. Anything matching a longer
+       shape has to be tested before the shorter shape it contains, and TALK
+       ("RDL") before CAST, which also accepts a bare "DL".
+
+       The help panel's legend is generated from this same array, so a gesture
+       cannot be listed but unrecognised, or recognised but undocumented. */
+    const GESTURES = [
+        { key: 'KeyA', name: 'Attack', hint: 'tap',                     tap: true },
+        { key: 'KeyG', name: 'Get',    hint: 'swipe up',                match: d => d === 'U' || d === 'LU' || d === 'RU' },
+        { key: 'KeyD', name: 'Drop',   hint: 'swipe down',              match: d => d === 'D' || d === 'LD' || d === 'RD' },
+        { key: 'KeyU', name: 'Use',    hint: 'draw a U',                match: d => d.includes('DRU') || d.includes('DLU') },
+        { key: 'KeyT', name: 'Talk',   hint: 'right, down, left',       match: d => d.includes('RDL') || d.includes('RD') },
+        { key: 'KeyC', name: 'Cast',   hint: 'draw a C: left, down, right', match: d => d.includes('LDR') || d.includes('LD') || d.includes('DL') },
+        { key: 'KeyL', name: 'Look',   hint: 'draw an L: down, then right', match: d => d.includes('DR') }
+    ];
+    function recogniseGesture(dirs, isTap) {
+        for (const g of GESTURES) {
+            if (g.tap) { if (isTap) return g; continue; }
+            if (isTap) continue;
+            if (g.match(dirs)) return g;
+        }
+        return null;
+    }
+
+    const actionZone = document.getElementById('action-gesture-zone'), gestureCanvas = document.getElementById('gesture-canvas'), gCtx = gestureCanvas.getContext('2d'), actionToast = document.getElementById('action-toast');
+    let gesturePoints = [];
+    function resizeGestureCanvas() { gestureCanvas.width = actionZone.clientWidth; gestureCanvas.height = actionZone.clientHeight; }
+    function showToast(text) { actionToast.textContent = text; actionToast.style.opacity = '1'; setTimeout(() => actionToast.style.opacity = '0', 700); }
+    actionZone.addEventListener('touchstart', e => {
+        const rect = actionZone.getBoundingClientRect(); gesturePoints = [{ x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }];
+        gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height); gCtx.beginPath(); gCtx.moveTo(gesturePoints[0].x, gesturePoints[0].y); gCtx.strokeStyle = '#FCE688'; gCtx.lineWidth = 4; gCtx.lineCap = 'round'; gCtx.lineJoin = 'round';
+    });
+    actionZone.addEventListener('touchmove', e => {
+        const rect = actionZone.getBoundingClientRect(); const pt = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+        gesturePoints.push(pt); gCtx.lineTo(pt.x, pt.y); gCtx.stroke();
+    });
+    actionZone.addEventListener('touchend', e => {
+        gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
+        if(gesturePoints.length === 0) return;
+        let dirs = "", currentDir = null, lastPt = gesturePoints[0];
+        let totalDist = Math.hypot(gesturePoints[gesturePoints.length-1].x - gesturePoints[0].x, gesturePoints[gesturePoints.length-1].y - gesturePoints[0].y);
+        for (let i = 1; i < gesturePoints.length; i++) {
+            let dx = gesturePoints[i].x - lastPt.x, dy = gesturePoints[i].y - lastPt.y;
+            if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
+                let dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+                if (dir !== currentDir) { dirs += dir; currentDir = dir; } lastPt = gesturePoints[i];
+            }
+        }
+        const hit = recogniseGesture(dirs, totalDist < 15 && gesturePoints.length < 10);
+        if (hit) { showToast(hit.name); pressKey(hit.key); setTimeout(() => releaseKey(hit.key), 50); }
+        else { showToast("?"); }
+    });
+ 
+    // Smart Shader
+    const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
+    const vsSource = `attribute vec2 a_position; varying vec2 v_texCoord; void main() { v_texCoord = a_position * 0.5 + 0.5; v_texCoord.y = 1.0 - v_texCoord.y; gl_Position = vec4(a_position, 0.0, 1.0); }`;
+    const fsSource = `
+        precision mediump float; varying vec2 v_texCoord; uniform sampler2D u_image; uniform vec2 u_texSize;
+        void main() {
+            vec2 px = vec2(1.0, 1.0) / u_texSize; vec4 C = texture2D(u_image, v_texCoord);
+            vec4 L = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0)); vec4 R = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
+            vec4 U = texture2D(u_image, v_texCoord + vec2(0.0, -px.y)); vec4 D = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
+            float thresh = 0.08; bool diffL = distance(C.rgb, L.rgb) > thresh; bool diffR = distance(C.rgb, R.rgb) > thresh; bool diffU = distance(C.rgb, U.rgb) > thresh; bool diffD = distance(C.rgb, D.rgb) > thresh;
+            if (diffL && diffR && diffU && diffD) { gl_FragColor = (C + L + R + U + D) / 5.0; } else { gl_FragColor = C; }
+        }
+    `;
+    // The whole block below used to run unguarded at the top level, so on any
+    // browser without WebGL -- or with it blocked, or with too many live
+    // contexts -- getContext returned null and gl.createProgram() threw before
+    // the script had installed a single touch handler. The page came up as a
+    // dead emulator with no controls at all. A de-dithering filter is a nicety;
+    // it must not be able to take the page down with it.
+    let texture = null, shaderProgram = null;
+    const shaderReady = (() => {
+        if (!gl) return false;
+        try {
+            const compile = (type, source) => {
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+                    throw new Error(gl.getShaderInfoLog(shader) || 'shader compile failed');
+                return shader;
+            };
+            shaderProgram = gl.createProgram();
+            gl.attachShader(shaderProgram, compile(gl.VERTEX_SHADER, vsSource));
+            gl.attachShader(shaderProgram, compile(gl.FRAGMENT_SHADER, fsSource));
+            gl.linkProgram(shaderProgram);
+            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS))
+                throw new Error(gl.getProgramInfoLog(shaderProgram) || 'program link failed');
+            gl.useProgram(shaderProgram);
+            const positionBuffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+            const positionLocation = gl.getAttribLocation(shaderProgram, "a_position"); gl.enableVertexAttribArray(positionLocation); gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+            texture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, texture); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize"); gl.uniform2f(texSizeLocation, baseWidth, baseHeight);
+            return true;
+        } catch (err) {
+            console.warn('De-dither filter unavailable:', err && err.message);
+            return false;
+        }
+    })();
+
+    let isCrisp = true;
+    const filterToggle = document.getElementById('filter-toggle');
+    function setCrisp(crisp) {
+        isCrisp = crisp || !shaderReady;
+        if (isCrisp) { glCanvas.style.display = 'none'; iframe.style.opacity = '1'; filterToggle.innerHTML = '<span class="emoji">📺</span>Crisp'; }
+        else { glCanvas.style.display = 'block'; iframe.style.opacity = '0.01'; filterToggle.innerHTML = '<span class="emoji">📺</span>Dedith'; }
+        savePrefs({ crisp: isCrisp });
+    }
+    filterToggle.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (!shaderReady) { showToast('No WebGL here'); return; }
+        setCrisp(!isCrisp);
+    });
+    if (!shaderReady) {
+        filterToggle.classList.add('disabled');
+        filterToggle.title = 'WebGL is not available in this browser';
+    }
+    window.addEventListener("message", e => {
+        if (e.origin !== EMBED_ORIGIN) return;
+        if (!isCrisp && shaderReady && e.data && e.data.type === "emulator_screen" && e.data.data) {
+            try { gl.bindTexture(gl.TEXTURE_2D, texture); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, e.data.width||baseWidth, e.data.height||baseHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data)); gl.drawArrays(gl.TRIANGLES, 0, 6); } catch (err) {}
+        }
+    });
+
+    // Settings Drawer Buttons
+    document.getElementById('settings-handle').addEventListener('pointerdown', e => { e.preventDefault(); document.getElementById('settings-drawer').classList.toggle('collapsed'); });
+ 
+    let touchMode = 0;
+    const touchModeToggle = document.getElementById('touch-mode-toggle');
+    const touchModeLabels = ['<span class="emoji">👆</span>Direct', '<span class="emoji">🖱️</span>Trackpad', '<span class="emoji">🎯</span>Pan View'];
+    function setTouchMode(mode) {
+        touchMode = ((mode % 3) + 3) % 3;
+        touchModeToggle.innerHTML = touchModeLabels[touchMode];
+        centerCrosshair.style.display = (touchMode === 2) ? 'block' : 'none';
+        if (touchMode === 2) updatePanCursor();
+        savePrefs({ touchMode: touchMode });
+    }
+    touchModeToggle.addEventListener('pointerdown', e => { e.preventDefault(); setTouchMode(touchMode + 1); });
+
+    let isPaused = false;
+    const pauseBtn = document.getElementById('pause-btn');
+    pauseBtn.addEventListener('pointerdown', e => {
+        e.preventDefault(); isPaused = !isPaused;
+        post({ type: isPaused ? 'emulator_pause' : 'emulator_unpause' });
+        // A paused emulator cannot receive a keyup, so release first.
+        if (isPaused) releaseAllKeys();
+        pauseBtn.innerHTML = isPaused ? '<span class="emoji">▶️</span>Play' : '<span class="emoji">⏸️</span>Pause';
+    });
+
+    // A native confirm() is a system-modal dialog: on iOS it takes focus away
+    // mid-gesture and leaves the touch handlers here with a pointer they never
+    // see released. This one is part of the page.
+    function askModal(text, onOk, initialValue) {
+        const modal = document.getElementById('modal-confirm');
+        const input = document.getElementById('modal-input');
+        document.getElementById('modal-text').textContent = text;
+        input.hidden = initialValue === undefined;
+        if (!input.hidden) input.value = initialValue;
+        modal.hidden = false;
+        if (!input.hidden) input.focus();
+        const ok = document.getElementById('modal-ok'), cancel = document.getElementById('modal-cancel');
+        const close = () => {
+            modal.hidden = true;
+            ok.removeEventListener('pointerdown', yes);
+            cancel.removeEventListener('pointerdown', no);
+        };
+        const yes = e => { e.preventDefault(); close(); onOk(input.hidden ? undefined : input.value); };
+        const no = e => { e.preventDefault(); close(); };
+        ok.addEventListener('pointerdown', yes);
+        cancel.addEventListener('pointerdown', no);
+    }
+    const askConfirm = (text, onYes) => askModal(text, onYes);
+
+    function reloadEmulator(speed) {
+        releaseAllKeys();
+        emulatorReady = false;
+        pendingMessages = [];
+        lastSentX = lastSentY = null;
+        iframe.src = buildEmbedUrl(speed);
+        setStartStatus('Restarting the emulated Mac…', false);
+        startOverlay.style.display = 'flex';
+        touchOverlay.classList.remove('active');
+        hudLayer.classList.remove('active');
+    }
+
+    const speedBtn = document.getElementById('speed-btn');
+    function paintSpeed() { speedBtn.innerHTML = `<span class="emoji">⚡</span>${speedName(currentSpeed)}`; }
+    speedBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        const i = SPEEDS.findIndex(([v]) => v === currentSpeed);
+        const [next, label] = SPEEDS[(i + 1) % SPEEDS.length];
+        askConfirm(`Run the emulator at ${label}?\n\nThis restarts the Mac, and anything not saved inside Cythera is lost.`, () => {
+            currentSpeed = next;
+            paintSpeed();
+            savePrefs({ speed: currentSpeed });
+            reloadEmulator(currentSpeed);
+        });
+    });
+
+    // Fullscreen replaces a button that used to claim to control the volume.
+    // There is no way for this page to do that: audio belongs to the emulator
+    // in a cross-origin iframe, and the embed API has no message for it.
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    fullscreenBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        const el = document.documentElement;
+        if (document.fullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
+        else (el.requestFullscreen || el.webkitRequestFullscreen || function(){}).call(el);
+    });
+    if (!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)) {
+        fullscreenBtn.classList.add('disabled');   // iOS Safari on iPhone
+        fullscreenBtn.title = 'Fullscreen is not available in this browser';
+    }
+
+    // emulator_load_disk takes a URL, and infinitemac.org's own worker is what
+    // fetches it (a HEAD for the size, then ranged reads), not this browser.
+    // So a blob: URL made from a local file cannot work, and neither can a
+    // private address -- which is exactly why the local Cythera files are
+    // loaded by dropping them on the emulator instead (see the drop handler).
+    document.getElementById('disk-btn').addEventListener('pointerdown', e => {
+        e.preventDefault();
+        askModal('Disk image URL to mount.\n\nIt has to be reachable from the public internet: infinitemac.org fetches it, not this browser.',
+            url => {
+                if (!url) return;
+                config.cdrom = url;
+                post({ type: 'emulator_load_disk', url: url });
+                showToast('Loading disk…');
+            }, config.cdrom);
+    });
+
+    const helpPanel = document.getElementById('help-panel');
+    document.getElementById('help-btn').addEventListener('pointerdown', e => { e.preventDefault(); helpPanel.hidden = false; });
+    document.getElementById('help-close').addEventListener('pointerdown', e => { e.preventDefault(); helpPanel.hidden = true; });
+    helpPanel.addEventListener('pointerdown', e => { if (e.target === helpPanel) helpPanel.hidden = true; });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { helpPanel.hidden = true; document.getElementById('modal-confirm').hidden = true; }
+    });
+
+    // Keys & Buttons
+    const actionBtns = document.querySelectorAll('.action-btn'), dirBtns = document.querySelectorAll('.dir-btn');
+    actionBtns.forEach(btn => btn.addEventListener('pointerdown', () => { actionBtns.forEach(b => b.classList.remove('active-action')); btn.classList.add('active-action'); }));
+    dirBtns.forEach(btn => btn.addEventListener('pointerdown', () => actionBtns.forEach(b => b.classList.remove('active-action'))));
+    document.querySelectorAll('.btn[data-code]').forEach(btn => {
+        const code = btn.getAttribute('data-code');
+        btn.addEventListener('pointerdown', e => { e.preventDefault(); pressKey(code); });
+        btn.addEventListener('pointerup', e => { e.preventDefault(); releaseKey(code); });
+        btn.addEventListener('pointerleave', e => { e.preventDefault(); releaseKey(code); });
+        // pointercancel fires whenever the browser takes the gesture over --
+        // a scroll starting, a system edge swipe, a call arriving. Without it
+        // the key was never released and the character walked off on its own.
+        btn.addEventListener('pointercancel', () => releaseKey(code));
+        btn.tabIndex = 0;
+        btn.setAttribute('role', 'button');
+        btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pressKey(code); } });
+        btn.addEventListener('keyup', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); releaseKey(code); } });
+    });
+    const kbInput = document.getElementById('hidden-keyboard');
+    document.getElementById('kb-toggle').addEventListener('touchend', (e) => { e.preventDefault(); kbInput.focus(); });
+    const charToCode = { 'a':'KeyA', 'b':'KeyB', 'c':'KeyC', 'd':'KeyD', 'e':'KeyE', 'f':'KeyF', 'g':'KeyG', 'h':'KeyH', 'i':'KeyI', 'j':'KeyJ', 'k':'KeyK', 'l':'KeyL', 'm':'KeyM', 'n':'KeyN', 'o':'KeyO', 'p':'KeyP', 'q':'KeyQ', 'r':'KeyR', 's':'KeyS', 't':'KeyT', 'u':'KeyU', 'v':'KeyV', 'w':'KeyW', 'x':'KeyX', 'y':'KeyY', 'z':'KeyZ', '1':'Digit1', '2':'Digit2', '3':'Digit3', '4':'Digit4', '5':'Digit5', '6':'Digit6', '7':'Digit7', '8':'Digit8', '9':'Digit9', '0':'Digit0', ' ':'Space', 'backspace':'Backspace', 'enter':'Enter' };
+    kbInput.addEventListener('keydown', (e) => { let code = e.code || charToCode[e.key.toLowerCase()]; if(code && code!=='Unidentified') pressKey(code); });
+    kbInput.addEventListener('keyup', (e) => { let code = e.code || charToCode[e.key.toLowerCase()]; if(code && code!=='Unidentified') releaseKey(code); });
+    kbInput.addEventListener('blur', () => kbInput.value = '');
+ 
+ 
+    // --- ENHANCED TOUCH & DRAG LOGIC ---
+    let pzScale = 1, pzX = 0, pzY = 0;
+    let startDist = 0, initialPzScale = 1, initialPzX = 0, initialPzY = 0, pinchCenterX = 0, pinchCenterY = 0;
+    
+    // Drag control variables
+    let isLeftDown = false;
+    let dragTimer = null;
+    let touchStartTime = 0;
+    let isClickCandidate = false, isTwoFingerTap = false;
+    let cursorX = baseWidth / 2, cursorY = baseHeight / 2, lastTouchX = 0, lastTouchY = 0;
+ 
+    function getEmulatorCoords(clientX, clientY) {
+        const rect = scaleTarget.getBoundingClientRect();
+        const relX = clientX - rect.left; const relY = clientY - rect.top;
+        const fatFingerOffsetMacY = -12; 
+        const macX = relX / (rect.width / baseWidth);
+        const macY = (relY / (rect.height / baseHeight)) + fatFingerOffsetMacY;
+        return { x: macX, y: macY };
+    }
+ 
+    function updatePanCursor() {
+        const centerClientX = window.innerWidth / 2, centerClientY = window.innerHeight / 2;
+        const coords = getEmulatorCoords(centerClientX, centerClientY);
+        cursorX = coords.x; cursorY = coords.y;
+        moveMouse(cursorX, cursorY);
+    }
+ 
+    touchOverlay.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 2) {
+            // Cancel any active drag
+            if (isLeftDown) {
+                mouseButton(0, false);
+                isLeftDown = false;
+            }
+            if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
+            
+            startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            initialPzScale = pzScale; initialPzX = pzX; initialPzY = pzY;
+            pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2; pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            isClickCandidate = false; isTwoFingerTap = true; touchStartTime = Date.now();
+        } else if (e.touches.length === 1) {
+            isClickCandidate = true; isTwoFingerTap = false; touchStartTime = Date.now();
+            lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
+ 
+            if (touchMode === 0) {
+                // DIRECT MODE: 1:1 Touch = Mouse Down immediately (Perfect for drag & drop)
+                const coords = getEmulatorCoords(lastTouchX, lastTouchY);
+                cursorX = coords.x; cursorY = coords.y;
+                moveMouse(cursorX, cursorY);
+                mouseButton(0, true);
+                isLeftDown = true;
+                isClickCandidate = false; // Prevent double-trigger on up
+            } else if (touchMode === 1) {
+                // TRACKPAD MODE: Hold finger down for 400ms to start a Drag-Lock
+                dragTimer = setTimeout(() => {
+                    isLeftDown = true;
+                    isClickCandidate = false;
+                    mouseButton(0, true);
+                }, 400);
+            }
+        }
+    });
+ 
+    touchOverlay.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 2) {
+            isClickCandidate = false; 
+            const currentPinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2, currentPinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            if (Math.abs(dist - startDist) > 15 || Math.hypot(currentPinchCenterX - pinchCenterX, currentPinchCenterY - pinchCenterY) > 15) isTwoFingerTap = false; 
+            const maxZoom = 2.5 / cssScale, newScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom), scaleRatio = newScale / initialPzScale;
+            pzX = currentPinchCenterX - (pinchCenterX - initialPzX) * scaleRatio; pzY = currentPinchCenterY - (pinchCenterY - initialPzY) * scaleRatio;
+            pzScale = newScale; updatePanZoom();
+            if(touchMode === 2) updatePanCursor();
+        } else if (e.touches.length === 1) {
+            const currentTouchX = e.touches[0].clientX, currentTouchY = e.touches[0].clientY;
+            const movedDist = Math.hypot(currentTouchX - lastTouchX, currentTouchY - lastTouchY);
+ 
+            if (touchMode === 2) { 
+                // PAN MODE
+                isClickCandidate = false;
+                pzX += (currentTouchX - lastTouchX); pzY += (currentTouchY - lastTouchY);
+                updatePanZoom(); updatePanCursor();
+            } else if (touchMode === 1) { 
+                // TRACKPAD MODE
+                if (dragTimer && movedDist > 5) {
+                    // Finger moved too soon, cancel drag lock detection
+                    clearTimeout(dragTimer); dragTimer = null;
+                }
+                if (!isLeftDown) isClickCandidate = false; // Moving before hold means just hovering, cancel click candidate
+                
+                const dX = (currentTouchX - lastTouchX) / (cssScale * pzScale); const dY = (currentTouchY - lastTouchY) / (cssScale * pzScale);
+                cursorX = Math.max(0, Math.min(baseWidth, cursorX + (dX * 1.5))); cursorY = Math.max(0, Math.min(baseHeight, cursorY + (dY * 1.5)));
+                moveMouse(cursorX, cursorY);
+            } else if (touchMode === 0) { 
+                // DIRECT MODE
+                const coords = getEmulatorCoords(currentTouchX, currentTouchY);
+                cursorX = Math.max(0, Math.min(baseWidth, coords.x)); cursorY = Math.max(0, Math.min(baseHeight, coords.y));
+                moveMouse(cursorX, cursorY);
+            }
+            lastTouchX = currentTouchX; lastTouchY = currentTouchY;
+        }
+    });
+ 
+    touchOverlay.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        
+        if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
+ 
+        if (e.touches.length === 0) {
+            const timeElapsed = Date.now() - touchStartTime;
+            
+            if (isLeftDown) {
+                // If dragging in direct/trackpad mode, release the click
+                mouseButton(0, false);
+                isLeftDown = false;
+            } else if (isTwoFingerTap && timeElapsed < 300) {
+                // Right click
+                mouseButton(2, true);
+                setTimeout(() => mouseButton(2, false), 50);
+            } else if (isClickCandidate && timeElapsed < 300) {
+                // Quick tap for Pan or Trackpad Mode
+                if (touchMode === 2) {
+                    const coords = getEmulatorCoords(lastTouchX, lastTouchY);
+                    moveMouse(coords.x, coords.y);
+                    setTimeout(() => { mouseButton(0, true); setTimeout(() => mouseButton(0, false), 50); }, 20);
+                } else if (touchMode === 1) {
+                    mouseButton(0, true);
+                    setTimeout(() => mouseButton(0, false), 50);
+                }
+            }
+            isTwoFingerTap = false;
+        }
+    });
+ 
+    function updatePanZoom() {
+        const scaledW = window.innerWidth * pzScale; const scaledH = window.innerHeight * pzScale;
+        if (pzScale <= 1) { pzX = 0; pzY = 0; } else { pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledW)); pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledH)); }
+        panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
+    }
+
+    /* ---- Dropping a file on the emulator --------------------------------
+       Infinite Mac already accepts dropped files: a disk image is mounted,
+       and anything else is copied into the emulated Mac's Downloads folder --
+       which is how `sources/Cythera.hqx` and `sources/Cythera Data.hqx` get
+       into the machine, StuffIt Expander being right there on the Infinite HD.
+
+       That drop has to land on the *iframe*, because it is the iframe's own
+       page that handles it. Nothing here can forward a File across origins:
+       the embed API takes a URL for emulator_load_disk, and infinitemac.org's
+       server is what fetches that URL, so a blob: made from a local file is
+       useless to it.
+
+       And the drop could not land on the iframe, because #touch-overlay is
+       stretched across it to catch touches, and a drag hits the topmost
+       element. So the overlay steps aside for the duration of a drag. */
+    let dragDepth = 0;
+    const dropHint = document.getElementById('drop-hint');
+    function draggingFiles(e) {
+        const dt = e.dataTransfer;
+        return !!dt && Array.prototype.indexOf.call(dt.types || [], 'Files') >= 0;
+    }
+    window.addEventListener('dragenter', e => {
+        if (!draggingFiles(e)) return;
+        dragDepth++;
+        touchOverlay.style.pointerEvents = 'none';
+        dropHint.hidden = false;
+    });
+    window.addEventListener('dragleave', e => {
+        if (!draggingFiles(e)) return;
+        if (--dragDepth > 0) return;
+        dragDepth = 0;
+        touchOverlay.style.pointerEvents = '';
+        dropHint.hidden = true;
+    });
+    // A drop anywhere outside the emulator would otherwise make the browser
+    // navigate away from the page and open the file.
+    window.addEventListener('dragover', e => { if (draggingFiles(e)) e.preventDefault(); });
+    window.addEventListener('drop', e => {
+        dragDepth = 0;
+        touchOverlay.style.pointerEvents = '';
+        dropHint.hidden = true;
+        e.preventDefault();
+        showToast('Drop it on the Mac screen');
+    });
+
+    /* ---- Start ---------------------------------------------------------- */
+    function buildGestureLegend() {
+        const ul = document.getElementById('gesture-legend');
+        if (!ul) return;
+        ul.innerHTML = GESTURES.map(g =>
+            `<li><b>${g.name}</b> — ${g.hint}</li>`).join('');
+    }
+
+    restoreHudLayout();
+    buildGestureLegend();
+    setTouchMode(Number.isInteger(prefs.touchMode) ? prefs.touchMode : 0);
+    setCrisp(prefs.crisp === undefined ? true : !!prefs.crisp);
+    paintSpeed();
+    setStartStatus('Downloading the emulator and the Cythera disk…', false);
+    iframe.src = buildEmbedUrl(currentSpeed);
+    // Neither the emulator nor the disk image is served from here, and both
+    // are third-party. If nothing reports in, say so rather than showing an
+    // encouraging message over a screen that is never going to arrive.
+    setTimeout(() => {
+        if (emulatorReady) return;
+        setStartStatus('Still waiting on infinitemac.org and the Cythera disk image. ' +
+                       'If this does not clear, check the network — both are downloaded from other sites.', false);
+    }, 30000);
+
+    // Keep the windows reachable when the window changes shape.
+    window.addEventListener('resize', () => {
+        for (const win of hudWindows) {
+            const r = win.getBoundingClientRect();
+            placeWindow(win, r.left, r.top);
+        }
+    });
+</script>
+</body>
+</html>

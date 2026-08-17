@@ -159,7 +159,7 @@ canvas{background:#333;image-rendering:pixelated;display:block;margin:8px auto;h
 </head>
 <body>
 <h2>1. Load a Resource Fork</h2>
-<p style="font-size:13px;color:#aaa">Accepts raw resource-fork files, MacBinary (.bin), or BinHex 4.0 (.hqx). For MacBinary and BinHex it separates both forks locally and offers the recovered data and resource forks for download. Everything is decoded in your browser — nothing is uploaded.</p>
+<p style="font-size:13px;color:#aaa">Accepts raw resource-fork files, MacBinary (.bin), BinHex 4.0 (.hqx), or AppleSingle/AppleDouble. For MacBinary and BinHex it separates both forks locally and offers the recovered data and resource forks for download. Everything is decoded in your browser — nothing is uploaded.</p>
 <div id="dropZone">
   <input type="file" id="fileInput" onchange="loadFile()">
   <span id="dropHint">…or drop a file anywhere on this page</span>
@@ -196,6 +196,16 @@ canvas{background:#333;image-rendering:pixelated;display:block;margin:8px auto;h
 </div>
 <div id="sheetBackdrop" onclick="closeSheet()"></div>
 
+<!-- Shared with cythera_data_viewer.html. Classic scripts, in dependency
+     order, deliberately NOT type="module": a module is fetched with CORS and a
+     page opened from file:// has an opaque origin, so modules would not load
+     when this file is double-clicked instead of served. -->
+<script src="js/mac-bytes.js"></script>
+<script src="js/mac-containers.js"></script>
+<script src="js/mac-resfork.js"></script>
+<script src="js/mac-media.js"></script>
+<script src="js/mac-export.js"></script>
+
 <script>
 let rsrcBytes = null;
 let extractedDataFork = null, extractedResourceFork = null, extractedBaseName = 'classic_mac_file';
@@ -203,80 +213,18 @@ let dataOff=0, mapOff=0, dataLen=0, mapLen=0;
 let typeList = []; // {type, count, refListOff}
 let resourcesByType = {}; // type -> [{id,nameOff,attrs,dataOffRel,name}]
 
-function u8(b,i){return b[i];}
-function u16(b,i){return (b[i]<<8)|b[i+1];}
-function u32(b,i){return ((b[i]<<24)>>>0)+(b[i+1]<<16)+(b[i+2]<<8)+b[i+3];}
-function i8(b,i){let v=b[i]; return v>127?v-256:v;}
+// The byte readers and the Mac Roman table are in js/mac-bytes.js, shared
+// with cythera_data_viewer.html. Only the names differ here, and only because
+// changing a hundred call sites would be churn with nothing to show for it.
+const u16 = u16be;
+const u32 = u32be;
+const macRomanDecode = decodeMacRoman;
 
-function macRomanDecode(bytes){
-  const HIGH=[0xC4,0xC5,0xC7,0xC9,0xD1,0xD6,0xDC,0xE1,0xE0,0xE2,0xE4,0xE3,0xE5,0xE7,0xE9,0xE8,0xEA,0xEB,0xED,0xEC,0xEE,0xEF,0xF1,0xF3,0xF2,0xF4,0xF6,0xF5,0xFA,0xF9,0xFB,0xFC,0x2020,0xB0,0xA2,0xA3,0xA7,0x2022,0xB6,0xDF,0xAE,0xA9,0x2122,0xB4,0xA8,0x2260,0xC6,0xD8,0x221E,0xB1,0x2264,0x2265,0xA5,0xB5,0x2202,0x2211,0x220F,0x3C0,0x222B,0xAA,0xBA,0x3A9,0xE6,0xF8,0xBF,0xA1,0xAC,0x221A,0x192,0x2248,0x2206,0xAB,0xBB,0x2026,0xA0,0xC0,0xC3,0xD5,0x152,0x153,0x2013,0x2014,0x201C,0x201D,0x2018,0x2019,0xF7,0x25CA,0xFF,0x178,0x2044,0x20AC,0x2039,0x203A,0xFB01,0xFB02,0x2021,0xB7,0x201A,0x201E,0x2030,0xC2,0xCA,0xC1,0xCB,0xC8,0xCD,0xCE,0xCF,0xCC,0xD3,0xD4,0xF8FF,0xD2,0xDA,0xDB,0xD9,0x131,0x2C6,0x2DC,0xAF,0x2D8,0x2D9,0x2DA,0xB8,0x2DD,0x2DB,0x2C7];
-  let s='';
-  for(let i=0;i<bytes.length;i++){
-    let b=bytes[i];
-    s+= b<0x80 ? String.fromCharCode(b) : String.fromCodePoint(HIGH[b-0x80]);
-  }
-  return s;
-}
-
-// MacBinary I/II header: byte0=0, byte1=namelen, name, type/creator,
-// dataForkLen at 83, rsrcForkLen at 87. Bytes 74 and 82 are reserved and must
-// be zero -- checking them is what stops an ordinary binary file from being
-// mistaken for a container and "extracted" into nonsense.
-function tryParseAsMacBinary(bytes){
-  if(bytes.length<128) return null;
-  if(bytes[0]!==0 || bytes[74]!==0 || bytes[82]!==0) return null;
-  const nameLen = bytes[1];
-  if(nameLen<1||nameLen>63) return null;
-  const dataLen = u32(bytes,83), rsrcLen = u32(bytes,87);
-  const dataStart = 128, rsrcStart = dataStart + Math.ceil(dataLen/128)*128;
-  if(rsrcLen<=0 || rsrcStart+rsrcLen > bytes.length) return null;
-  return {
-    name: macRomanDecode(bytes.slice(2,2+nameLen)),
-    dataFork: bytes.slice(dataStart, dataStart+dataLen),
-    resourceFork: bytes.slice(rsrcStart, rsrcStart+rsrcLen)
-  };
-}
-
-function hqxDecode(text){
-  // The payload starts at the first ':' AFTER the "must be converted" banner.
-  // Files mirrored from old FTP/BBS archives often carry comment lines with a
-  // colon in them (a URL, "Date:", etc), which used to truncate the payload.
-  const banner=text.search(/BinHex\s*4\.0/i);
-  const start=text.indexOf(':', banner>=0?banner:0);
-  const end=text.indexOf(':',start+1);
-  if(start<0||end<0) throw new Error('No BinHex payload delimiters found');
-  const alphabet="!\"#$%&'()*+,-012345689@ABCDEFGHIJKLMNPQRSTUVXYZ[`abcdefhijklmpqr";
-  const lut=new Int8Array(128).fill(-1);
-  for(let i=0;i<alphabet.length;i++) lut[alphabet.charCodeAt(i)]=i;
-  const body=text.slice(start+1,end);
-  const vals=new Uint8Array(body.length); let vn=0;
-  for(let i=0;i<body.length;i++){const c=body.charCodeAt(i); if(c<128){const v=lut[c]; if(v>=0) vals[vn++]=v;}}
-  const raw=new Uint8Array(Math.floor(vn*6/8));let acc=0,bits=0,o=0;
-  for(let i=0;i<vn;i++){acc=((acc<<6)|vals[i])&0xFFFF;bits+=6;while(bits>=8){bits-=8;if(o<raw.length)raw[o++]=(acc>>bits)&255;}}
-  // BinHex's 0x90 run-length encoding. 0x90 00 means literal 0x90; otherwise
-  // repeat the preceding byte (count - 1) more times.
-  // A plain JS array here meant ~7 million boxed Numbers for Cythera Data,
-  // which is enough to kill the tab on a phone. Grow a Uint8Array instead.
-  let cap=Math.max(1024,raw.length*2), out=new Uint8Array(cap), n=0;
-  const push=b=>{ if(n===cap){ cap*=2; const g=new Uint8Array(cap); g.set(out); out=g; } out[n++]=b; };
-  for(let i=0;i<raw.length;i++){
-    const b=raw[i];
-    if(b===0x90&&i+1<raw.length){const count=raw[++i];if(count===0)push(0x90);else if(n){const prev=out[n-1];for(let k=1;k<count;k++)push(prev);}}
-    else push(b);
-  }
-  return out.slice(0,n);
-}
-function parseBinHexForks(bytes){
-  let p=0, nameLen=bytes[p++];
-  if(nameLen<1||nameLen>63||p+nameLen+17>bytes.length)throw new Error('Invalid decoded BinHex header');
-  const name=macRomanDecode(bytes.slice(p,p+nameLen));p+=nameLen;
-  p+=1+4+4+2; const dataLen=u32(bytes,p);p+=4;const rsrcLen=u32(bytes,p);p+=4;p+=2; // header CRC
-  if(p+dataLen+2+rsrcLen+2>bytes.length)throw new Error('BinHex fork lengths exceed decoded payload');
-  const dataFork=bytes.slice(p,p+dataLen);p+=dataLen+2; // data CRC
-  const resourceFork=bytes.slice(p,p+rsrcLen);
-  return {name,dataFork,resourceFork};
-}
-function safeFilename(s){return s.replace(/[\\/:*?"<>|]/g,'_').replace(/\s+/g,'_')||'classic_mac_file';}
+// BinHex, MacBinary and AppleSingle/AppleDouble are decoded by
+// js/mac-containers.js. Both pages had their own BinHex and MacBinary
+// readers; each had fixed something the other had not, and neither read
+// AppleSingle, which this page now accepts as a result.
+function safeFilename(s){return safeFileName(s).replace(/\s+/g,'_')||'classic_mac_file';}
 function downloadExtractedForks(){
   if(!extractedResourceFork)return;
   downloadBlob(extractedResourceFork,`${extractedBaseName}.rsrc.bin`);
@@ -350,24 +298,20 @@ function handleBytes(f, initialBytes){
   document.getElementById('error').textContent='';
   clearPreview();
   try{
-    // Order matters: BinHex is checked first because its 7-bit text can, by
-    // coincidence, satisfy the looser MacBinary shape test.
+    // sniffMacContainer (js/mac-containers.js) tries BinHex, then AppleSingle,
+    // then MacBinary, in that order and for stated reasons. AppleSingle and
+    // AppleDouble are new here: this page used to reject them, and a fork
+    // pulled off a Mac OS X volume or an NFS share arrives in one of them.
     let parsed = false;
-    const asText = looksLikeBinHex(bytes);
-    if(asText){
-      const forks=parseBinHexForks(hqxDecode(asText));
-      bytes=forks.resourceFork; extractedDataFork=forks.dataFork; extractedResourceFork=forks.resourceFork;
-      extractedBaseName=safeFilename(forks.name); sourceLabel=`BinHex decoded — ${forks.name}`; parsed = true;
-      if(!bytes.length) throw new Error(`"${forks.name}" has an empty resource fork (its ${forks.dataFork.length.toLocaleString()}-byte data fork is still downloadable)`);
-    }
-    if(!parsed){
-      const mb=tryParseAsMacBinary(bytes);
-      if(mb){
-        bytes=mb.resourceFork; extractedResourceFork=mb.resourceFork;
-        if(mb.dataFork.length) extractedDataFork=mb.dataFork;
-        if(mb.name) extractedBaseName=safeFilename(mb.name);
-        sourceLabel=`MacBinary — ${mb.name||'unnamed'}`; parsed = true;
-      }
+    const forks = sniffMacContainer(bytes);
+    if(forks){
+      bytes=forks.rsrc; extractedResourceFork=forks.rsrc;
+      if(forks.data.length) extractedDataFork=forks.data;
+      if(forks.name) extractedBaseName=safeFilename(forks.name);
+      const named = forks.name ? ` — ${forks.name}` : '';
+      const stamped = forks.type && forks.type !== '????' ? ` (${forks.type}/${forks.creator})` : '';
+      sourceLabel=`${forks.kind}${named}${stamped}`; parsed = true;
+      if(!bytes.length) throw new Error(`"${forks.name||'that file'}" has an empty resource fork (its ${forks.data.length.toLocaleString()}-byte data fork is still downloadable)`);
     }
     if(!parsed){
       try{
@@ -383,126 +327,36 @@ function handleBytes(f, initialBytes){
       `Loaded ${f.name} (${sourceLabel}) — ${total.toLocaleString()} resources across ${typeList.length} types, ${bytes.length.toLocaleString()} bytes.`;
     document.getElementById('browser').style.display='block';populateTypeSelect();
   }catch(err){
-    document.getElementById('error').textContent='Parse error: '+err.message+'. This may not be a valid raw resource fork, MacBinary, or BinHex 4.0 file.';
+    document.getElementById('error').textContent='Parse error: '+err.message+'. This may not be a valid raw resource fork, MacBinary, BinHex 4.0 or AppleSingle file.';
     document.getElementById('status').textContent=`Could not read ${f.name}.`;
     document.getElementById('browser').style.display='none';
     document.getElementById('saveForksBtn').style.display=extractedDataFork?'inline-block':'none';
   }
-}
-// BinHex is 7-bit ASCII. Deciding on "the file contains two colons" also
-// matched plenty of binary forks, so require the banner or a run of the
-// BinHex alphabet after the opening colon.
-function looksLikeBinHex(bytes){
-  const head=new TextDecoder('latin1').decode(bytes.slice(0,4096));
-  if(head.includes('must be converted with BinHex') || /BinHex\s*4\.0/i.test(head))
-    return new TextDecoder('latin1').decode(bytes);
-  // No banner: only claim it if the file is plausible 7-bit text AND the run
-  // after the first colon is all BinHex alphabet. Either test alone is too
-  // weak -- this check now runs before the raw-fork one, so a false positive
-  // would stop a real resource fork from opening at all.
-  const sevenBit=!bytes.slice(0,4096).some(b=>b>0x7E || (b<0x20 && b!==9 && b!==10 && b!==13));
-  if(!sevenBit) return null;
-  const c=head.indexOf(':');
-  if(c<0) return null;
-  const probe=head.slice(c+1,c+65).replace(/[\r\n]/g,'');
-  if(probe.length>=32 && /^[!-r]+$/.test(probe) && !/[.:;<=>?\\^_{|}~]/.test(probe))
-    return new TextDecoder('latin1').decode(bytes);
-  return null;
 }
 
 // Every structural offset is validated before it is followed. Two reasons:
 // a fork whose map is truncated or garbage should say so instead of listing
 // invented resources, and loadFile() uses "does this parse?" as its format
 // sniff, so a parser that accepts anything makes the sniff useless.
+// The parser is in js/mac-resfork.js, shared with cythera_data_viewer.html --
+// which now opens the Cythera Data *resource* fork alongside the game archive
+// in its data fork, and so needs two forks readable at once. This page only
+// ever holds one, so it keeps the fork object in the globals the rest of the
+// file already reads.
+let fork = null;
 function parseResourceFork(bytes){
-  const inRange=(off,len,what)=>{
-    if(!(off>=0) || off+len > bytes.length)
-      throw new Error(`${what} runs past the end of the fork (offset ${off}, ${len} bytes, file is ${bytes.length})`);
-  };
-  if(bytes.length < 286) throw new Error('too small to be a resource fork (header + map need 286 bytes)');
+  fork = openResourceFork(bytes);
   rsrcBytes = bytes;
-  dataOff = u32(bytes,0);
-  mapOff = u32(bytes,4);
-  dataLen = u32(bytes,8);
-  mapLen = u32(bytes,12);
-  inRange(mapOff,30,'resource map');
-  inRange(dataOff,0,'resource data area');
-  const typeListOffRel = u16(bytes, mapOff+24);
-  const nameListOffRel = u16(bytes, mapOff+26);
-  const typeListAbs = mapOff + typeListOffRel;
-  inRange(typeListAbs,2,'type list');
-  const numTypes = u16(bytes, typeListAbs) + 1;
-  inRange(typeListAbs+2, numTypes*8, `type list (${numTypes} types)`);
-  typeList = [];
-  resourcesByType = {};
-  resDataCache = new Map();
-  let pos = typeListAbs + 2;
-  for(let i=0;i<numTypes;i++){
-    const rtype = String.fromCharCode(bytes[pos],bytes[pos+1],bytes[pos+2],bytes[pos+3]);
-    const numRes = u16(bytes,pos+4)+1;
-    const refListOffRel = u16(bytes,pos+6);
-    typeList.push({type:rtype, count:numRes, refListOff:refListOffRel});
-    pos += 8;
-  }
-  const nameListAbs = mapOff + nameListOffRel;
-  typeList.forEach(t=>{
-    const refListAbs = typeListAbs + t.refListOff;
-    inRange(refListAbs, t.count*12, `reference list for '${t.type}'`);
-    const list = [];
-    let rp = refListAbs;
-    for(let i=0;i<t.count;i++){
-      const id = s16(bytes,rp);   // resource IDs are signed; system resources are negative
-      const nameOffSigned = s16(bytes,rp+2);   // -1 when the resource has no name
-      const attrsAndDataOff = u32(bytes,rp+4);
-      const attrs = (attrsAndDataOff>>>24)&0xFF;
-      const dataOffRel = attrsAndDataOff & 0xFFFFFF;
-      let name = null;
-      if(nameOffSigned !== -1){
-        const nAbs = nameListAbs + nameOffSigned;
-        // A bad name offset should cost one name, not the whole fork.
-        if(nAbs>=0 && nAbs<bytes.length){
-          const nLen = Math.min(bytes[nAbs], bytes.length-nAbs-1);
-          name = macRomanDecode(bytes.slice(nAbs+1, nAbs+1+nLen));
-        }
-      }
-      list.push({id, name, attrs, dataOffRel});
-      rp += 12;
-    }
-    resourcesByType[t.type] = list;
-  });
+  dataOff = fork.dataOff; mapOff = fork.mapOff;
+  dataLen = fork.dataLen; mapLen = fork.mapLen;
+  typeList = fork.typeList;
+  resourcesByType = fork.resourcesByType;
 }
+function resourceSize(type, entry){ return fork.sizeOf(type, entry); }
+function getResourceData(type, entry){ return fork.dataOf(type, entry); }
 
-// Resource attribute bits, Inside Macintosh: More Macintosh Toolbox p.1-121.
-const RES_ATTRS=[[0x40,'system heap'],[0x20,'purgeable'],[0x10,'locked'],
-                 [0x08,'protected'],[0x04,'preload'],[0x02,'changed']];
-function attrNames(a){ return RES_ATTRS.filter(([b])=>a&b).map(([,n])=>n); }
-
-// Slicing every resource of a type on every keystroke was the single biggest
-// cost in the list/gallery render; the fork never changes while it is loaded,
-// so each resource is sliced once.
-let resDataCache = new Map();
-// Reading a length costs nothing; copying the bytes does. The list only needs
-// sizes, so it asks for this and never touches the payload.
-function resourceSize(type, entry){
-  const abs = dataOff + entry.dataOffRel;
-  if(abs+4 > rsrcBytes.length)
-    throw new Error(`data offset ${abs} is past the end of the fork (${rsrcBytes.length} bytes)`);
-  const len = u32(rsrcBytes, abs);
-  // slice() clamps, so without this an overlong length silently yields a short
-  // buffer and the decoders report a corrupt resource instead of a corrupt map.
-  if(abs+4+len > rsrcBytes.length)
-    throw new Error(`declares ${len.toLocaleString()} bytes but only ${(rsrcBytes.length-abs-4).toLocaleString()} remain in the fork`);
-  return len;
-}
-function getResourceData(type, entry){
-  const key = type+'\u0000'+entry.id;   // NUL: type names can contain spaces
-  const hit = resDataCache.get(key);
-  if(hit) return hit;
-  const abs = dataOff + entry.dataOffRel;
-  const d = rsrcBytes.slice(abs+4, abs+4+resourceSize(type,entry));
-  resDataCache.set(key, d);
-  return d;
-}
+// The attribute bits are RESOURCE_ATTRS in js/mac-resfork.js.
+const attrNames = resourceAttrNames;   // js/mac-resfork.js
 
 function populateTypeSelect(){
   const sel = document.getElementById('typeSelect');
@@ -761,40 +615,34 @@ function previewObjectURL(blob){
 // ============================================================
 // Store-only (method 0). Deflate would need a compressor; the point here is
 // getting a whole fork out in one click, and PNG/WAV payloads barely compress.
-const CRC_TABLE=(()=>{const t=new Uint32Array(256);
-  for(let i=0;i<256;i++){let c=i;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[i]=c>>>0;}
-  return t;})();
-function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_TABLE[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
-function buildZip(files){
-  const enc=new TextEncoder(), parts=[], central=[];
-  const d=new Date();
-  const dosTime=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF;
-  const dosDate=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
-  let offset=0;
-  for(const f of files){
-    const name=enc.encode(f.name), crc=crc32(f.bytes), size=f.bytes.length;
-    const lh=new Uint8Array(30+name.length), lv=new DataView(lh.buffer);
-    lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true); lv.setUint16(6,0x0800,true);
-    lv.setUint16(8,0,true); lv.setUint16(10,dosTime,true); lv.setUint16(12,dosDate,true);
-    lv.setUint32(14,crc,true); lv.setUint32(18,size,true); lv.setUint32(22,size,true);
-    lv.setUint16(26,name.length,true); lh.set(name,30);
-    parts.push(lh,f.bytes);
-    const ch=new Uint8Array(46+name.length), cv=new DataView(ch.buffer);
-    cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
-    cv.setUint16(8,0x0800,true); cv.setUint16(10,0,true);
-    cv.setUint16(12,dosTime,true); cv.setUint16(14,dosDate,true);
-    cv.setUint32(16,crc,true); cv.setUint32(20,size,true); cv.setUint32(24,size,true);
-    cv.setUint16(28,name.length,true); cv.setUint32(42,offset,true); ch.set(name,46);
-    central.push(ch);
-    offset += lh.length + size;
-  }
-  const cdSize=central.reduce((a,c)=>a+c.length,0);
-  const eocd=new Uint8Array(22), ev=new DataView(eocd.buffer);
-  ev.setUint32(0,0x06054b50,true); ev.setUint16(8,files.length,true); ev.setUint16(10,files.length,true);
-  ev.setUint32(12,cdSize,true); ev.setUint32(16,offset,true);
-  return new Blob([...parts,...central,eocd],{type:'application/zip'});
+// crc32 and buildZip are in js/mac-export.js -- the data viewer grew the same
+// store-only ZIP writer, field for field.
+// Remember the palette indices a canvas was drawn from, so it can be saved as
+// a real indexed PNG instead of being re-photographed as truecolour. A canvas
+// drawn through a 1-bit mask keeps its alpha and is left alone: PNG's tRNS can
+// make one palette slot transparent, not an arbitrary shape.
+function tagIndexed(canvas, W, H, indices, palette, maskBits){
+  if(maskBits) return canvas;
+  canvas.__indexed = {W, H, indices, palette};
+  return canvas;
 }
-const canvasToPngBytes=c=>new Promise(res=>c.toBlob(async b=>res(b?new Uint8Array(await b.arrayBuffer()):new Uint8Array(0))));
+
+// Every PNG this page writes goes through here. Indexed art is encoded from
+// its own palette by js/mac-media.js -- exact colours, and no iCCP profile for
+// a downstream tool to colour-manage. Everything else comes from the canvas,
+// with the browser's metadata chunks stripped off.
+async function canvasToPngBytes(c){
+  const ix = c && c.__indexed;
+  if(ix){
+    try { return await encodeIndexedPNG(ix.W, ix.H, ix.indices, ix.palette, null); }
+    catch(e){ /* fall through to the canvas */ }
+  }
+  const blob = await new Promise(res=>c.toBlob(res));
+  if(!blob) return new Uint8Array(0);
+  return stripPngMetadata(new Uint8Array(await blob.arrayBuffer()));
+}
+const savePng=(canvas, filename)=>canvasToPngBytes(canvas)
+  .then(bytes=>dlBlob(new Blob([bytes],{type:'image/png'}), filename));
 
 // What files can this resource become? One list, so the ZIP export and the
 // preview cannot drift apart about which types are decodable.
@@ -804,6 +652,8 @@ function exportArtifacts(type, entry, data){
   else if(type==='STR ') txt(decodeSTR(data));
   else if(type==='TEXT') txt(decodeTEXT(data));
   else if(type==='vers') txt(decodeVers(data));
+  else if(type==='cfrg') txt(decodeCfrg(data));
+  else if(CODE_TYPES[type]) txt(decodeCodeResource(type, entry.id, data));
   else if(type==='DITL') txt(decodeDITL(data));
   else if(type==='MENU') txt(decodeMENU(data));
   else if(type==='WIND') txt(decodeWIND(data));
@@ -960,7 +810,7 @@ function addCanvasPngButton(out, canvas, filename){
   const dl = document.createElement('button');
   dl.className='secondary'; dl.textContent='Save as PNG';
   dl.style.display='block'; dl.style.marginTop='8px';
-  dl.onclick=()=>canvas.toBlob(b=>dlBlob(b,filename));
+  dl.onclick=()=>savePng(canvas, filename);
   out.appendChild(dl);
 }
 const TYPE_BADGES={
@@ -972,7 +822,10 @@ const TYPE_BADGES={
   'ICN#':'image','ics#':'image','icl4':'image','icl8':'image','ics4':'image','ics8':'image',
   'ICON':'image','SICN':'small icons','cicn':'colour image','PICT':'image',
   'ppat':'pattern','PAT ':'pattern','PAT#':'patterns','pltt':'palette',
-  'sfnt':'font','NFNT':'bitmap font','FONT':'bitmap font','FOND':'font family'
+  'sfnt':'font','NFNT':'bitmap font','FONT':'bitmap font','FOND':'font family',
+  'cfrg':'code fragments','CODE':'68K code','CDEF':'68K code','WDEF':'68K code',
+  'MDEF':'68K code','LDEF':'68K code','PACK':'68K code','INIT':'68K code',
+  'DRVR':'68K code','FKEY':'68K code'
 };
 function decodableBadge(type){
   return TYPE_BADGES[type] || COLOR_TABLE_TYPES[type] || null;
@@ -980,17 +833,7 @@ function decodableBadge(type){
 
 function escapeHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 
-function downloadBlob(bytes, filename){
-  dlBlob(new Blob([bytes], {type:'application/octet-stream'}), filename);
-}
-// Revoking the URL in the same tick as .click() cancels the download in
-// Firefox, so every save in this file goes through here.
-function dlBlob(blob, filename){
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download=filename;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-}
+// downloadBlob and dlBlob are in js/mac-export.js.
 
 // ---- Decoders ----
 
@@ -1081,22 +924,10 @@ function decodeSndToWav(data){
 
 // Mac 8-bit samples are unsigned and 16-bit samples are signed big-endian;
 // WAV wants unsigned 8-bit and signed little-endian 16-bit.
+// The WAV writer is in js/mac-media.js. This wrapper keeps the Blob the
+// preview and the download expect.
 function samplesToWav(samples, rate, bits, channels){
-  const bytesPerFrame = channels*bits/8;
-  const dataSize = samples.length - (samples.length % bytesPerFrame || 0);
-  const buffer = new ArrayBuffer(44+dataSize);
-  const view = new DataView(buffer);
-  const ws=(off,str)=>{ for(let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); };
-  ws(0,'RIFF'); view.setUint32(4,36+dataSize,true); ws(8,'WAVE');
-  ws(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true);
-  view.setUint16(22,channels,true); view.setUint32(24,rate,true);
-  view.setUint32(28, rate*bytesPerFrame, true);
-  view.setUint16(32, bytesPerFrame, true);
-  view.setUint16(34, bits, true);
-  ws(36,'data'); view.setUint32(40,dataSize,true);
-  if(bits===8){ for(let i=0;i<dataSize;i++) view.setUint8(44+i, samples[i]); }
-  else { for(let i=0;i+1<dataSize;i+=2) view.setInt16(44+i, (samples[i]<<24>>16)|samples[i+1], true); }
-  return new Blob([buffer], {type:'audio/wav'});
+  return new Blob([wavFromPcmBytes(samples, rate, bits, channels)], {type:'audio/wav'});
 }
 
 // 1-bit ICN#/ics# icon -> canvas (32x32 or 16x16), mask ignored for simplicity
@@ -1248,14 +1079,18 @@ function renderIndexedPixels(data,pixOff,rowBytes,W,H,pixelSize,palette,maskBits
   const ppb=8/pixelSize, pmask=(1<<pixelSize)-1;
   const c=document.createElement('canvas'); c.width=W; c.height=H;
   const ctx=c.getContext('2d'), im=ctx.createImageData(W,H);
+  const idx=new Uint8Array(W*H);
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
     const byte=data[pixOff + y*rowBytes + Math.floor(x/ppb)] || 0;
     const pi = pixelSize===8 ? byte : (byte >> ((ppb-1-(x%ppb))*pixelSize)) & pmask;
     const col=palette[pi]||[255,0,255], o=(y*W+x)*4;
+    idx[y*W+x]=pi;
     im.data[o]=col[0]; im.data[o+1]=col[1]; im.data[o+2]=col[2];
     im.data[o+3] = maskBits ? ((((maskBits[y*maskRowBytes+(x>>3)]||0)>>(7-(x&7)))&1)?255:0) : 255;
   }
-  ctx.putImageData(im,0,0); return c;
+  ctx.putImageData(im,0,0);
+  tagIndexed(c, W, H, idx, palette, maskBits);
+  return c;
 }
 // ---- PICT v2 decoder: indexed PackBitsRect/Rgn AND true-color DirectBitsRect/Rgn ----
 // Opcode data-length table derived from Apple's "PICT File Format Notes" (1990).
@@ -1506,6 +1341,98 @@ function decodeClut(data){
 }
 
 // ---- sfnt (raw TrueType/OpenType font data) ----
+// Code Fragment Manager resource: what PowerPC (and CFM-68K) code this file
+// carries, where each fragment lives and what it is called. One `cfrg` says
+// more about a fat binary than nine `CODE` resources do.
+const CFRG_ARCH={'pwpc':'PowerPC','m68k':'CFM-68K'};
+const CFRG_USAGE=['import library','application','drop-in addition','stub library','weak stub library'];
+const CFRG_WHERE=['in this file','in a data fork','in memory','(reserved)','in a named fragment'];
+function decodeCfrg(data){
+  // CFragResource: 30 bytes of reserved fields, then a UInt16 member count at
+  // 30, then the members. Every member is a CFragResourceMember, whose own
+  // memberSize at offset 42 says where the next one starts -- the name is a
+  // Pascal string at 44 and the record is padded to an even length, so walking
+  // by a fixed size does not work.
+  if(data.length<32) throw new Error(`cfrg needs 32 bytes of header, got ${data.length}`);
+  const version=u16(data,10), count=u16(data,30);
+  if(count>4096) throw new Error(`implausible fragment count (${count})`);
+  const lines=[`${count} fragment${count===1?'':'s'}` + (version!==1?` (resource version ${version})`:'')];
+  let p=32;
+  for(let i=0;i<count;i++){
+    if(p+43>data.length){ lines.push(`  [truncated after ${i} of ${count}]`); break; }
+    const arch=fourcc(data,p);
+    const updateLevel=data[p+7];
+    const currentVersion=u32(data,p+8), oldestVersion=u32(data,p+12);
+    const stackSize=u32(data,p+16);
+    const usage=data[p+22], where=data[p+23];
+    const offset=u32(data,p+24), length=u32(data,p+28);
+    // memberSize at 40 and the name at 42, which is what the bytes in a real
+    // cfrg say: "Cythera" is a 7-character Pascal string ending at 50, and the
+    // member size of 52 is that rounded up to an even boundary. Reading the
+    // name four bytes later gave "ythera  pwpc..." -- garbage that still
+    // looked like a name, which is the sort of wrong that survives review.
+    const memberSize=u16(data,p+40);
+    const nameLen=data[p+42];
+    const name=macRomanDecode(data.slice(p+43,p+43+nameLen));
+    const ver=v=>`${(v>>>24)&255}.${(v>>>16)&255}.${(v>>>8)&255}`;
+    lines.push('');
+    lines.push(`  ${name||'(unnamed)'}`);
+    lines.push(`    architecture : ${CFRG_ARCH[arch]||arch}`);
+    lines.push(`    kind         : ${CFRG_USAGE[usage]||('usage '+usage)}, ${CFRG_WHERE[where]||('location '+where)}`);
+    lines.push(`    version      : ${ver(currentVersion)} (oldest definition ${ver(oldestVersion)}, update level ${updateLevel})`);
+    lines.push(`    extent       : offset ${offset===0?'0':'0x'+offset.toString(16)}, ` +
+               (length===0?'to the end of the fork':`${length.toLocaleString()} bytes`));
+    if(stackSize) lines.push(`    stack        : ${stackSize.toLocaleString()} bytes`);
+    if(memberSize<44||p+memberSize>data.length){ lines.push('    [member size is out of range; stopping]'); break; }
+    p+=memberSize;
+  }
+  return lines.join('\n');
+}
+
+// 68K executable code: CODE, and the definition procedures that are the same
+// thing under a different name. There is no disassembler here and there should
+// not be one, but "9 resources, no decoder" told you nothing at all -- these
+// have real headers, and CODE 0 in particular is the jump table that says how
+// many entry points the application has.
+const CODE_TYPES={'CODE':'code segment','CDEF':'control definition','WDEF':'window definition',
+  'MDEF':'menu definition','LDEF':'list definition','PACK':'package','INIT':'init',
+  'DRVR':'driver','FKEY':'function key'};
+function decodeCodeResource(type, id, data){
+  const lines=[`${CODE_TYPES[type]||'68K code'} — ${data.length.toLocaleString()} bytes of Motorola 68000 machine code`];
+  if(type==='CODE' && id===0){
+    // The jump table header: above/below A5 sizes, then 8 bytes per entry.
+    if(data.length<16) throw new Error(`CODE 0 needs a 16-byte header, got ${data.length}`);
+    const aboveA5=u32(data,0), belowA5=u32(data,4), tableSize=u32(data,8), tableOffset=u32(data,12);
+    lines.length=0;
+    lines.push('CODE 0 — the jump table, not code');
+    lines.push('');
+    lines.push(`  above A5      : ${aboveA5.toLocaleString()} bytes (application globals and the jump table)`);
+    lines.push(`  below A5      : ${belowA5.toLocaleString()} bytes (QuickDraw globals and parameters)`);
+    lines.push(`  jump table    : ${tableSize.toLocaleString()} bytes at offset ${tableOffset}, ` +
+               `${Math.floor(tableSize/8).toLocaleString()} entries`);
+    const n=Math.min(Math.floor(tableSize/8), Math.floor((data.length-16)/8));
+    let unloaded=0;
+    for(let i=0;i<n;i++){
+      // An unloaded entry is `MOVE.W #segment,-(SP); _LoadSeg`, which is the
+      // 0x3F3C / 0xA9F0 pair; a loaded one has been patched to a JMP.
+      if(u16(data,16+i*8+2)===0x3F3C && u16(data,16+i*8+6)===0xA9F0) unloaded++;
+    }
+    lines.push(`  entry points  : ${n.toLocaleString()} readable, ${unloaded.toLocaleString()} in the unloaded _LoadSeg form`);
+    return lines.join('\n');
+  }
+  if(data.length>=4){
+    const first=u16(data,0);
+    // A near-model segment starts with the jump table offset and entry count;
+    // a far-model one is flagged by 0xFFFF in that first word.
+    if(first===0xFFFF) lines.push('  far model segment header (32-bit references)');
+    else lines.push(`  jump table offset ${first}, ${u16(data,2)} entr${u16(data,2)===1?'y':'ies'}`);
+  }
+  lines.push('');
+  lines.push('  This browser does not disassemble 68K. The bytes are below, and');
+  lines.push('  "Save raw" writes them out for something that does.');
+  return lines.join('\n');
+}
+
 function decodeSfntInfo(data){
   if(data.length<12) throw new Error('sfnt resource too short');
   const numTables=u16(data,4); const tables=[];
@@ -1555,6 +1482,7 @@ function drawIndexedIcon(data, size, depth, palette, maskBits){
   const ppb = 8/depth, mask=(1<<depth)-1, rowBytes=size*depth/8, mRow=size/8;
   const c=document.createElement('canvas'); c.width=size; c.height=size;
   const ctx=c.getContext('2d'), im=ctx.createImageData(size,size);
+  const idx=new Uint8Array(size*size);
   for(let y=0;y<size;y++) for(let x=0;x<size;x++){
     const byte = data[y*rowBytes + Math.floor(x/ppb)] || 0;
     const pi = depth===8 ? byte : (byte >> ((ppb-1-(x%ppb))*depth)) & mask;
@@ -1562,9 +1490,12 @@ function drawIndexedIcon(data, size, depth, palette, maskBits){
     const o=(y*size+x)*4;
     let a=255;
     if(maskBits){ const mb=maskBits[y*mRow+(x>>3)]||0; a=((mb>>(7-(x&7)))&1)?255:0; }
+    idx[y*size+x]=pi;
     im.data[o]=col[0]; im.data[o+1]=col[1]; im.data[o+2]=col[2]; im.data[o+3]=a;
   }
-  ctx.putImageData(im,0,0); return c;
+  ctx.putImageData(im,0,0);
+  tagIndexed(c, size, size, idx, palette, maskBits);
+  return c;
 }
 // ICN#/ics# hold a 1-bit image followed by a 1-bit mask of the same size.
 function iconMaskFor(size){
@@ -1845,14 +1776,7 @@ function decodeFOND(data){
 // Show what the bytes spell as Mac Roman text rather than a wall of hex:
 // resource forks are full of embedded names, paths and messages, and those
 // are what you actually want to see when there's no decoder.
-const MACROMAN_HIGH="\u00C4\u00C5\u00C7\u00C9\u00D1\u00D6\u00DC\u00E1\u00E0\u00E2\u00E4\u00E3\u00E5\u00E7\u00E9\u00E8"+
-"\u00EA\u00EB\u00ED\u00EC\u00EE\u00EF\u00F1\u00F3\u00F2\u00F4\u00F6\u00F5\u00FA\u00F9\u00FB\u00FC"+
-"\u2020\u00B0\u00A2\u00A3\u00A7\u2022\u00B6\u00DF\u00AE\u00A9\u2122\u00B4\u00A8\u2260\u00C6\u00D8"+
-"\u221E\u00B1\u2264\u2265\u00A5\u00B5\u2202\u2211\u220F\u03C0\u222B\u00AA\u00BA\u03A9\u00E6\u00F8"+
-"\u00BF\u00A1\u00AC\u221A\u0192\u2248\u2206\u00AB\u00BB\u2026\u00A0\u00C0\u00C3\u00D5\u0152\u0153"+
-"\u2013\u2014\u201C\u201D\u2018\u2019\u00F7\u25CA\u00FF\u0178\u2044\u20AC\u2039\u203A\uFB01\uFB02"+
-"\u2021\u00B7\u201A\u201E\u2030\u00C2\u00CA\u00C1\u00CB\u00C8\u00CD\u00CE\u00CF\u00CC\u00D3\u00D4"+
-"\uF8FF\u00D2\u00DA\u00DB\u00D9\u0131\u02C6\u02DC\u00AF\u02D8\u02D9\u02DA\u00B8\u02DD\u02DB\u02C7";
+// (the table is MACROMAN_HIGH in js/mac-bytes.js, as code points)
 function charDump(bytes, limit){
   const n=Math.min(bytes.length, limit);
   let s='';
@@ -1861,7 +1785,7 @@ function charDump(bytes, limit){
     if(b===9||b===10||b===13) s+=' ';
     else if(b<32||b===127) s+='\u00b7';       // control bytes -> middle dot
     else if(b<128) s+=String.fromCharCode(b);
-    else s+=MACROMAN_HIGH[b-128];
+    else s+=String.fromCodePoint(MACROMAN_HIGH[b-128]);
   }
   return s;
 }
@@ -1982,6 +1906,10 @@ function previewResource(type, entry, data){
       previewTextBlock(heading, decodeSTR(data), '', `STR_${entry.id}`);
     } else if(type==='TEXT'){
       previewTextBlock(heading, decodeTEXT(data), `${data.length.toLocaleString()} bytes`, `TEXT_${entry.id}`);
+    } else if(type==='cfrg'){
+      previewTextBlock(heading, decodeCfrg(data), `${data.length.toLocaleString()} bytes`, `cfrg_${entry.id}`);
+    } else if(CODE_TYPES[type]){
+      previewTextBlock(heading, decodeCodeResource(type, entry.id, data), `${data.length.toLocaleString()} bytes`, `${type.trim()}_${entry.id}`);
     } else if(type==='vers'){
       previewTextBlock(heading, decodeVers(data));
     } else if(type==='DITL'){
@@ -2137,7 +2065,8 @@ function scaleCanvas(src, mult){
   return c;
 }
 function saveCanvasPng(canvas, mult, filename){
-  scaleCanvas(canvas,mult).toBlob(b=>dlBlob(b,filename));
+  // A scaled copy is a fresh truecolour canvas, so this one cannot be indexed.
+  savePng(scaleCanvas(canvas,mult), filename);
 }
 
 // ---- minimal GIF89a encoder (LZW), with transparency -------
