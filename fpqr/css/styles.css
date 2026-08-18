@@ -18,6 +18,124 @@ body {
     min-width: 0;
 }
 
+/*
+ * ── Control groups ────────────────────────────────────────────────────────
+ * One card shape for every group of controls, instead of the mix of panels,
+ * inline-styled boxes and bare rows the page used to carry. The group's accent
+ * colour comes from an inline --accent custom property.
+ */
+.ctl-group {
+    background: #1a1d27;
+    border: 1px solid #2d3748;
+    border-left: 2px solid var(--accent, #2d3748);
+    border-radius: 0.9rem;
+    min-width: 0;
+}
+.ctl-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.15rem 0.6rem;
+    padding: 0.8rem 1.1rem;
+    border-bottom: 1px solid #252a38;
+}
+.ctl-title {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #e2e8f0;
+}
+.ctl-desc {
+    font-size: 11px;
+    color: #64748b;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+/* A switch that governs the whole group sits in its header, right-aligned. */
+.ctl-head-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    align-self: center;
+    margin-left: auto;
+}
+.ctl-body { padding: 1.1rem; }
+
+/*
+ * ── App shell ─────────────────────────────────────────────────────────────
+ * A fixed app bar, then two panes: controls you change on the left, output you
+ * read on the right. Each pane scrolls independently on desktop.
+ */
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+.app-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: #1a1d27;
+    border-bottom: 1px solid #2d3748;
+    flex-shrink: 0;
+}
+
+/* Tab strip */
+.tabstrip {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0 0.75rem;
+    background: #13151f;
+    border-bottom: 1px solid #2d3748;
+    overflow-x: auto;
+    scrollbar-width: none;
+    flex-shrink: 0;
+}
+.tabstrip::-webkit-scrollbar { display: none; }
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.85rem 0.9rem;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 150ms ease, border-color 150ms ease;
+}
+.tab:hover { color: #cbd5e1; }
+.tab.is-active {
+    color: #ffffff;
+    border-bottom-color: var(--accent, #6366f1);
+}
+.tab.is-active svg { color: var(--accent, #6366f1); }
+.tab:focus-visible {
+    outline: 2px solid var(--accent, #6366f1);
+    outline-offset: -2px;
+    border-radius: 0.4rem;
+}
+
+.tab-panel { display: none; }
+.tab-panel.is-active {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.control-pane { display: flex; flex-direction: column; min-width: 0; }
+.tab-scroll { padding: 1rem; }
+.output-pane { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
+
 /* Timeline Components */
 .timeline-bar { 
     display: flex; 
@@ -143,17 +261,34 @@ input[type="color"]::-webkit-color-swatch {
 /* UI Layout & Media Queries */
 @media (min-width: 1024px) {
     body { overflow: hidden; height: 100vh; }
-    .app-container { display: grid; grid-template-columns: repeat(12, 1fr); height: 100vh; }
-    .scroll-pane { grid-column: span 7; overflow-y: auto; height: 100vh; padding-bottom: 2rem; }
-    .fixed-pane { grid-column: span 5; height: 100vh; border-left: 1px solid #2d3748; background: #13151f; }
+    .app-shell { height: 100vh; }
+    /* min-height:0 lets the panes, not the page, own the scrollbars. */
+    .app-body {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        flex: 1;
+        min-height: 0;
+    }
+    .control-pane { grid-column: span 7; min-height: 0; }
+    .tab-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 2rem; }
+    .output-pane {
+        grid-column: span 5;
+        min-height: 0;
+        overflow-y: auto;
+        border-left: 1px solid #2d3748;
+        background: #13151f;
+    }
     .mobile-sticky-preview { display: none !important; }
 }
 
 @media (max-width: 1023px) {
     body { overflow-y: auto; }
-    .app-container { display: flex; flex-direction: column; }
-    .scroll-pane { order: 2; padding-bottom: 80px; }
-    .fixed-pane { order: 1; height: auto; border-bottom: 1px solid #2d3748; padding-bottom: 1rem; }
+    .app-body { display: flex; flex-direction: column; }
+    /* The render comes first on a phone; the tab strip then sticks under the
+       app bar so switching tasks never needs a scroll back to the top. */
+    .output-pane { order: 1; border-bottom: 1px solid #2d3748; }
+    .control-pane { order: 2; padding-bottom: 80px; }
+    .tabstrip { position: sticky; top: 0; z-index: 40; }
     .mobile-sticky-preview {
         position: fixed; bottom: 20px; right: 20px; width: 90px; height: 90px;
         background: white; padding: 4px; border-radius: 12px; border: 2px solid #6366f1;
