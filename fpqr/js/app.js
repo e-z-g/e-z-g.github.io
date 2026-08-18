@@ -219,10 +219,49 @@ function isolateQR(canvasId) {
 
 let gifWorkerUrl = null;
 
+// ─── Tab Strip ─────────────────────────────────────────────────────────────
+// The control pane is split by task (Content / Style / Logo / Motion). Panels
+// are only hidden with display:none, never detached, so every control stays
+// readable by the renderer and by exportSettings() regardless of the open tab.
+function initTabs() {
+    const strip = document.querySelector('.tabstrip');
+    const tabs = Array.from(document.querySelectorAll('.tabstrip .tab'));
+    const panels = Array.from(document.querySelectorAll('.tab-panel'));
+    if (!strip || !tabs.length) return;
+
+    const scroller = document.querySelector('.tab-scroll');
+
+    const activate = (name, moveFocus) => {
+        tabs.forEach(t => {
+            const on = t.dataset.tab === name;
+            t.classList.toggle('is-active', on);
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+            t.tabIndex = on ? 0 : -1;
+            if (on && moveFocus) t.focus();
+        });
+        panels.forEach(p => p.classList.toggle('is-active', p.dataset.panel === name));
+        // A tab switch is a change of task, so start it at the top.
+        if (scroller) scroller.scrollTop = 0;
+    };
+
+    tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.tab)));
+
+    strip.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        e.preventDefault();
+        const i = Math.max(0, tabs.findIndex(t => t.classList.contains('is-active')));
+        const next = e.key === 'ArrowRight' ? (i + 1) % tabs.length
+                                            : (i - 1 + tabs.length) % tabs.length;
+        activate(tabs[next].dataset.tab, true);
+    });
+}
+
 const initApp = () => {
     // Debug panel is opt-in via Ctrl+Shift+D; logging runs regardless and is
     // replayed into the panel when it is opened.
     dbg('initApp() started', 'info');
+
+    initTabs();
 
     fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js')
         .then(r => r.text())
@@ -254,15 +293,23 @@ const initApp = () => {
         el.classList.toggle('is-collapsed', !expanded);
     }
 
+    // Expands `selector` when `on`, and the matching `*-note` placeholder when
+    // not, so a group always says something rather than collapsing to nothing.
+    function setOptionPair(selector, noteSelector, on) {
+        document.querySelectorAll(selector).forEach(el => setOptionExpanded(el, on));
+        document.querySelectorAll(noteSelector).forEach(el => setOptionExpanded(el, !on));
+    }
+
     function updateLogoVisibility() {
-        document.querySelectorAll('.logo-options').forEach(el => setOptionExpanded(el, logoShape !== 'none'));
+        setOptionPair('.logo-options', '.logo-empty', logoShape !== 'none');
     }
 
     function updateStructuralVisibility() {
         const findersNative = E('native-finders')?.checked;
         const alignmentsNative = E('native-alignments')?.checked;
         const alignMatch = E('match-finders')?.checked;
-        document.querySelectorAll('.finder-options').forEach(el => setOptionExpanded(el, !findersNative));
+        setOptionPair('.finder-options', '.finder-native-note', !findersNative);
+        setOptionPair('.align-options', '.align-native-note', !alignmentsNative);
         const alignSliders = E('align-sliders');
         if (alignSliders) {
             const showAlignOptions = !alignmentsNative;
@@ -272,8 +319,15 @@ const initApp = () => {
         }
     }
 
+    function updateAnimVisibility() {
+        const on = !!E('anim-toggle')?.checked;
+        E('anim-settings')?.classList.toggle('hidden', !on);
+        E('anim-hint')?.classList.toggle('hidden', on);
+    }
+
     updateStructuralVisibility();
     updateLogoVisibility();
+    updateAnimVisibility();
 
     E('show-naive')?.addEventListener('change', (e) => {
         E('naive-container')?.classList.toggle('hidden', !e.target.checked);
@@ -308,14 +362,13 @@ const initApp = () => {
                 E('grad-angle-wrapper')?.classList.toggle('hidden', gs !== 'linear');
                 E('grad-radial-wrapper')?.classList.toggle('hidden', gs !== 'radial');
                 updateImageMapVisibility();
+                updateAnimVisibility();
                 if (E('anim-toggle')?.checked) {
-                    E('anim-settings')?.classList.remove('hidden');
                     window.animLoopId = null;
                     dbg('cfg import: anim on, resetting loop', 'info');
                     startAnimIfNeeded();
-                } else {
-                    E('anim-settings')?.classList.add('hidden');
-                    if (!getHasAnimatedGif()) E('export-gif-btn')?.classList.add('hidden');
+                } else if (!getHasAnimatedGif()) {
+                    E('export-gif-btn')?.classList.add('hidden');
                 }
                 updateStructuralVisibility();
                 if (E('show-naive')) E('naive-container')?.classList.toggle('hidden', !E('show-naive').checked);
@@ -553,7 +606,7 @@ const initApp = () => {
 
     E('anim-toggle')?.addEventListener('change', (e) => {
         dbg(`anim-toggle change: checked=${e.target.checked} | window.animLoopId=${window.animLoopId}`, 'info');
-        E('anim-settings')?.classList.toggle('hidden', !e.target.checked);
+        updateAnimVisibility();
         if (e.target.checked) {
             window.animLoopId = null;   // ← clear REAL loop guard
             dbg('Calling startAnimIfNeeded()', 'info');
