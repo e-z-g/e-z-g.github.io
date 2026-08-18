@@ -6,7 +6,7 @@ browser — no build step, no server, no uploads.
 
 ## 360° & VR
 
-- **[Cubemap VR Viewer](https://e-z-g.github.io/cube/)** — Interactive 360° parallax cubemap viewer with depth-driven square transitions, gyroscope support, and custom LDI upload.
+- **[Cubemap VR Viewer](https://e-z-g.github.io/cube/)** — Interactive 360° parallax cubemap viewer for four Myst III ages, with a depth-displaced mesh you can steer by mouse, keyboard or gyroscope, depth-driven square transitions, and custom LDI upload.
 - **[Cubemap Face Stitcher](https://e-z-g.github.io/cube/stitcher.html)** — Assemble six cube faces into the atlas the viewer's custom LDI mode loads, with per-face rotation and flip.
 - **[Video Sphere Viewer](https://e-z-g.github.io/vrvid.html)** — Play any equirectangular 360° video on a sphere; pass one in with `?video=`, with gyroscope and fullscreen.
 
@@ -58,6 +58,29 @@ Then open <http://localhost:8000/>.
 | `fpqr/` | QR encoder with its own `css/` and `js/`. |
 | `wine/` | VinoVision and its sample photo. |
 | `*.html` | Standalone single-file tools. |
+
+## Depth in the cubemap viewer
+
+The depth slider displaces a sphereified cube radially, so the picture gains
+real parallax as the camera drifts. Three things keep that from looking ragged,
+and all three are worth knowing before changing any of them:
+
+- **Mesh density.** The mesh is what bends, so a depth edge can only turn where
+  there is a vertex. 128 segments per cube face puts a quad about 17 screen
+  pixels apart at the default field of view, which is exactly the staircase you
+  see along an object edge with depth up. Desktops get 256; phones stay at 128,
+  where the device pixel ratio hides the difference anyway.
+- **The vertex-shader depth filter.** A step in the depth map lands wherever
+  the grid happens to fall, so the mesh renders it as a staircase along the
+  grid rather than as the edge in the picture. Depth is low-passed over roughly
+  one quad before it displaces, which is what actually removes the stepping —
+  a finer mesh on its own only makes the steps smaller and sharper.
+- **Adaptive resolution.** The viewer measures the display's frame interval,
+  then raises the drawing buffer above the display grid while frames stay on
+  cadence and lowers it when they slip, between 0.75x and 2x device pixels.
+  Supersampling is the only thing that antialiases these edges: they are
+  texture discontinuities stretched over continuous geometry, so MSAA does not
+  see them.
 
 `cube/atlas-layout.js` is the single definition of the atlas format the
 stitcher writes and the viewer reads. Both layouts (5×3 and the compact 3×2)
