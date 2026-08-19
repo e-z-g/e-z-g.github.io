@@ -1324,7 +1324,24 @@ function buildCompositeTile(entry) {
 //   * The table ends with a 0x7FFF catch-all and then 0x0000 padding, so it
 //     must be read in file order and truncated where the values stop rising.
 //     Sorting instead would move the trailing zeroes to the front.
+//
+// One more: the stored string is a NAME CODE, not a name. delvmod's
+// store.namecode (and redelv, which shows the raw code and both derived forms
+// in adjacent columns) reads a backslash as the point where the plural
+// suffix begins -- "sling stone\s" is "sling stone" and "sling stones" -- and a
+// slash inside that suffix as a choice of two endings, singular first, which
+// is how an irregular plural is spelled out: "obol\s/oi" gives "obols" and
+// "oboloi". Eight entries in 0xF004 use it, and this viewer was showing all
+// eight raw, backslash and all.
 window.TERRAIN_NAMES = null;
+function delverNameCode(nameCode, plural) {
+  const b = String(nameCode).indexOf('\\');
+  if (b < 0) return nameCode;
+  const stem = nameCode.slice(0, b), ending = nameCode.slice(b + 1);
+  const slash = ending.indexOf('/');
+  if (slash >= 0) return stem + (plural ? ending.slice(slash + 1) : ending.slice(0, slash));
+  return plural ? stem + ending : stem;
+}
 function loadTerrainNames() {
   if (window.TERRAIN_NAMES) return window.TERRAIN_NAMES;
   const list = [];
@@ -1349,12 +1366,12 @@ function loadTerrainNames() {
   window.TERRAIN_NAMES = list;
   return list;
 }
-function terrainNameFor(tileId) {
+function terrainNameFor(tileId, plural) {
   const list = loadTerrainNames();
   if (!list.length) return null;
   // First entry whose value is >= the tile: that run ends at or after it.
   for (const [id, nm] of list) {
-    if (id >= tileId) return nm || null;
+    if (id >= tileId) return nm ? delverNameCode(nm, !!plural) : null;
   }
   // Past the last entry (including the 0x7FFF catch-all) nothing is named.
   return null;
@@ -2908,10 +2925,33 @@ function setStatus(msg, failed) {
 // js/mac-containers.js, which resource_fork_browser.html loads as well -- both
 // pages had their own copy, and each had fixed a bug the other still had.
 
-// Does this buffer actually hold a Delver archive? The master index at 0x88 is
-// 256 (offset,length) pairs; a real one has dozens that point inside the file
-// and are whole numbers of 8-byte entries. Checking that is what tells a data
-// fork from a resource fork, from BinHex ASCII, from an unrelated file.
+// Where the master index is, and how long it is, per delvmod's
+// archive.load_header/load_index: an (offset,length) pair at 0x80, and the
+// index entries start 8 bytes into it -- the first pair describes the index
+// itself. Cythera Data says 0x80/0x800, so the entries run 0x88..0x87F and
+// there are length/8 - 1 = 255 of them.
+//
+// This used to be hardcoded as "256 pairs at 0x88", which invented a subindex
+// 255: that entry sits at 0x880, one slot PAST the end of the index, so the
+// reader was taking the first subindex's own data as an index entry and
+// getting off=0xA07F5000 len=0xFFFF0000. It was bounds-checked away rather
+// than explained. There is no subindex 255 -- those bytes were never anything
+// but what follows the index.
+function delverMasterIndexExtent(bytes) {
+  if (!bytes || bytes.length < 0x88) return null;
+  const off = u32be(bytes, 0x80), len = u32be(bytes, 0x84);
+  // 16 bytes is the smallest index that could hold one entry after its own
+  // self-describing pair, and the whole thing has to be inside the file.
+  if (off < 0x80 || len < 16 || len % 8 !== 0 || off + len > bytes.length) return null;
+  // Nothing past the index can be a subindex, so this is also the floor every
+  // entry's offset has to clear.
+  return { off, len, first: off + 8, count: Math.min(256, len / 8 - 1), dataStart: off + len };
+}
+
+// Does this buffer actually hold a Delver archive? A real master index has
+// dozens of entries that point inside the file and are whole numbers of
+// 8-byte records. Checking that is what tells a data fork from a resource
+// fork, from BinHex ASCII, from an unrelated file.
 function describeDelverArchive(bytes) {
   if (!bytes || bytes.length < 0x888)
     return { ok: false, reason: 'only ' + (bytes ? bytes.length : 0) + ' bytes, too small to hold a master index' };
@@ -2928,13 +2968,16 @@ function describeDelverArchive(bytes) {
     if (printable) title = decodeMacRoman(bytes.subarray(1, 1 + tlen));
   }
   if (!title) return { ok: false, title: '', reason: 'no title string at byte 0' };
+  const mi = delverMasterIndexExtent(bytes);
+  if (!mi) return { ok: false, title, reason: 'no usable master index (offset,length) pair at 0x80' };
   let populated = 0;
-  for (let i = 0; i < 256; i++) {
-    const off = u32be(bytes, 0x88 + i*8), len = u32be(bytes, 0x88 + i*8 + 4);
-    if (off >= 0x888 && len > 0 && len % 8 === 0 && off + len <= bytes.length) populated++;
+  for (let i = 0; i < mi.count; i++) {
+    const off = u32be(bytes, mi.first + i*8), len = u32be(bytes, mi.first + i*8 + 4);
+    if (off >= mi.dataStart && len > 0 && len % 8 === 0 && off + len <= bytes.length) populated++;
   }
   if (populated < 8)
-    return { ok: false, title, populated, reason: 'the master index at 0x88 yields ' + populated + ' usable subindexes' };
+    return { ok: false, title, populated, reason: 'the master index at 0x' + mi.first.toString(16).toUpperCase() +
+      ' yields ' + populated + ' usable subindexes' };
   return { ok: true, title, populated };
 }
 
@@ -3246,17 +3289,20 @@ function parseArchiveBytes(bytes, sourceName, meta) {
   try {
     const r = new BinReader(fileBytes);
     const title = r.pstring(0);
-    r.seek(0x0088);
+    const mi = delverMasterIndexExtent(fileBytes);
+    if (!mi) throw new Error('no master index: the (offset,length) pair at 0x80 does not describe one');
+    r.seek(mi.first);
+    // Bounds-check every entry instead of trusting it, and keep 256 slots
+    // whatever the header says so that a subindex number is always its own
+    // index here. Everything downstream -- getResourceBytes, buildXrefIndex,
+    // buildScriptTextIndex -- sees 34 real subindexes.
     const masterIndex = [];
-    // Bounds-check every entry instead of trusting it. Subindex 255 of the
-    // shipped archive declares off=0xA07F5000 len=0xFFFF0000, and the only
-    // reason that never hung the tool is an accident: getResourceBytes reads
-    // past the buffer, undefined*0x1000000 is NaN, and NaN>>>0 is 0, which
-    // trips the "no offset" test. Everything downstream -- getResourceBytes,
-    // buildXrefIndex, buildScriptTextIndex -- now sees 34 real subindexes.
     for (let i=0; i<256; i++) {
-      let off = r.u32(), len = r.u32();
-      if (!(off >= 0x888 && len > 0 && len % 8 === 0 && off + len <= fileBytes.length)) { off = 0; len = 0; }
+      let off = 0, len = 0;
+      if (i < mi.count) {
+        off = r.u32(); len = r.u32();
+        if (!(off >= mi.dataStart && len > 0 && len % 8 === 0 && off + len <= fileBytes.length)) { off = 0; len = 0; }
+      }
       masterIndex.push([off, len]);
     }
     masterIndexGlobal = masterIndex;
