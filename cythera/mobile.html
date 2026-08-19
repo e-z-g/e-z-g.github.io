@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cythera Mobile - Stable OS 7.6</title>
+    <title>Cythera — Mac OS 7.6</title>
     <style>
         body, html {
             margin: 0; padding: 0;
@@ -11,6 +11,7 @@
             background-color: #000;
             overflow: hidden;
             touch-action: none;
+            user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
             font-family: 'Courier New', Courier, monospace;
         }
  
@@ -65,7 +66,14 @@
         #mac-iframe { image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; image-rendering: pixelated; }
         #gl-canvas { pointer-events: none; display: none; }
         #touch-overlay { z-index: 10; touch-action: none; pointer-events: none; }
-        #touch-overlay.active { pointer-events: auto; }
+        /* The emulated Mac draws its own cursor inside the screen, so the
+           browser's arrow on top of it gives you two pointers that disagree.
+           It is hidden while the pointer maps straight onto the screen, and
+           shown again in Pan View, where the emulated cursor stays on the
+           crosshair and the real one is what you drag the view with. */
+        #touch-overlay.active { pointer-events: auto; cursor: none; }
+        #touch-overlay.active.pan-cursor { cursor: grab; }
+        #touch-overlay.active.pan-cursor.panning { cursor: grabbing; }
  
  
         /* TOP LAYER */
@@ -96,7 +104,7 @@
         .resize-handle { position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, #C4A464 50%); touch-action: none; }
  
         .btn-grid { display: grid; gap: 4px; width: 100%; height: 100%; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
-        .gesture-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: rgba(255, 230, 136, 0.05); touch-action: none; }
+        .gesture-area { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; background: rgba(255, 230, 136, 0.05); touch-action: none; cursor: crosshair; }
         #joy-base { position: absolute; width: 50%; height: 50%; max-width: 100px; max-height: 100px; border: 2px solid rgba(252, 230, 136, 0.3); border-radius: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
         #joy-stick { position: absolute; width: 25%; height: 25%; max-width: 40px; max-height: 40px; background: rgba(252, 230, 136, 0.6); border-radius: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; }
         #gesture-canvas { width: 100%; height: 100%; pointer-events: none; }
@@ -187,7 +195,7 @@
  
     <div id="start-overlay">
         <div id="start-overlay-text">
-            <h1 id="start-title">▶ TAP TO START</h1>
+            <h1 id="start-title">▶ TAP OR CLICK TO START</h1>
             <p id="start-sub">Mac OS 7.6 • Quadra 650</p>
             <p id="start-status">Downloading the emulator and the Cythera disk…</p>
         </div>
@@ -263,7 +271,7 @@
     <div id="help-panel" hidden>
         <div id="help-inner">
             <button id="help-close" aria-label="Close">✕</button>
-            <h2>Cythera Mobile</h2>
+            <h2>Cythera</h2>
 
             <h3>Moving and acting</h3>
             <p>The two floating windows are the numeric keypad and Cythera's action keys. Drag a
@@ -272,11 +280,23 @@
             <ul id="gesture-legend"></ul>
 
             <h3>Touching the screen</h3>
-            <p><b>Direct</b> puts the pointer where your finger is — best for the game world.
-            <b>Trackpad</b> moves the pointer relatively and holds for 0.4 s to start a drag —
-            best for menus and small targets. <b>Pan View</b> keeps the pointer centred and moves
-            the view instead. Two fingers pinch to zoom anywhere, and a two-finger tap is a
-            right-click.</p>
+            <p>These three settings describe what a <i>finger</i> does. <b>Direct</b> puts the
+            pointer where your finger is — best for the game world. <b>Trackpad</b> moves the
+            pointer relatively and holds for 0.4 s to start a drag — best for menus and small
+            targets. <b>Pan View</b> keeps the pointer on the crosshair and moves the view
+            instead. Two fingers pinch to zoom anywhere, and a two-finger tap is a right-click.</p>
+
+            <h3>Mouse and keyboard</h3>
+            <p>A mouse already points, so it is always Direct — the pointer inside the Mac
+            follows yours, including while no button is down, and both buttons go through as
+            themselves. Trackpad means nothing to a mouse and is ignored by one; Pan View still
+            applies, and there a drag moves the view. The <b>scroll wheel zooms</b>, which is the
+            desktop half of the pinch.</p>
+            <p>Your keyboard is passed straight to the emulated Mac, so Cythera's numeric keypad
+            and its letter commands work as they did on the original — the floating windows are
+            for when you have no keyboard, not instead of one. The browser keeps <code>F5</code>,
+            <code>F11</code>, <code>F12</code> and its own reload/new-tab/close shortcuts.
+            Everything on this page can also be reached with Tab and Enter.</p>
 
             <h3>Loading your own Cythera</h3>
             <p><b>Drag a file onto the emulator</b> — a disk image (<code>.dsk</code>,
@@ -387,6 +407,12 @@
         // the TAP TO START overlay, and the emulator_unpause sent on tap was
         // unpausing something that had never been paused.
         u.searchParams.set('paused', 'true');
+        // The de-dither filter needs the frames, and the frames are also the
+        // only place the emulator states the resolution it actually came up
+        // with. They are not free: a whole screen is copied across origins on
+        // every drawn frame. The parameter is read once at boot, so switching
+        // it with the filter would mean restarting the Mac to change a display
+        // setting -- a worse trade than the copies.
         u.searchParams.set('screen_update_messages', 'true');
         u.searchParams.set('settings', JSON.stringify({
             swapControlAndCommand: false,
@@ -425,17 +451,28 @@
         if (e.origin !== EMBED_ORIGIN || !e.data) return;
         if (e.data.type === 'emulator_loaded') {
             emulatorReady = true;
-            setStartStatus('Ready — tap to play', true);
+            setStartStatus('Ready — tap or click to play', true);
             const queued = pendingMessages;
             pendingMessages = [];
             for (const m of queued) post(m);
+        } else if (e.data.type === 'emulator_screen') {
+            // The only place the emulated screen's real size is ever stated.
+            // Every touch and every click is turned into a coordinate on that
+            // screen, so a page that guesses it wrong puts the pointer
+            // somewhere else entirely -- which is what happened whenever the
+            // emulator settled on a resolution other than the one asked for.
+            if (e.data.width && e.data.height) applyScreenSize(e.data.width, e.data.height);
+            drawScreen(e.data);
         }
     });
 
     function startEmulator() {
         startOverlay.style.display = 'none';
         post({ type: 'emulator_unpause' });
-        // A click to give the emulated Mac keyboard focus.
+        // A click to wake the emulated Mac up. It has to happen *somewhere*,
+        // and with no move first that somewhere is 0,0 -- the corner of the
+        // menu bar, so starting the game pulled down the Apple menu.
+        setCursor(screenWidth / 2, screenHeight / 2);
         post({ type: 'emulator_mouse_down', button: 0 });
         post({ type: 'emulator_mouse_up', button: 0 });
         touchOverlay.classList.add('active');
@@ -455,17 +492,34 @@
     // mapped to the wrong place on the emulated screen.
     const baseWidth = 640;
     const baseHeight = Math.round(baseWidth * (window.innerHeight / window.innerWidth));
+    // What the machine actually came up with. It starts as the size that was
+    // asked for and is corrected by the first frame the emulator reports.
+    let screenWidth = baseWidth, screenHeight = baseHeight;
     let cssScale = 1;
     scaleTarget.style.width = `${baseWidth}px`;
     scaleTarget.style.height = `${baseHeight}px`;
     glCanvas.width = baseWidth; glCanvas.height = baseHeight;
 
+    function applyScreenSize(w, h) {
+        if (w === screenWidth && h === screenHeight) return;
+        screenWidth = w; screenHeight = h;
+        // The iframe fills #scale-target, so making that box the size of the
+        // emulated screen makes one pixel here one pixel there, and the
+        // coordinate arithmetic below exact rather than approximately right.
+        scaleTarget.style.width = `${w}px`;
+        scaleTarget.style.height = `${h}px`;
+        glCanvas.width = w; glCanvas.height = h;
+        if (shaderReady && texSizeLocation) gl.uniform2f(texSizeLocation, w, h);
+        setCursor(cursorX, cursorY);
+        applyCssScale();
+    }
+
     function applyCssScale() {
         // Fit rather than fill, so a rotated phone letterboxes instead of
         // cropping the menu bar off the top of the emulated screen.
-        cssScale = Math.min(window.innerWidth / baseWidth, window.innerHeight / baseHeight);
-        const left = Math.max(0, (window.innerWidth - baseWidth * cssScale) / 2);
-        const top = Math.max(0, (window.innerHeight - baseHeight * cssScale) / 2);
+        cssScale = Math.min(window.innerWidth / screenWidth, window.innerHeight / screenHeight);
+        const left = Math.max(0, (window.innerWidth - screenWidth * cssScale) / 2);
+        const top = Math.max(0, (window.innerHeight - screenHeight * cssScale) / 2);
         scaleTarget.style.transform = `translate(${left}px, ${top}px) scale(${cssScale})`;
     }
     applyCssScale();
@@ -512,8 +566,25 @@
     function pressKey(code) { heldKeys.add(code); sendKey(code, true); }
     function releaseKey(code) { if (heldKeys.delete(code)) sendKey(code, false); }
     function releaseAllKeys() { for (const code of Array.from(heldKeys)) releaseKey(code); }
-    document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAllKeys(); });
-    window.addEventListener('blur', releaseAllKeys);
+    // A mouse button is as bad to leave down as a key: in the Finder it is a
+    // window being dragged for as long as the page is in the background.
+    function releaseEverything() { releaseAllKeys(); releaseAllButtons(); }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) releaseEverything(); });
+    window.addEventListener('blur', releaseEverything);
+
+    // Every control on this page is a <div>, so each one has to say how it is
+    // operated. Doing that in one place is what stops a control from being
+    // wired to `touchend` alone -- invisible to a mouse -- which is what the
+    // keyboard button was, and gives all of them Enter/Space for free.
+    function onTap(el, fn) {
+        if (!el) return;
+        el.addEventListener('pointerdown', e => { e.preventDefault(); fn(e); });
+        el.tabIndex = 0;
+        el.setAttribute('role', 'button');
+        el.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(e); }
+        });
+    }
 
     // Windows Drag/Resize/Toggles
     // Pointer events rather than touch events: the same code now works with a
@@ -571,12 +642,10 @@
         resizeHandle.addEventListener('pointerup', endResize);
         resizeHandle.addEventListener('pointercancel', endResize);
 
-        toggleBtn.addEventListener('pointerdown', e => {
-            e.preventDefault(); e.stopPropagation();
+        onTap(toggleBtn, () => {
             setWindowMode(win, toggleBtn.classList.toggle('active'));
             saveHudLayout();
         });
-        win.addEventListener('touchstart', e => e.stopPropagation()); win.addEventListener('touchmove', e => e.stopPropagation()); win.addEventListener('touchend', e => e.stopPropagation());
     });
 
     function setWindowMode(win, gestures) {
@@ -589,6 +658,7 @@
             // A dragging finger that leaves the joystick still has to stop the
             // character; releasing every held key when the mode changes is the
             // cheap way to be sure nothing is left down.
+            stopMovement();
             releaseAllKeys();
         } else { btnGrid.style.display = 'grid'; gestureArea.style.display = 'none'; }
     }
@@ -639,31 +709,49 @@
         if (angleDeg >= -112.5 && angleDeg < -67.5) return 'Numpad8'; if (angleDeg >= -67.5 && angleDeg < -22.5) return 'Numpad9'; 
         return null;
     }
-    moveZone.addEventListener('touchstart', e => {
+    // Pointer events, so the joystick works under a mouse as well as a thumb,
+    // and so a drag that leaves the window keeps steering instead of stopping
+    // dead with the direction key still held.
+    let joyId = null;
+    function joyPoint(e) {
         const rect = moveZone.getBoundingClientRect();
-        moveStartX = e.touches[0].clientX - rect.left; moveStartY = e.touches[0].clientY - rect.top;
-        joyBase.style.left = `${moveStartX}px`; joyBase.style.top = `${moveStartY}px`; joyStick.style.left = `${moveStartX}px`; joyStick.style.top = `${moveStartY}px`;
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    moveZone.addEventListener('pointerdown', e => {
+        if (joyId !== null) return;
+        e.preventDefault();
+        joyId = e.pointerId;
+        moveZone.setPointerCapture?.(e.pointerId);
+        const p = joyPoint(e);
+        moveStartX = p.x; moveStartY = p.y;
+        joyBase.style.left = `${moveStartX}px`; joyBase.style.top = `${moveStartY}px`;
+        joyStick.style.left = `${moveStartX}px`; joyStick.style.top = `${moveStartY}px`;
         joyBase.style.display = 'block'; joyStick.style.display = 'block';
     });
-    moveZone.addEventListener('touchmove', e => {
-        const rect = moveZone.getBoundingClientRect();
-        let dx = (e.touches[0].clientX - rect.left) - moveStartX, dy = (e.touches[0].clientY - rect.top) - moveStartY;
-        let dist = Math.hypot(dx, dy), angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
-        let displayDist = Math.min(dist, moveZone.offsetWidth / 3);
-        joyStick.style.left = `${moveStartX + Math.cos(angleDeg * Math.PI/180) * displayDist}px`;
-        joyStick.style.top = `${moveStartY + Math.sin(angleDeg * Math.PI/180) * displayDist}px`;
-        let newKey = applyMovementKey(angleDeg, dist);
+    moveZone.addEventListener('pointermove', e => {
+        if (joyId !== e.pointerId) return;
+        e.preventDefault();
+        const p = joyPoint(e);
+        const dx = p.x - moveStartX, dy = p.y - moveStartY;
+        const dist = Math.hypot(dx, dy), angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+        const displayDist = Math.min(dist, moveZone.offsetWidth / 3);
+        joyStick.style.left = `${moveStartX + Math.cos(angleDeg * Math.PI / 180) * displayDist}px`;
+        joyStick.style.top = `${moveStartY + Math.sin(angleDeg * Math.PI / 180) * displayDist}px`;
+        const newKey = applyMovementKey(angleDeg, dist);
         if (newKey !== currentMoveKey) {
             if (currentMoveKey) releaseKey(currentMoveKey);
             if (newKey) pressKey(newKey);
             currentMoveKey = newKey;
         }
     });
-    function stopMovement() {
+    function stopMovement(e) {
+        if (e && joyId !== null && e.pointerId !== joyId) return;
+        joyId = null;
         if (currentMoveKey) { releaseKey(currentMoveKey); currentMoveKey = null; }
         joyBase.style.display = 'none'; joyStick.style.display = 'none';
     }
-    moveZone.addEventListener('touchend', stopMovement); moveZone.addEventListener('touchcancel', stopMovement);
+    moveZone.addEventListener('pointerup', stopMovement);
+    moveZone.addEventListener('pointercancel', stopMovement);
  
     /* ---- Gesture Logic -------------------------------------------------
        A stroke is reduced to the sequence of directions it turns through --
@@ -701,24 +789,49 @@
     let gesturePoints = [];
     function resizeGestureCanvas() { gestureCanvas.width = actionZone.clientWidth; gestureCanvas.height = actionZone.clientHeight; }
     function showToast(text) { actionToast.textContent = text; actionToast.style.opacity = '1'; setTimeout(() => actionToast.style.opacity = '0', 700); }
-    actionZone.addEventListener('touchstart', e => {
-        const rect = actionZone.getBoundingClientRect(); gesturePoints = [{ x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top }];
-        gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height); gCtx.beginPath(); gCtx.moveTo(gesturePoints[0].x, gesturePoints[0].y); gCtx.strokeStyle = '#FCE688'; gCtx.lineWidth = 4; gCtx.lineCap = 'round'; gCtx.lineJoin = 'round';
+    // Same again: a stroke can be drawn with a mouse, a stylus or a finger,
+    // and pointer capture means one that runs off the edge of the window is
+    // still the stroke you drew rather than half of it.
+    let gestureId = null;
+    function gesturePoint(e) {
+        const rect = actionZone.getBoundingClientRect();
+        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    function clearStroke() { gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height); }
+    actionZone.addEventListener('pointerdown', e => {
+        if (gestureId !== null) return;
+        e.preventDefault();
+        gestureId = e.pointerId;
+        actionZone.setPointerCapture?.(e.pointerId);
+        gesturePoints = [gesturePoint(e)];
+        clearStroke();
+        gCtx.beginPath(); gCtx.moveTo(gesturePoints[0].x, gesturePoints[0].y);
+        gCtx.strokeStyle = '#FCE688'; gCtx.lineWidth = 4; gCtx.lineCap = 'round'; gCtx.lineJoin = 'round';
     });
-    actionZone.addEventListener('touchmove', e => {
-        const rect = actionZone.getBoundingClientRect(); const pt = { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    actionZone.addEventListener('pointermove', e => {
+        if (gestureId !== e.pointerId) return;
+        e.preventDefault();
+        const pt = gesturePoint(e);
         gesturePoints.push(pt); gCtx.lineTo(pt.x, pt.y); gCtx.stroke();
     });
-    actionZone.addEventListener('touchend', e => {
-        gCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
-        if(gesturePoints.length === 0) return;
+    actionZone.addEventListener('pointercancel', e => {
+        if (gestureId !== e.pointerId) return;
+        gestureId = null; gesturePoints = []; clearStroke();
+    });
+    actionZone.addEventListener('pointerup', e => {
+        if (gestureId !== e.pointerId) return;
+        gestureId = null;
+        clearStroke();
+        if (gesturePoints.length === 0) return;
         let dirs = "", currentDir = null, lastPt = gesturePoints[0];
-        let totalDist = Math.hypot(gesturePoints[gesturePoints.length-1].x - gesturePoints[0].x, gesturePoints[gesturePoints.length-1].y - gesturePoints[0].y);
+        const first = gesturePoints[0], last = gesturePoints[gesturePoints.length - 1];
+        const totalDist = Math.hypot(last.x - first.x, last.y - first.y);
         for (let i = 1; i < gesturePoints.length; i++) {
-            let dx = gesturePoints[i].x - lastPt.x, dy = gesturePoints[i].y - lastPt.y;
+            const dx = gesturePoints[i].x - lastPt.x, dy = gesturePoints[i].y - lastPt.y;
             if (Math.abs(dx) > 15 || Math.abs(dy) > 15) {
-                let dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
-                if (dir !== currentDir) { dirs += dir; currentDir = dir; } lastPt = gesturePoints[i];
+                const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'R' : 'L') : (dy > 0 ? 'D' : 'U');
+                if (dir !== currentDir) { dirs += dir; currentDir = dir; }
+                lastPt = gesturePoints[i];
             }
         }
         const hit = recogniseGesture(dirs, totalDist < 15 && gesturePoints.length < 10);
@@ -745,7 +858,7 @@
     // the script had installed a single touch handler. The page came up as a
     // dead emulator with no controls at all. A de-dithering filter is a nicety;
     // it must not be able to take the page down with it.
-    let texture = null, shaderProgram = null;
+    let texture = null, shaderProgram = null, texSizeLocation = null;
     const shaderReady = (() => {
         if (!gl) return false;
         try {
@@ -767,7 +880,7 @@
             const positionBuffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
             const positionLocation = gl.getAttribLocation(shaderProgram, "a_position"); gl.enableVertexAttribArray(positionLocation); gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
             texture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, texture); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            const texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize"); gl.uniform2f(texSizeLocation, baseWidth, baseHeight);
+            texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize"); gl.uniform2f(texSizeLocation, screenWidth, screenHeight);
             return true;
         } catch (err) {
             console.warn('De-dither filter unavailable:', err && err.message);
@@ -783,8 +896,7 @@
         else { glCanvas.style.display = 'block'; iframe.style.opacity = '0.01'; filterToggle.innerHTML = '<span class="emoji">📺</span>Dedith'; }
         savePrefs({ crisp: isCrisp });
     }
-    filterToggle.addEventListener('pointerdown', e => {
-        e.preventDefault();
+    onTap(filterToggle, () => {
         if (!shaderReady) { showToast('No WebGL here'); return; }
         setCrisp(!isCrisp);
     });
@@ -792,15 +904,22 @@
         filterToggle.classList.add('disabled');
         filterToggle.title = 'WebGL is not available in this browser';
     }
-    window.addEventListener("message", e => {
-        if (e.origin !== EMBED_ORIGIN) return;
-        if (!isCrisp && shaderReady && e.data && e.data.type === "emulator_screen" && e.data.data) {
-            try { gl.bindTexture(gl.TEXTURE_2D, texture); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, e.data.width||baseWidth, e.data.height||baseHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(e.data.data)); gl.drawArrays(gl.TRIANGLES, 0, 6); } catch (err) {}
-        }
-    });
+    // Called from the one message listener at the top, which is also where
+    // the emulator's real screen size is picked up. Two listeners for the same
+    // message meant two places that had to agree about what a frame is.
+    function drawScreen(msg) {
+        if (isCrisp || !shaderReady || !msg.data) return;
+        try {
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, msg.width || screenWidth, msg.height || screenHeight,
+                          0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(msg.data));
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+        } catch (err) { /* a frame that will not upload is not worth reporting */ }
+    }
 
     // Settings Drawer Buttons
-    document.getElementById('settings-handle').addEventListener('pointerdown', e => { e.preventDefault(); document.getElementById('settings-drawer').classList.toggle('collapsed'); });
+    onTap(document.getElementById('settings-handle'),
+          () => document.getElementById('settings-drawer').classList.toggle('collapsed'));
  
     let touchMode = 0;
     const touchModeToggle = document.getElementById('touch-mode-toggle');
@@ -809,42 +928,55 @@
         touchMode = ((mode % 3) + 3) % 3;
         touchModeToggle.innerHTML = touchModeLabels[touchMode];
         centerCrosshair.style.display = (touchMode === 2) ? 'block' : 'none';
+        touchOverlay.classList.toggle('pan-cursor', touchMode === 2);
+        // Changing what a drag means in the middle of one would otherwise
+        // leave the button down in the emulated Mac.
+        releaseAllButtons();
         if (touchMode === 2) updatePanCursor();
         savePrefs({ touchMode: touchMode });
     }
-    touchModeToggle.addEventListener('pointerdown', e => { e.preventDefault(); setTouchMode(touchMode + 1); });
+    onTap(touchModeToggle, () => setTouchMode(touchMode + 1));
 
     let isPaused = false;
     const pauseBtn = document.getElementById('pause-btn');
-    pauseBtn.addEventListener('pointerdown', e => {
-        e.preventDefault(); isPaused = !isPaused;
+    onTap(pauseBtn, () => {
+        isPaused = !isPaused;
+        // A paused emulator cannot receive a keyup or a mouseup, so let go of
+        // everything before it stops listening.
+        if (isPaused) releaseEverything();
         post({ type: isPaused ? 'emulator_pause' : 'emulator_unpause' });
-        // A paused emulator cannot receive a keyup, so release first.
-        if (isPaused) releaseAllKeys();
         pauseBtn.innerHTML = isPaused ? '<span class="emoji">▶️</span>Play' : '<span class="emoji">⏸️</span>Pause';
     });
 
     // A native confirm() is a system-modal dialog: on iOS it takes focus away
     // mid-gesture and leaves the touch handlers here with a pointer they never
     // see released. This one is part of the page.
+    const modalEl = document.getElementById('modal-confirm');
+    const modalInput = document.getElementById('modal-input');
+    let modalOnOk = null;
+    // Wired once. Adding and removing a pair of listeners per call meant the
+    // buttons behaved differently depending on how the dialog was opened, and
+    // could not be reached from a keyboard at all.
+    function closeModal() { modalEl.hidden = true; modalOnOk = null; }
+    function confirmModal() {
+        const value = modalInput.hidden ? undefined : modalInput.value;
+        const fn = modalOnOk;
+        closeModal();
+        if (fn) fn(value);
+    }
+    onTap(document.getElementById('modal-ok'), confirmModal);
+    onTap(document.getElementById('modal-cancel'), closeModal);
+    modalInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); confirmModal(); }
+    });
+
     function askModal(text, onOk, initialValue) {
-        const modal = document.getElementById('modal-confirm');
-        const input = document.getElementById('modal-input');
         document.getElementById('modal-text').textContent = text;
-        input.hidden = initialValue === undefined;
-        if (!input.hidden) input.value = initialValue;
-        modal.hidden = false;
-        if (!input.hidden) input.focus();
-        const ok = document.getElementById('modal-ok'), cancel = document.getElementById('modal-cancel');
-        const close = () => {
-            modal.hidden = true;
-            ok.removeEventListener('pointerdown', yes);
-            cancel.removeEventListener('pointerdown', no);
-        };
-        const yes = e => { e.preventDefault(); close(); onOk(input.hidden ? undefined : input.value); };
-        const no = e => { e.preventDefault(); close(); };
-        ok.addEventListener('pointerdown', yes);
-        cancel.addEventListener('pointerdown', no);
+        modalInput.hidden = initialValue === undefined;
+        if (!modalInput.hidden) modalInput.value = initialValue;
+        modalOnOk = onOk;
+        modalEl.hidden = false;
+        if (!modalInput.hidden) modalInput.focus();
     }
     const askConfirm = (text, onYes) => askModal(text, onYes);
 
@@ -862,8 +994,7 @@
 
     const speedBtn = document.getElementById('speed-btn');
     function paintSpeed() { speedBtn.innerHTML = `<span class="emoji">⚡</span>${speedName(currentSpeed)}`; }
-    speedBtn.addEventListener('pointerdown', e => {
-        e.preventDefault();
+    onTap(speedBtn, () => {
         const i = SPEEDS.findIndex(([v]) => v === currentSpeed);
         const [next, label] = SPEEDS[(i + 1) % SPEEDS.length];
         askConfirm(`Run the emulator at ${label}?\n\nThis restarts the Mac, and anything not saved inside Cythera is lost.`, () => {
@@ -878,8 +1009,7 @@
     // There is no way for this page to do that: audio belongs to the emulator
     // in a cross-origin iframe, and the embed API has no message for it.
     const fullscreenBtn = document.getElementById('fullscreen-btn');
-    fullscreenBtn.addEventListener('pointerdown', e => {
-        e.preventDefault();
+    onTap(fullscreenBtn, () => {
         const el = document.documentElement;
         if (document.fullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen || function(){}).call(document);
         else (el.requestFullscreen || el.webkitRequestFullscreen || function(){}).call(el);
@@ -894,8 +1024,7 @@
     // So a blob: URL made from a local file cannot work, and neither can a
     // private address -- which is exactly why the local Cythera files are
     // loaded by dropping them on the emulator instead (see the drop handler).
-    document.getElementById('disk-btn').addEventListener('pointerdown', e => {
-        e.preventDefault();
+    onTap(document.getElementById('disk-btn'), () => {
         askModal('Disk image URL to mount.\n\nIt has to be reachable from the public internet: infinitemac.org fetches it, not this browser.',
             url => {
                 if (!url) return;
@@ -906,11 +1035,11 @@
     });
 
     const helpPanel = document.getElementById('help-panel');
-    document.getElementById('help-btn').addEventListener('pointerdown', e => { e.preventDefault(); helpPanel.hidden = false; });
-    document.getElementById('help-close').addEventListener('pointerdown', e => { e.preventDefault(); helpPanel.hidden = true; });
+    onTap(document.getElementById('help-btn'), () => { helpPanel.hidden = false; });
+    onTap(document.getElementById('help-close'), () => { helpPanel.hidden = true; });
     helpPanel.addEventListener('pointerdown', e => { if (e.target === helpPanel) helpPanel.hidden = true; });
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { helpPanel.hidden = true; document.getElementById('modal-confirm').hidden = true; }
+        if (e.key === 'Escape') { helpPanel.hidden = true; closeModal(); }
     });
 
     // Keys & Buttons
@@ -932,154 +1061,329 @@
         btn.addEventListener('keyup', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); releaseKey(code); } });
     });
     const kbInput = document.getElementById('hidden-keyboard');
-    document.getElementById('kb-toggle').addEventListener('touchend', (e) => { e.preventDefault(); kbInput.focus(); });
+    const kbToggle = document.getElementById('kb-toggle');
+    // This one listens for `click` rather than going through onTap: a phone
+    // only raises its keyboard for a focus() that happens inside a real user
+    // gesture, and preventDefault()ing pointerdown stops it from being one.
+    // It listened for `touchend` alone before, so on a desktop it did nothing.
+    kbToggle.addEventListener('click', () => kbInput.focus());
+    kbToggle.tabIndex = 0;
+    kbToggle.setAttribute('role', 'button');
+    kbToggle.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); kbInput.focus(); }
+    });
     const charToCode = { 'a':'KeyA', 'b':'KeyB', 'c':'KeyC', 'd':'KeyD', 'e':'KeyE', 'f':'KeyF', 'g':'KeyG', 'h':'KeyH', 'i':'KeyI', 'j':'KeyJ', 'k':'KeyK', 'l':'KeyL', 'm':'KeyM', 'n':'KeyN', 'o':'KeyO', 'p':'KeyP', 'q':'KeyQ', 'r':'KeyR', 's':'KeyS', 't':'KeyT', 'u':'KeyU', 'v':'KeyV', 'w':'KeyW', 'x':'KeyX', 'y':'KeyY', 'z':'KeyZ', '1':'Digit1', '2':'Digit2', '3':'Digit3', '4':'Digit4', '5':'Digit5', '6':'Digit6', '7':'Digit7', '8':'Digit8', '9':'Digit9', '0':'Digit0', ' ':'Space', 'backspace':'Backspace', 'enter':'Enter' };
     kbInput.addEventListener('keydown', (e) => { let code = e.code || charToCode[e.key.toLowerCase()]; if(code && code!=='Unidentified') pressKey(code); });
     kbInput.addEventListener('keyup', (e) => { let code = e.code || charToCode[e.key.toLowerCase()]; if(code && code!=='Unidentified') releaseKey(code); });
     kbInput.addEventListener('blur', () => kbInput.value = '');
  
  
-    // --- ENHANCED TOUCH & DRAG LOGIC ---
+    /* ---- Pointing at the emulated screen --------------------------------
+       One code path for a finger, a stylus and a mouse.
+
+       This was three `touch*` handlers, which is why the page could not be
+       used with a mouse at all: #touch-overlay is stretched over the iframe so
+       that it can catch touches, so every click landed on the overlay -- and
+       the overlay listened for nothing a mouse produces. The emulator was
+       there on the screen, plainly visible, and unclickable.
+
+       The three touch modes describe what a *finger* does. A mouse or a stylus
+       already points, so it is always Direct; Trackpad, which exists to move a
+       pointer you cannot put your finger on, means nothing to one. Pan View
+       applies to both: there, dragging moves the view. */
     let pzScale = 1, pzX = 0, pzY = 0;
-    let startDist = 0, initialPzScale = 1, initialPzX = 0, initialPzY = 0, pinchCenterX = 0, pinchCenterY = 0;
-    
-    // Drag control variables
-    let isLeftDown = false;
+    let cursorX = baseWidth / 2, cursorY = baseHeight / 2;
+
+    const FINGER_OFFSET_Y = -12;   // a fingertip covers what it is aiming at
+    const TAP_MS = 350;            // longer than this is a press, not a tap
+    const TAP_SLOP = 8;            // and further than this is a drag
+
+    const pointers = new Map();    // live pointers, in the order they arrived
+    const isPrecise = e => e.pointerType === 'mouse' || e.pointerType === 'pen';
+    const modeFor = e => (isPrecise(e) && touchMode === 1) ? 0 : touchMode;
+
+    let primaryId = null, startX = 0, startY = 0, lastX = 0, lastY = 0;
+    let gestureStart = 0, isTwoFingerTap = false, isClickCandidate = false;
     let dragTimer = null;
-    let touchStartTime = 0;
-    let isClickCandidate = false, isTwoFingerTap = false;
-    let cursorX = baseWidth / 2, cursorY = baseHeight / 2, lastTouchX = 0, lastTouchY = 0;
- 
-    function getEmulatorCoords(clientX, clientY) {
+    let pinchDist = 0, initialPzScale = 1, initialPzX = 0, initialPzY = 0;
+    let pinchCenterX = 0, pinchCenterY = 0;
+
+    // Which buttons are down inside the emulated Mac. Nothing tracked this, so
+    // a gesture the browser took over -- a system edge swipe, a call arriving,
+    // a window losing focus mid-drag -- left the button down for good: in the
+    // Finder, a window dragged forever; in Cythera, an item never let go of.
+    const heldButtons = new Set();
+    function pressButton(b) { if (!heldButtons.has(b)) { heldButtons.add(b); mouseButton(b, true); } }
+    function releaseButton(b) { if (heldButtons.delete(b)) mouseButton(b, false); }
+    function releaseAllButtons() { for (const b of Array.from(heldButtons)) releaseButton(b); }
+    function clickOnce(button) { pressButton(button); setTimeout(() => releaseButton(button), 50); }
+    const buttonOf = e => (e.button === 2 ? 2 : e.button === 1 ? 1 : 0);
+
+    function getEmulatorCoords(clientX, clientY, offsetY) {
+        // #scale-target *is* the emulated screen, and its rect already carries
+        // both the fit-to-window scale and the pinch zoom.
         const rect = scaleTarget.getBoundingClientRect();
-        const relX = clientX - rect.left; const relY = clientY - rect.top;
-        const fatFingerOffsetMacY = -12; 
-        const macX = relX / (rect.width / baseWidth);
-        const macY = (relY / (rect.height / baseHeight)) + fatFingerOffsetMacY;
-        return { x: macX, y: macY };
+        const sx = (rect.width / screenWidth) || 1, sy = (rect.height / screenHeight) || 1;
+        return {
+            x: (clientX - rect.left) / sx,
+            y: (clientY - rect.top) / sy + (offsetY || 0),
+        };
     }
- 
-    function updatePanCursor() {
-        const centerClientX = window.innerWidth / 2, centerClientY = window.innerHeight / 2;
-        const coords = getEmulatorCoords(centerClientX, centerClientY);
-        cursorX = coords.x; cursorY = coords.y;
+
+    function setCursor(x, y) {
+        cursorX = Math.max(0, Math.min(screenWidth - 1, x));
+        cursorY = Math.max(0, Math.min(screenHeight - 1, y));
         moveMouse(cursorX, cursorY);
     }
- 
-    touchOverlay.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        if (e.touches.length === 2) {
-            // Cancel any active drag
-            if (isLeftDown) {
-                mouseButton(0, false);
-                isLeftDown = false;
-            }
-            if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
-            
-            startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            initialPzScale = pzScale; initialPzX = pzX; initialPzY = pzY;
-            pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2; pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-            isClickCandidate = false; isTwoFingerTap = true; touchStartTime = Date.now();
-        } else if (e.touches.length === 1) {
-            isClickCandidate = true; isTwoFingerTap = false; touchStartTime = Date.now();
-            lastTouchX = e.touches[0].clientX; lastTouchY = e.touches[0].clientY;
- 
-            if (touchMode === 0) {
-                // DIRECT MODE: 1:1 Touch = Mouse Down immediately (Perfect for drag & drop)
-                const coords = getEmulatorCoords(lastTouchX, lastTouchY);
-                cursorX = coords.x; cursorY = coords.y;
-                moveMouse(cursorX, cursorY);
-                mouseButton(0, true);
-                isLeftDown = true;
-                isClickCandidate = false; // Prevent double-trigger on up
-            } else if (touchMode === 1) {
-                // TRACKPAD MODE: Hold finger down for 400ms to start a Drag-Lock
-                dragTimer = setTimeout(() => {
-                    isLeftDown = true;
-                    isClickCandidate = false;
-                    mouseButton(0, true);
-                }, 400);
-            }
-        }
-    });
- 
-    touchOverlay.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        if (e.touches.length === 2) {
-            isClickCandidate = false; 
-            const currentPinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2, currentPinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-            const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            if (Math.abs(dist - startDist) > 15 || Math.hypot(currentPinchCenterX - pinchCenterX, currentPinchCenterY - pinchCenterY) > 15) isTwoFingerTap = false; 
-            const maxZoom = 2.5 / cssScale, newScale = Math.min(Math.max(1, initialPzScale * (dist / startDist)), maxZoom), scaleRatio = newScale / initialPzScale;
-            pzX = currentPinchCenterX - (pinchCenterX - initialPzX) * scaleRatio; pzY = currentPinchCenterY - (pinchCenterY - initialPzY) * scaleRatio;
-            pzScale = newScale; updatePanZoom();
-            if(touchMode === 2) updatePanCursor();
-        } else if (e.touches.length === 1) {
-            const currentTouchX = e.touches[0].clientX, currentTouchY = e.touches[0].clientY;
-            const movedDist = Math.hypot(currentTouchX - lastTouchX, currentTouchY - lastTouchY);
- 
-            if (touchMode === 2) { 
-                // PAN MODE
-                isClickCandidate = false;
-                pzX += (currentTouchX - lastTouchX); pzY += (currentTouchY - lastTouchY);
-                updatePanZoom(); updatePanCursor();
-            } else if (touchMode === 1) { 
-                // TRACKPAD MODE
-                if (dragTimer && movedDist > 5) {
-                    // Finger moved too soon, cancel drag lock detection
-                    clearTimeout(dragTimer); dragTimer = null;
-                }
-                if (!isLeftDown) isClickCandidate = false; // Moving before hold means just hovering, cancel click candidate
-                
-                const dX = (currentTouchX - lastTouchX) / (cssScale * pzScale); const dY = (currentTouchY - lastTouchY) / (cssScale * pzScale);
-                cursorX = Math.max(0, Math.min(baseWidth, cursorX + (dX * 1.5))); cursorY = Math.max(0, Math.min(baseHeight, cursorY + (dY * 1.5)));
-                moveMouse(cursorX, cursorY);
-            } else if (touchMode === 0) { 
-                // DIRECT MODE
-                const coords = getEmulatorCoords(currentTouchX, currentTouchY);
-                cursorX = Math.max(0, Math.min(baseWidth, coords.x)); cursorY = Math.max(0, Math.min(baseHeight, coords.y));
-                moveMouse(cursorX, cursorY);
-            }
-            lastTouchX = currentTouchX; lastTouchY = currentTouchY;
-        }
-    });
- 
-    touchOverlay.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        
+
+    function updatePanCursor() {
+        const c = getEmulatorCoords(window.innerWidth / 2, window.innerHeight / 2);
+        setCursor(c.x, c.y);
+    }
+
+    // ---- zoom ---------------------------------------------------------
+    function zoomAbout(clientX, clientY, wanted) {
+        const maxZoom = Math.max(1, 2.5 / cssScale);
+        const next = Math.min(Math.max(1, wanted), maxZoom);
+        if (next === pzScale) return;
+        const ratio = next / pzScale;
+        pzX = clientX - (clientX - pzX) * ratio;
+        pzY = clientY - (clientY - pzY) * ratio;
+        pzScale = next;
+        updatePanZoom();
+        if (touchMode === 2) updatePanCursor();
+    }
+
+    function pinchPair() { return [...pointers.values()].slice(0, 2); }
+
+    function beginPinch() {
+        const [a, b] = pinchPair();
+        if (!a || !b) return;
         if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
- 
-        if (e.touches.length === 0) {
-            const timeElapsed = Date.now() - touchStartTime;
-            
-            if (isLeftDown) {
-                // If dragging in direct/trackpad mode, release the click
-                mouseButton(0, false);
-                isLeftDown = false;
-            } else if (isTwoFingerTap && timeElapsed < 300) {
-                // Right click
-                mouseButton(2, true);
-                setTimeout(() => mouseButton(2, false), 50);
-            } else if (isClickCandidate && timeElapsed < 300) {
-                // Quick tap for Pan or Trackpad Mode
-                if (touchMode === 2) {
-                    const coords = getEmulatorCoords(lastTouchX, lastTouchY);
-                    moveMouse(coords.x, coords.y);
-                    setTimeout(() => { mouseButton(0, true); setTimeout(() => mouseButton(0, false), 50); }, 20);
-                } else if (touchMode === 1) {
-                    mouseButton(0, true);
-                    setTimeout(() => mouseButton(0, false), 50);
-                }
-            }
+        releaseAllButtons();
+        pinchDist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        initialPzScale = pzScale; initialPzX = pzX; initialPzY = pzY;
+        pinchCenterX = (a.x + b.x) / 2; pinchCenterY = (a.y + b.y) / 2;
+        isClickCandidate = false;
+        isTwoFingerTap = true;
+        gestureStart = Date.now();
+    }
+
+    function updatePinch() {
+        const [a, b] = pinchPair();
+        if (!a || !b) return;
+        const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (Math.abs(dist - pinchDist) > 15 || Math.hypot(cx - pinchCenterX, cy - pinchCenterY) > 15)
             isTwoFingerTap = false;
-        }
-    });
- 
+        const maxZoom = Math.max(1, 2.5 / cssScale);
+        const next = Math.min(Math.max(1, initialPzScale * (dist / pinchDist)), maxZoom);
+        const ratio = next / initialPzScale;
+        pzX = cx - (pinchCenterX - initialPzX) * ratio;
+        pzY = cy - (pinchCenterY - initialPzY) * ratio;
+        pzScale = next;
+        updatePanZoom();
+        if (touchMode === 2) updatePanCursor();
+    }
+
     function updatePanZoom() {
-        const scaledW = window.innerWidth * pzScale; const scaledH = window.innerHeight * pzScale;
-        if (pzScale <= 1) { pzX = 0; pzY = 0; } else { pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledW)); pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledH)); }
+        const scaledW = window.innerWidth * pzScale, scaledH = window.innerHeight * pzScale;
+        if (pzScale <= 1) { pzX = 0; pzY = 0; }
+        else {
+            pzX = Math.min(0, Math.max(pzX, window.innerWidth - scaledW));
+            pzY = Math.min(0, Math.max(pzY, window.innerHeight - scaledH));
+        }
         panZoomContainer.style.transform = `translate(${pzX}px, ${pzY}px) scale(${pzScale})`;
     }
+
+    // ---- the pointers themselves ---------------------------------------
+    touchOverlay.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        // Capture, so a drag that outruns the overlay -- off the edge of the
+        // window, over a floating control -- keeps arriving here.
+        touchOverlay.setPointerCapture?.(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pointers.size === 2) { beginPinch(); return; }
+        if (pointers.size > 2) return;
+
+        primaryId = e.pointerId;
+        startX = lastX = e.clientX; startY = lastY = e.clientY;
+        gestureStart = Date.now();
+        isTwoFingerTap = false;
+        isClickCandidate = true;
+
+        const mode = modeFor(e);
+        if (mode === 2) { touchOverlay.classList.add('panning'); return; }
+
+        if (isPrecise(e)) {
+            // A real button, pressed where the pointer already is. The right
+            // one goes through as the right one; the two-finger tap below is
+            // how a finger says the same thing.
+            const c = getEmulatorCoords(e.clientX, e.clientY);
+            setCursor(c.x, c.y);
+            pressButton(buttonOf(e));
+            isClickCandidate = false;
+        } else if (mode === 0) {
+            // Direct: the finger is the pointer, and it presses as it lands,
+            // which is what makes dragging things around work.
+            const c = getEmulatorCoords(e.clientX, e.clientY, FINGER_OFFSET_Y);
+            setCursor(c.x, c.y);
+            pressButton(0);
+            isClickCandidate = false;
+        } else {
+            // Trackpad: hold still for 0.4s and the button locks down.
+            dragTimer = setTimeout(() => {
+                dragTimer = null; isClickCandidate = false; pressButton(0);
+            }, 400);
+        }
+    });
+
+    touchOverlay.addEventListener('pointermove', e => {
+        const p = pointers.get(e.pointerId);
+        if (!p) {
+            // A mouse with no button down still has to move the pointer inside
+            // the Mac: menus do not highlight, and Cythera's cursor never
+            // changes shape over something it can act on, without this.
+            if (isPrecise(e) && modeFor(e) !== 2) {
+                const c = getEmulatorCoords(e.clientX, e.clientY);
+                setCursor(c.x, c.y);
+            }
+            return;
+        }
+        e.preventDefault();
+        p.x = e.clientX; p.y = e.clientY;
+        if (pointers.size >= 2) { updatePinch(); return; }
+        if (e.pointerId !== primaryId) return;
+
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        // Measured from where the gesture started, not from the last event: a
+        // slow drag never travels 8 pixels between two moves, so a tap used to
+        // be able to wander the whole screen and still count as a tap.
+        const travelled = Math.hypot(e.clientX - startX, e.clientY - startY);
+        if (travelled > TAP_SLOP) isClickCandidate = false;
+
+        const mode = modeFor(e);
+        if (mode === 2) {
+            pzX += dx; pzY += dy;
+            updatePanZoom();
+            updatePanCursor();
+        } else if (isPrecise(e) || mode === 0) {
+            const c = getEmulatorCoords(e.clientX, e.clientY, isPrecise(e) ? 0 : FINGER_OFFSET_Y);
+            setCursor(c.x, c.y);
+        } else {
+            if (dragTimer && travelled > 6) { clearTimeout(dragTimer); dragTimer = null; }
+            const k = 1.5 / (cssScale * pzScale);
+            setCursor(cursorX + dx * k, cursorY + dy * k);
+        }
+    });
+
+    function endPointer(e, cancelled) {
+        if (!pointers.delete(e.pointerId)) return;
+        if (touchOverlay.hasPointerCapture?.(e.pointerId)) touchOverlay.releasePointerCapture(e.pointerId);
+        touchOverlay.classList.remove('panning');
+
+        if (pointers.size >= 1) {
+            // One finger of a pinch lifted. Hand the gesture to what is left,
+            // so the survivor's next move continues from where it is rather
+            // than jumping by however far apart the two fingers were.
+            const [id, p] = pointers.entries().next().value;
+            primaryId = id;
+            startX = lastX = p.x; startY = lastY = p.y;
+            isClickCandidate = false;
+            if (pointers.size >= 2) beginPinch();
+            return;
+        }
+
+        if (dragTimer) { clearTimeout(dragTimer); dragTimer = null; }
+        const elapsed = Date.now() - gestureStart;
+
+        if (cancelled) {
+            releaseAllButtons();
+        } else if (heldButtons.size) {
+            // A press that has already gone through: let go of it.
+            if (isPrecise(e)) releaseButton(buttonOf(e)); else releaseAllButtons();
+        } else if (isTwoFingerTap && elapsed < TAP_MS) {
+            clickOnce(2);
+        } else if (isClickCandidate && elapsed < TAP_MS) {
+            if (modeFor(e) === 2) {
+                // Pan View: tap where you meant, and click there.
+                const c = getEmulatorCoords(e.clientX, e.clientY, isPrecise(e) ? 0 : FINGER_OFFSET_Y);
+                setCursor(c.x, c.y);
+                setTimeout(() => clickOnce(0), 20);
+            } else {
+                clickOnce(0);
+            }
+        }
+        isTwoFingerTap = false;
+        isClickCandidate = false;
+        primaryId = null;
+    }
+    touchOverlay.addEventListener('pointerup', e => endPointer(e, false));
+    touchOverlay.addEventListener('pointercancel', e => endPointer(e, true));
+
+    // Nothing in the embed API carries a scroll wheel through to the emulated
+    // Mac, so the wheel is free to be the desktop half of the pinch.
+    touchOverlay.addEventListener('wheel', e => {
+        e.preventDefault();
+        const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+        zoomAbout(e.clientX, e.clientY, pzScale * Math.exp(-step * 0.002));
+    }, { passive: false });
+
+    // The right button belongs to the emulated Mac, not to the browser.
+    touchOverlay.addEventListener('contextmenu', e => e.preventDefault());
+
+    /* ---- A real keyboard -------------------------------------------------
+       The emulator is in a cross-origin iframe with #touch-overlay on top of
+       it, so it can never take the keyboard focus: on a desktop this page had
+       no keyboard at all beyond the on-screen buttons, and Cythera is a game
+       played on the numeric keypad.
+
+       Keys go through by `code`, which names the physical key, so a Dvorak or
+       AZERTY layout arrives as the key the emulator's own table knows. A code
+       it does not recognise it ignores. */
+    const BROWSER_OWNS = new Set(['F5', 'F11', 'F12']);
+    function keyboardGoesToEmulator(e) {
+        if (!hudLayer.classList.contains('active')) return false;   // not started yet
+        if (!helpPanel.hidden || !modalEl.hidden) return false;
+        const t = e.target;
+        if (!t) return true;
+        if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return false;
+        // A focused on-screen control handles its own Enter and Space; without
+        // this, pressing one would also send the key straight to the Mac.
+        if (t.closest && t.closest('#hud-layer')) return false;
+        return true;
+    }
+    function browserKeepsKey(e) {
+        if (BROWSER_OWNS.has(e.key)) return true;
+        // Reload, new tab, close, address bar: the browser acts on these
+        // whatever this page asks for, and forwarding one only leaves a
+        // modifier stuck down inside the emulated Mac.
+        return (e.ctrlKey || e.metaKey) && /^Key[RTWNLQ]$/.test(e.code);
+    }
+    document.addEventListener('keydown', e => {
+        if (!keyboardGoesToEmulator(e) || browserKeepsKey(e)) return;
+        e.preventDefault();          // no page scrolling on Space or the arrows
+        if (e.repeat || !e.code) return;   // the Mac does its own repeating
+        pressKey(e.code);
+    });
+    const isModifierCode = code => /^(Meta|Control|Alt|Shift)/.test(code);
+    document.addEventListener('keyup', e => {
+        if (!keyboardGoesToEmulator(e) || !e.code) return;
+        releaseKey(e.code);
+        // macOS does not deliver keyup for a non-modifier key pressed while
+        // Command is held (mihaip/infinite-mac#89), so the emulated Mac is
+        // left holding it down. Infinite Mac works around this for its own
+        // keyboard; keys sent through the embed API arrive past that, so the
+        // same sweep has to happen here. Releasing a key that is already up
+        // costs nothing, which is why this is not conditional on the platform.
+        if (e.code.startsWith('Meta')) {
+            for (const code of Array.from(heldKeys)) {
+                if (!isModifierCode(code)) releaseKey(code);
+            }
+        }
+    });
 
     /* ---- Dropping a file on the emulator --------------------------------
        Infinite Mac already accepts dropped files: a disk image is mounted,

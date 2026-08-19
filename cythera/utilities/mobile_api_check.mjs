@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Checks cythera_mobile.html against the emulator it embeds.
+// Checks mobile.html against the emulator it embeds.
 //
-//   node utilities/mobile_api_check.mjs cythera_mobile.html infinite-mac
+//   node utilities/mobile_api_check.mjs mobile.html infinite-mac
 //
 // The page is a touch shell around an infinitemac.org embed, and everything it
 // sends -- postMessage payloads, key codes, iframe query parameters, emulator
@@ -27,7 +27,7 @@ import {readFileSync, existsSync} from 'node:fs';
 import vm from 'node:vm';
 import {pageSource} from './page_scripts.mjs';
 
-const [htmlPath = 'cythera_mobile.html', repoPath = 'infinite-mac'] = process.argv.slice(2);
+const [htmlPath = 'mobile.html', repoPath = 'infinite-mac'] = process.argv.slice(2);
 for (const p of [htmlPath, repoPath]) {
   if (!existsSync(p)) { console.error('missing: ' + p); process.exit(2); }
 }
@@ -193,7 +193,7 @@ function run({webgl = true} = {}) {
       setItem: (k, v) => store.set(k, String(v)),
       removeItem: k => store.delete(k),
     },
-    location: {search: '', href: 'file:///cythera_mobile.html', hash: ''},
+    location: {search: '', href: 'file:///mobile.html', hash: ''},
     innerWidth: 390, innerHeight: 844,
     document: {
       getElementById: id => registry.get(id) || registry.set(id, makeEl('div', id)).get(id),
@@ -261,7 +261,9 @@ if (noGl.threw) {
 
   a.fireWindow('message', {origin: 'https://infinitemac.org', data: {type: 'emulator_loaded'}});
   const types = a.posted.map(p => p.msg.type);
-  const want = ['emulator_unpause', 'emulator_mouse_down', 'emulator_mouse_up'];
+  // The move is not decoration: a click with no move before it lands at 0,0,
+  // which on a Mac is the corner of the menu bar.
+  const want = ['emulator_unpause', 'emulator_mouse_move', 'emulator_mouse_down', 'emulator_mouse_up'];
   if (JSON.stringify(types) === JSON.stringify(want)) ok('start after load', types.join(', '));
   else fail('start after load', 'sent ' + JSON.stringify(types));
 
