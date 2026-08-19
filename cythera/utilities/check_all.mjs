@@ -5,7 +5,7 @@
 //   node utilities/check_all.mjs --quick     (skip the slow ones)
 //   node utilities/check_all.mjs viewer      (one page: viewer | browser | mobile)
 //
-// There are twelve harnesses across three pages, each with its own argument
+// There are thirteen harnesses across three pages, each with its own argument
 // list, spread across three handoff documents. Nobody runs all of them by hand
 // every time, and it showed: two coverage gaps in decoder_snapshot.mjs went
 // unnoticed because a change was verified with the two checks that seemed
@@ -95,6 +95,7 @@ const CHECKS = [
 
   {page: 'mobile', name: 'static', cmd: ['utilities/verify_viewer.mjs', 'mobile.html']},
   {page: 'mobile', name: 'input', cmd: ['utilities/mobile_input_check.mjs', 'mobile.html']},
+  {page: 'mobile', name: 'undither', cmd: ['utilities/mobile_undither_check.mjs', 'mobile.html', 'cythera_data_viewer.html']},
   {page: 'mobile', name: 'infinite-mac api', want: ['infinite-mac'],
    cmd: ['utilities/mobile_api_check.mjs', 'mobile.html', 'infinite-mac']},
 ];

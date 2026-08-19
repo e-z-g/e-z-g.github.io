@@ -298,6 +298,14 @@
             <code>F11</code>, <code>F12</code> and its own reload/new-tab/close shortcuts.
             Everything on this page can also be reached with Tab and Enter.</p>
 
+            <h3>The picture</h3>
+            <p><b>Crisp</b> shows the emulator's own pixels, unaltered. <b>Undith</b> runs the
+            same undither <a href="cythera_data_viewer.html">the data viewer</a> uses on the
+            game's artwork. Mac OS draws a shade it has no palette entry for as a checkerboard
+            of two colours it does have; this reads that pattern back as the tone it was
+            standing in for, and can tell it apart from linework, so a one-pixel highlight
+            survives where a blur would have taken it. It needs WebGL.</p>
+
             <h3>Loading your own Cythera</h3>
             <p><b>Drag a file onto the emulator</b> — a disk image (<code>.dsk</code>,
             <code>.img</code>, <code>.iso</code>) mounts, and anything else, including the
@@ -407,7 +415,7 @@
         // the TAP TO START overlay, and the emulator_unpause sent on tap was
         // unpausing something that had never been paused.
         u.searchParams.set('paused', 'true');
-        // The de-dither filter needs the frames, and the frames are also the
+        // The undither needs the frames, and the frames are also the
         // only place the emulator states the resolution it actually came up
         // with. They are not free: a whole screen is copied across origins on
         // every drawn frame. The parameter is read once at boot, so switching
@@ -509,7 +517,7 @@
         scaleTarget.style.width = `${w}px`;
         scaleTarget.style.height = `${h}px`;
         glCanvas.width = w; glCanvas.height = h;
-        if (shaderReady && texSizeLocation) gl.uniform2f(texSizeLocation, w, h);
+        setSize(w, h);
         setCursor(cursorX, cursorY);
         applyCssScale();
     }
@@ -839,26 +847,170 @@
         else { showToast("?"); }
     });
  
-    // Smart Shader
-    const gl = glCanvas.getContext('webgl', { alpha: false, antialias: false });
-    const vsSource = `attribute vec2 a_position; varying vec2 v_texCoord; void main() { v_texCoord = a_position * 0.5 + 0.5; v_texCoord.y = 1.0 - v_texCoord.y; gl_Position = vec4(a_position, 0.0, 1.0); }`;
-    const fsSource = `
-        precision mediump float; varying vec2 v_texCoord; uniform sampler2D u_image; uniform vec2 u_texSize;
+    /* ---- Undither -------------------------------------------------------
+       The same filter cythera_data_viewer.html runs over the game's artwork,
+       moved onto the GPU so it can run on a live screen.
+
+       Its settings are the viewer's, and the viewer is the source of truth:
+       sensitivity 0.67, strength 67%, detail recovery 50%, the checkerboard
+       notch smoother. utilities/mobile_undither_check.mjs reads them back out
+       of the viewer and fails if the two drift apart.
+
+       The viewer's implementation could not be used as it stands. It is
+       written for one still picture with a 400-entry cache, and it costs 5.8
+       seconds for a 640x480 frame and 16 seconds at phone resolution -- five
+       orders of magnitude off a live emulator. What is here is the same
+       algorithm, stage for stage, as three full-screen passes:
+
+         1  mean    a 3x3 box mean of the frame
+         2  detect  how dithered each pixel is, and the blend
+         3  detail  re-sharpen what the blend softened
+
+       Two stages of the viewer's pipeline are deliberately not here. Stray
+       colour repair looks for isolated pixels whose HUE is wrong -- palette
+       quantisation accidents in the artwork, which an emulator's framebuffer
+       does not have. The 2x guided upscale-and-supersample buys tonal depth
+       by inventing sub-pixel samples, at four times the pixels, and the
+       viewer then pulls undithered pixels back off it again by (1-w); on a
+       screen that is already being scaled to fit, it is not worth a frame's
+       budget. `passes: 3` is not here either, because it does nothing: the
+       notch smoother reads `src`, which does not change between passes, so
+       the viewer computes the same result three times.
+
+       The old filter was a 3x3 box blur that fired only where all four
+       neighbours differed -- the same shape as the one the viewer deleted for
+       "pushing pixels off the palette". This one decides pixel by pixel
+       whether it is looking at a dither or at drawn linework, and leaves the
+       linework alone. */
+    const UNDITHER = {sens: 0.67, strength: 0.67, detail: 0.5};
+
+    const gl = glCanvas.getContext('webgl', {alpha: false, antialias: false, depth: false});
+
+    const VS = `attribute vec2 a_position; varying vec2 v_texCoord;
+        void main() { v_texCoord = a_position * 0.5 + 0.5; gl_Position = vec4(a_position, 0.0, 1.0); }`;
+
+    // A frame arrives top row first; the emulator's screen is drawn the same
+    // way, so only the pass that reaches the display flips it.
+    // CLAMP_TO_EDGE would repeat the edge pixel into the average; the viewer
+    // leaves an out-of-range neighbour out of the count instead. `inside()` is
+    // that rule, and it is what makes the two agree at the border as well as
+    // in the middle.
+    const GLSL_INSIDE = `bool inside(vec2 uv) { return uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0; }`;
+
+    const FS_MEAN = `precision highp float;
+        varying vec2 v_texCoord; uniform sampler2D u_src; uniform vec2 u_texSize;
+        ${GLSL_INSIDE}
         void main() {
-            vec2 px = vec2(1.0, 1.0) / u_texSize; vec4 C = texture2D(u_image, v_texCoord);
-            vec4 L = texture2D(u_image, v_texCoord + vec2(-px.x, 0.0)); vec4 R = texture2D(u_image, v_texCoord + vec2(px.x, 0.0));
-            vec4 U = texture2D(u_image, v_texCoord + vec2(0.0, -px.y)); vec4 D = texture2D(u_image, v_texCoord + vec2(0.0, px.y));
-            float thresh = 0.08; bool diffL = distance(C.rgb, L.rgb) > thresh; bool diffR = distance(C.rgb, R.rgb) > thresh; bool diffU = distance(C.rgb, U.rgb) > thresh; bool diffD = distance(C.rgb, D.rgb) > thresh;
-            if (diffL && diffR && diffU && diffD) { gl_FragColor = (C + L + R + U + D) / 5.0; } else { gl_FragColor = C; }
-        }
-    `;
-    // The whole block below used to run unguarded at the top level, so on any
-    // browser without WebGL -- or with it blocked, or with too many live
-    // contexts -- getContext returned null and gl.createProgram() threw before
-    // the script had installed a single touch handler. The page came up as a
-    // dead emulator with no controls at all. A de-dithering filter is a nicety;
-    // it must not be able to take the page down with it.
-    let texture = null, shaderProgram = null, texSizeLocation = null;
+            vec2 px = 1.0 / u_texSize;
+            vec3 sum = vec3(0.0); float cnt = 0.0;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    vec2 uv = v_texCoord + vec2(float(dx), float(dy)) * px;
+                    if (!inside(uv)) continue;
+                    sum += texture2D(u_src, uv).rgb; cnt += 1.0;
+                }
+            gl_FragColor = vec4(sum / cnt, 1.0);
+        }`;
+
+    /* detect(), the lock pass and the notch, in one. The residual of a pixel
+       is what is left after its own neighbourhood's mean is taken away, and
+       the question the detector asks is whether the residuals along a line
+       through the pixel agree with it or alternate against it. A dither
+       alternates; a drawn edge agrees. That is the whole idea, and it is why
+       this can smooth a checkerboard without touching a one-pixel highlight. */
+    const FS_DETECT = `precision highp float;
+        varying vec2 v_texCoord;
+        uniform sampler2D u_src; uniform sampler2D u_mean;
+        uniform vec2 u_texSize; uniform float u_sens; uniform float u_strength;
+        ${GLSL_INSIDE}
+
+        vec3 srcAt(vec2 uv) { return texture2D(u_src, uv).rgb * 255.0; }
+        vec3 resAt(vec2 uv) { return (texture2D(u_src, uv).rgb - texture2D(u_mean, uv).rgb) * 255.0; }
+
+        void main() {
+            vec2 px = 1.0 / u_texSize;
+            vec3 c = srcAt(v_texCoord);
+            vec3 r0 = resAt(v_texCoord);
+            float m = length(r0);
+            float d = 0.0;
+
+            if (m >= 0.5) {
+                float best = -2.0;
+                for (int a = 0; a < 2; a++) {
+                    vec2 ax = a == 0 ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+                    float sum = 0.0, cnt = 0.0;
+                    for (int k = 1; k <= 3; k++) {
+                        for (int sg = 0; sg < 2; sg++) {
+                            vec2 uv = v_texCoord + ax * float(k) * (sg == 0 ? -1.0 : 1.0) * px;
+                            if (!inside(uv)) continue;
+                            cnt += 1.0;
+                            vec3 rj = resAt(uv);
+                            float mj = length(rj);
+                            if (mj < 0.5) continue;      // a flat neighbour votes neutral
+                            sum += dot(r0, rj) / (m * mj);
+                        }
+                    }
+                    if (cnt > 0.0) best = max(best, sum / cnt);
+                }
+                float coh = best < -1.0 ? 1.0 : best;    // no support at all: coherent
+                d = clamp((u_sens - coh) * 8.0, 0.0, 1.0) * smoothstep(1.5, 5.0, m);
+            }
+
+            // A pixel whose whole neighbourhood is one colour has nothing to
+            // undither, whatever the residuals said.
+            bool uniformArea = true;                 // "flat" is a reserved word
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    if (dx == 0 && dy == 0) continue;
+                    vec2 uv = v_texCoord + vec2(float(dx), float(dy)) * px;
+                    if (inside(uv) && srcAt(uv) != c) uniformArea = false;
+                }
+            if (uniformArea) d = 0.0;
+
+            // The checkerboard notch: half the pixel, half its four orthogonal
+            // neighbours. It removes one frequency and leaves the rest alone.
+            vec3 n4 = vec3(0.0); float n4cnt = 0.0;
+            for (int e = 0; e < 4; e++) {
+                vec2 off = e == 0 ? vec2(px.x, 0.0) : e == 1 ? vec2(-px.x, 0.0)
+                         : e == 2 ? vec2(0.0, px.y) : vec2(0.0, -px.y);
+                vec2 uv = v_texCoord + off;
+                if (!inside(uv)) continue;
+                n4 += srcAt(uv); n4cnt += 1.0;
+            }
+            vec3 filt = n4cnt > 0.0 ? 0.5 * c + 0.5 * (n4 / n4cnt) : c;
+
+            vec3 res = c + d * u_strength * (filt - c);
+            gl_FragColor = vec4(res / 255.0, d);   // d rides along for pass 3
+        }`;
+
+    const FS_DETAIL = `precision highp float;
+        varying vec2 v_texCoord; uniform sampler2D u_res;
+        uniform vec2 u_texSize; uniform float u_strength; uniform float u_detail;
+        ${GLSL_INSIDE}
+        void main() {
+            vec2 uv = vec2(v_texCoord.x, 1.0 - v_texCoord.y);   // to the display
+            vec2 px = 1.0 / u_texSize;
+            vec4 self = texture2D(u_res, uv);
+            vec3 sum = vec3(0.0); float cnt = 0.0;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++) {
+                    vec2 t = uv + vec2(float(dx), float(dy)) * px;
+                    if (!inside(t)) continue;
+                    sum += texture2D(u_res, t).rgb; cnt += 1.0;
+                }
+            vec3 blurred = sum / cnt;
+            float w = self.a * u_strength * u_detail;
+            gl_FragColor = vec4(self.rgb + w * (self.rgb - blurred), 1.0);
+        }`;
+
+    /* All of this used to run unguarded at the top level, so on a browser
+       without WebGL -- or with it blocked, or with too many live contexts --
+       getContext returned null and the script died before it had installed a
+       single input handler. The page came up as a dead emulator with no
+       controls at all. A display filter must not be able to do that. */
+    let texSrc = null, texMean = null, texRes = null, fboMean = null, fboRes = null;
+    let progMean = null, progDetect = null, progDetail = null, fboType = null;
+
     const shaderReady = (() => {
         if (!gl) return false;
         try {
@@ -870,30 +1022,100 @@
                     throw new Error(gl.getShaderInfoLog(shader) || 'shader compile failed');
                 return shader;
             };
-            shaderProgram = gl.createProgram();
-            gl.attachShader(shaderProgram, compile(gl.VERTEX_SHADER, vsSource));
-            gl.attachShader(shaderProgram, compile(gl.FRAGMENT_SHADER, fsSource));
-            gl.linkProgram(shaderProgram);
-            if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS))
-                throw new Error(gl.getProgramInfoLog(shaderProgram) || 'program link failed');
-            gl.useProgram(shaderProgram);
-            const positionBuffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
-            const positionLocation = gl.getAttribLocation(shaderProgram, "a_position"); gl.enableVertexAttribArray(positionLocation); gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-            texture = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, texture); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-            texSizeLocation = gl.getUniformLocation(shaderProgram, "u_texSize"); gl.uniform2f(texSizeLocation, screenWidth, screenHeight);
+            const link = fs => {
+                const prog = gl.createProgram();
+                gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+                gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
+                gl.bindAttribLocation(prog, 0, 'a_position');
+                gl.linkProgram(prog);
+                if (!gl.getProgramParameter(prog, gl.LINK_STATUS))
+                    throw new Error(gl.getProgramInfoLog(prog) || 'program link failed');
+                return prog;
+            };
+            progMean = link(FS_MEAN);
+            progDetect = link(FS_DETECT);
+            progDetail = link(FS_DETAIL);
+
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+            gl.enableVertexAttribArray(0);
+            gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+            // The detector works on residuals -- a pixel minus its own
+            // neighbourhood's mean -- which are small numbers. Eight bits per
+            // channel quantises the mean, and the error lands squarely on the
+            // faint end of the detector's ramp, so half floats are worth
+            // asking for. Every desktop and nearly every phone GPU has them;
+            // where they are missing the filter still runs, a little coarser.
+            gl.getExtension('OES_texture_half_float_linear');
+            const halfFloat = gl.getExtension('OES_texture_half_float');
+            fboType = halfFloat ? halfFloat.HALF_FLOAT_OES : gl.UNSIGNED_BYTE;
+
+            texSrc = makeTexture();
+            texMean = makeTexture();
+            texRes = makeTexture();
+            fboMean = gl.createFramebuffer();
+            fboRes = gl.createFramebuffer();
+            allocateTargets(screenWidth, screenHeight);
+            if (fboType !== gl.UNSIGNED_BYTE &&
+                gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+                // Some drivers advertise half floats but will not render to
+                // them. Asking is the only way to find out.
+                fboType = gl.UNSIGNED_BYTE;
+                gl.deleteTexture(texMean); gl.deleteTexture(texRes);
+                texMean = makeTexture();
+                texRes = makeTexture();
+                allocateTargets(screenWidth, screenHeight);
+            }
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
             return true;
         } catch (err) {
-            console.warn('De-dither filter unavailable:', err && err.message);
+            console.warn('Undither unavailable:', err && err.message);
             return false;
         }
     })();
+
+    function makeTexture() {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        return tex;
+    }
+
+    // The intermediate buffers are the size of the emulated screen, so they
+    // have to follow it when the machine changes resolution.
+    function allocateTargets(w, h) {
+        for (const [tex, fbo] of [[texMean, fboMean], [texRes, fboRes]]) {
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, fboType, null);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        }
+    }
+
+    function setSize(w, h) {
+        if (!shaderReady) return;
+        allocateTargets(w, h);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        for (const [prog, uniforms] of [[progMean, {}], [progDetect, {u_sens: UNDITHER.sens, u_strength: UNDITHER.strength}],
+                                        [progDetail, {u_strength: UNDITHER.strength, u_detail: UNDITHER.detail}]]) {
+            gl.useProgram(prog);
+            gl.uniform2f(gl.getUniformLocation(prog, 'u_texSize'), w, h);
+            for (const name in uniforms) gl.uniform1f(gl.getUniformLocation(prog, name), uniforms[name]);
+        }
+    }
+    if (shaderReady) setSize(screenWidth, screenHeight);
 
     let isCrisp = true;
     const filterToggle = document.getElementById('filter-toggle');
     function setCrisp(crisp) {
         isCrisp = crisp || !shaderReady;
         if (isCrisp) { glCanvas.style.display = 'none'; iframe.style.opacity = '1'; filterToggle.innerHTML = '<span class="emoji">📺</span>Crisp'; }
-        else { glCanvas.style.display = 'block'; iframe.style.opacity = '0.01'; filterToggle.innerHTML = '<span class="emoji">📺</span>Dedith'; }
+        else { glCanvas.style.display = 'block'; iframe.style.opacity = '0.01'; filterToggle.innerHTML = '<span class="emoji">📺</span>Undith'; }
         savePrefs({ crisp: isCrisp });
     }
     onTap(filterToggle, () => {
@@ -904,17 +1126,33 @@
         filterToggle.classList.add('disabled');
         filterToggle.title = 'WebGL is not available in this browser';
     }
+
     // Called from the one message listener at the top, which is also where
     // the emulator's real screen size is picked up. Two listeners for the same
     // message meant two places that had to agree about what a frame is.
     function drawScreen(msg) {
         if (isCrisp || !shaderReady || !msg.data) return;
+        const w = msg.width || screenWidth, h = msg.height || screenHeight;
         try {
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, msg.width || screenWidth, msg.height || screenHeight,
-                          0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(msg.data));
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            gl.bindTexture(gl.TEXTURE_2D, texSrc);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(msg.data));
+            gl.viewport(0, 0, w, h);
+
+            pass(progMean, fboMean, [['u_src', texSrc]]);
+            pass(progDetect, fboRes, [['u_src', texSrc], ['u_mean', texMean]]);
+            pass(progDetail, null, [['u_res', texRes]]);
         } catch (err) { /* a frame that will not upload is not worth reporting */ }
+    }
+
+    function pass(prog, fbo, inputs) {
+        gl.useProgram(prog);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        for (let unit = 0; unit < inputs.length; unit++) {
+            gl.activeTexture(gl.TEXTURE0 + unit);
+            gl.bindTexture(gl.TEXTURE_2D, inputs[unit][1]);
+            gl.uniform1i(gl.getUniformLocation(prog, inputs[unit][0]), unit);
+        }
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
     }
 
     // Settings Drawer Buttons
