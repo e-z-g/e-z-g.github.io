@@ -1601,6 +1601,20 @@ const WALK_CYCLE = [0, 1, 2, 1];   // 1-2-3-2, not 1-2-3-4: column 4 is the
                                    // the stride.
 const SPR_REST = 3;
 
+// The frame to show a character in when nothing else decides it: standing,
+// facing south, which is facing the reader. Frame 0 -- the first frame that
+// happens to carry pixels -- is the north row's first stride, so every
+// gallery of characters used to be a gallery of the backs of their heads.
+// Falls back through the south row's stride frames and then to whatever the
+// sheet has, for the short blocks that do not own four facings.
+function restingFrame(info) {
+  if (!info || !info.present || !info.present.length) return 0;
+  const has = f => info.present.indexOf(f) >= 0;
+  for (const f of [SPR_S * 4 + SPR_REST, SPR_S * 4 + 1, SPR_S * 4, SPR_REST])
+    if (has(f)) return f;
+  return info.present[0];
+}
+
 function spriteFrameInfo(baseTile, proptype) {
   const key = 'p' + (proptype || 0);
   if (spriteCountCache.has(key)) return spriteCountCache.get(key);
@@ -1661,7 +1675,7 @@ function animateSpriteTile(host, info, rec) {
   if (info.isStatic || info.present.length < 2 || PREFERS_REDUCED_MOTION) {
     c.style.left = 'calc(100% - ' + Math.round(SIZE * 0.55) + 'px)';
     c.style.top  = 'calc(100% - ' + Math.round(SIZE * 0.55) + 'px)';
-    const f = info.present.indexOf(staticFrame) >= 0 ? staticFrame : (info.present[0] || 0);
+    const f = info.present.indexOf(staticFrame) >= 0 ? staticFrame : restingFrame(info);
     try { drawTileToCanvas(c, info.base + f, 32); } catch (e) {}
     return c;
   }
@@ -1676,7 +1690,6 @@ function animateSpriteTile(host, info, rec) {
   const reflex = Math.max(4, Math.min(24, (rec && rec.reflex) || 12));
   const stepMs = Math.round(620 - reflex * 16);       // ~230ms fast, ~560ms slow
   const rows = Math.max(1, Math.floor(info.present.length / 4));
-  const rowFor = { E: SPR_E, S: SPR_S, W: SPR_W, N: SPR_N };
 
   let W = 0, H = 0, per = 0, steps = 0, k = 0;
   const dir = Math.random() < 0.5 ? 1 : -1;
@@ -1690,18 +1703,34 @@ function animateSpriteTile(host, info, rec) {
     if (!k) k = Math.floor(Math.random() * steps);
   };
 
+  // Where step n sits on the perimeter. Position and facing are worked out
+  // separately from this, which is the whole point: the facing used to be read
+  // off whichever SIDE the current position landed on, so a step that arrived
+  // exactly at a corner was already assigned to the next side and the sprite
+  // turned a step before it started walking that way. Facing now comes from
+  // the move that just happened -- previous position to this one -- so they
+  // turn as they set off down the new side, not as they reach the end of the
+  // old one.
+  const posAt = (n) => {
+    const t = ((((n / steps) * per) % per) + per) % per;
+    if (t < W)              return [t, 0];
+    if (t < W + H)          return [W, t - W];
+    if (t < 2 * W + H)      return [W - (t - W - H), H];
+    return [0, H - (t - 2*W - H)];
+  };
+
   const place = () => {
     if (!per || !steps) return;
-    const t = (((k / steps) * per) % per + per) % per;
-    let x, y, side;
-    if (t < W)                { x = t;                 y = 0;                 side = dir > 0 ? 'E' : 'W'; }
-    else if (t < W + H)       { x = W;                 y = t - W;             side = dir > 0 ? 'S' : 'N'; }
-    else if (t < 2 * W + H)   { x = W - (t - W - H);   y = H;                 side = dir > 0 ? 'W' : 'E'; }
-    else                      { x = 0;                 y = H - (t - 2*W - H); side = dir > 0 ? 'N' : 'S'; }
-    const row = rowFor[side] % rows;
+    const [x, y] = posAt(k);
+    const [px, py] = posAt(k - dir);
+    const dx = x - px, dy = y - py;
+    let row = SPR_S;
+    if (Math.abs(dx) > Math.abs(dy)) row = dx > 0 ? SPR_E : SPR_W;
+    else if (dy !== 0) row = dy > 0 ? SPR_S : SPR_N;
+    row = row % rows;
     const col = WALK_CYCLE[((k % WALK_CYCLE.length) + WALK_CYCLE.length) % WALK_CYCLE.length];
     let f = row * 4 + col;
-    if (info.present.indexOf(f) < 0) f = info.present[0];
+    if (info.present.indexOf(f) < 0) f = restingFrame(info);
     try { drawTileToCanvas(c, info.base + f, 32); } catch (e) {}
     c.style.left = Math.round(x - SIZE / 2) + 'px';
     c.style.top  = Math.round(y - SIZE / 2) + 'px';
@@ -2982,6 +3011,10 @@ function resetDerivedCaches() {
   tileCanvasCache.clear();
   tileAnimCache.clear();
   pathCache.clear();
+  _tileFillCache.clear();
+  _fauxPropCache = null;
+  window.MAP_SEATS = null;
+  window.LIGHT_SOURCES = null;
   for (const k of Object.keys(_tileImageCache)) delete _tileImageCache[k];
 }
 
@@ -5717,6 +5750,13 @@ function toggleCharNames(on) { window.SHOW_CHAR_NAMES = on; drawCharacterLayer()
 
 // Position at a continuous time: characters spend the first stretch of each
 // schedule interval walking the A* route to their next post, then stand there.
+// One frame of "walk the day" advances the clock by this much at 1x, matching
+// the interval in startMapAnimation. A walk is timed off it so that at 1x a
+// character advances exactly one square per frame: the route used to be
+// squeezed into a fixed half-hour regardless of length, so a forty-square walk
+// at 1x teleported the walker a square and a half at a time.
+const MAP_TICK_HOURS = 0.02;
+
 function walkingPosition(entries, t, m) {
   const real = entries.filter(e => e.mode !== 0);
   if (!real.length) return null;
@@ -5727,17 +5767,20 @@ function walkingPosition(entries, t, m) {
   if (!nxt || nxt === cur || nxt.level !== cur.level) return { e: cur, x: cur.x, y: cur.y };
   let span = nxt.hour - cur.hour;
   if (span <= 0) span += 24;
-  // Walk during the last half-hour of the interval so they arrive at the next
-  // post on the hour, rather than setting off the moment they get somewhere.
-  const travel = Math.min(0.5, span);
   let dt = t - cur.hour;
   if (dt < 0) dt += 24;
-  const startWalk = span - travel;
-  if (dt < startWalk || !m) return { e: cur, x: cur.x, y: cur.y };
+  if (!m) return { e: cur, x: cur.x, y: cur.y };
   buildPropBlockers(window.CUR_MAP ? window.CUR_MAP.resid : 0, m);
-  const path = findPath(m, cur.x, cur.y, nxt.x, nxt.y);
+  const path = findPath(m, cur.x, cur.y, nxt.x, nxt.y);   // findPath caches
+  const squares = Math.max(1, path.length - 1);
+  // Long enough for one square per frame at 1x, and never longer than the
+  // interval itself -- so they still arrive at the next post on the hour, and
+  // still stand at the old one until it is time to leave.
+  const travel = Math.min(span, squares * MAP_TICK_HOURS);
+  const startWalk = span - travel;
+  if (dt < startWalk) return { e: cur, x: cur.x, y: cur.y };
   const f = Math.min(1, (dt - startWalk) / travel);
-  const i = Math.min(path.length - 1, Math.floor(f * (path.length - 1)));
+  const i = Math.min(path.length - 1, Math.floor(f * squares));
   const nxtPt = path[Math.min(path.length - 1, i + 1)];
   const dx = nxtPt[0] - path[i][0], dy = nxtPt[1] - path[i][1];
   // Row layout (confirmed): 0=N, 1=E, 2=S, 3=W. y increases southward.
@@ -5747,11 +5790,55 @@ function walkingPosition(entries, t, m) {
   return { e: cur, x: path[i][0], y: path[i][1], walking: true, dir, step: i };
 }
 
+/* ---------------------------------------------------------------------------
+   Sitting
+   ---------------------------------------------------------------------------
+   Column 3 of a character's sprite sheet is the seated pose -- the walk cycle
+   only uses columns 0-2 -- and it was never drawn, so everyone stood to
+   attention on top of the chair they are scheduled to be sitting in.
+
+   Which way the chair faces is read off the aspect. The four single-square
+   chair aspects come in transpose pairs: aspect 0 and 3 are each other's
+   transpose, and so are 1 and 2 (measured -- 0x302/0x305 and 0x303/0x304 have
+   mirrored pixel distributions). Transposing an image swaps north with west
+   and south with east, so whatever the mapping is, {facing(0),facing(3)} and
+   {facing(1),facing(2)} have to be {N,W} and {S,E} in some order. The
+   artwork settles which: each chair is a rail enclosing the seat on three
+   sides with the fourth rounded open, and the open side is the front -- open
+   at the bottom for aspect 0, at the left for 1, at the top for 2, at the
+   right for 3. This is read off 32x32 artwork rather than out of a table, so
+   it is the least certain thing on this page; it is also only a facing.
+--------------------------------------------------------------------------- */
+const CHAIR_FACING = [SPR_S, SPR_W, SPR_N, SPR_E];
+const SEAT_PROPTYPES = new Set([12, 41, 220, 227]);   // chair, throne, chair, chair
+function seatsOnMap(resid, m) {
+  const key = resid + ':' + (m ? m.width : 0);
+  if (window.MAP_SEATS && window.MAP_SEATS.key === key) return window.MAP_SEATS.map;
+  const seats = new Map();
+  try {
+    const praw = getResourceBytes(resid + 0x100);
+    if (praw) {
+      for (const r of parseDelverPropList(smartDecrypt(praw, resid + 0x100).data)) {
+        if (r.flags === 0xFF || r.flags === 0x42 || r.flags === 0x44) continue;
+        if (!SEAT_PROPTYPES.has(r.proptype)) continue;
+        let face = CHAIR_FACING[r.aspect & 3];
+        // A rotated chair is the transposed image, and transposing swaps
+        // north with west and south with east.
+        if (r.rotated) face = { [SPR_N]: SPR_W, [SPR_W]: SPR_N, [SPR_S]: SPR_E, [SPR_E]: SPR_S }[face];
+        seats.set(r.x + ',' + r.y, face);
+      }
+    }
+  } catch (e) {}
+  window.MAP_SEATS = { key, map: seats };
+  return seats;
+}
+
 function charactersOnLevel(level, hour) {
   const scheds = loadSchedules(), chars = loadCharacterTable();
   const props = getPropTileList();
   const out = [];
   const m = window.CUR_MAP && window.CUR_MAP.m;
+  const seats = (window.CUR_MAP && m) ? seatsOnMap(window.CUR_MAP.resid, m) : null;
   for (let i = 0; i < scheds.length; i++) {
     const w = walkingPosition(scheds[i], hour, m);
     const e = w && w.e;
@@ -5763,6 +5850,7 @@ function charactersOnLevel(level, hour) {
     // A sheet is 4 facings x 4 poses. While walking, face the direction of
     // travel and cycle the pose so they stride rather than slide.
     let aspect = c.aspect;
+    let sitting = false;
     if (w.walking && w.dir !== undefined) {
       // Column layout (confirmed): 0=left-foot-forward, 1=standing,
       // 2=right-foot-forward, 3=sitting (not used while walking). A real
@@ -5771,9 +5859,13 @@ function charactersOnLevel(level, hour) {
       const GAIT = [1, 0, 1, 2];
       const pose = GAIT[w.step % 4];
       aspect = (w.dir & 3) * 4 + pose;
+    } else if (seats && seats.size) {
+      // Standing still on a chair means sitting in it, facing the way it does.
+      const face = seats.get(w.x + ',' + w.y);
+      if (face !== undefined) { aspect = face * 4 + SPR_REST; sitting = true; }
     }
     out.push({ index: i, name: characterName(i), x: w.x, y: w.y, mode: e.mode,
-               walking: !!w.walking, dir: w.dir,
+               walking: !!w.walking, dir: w.dir, sitting,
                proptype: c.proptype, aspect, tile: base + aspect });
   }
   return out;
