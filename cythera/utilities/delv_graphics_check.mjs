@@ -99,6 +99,7 @@ const sha = b => createHash('sha256').update(Buffer.from(b.buffer ? b : Uint8Arr
 
 // ---- compare ---------------------------------------------------------------
 let same = 0, sized = 0, differed = 0, viewerFailed = 0, refFailed = 0, notFound = 0;
+const divergedByDesign = [];
 const problems = [];
 const warned = new Map();
 
@@ -108,8 +109,16 @@ for (const ref of REF) {
   if (!raw || !raw.length) { notFound++; continue; }
   if (!ref.ok) { refFailed++; continue; }
 
+  // 0x8EFF is a sized picture wearing a tile sheet's subindex, and the viewer
+  // now reads it as one. delvmod's _CLASS_HINTS maps the whole of subindex 141
+  // to TileSheet, so this is a deliberate divergence and is reported as one
+  // below rather than counted as a failure.
+  const sizedSheet = subindex === 141 && ctx.tileSheetIsSized &&
+                     ctx.tileSheetIsSized(resid, raw);
+  if (sizedSheet) { divergedByDesign.push(resid); continue; }
+
   let got;
-  try { got = ctx.decodeResource(raw, subindex); }
+  try { got = ctx.decodeResource(raw, subindex, resid); }
   catch (e) {
     viewerFailed++;
     problems.push(`0x${resid.toString(16).toUpperCase()} (sub ${subindex}) the viewer threw: ${e.message}`);
@@ -147,6 +156,13 @@ if (differed) console.log(`  different pixels : ${differed}`);
 if (viewerFailed) console.log(`  viewer failed    : ${viewerFailed}`);
 if (refFailed) console.log(`  delvmod failed   : ${refFailed}`);
 if (notFound) console.log(`  not in this archive: ${notFound}`);
+if (divergedByDesign.length) {
+  console.log(`  read differently on purpose: ${divergedByDesign.length} ` +
+    `(${divergedByDesign.map(r => '0x' + r.toString(16).toUpperCase()).join(', ')})`);
+  console.log('    subindex-141 resources whose first four bytes are a {width,height} header and');
+  console.log('    whose sixteen tile ids carry no attributes in 0xF002 -- a sized picture filed');
+  console.log('    with the tile sheets. delvmod reads them as 32x512 strips, which shears them.');
+}
 
 for (const p of problems.slice(0, 25)) console.log('  ! ' + p);
 if (problems.length > 25) console.log(`  ! (+${problems.length - 25} more)`);
