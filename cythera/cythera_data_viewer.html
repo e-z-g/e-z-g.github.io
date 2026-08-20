@@ -165,9 +165,35 @@ select option { background:#181410; color:var(--gold); padding:8px; }
   background-color:rgba(31,0,183,.5);
   background-clip:padding-box; }
 
-select, button, option { line-height:1.4 !important; min-height:42px; padding-top:8px !important; padding-bottom:8px !important; }
+select, option { line-height:1.4 !important; min-height:42px; padding-top:8px !important; padding-bottom:8px !important; }
 select { font-family:Argos, Georgia, serif; }
-button { color:#2b2519 !important; text-shadow:0 1px 0 rgba(255,255,255,.42), 0 -1px 0 rgba(0,0,0,.30) !important; font-weight:600 !important; border:0 !important; border-radius:0 !important; background-color:#a49b8a !important; background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch' result='noise'/><feColorMatrix type='matrix' values='0.33 0.33 0.33 0 -0.1 0.33 0.33 0.33 0 -0.1 0.33 0.33 0.33 0 -0.1 0 0 0 1 0' in='noise' result='pureGrayscale'/><feFlood flood-color='%23c4bba6' result='stoneBase'/><feBlend mode='multiply' in='pureGrayscale' in2='stoneBase'/></filter><rect width='100%25' height='100%25' filter='url(%23g)'/></svg>"), linear-gradient(160deg,rgba(245,241,228,.46) 0%,rgba(74,70,60,.26) 50%,rgba(226,219,199,.42) 100%) !important; background-size:140px 140px, 100% 100% !important; background-blend-mode:multiply, normal !important; clip-path:polygon(15px 0, calc(100% - 15px) 0, 100% 50%, calc(100% - 15px) 100%, 15px 100%, 0 50%) !important; box-shadow:inset 0 2px 0 rgba(255,255,255,.42), inset 0 -2px 0 rgba(0,0,0,.42), 0 2px 5px rgba(0,0,0,.66) !important; padding-left:24px !important; padding-right:24px !important; }
+/* ---- The stone plaques -------------------------------------------------
+   The grain used to be fractal noise at baseFrequency 0.9 over four octaves,
+   multiplied at full contrast: that is a per-pixel speckle, which reads as
+   television static rather than stone and put light-and-dark noise straight
+   through the middle of every label. This is the same idea an order of
+   magnitude coarser (0.042, five octaves, so the mottle is centimetres rather
+   than grains) with its contrast compressed to about a fifth of the range
+   before it is drawn, so the surface has depth and the words have a quiet
+   background to sit on. A fine tooth is laid over it at low opacity, and the
+   engraved text keeps a light lower edge and a dark upper one. */
+button { line-height:1.35 !important; min-height:44px;
+  padding:9px 26px !important;
+  color:#241d12 !important;
+  text-shadow:0 1px 0 rgba(255,252,240,.55), 0 -1px 0 rgba(0,0,0,.34) !important;
+  font-weight:700 !important; letter-spacing:.035em;
+  border:0 !important; border-radius:0 !important;
+  background-color:#b3aa96 !important;
+  background-image:
+    linear-gradient(158deg, rgba(255,253,244,.34) 0%, rgba(255,253,244,0) 34%,
+                            rgba(46,42,34,.20) 72%, rgba(20,17,12,.30) 100%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='168' height='168'><filter id='s' x='0' y='0' width='100%25' height='100%25'><feTurbulence type='fractalNoise' baseFrequency='0.042' numOctaves='5' seed='7' stitchTiles='stitch' result='n'/><feColorMatrix type='matrix' values='0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0.33 0.33 0.33 0 0 0 0 0 0 1' in='n' result='g'/><feComponentTransfer in='g'><feFuncR type='linear' slope='0.30' intercept='0.60'/><feFuncG type='linear' slope='0.29' intercept='0.575'/><feFuncB type='linear' slope='0.27' intercept='0.515'/></feComponentTransfer></filter><rect width='100%25' height='100%25' filter='url(%23s)'/></svg>"),
+    radial-gradient(120% 150% at 50% -30%, rgba(255,255,255,.30), rgba(255,255,255,0) 62%) !important;
+  background-size:100% 100%, 168px 168px, 100% 100% !important;
+  background-blend-mode:normal, multiply, screen !important;
+  clip-path:polygon(15px 0, calc(100% - 15px) 0, 100% 50%, calc(100% - 15px) 100%, 15px 100%, 0 50%) !important;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.50), inset 0 -2px 0 rgba(0,0,0,.40),
+             0 2px 6px rgba(0,0,0,.62) !important; }
 /* Buttons living in an action cluster (toolbar rows, detail-view actions,
    zoneport exits) don't need the full plaque width -- without this every
    such button demanded 48px+ of padding and wrapped its label across
@@ -261,10 +287,18 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
    Nothing between the canvas and the page background. */
 #canvas, #canvasViewport canvas, .cell canvas, .cellimgwrap canvas { background:transparent !important; }
 .cellimgwrap { background:transparent !important; }
-.cellChars { font:8px/1.15 ui-monospace,Menlo,Consolas,monospace; color:#d8ceb0;
+/* 8px monospace in an 84px box fits a lot of characters and none of them can
+   be read. Prose gets the page's own serif at a size a person can take in at a
+   glance, and the tail is faded out rather than chopped square. */
+.cellChars { font:11px/1.32 Argos, Georgia, serif; color:#e0d6b4;
   background:#12100c; border:1px solid #4a432f; border-radius:4px;
-  width:84px; height:84px; padding:4px; overflow:hidden; word-break:break-word;
-  text-align:left; white-space:pre-wrap; }
+  width:84px; height:84px; padding:5px 6px; overflow:hidden; word-break:normal;
+  overflow-wrap:break-word; hyphens:auto;
+  text-align:left; white-space:normal;
+  -webkit-mask-image:linear-gradient(#000 62%, rgba(0,0,0,.15) 100%);
+  mask-image:linear-gradient(#000 62%, rgba(0,0,0,.15) 100%); }
+.cellChars.binary { font:9px/1.3 ui-monospace,Menlo,Consolas,monospace; color:#9b8850;
+  -webkit-mask-image:none; mask-image:none; }
 /* One colour for every name. There used to be three -- gold for a name read
    out of the archive, a duller ochre plus a dagger for one this tool supplies,
    grey italic for none at all -- which meant the gallery was colour-coded on a
@@ -394,9 +428,18 @@ details.sv[open] > summary::before { content:'\25BE '; }
 .sv-block h4 { margin:0 0 7px; font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#9d9270; font-weight:600; }
 .sv-sub { font-size:12px; color:#9d9270; margin:8px 0 5px; }
 .sv-chips { display:flex; flex-wrap:wrap; gap:6px; }
-.sv-chip { background:#1d1a15; border:1px solid var(--edge); color:#e8dfc0; border-radius:14px;
-           padding:5px 11px; font-size:12px; font-family:ui-monospace,Menlo,monospace;
-           cursor:pointer; min-height:0; width:auto; margin:0; }
+/* A chip is a chip, not a stone plaque. The `button` rules further up set the
+   plaque background, the angled clip-path and a pair of bolt studs with
+   !important, and the studs are positioned 16px in from each end -- which on a
+   chip 70px wide puts both of them through the middle of the label. */
+.sv-chip { background:#1d1a15 !important; background-image:none !important;
+           border:1px solid var(--edge) !important; color:#e8dfc0 !important; border-radius:14px !important;
+           padding:5px 11px !important; font-size:12px !important; font-family:ui-monospace,Menlo,monospace;
+           cursor:pointer; min-height:0 !important; width:auto; margin:0;
+           clip-path:none !important; box-shadow:none !important; text-shadow:none !important;
+           font-weight:400 !important; letter-spacing:0; }
+.sv-chip::before, .sv-chip::after { display:none !important; }
+.sv-chip:hover { background:#2b2620 !important; color:var(--gold) !important; border-color:var(--gold) !important; filter:none; }
 .sv-chip i { font-style:normal; color:#9d9270; }
 .sv-chip em { font-style:normal; color:#7d745a; }
 .sv-warn { font-size:13px; line-height:1.55; color:#d8c98e; background:#1a1610;
@@ -507,6 +550,25 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
 #mapInspect .inspRows dt { color:#9b8850; }
 #mapInspect .inspRows dd { margin:0; font-family:ui-monospace,Menlo,Consolas,monospace; }
 #mapInspect .inspActs { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+/* An opened container, the way the game shows one: the zoomrect graphic for
+   that kind of container with what is inside laid out on it. */
+.zoomRect { position:relative; margin:8px 0 4px; border-radius:6px;
+  background-repeat:no-repeat; background-size:100% 100%; background-position:center;
+  image-rendering:pixelated; min-height:120px;
+  padding:15% 13%; }
+.zoomRect .zrItems { position:relative; display:flex; flex-wrap:wrap; gap:6px;
+  justify-content:center; align-items:center; min-height:48px; }
+.zoomRect .zrItem { display:flex; align-items:center; gap:6px; width:auto; margin:0;
+  min-height:0 !important; padding:3px 11px 3px 4px !important; border-radius:18px !important;
+  clip-path:none !important;
+  background:rgba(12,10,7,.88) !important; background-image:none !important;
+  border:1px solid rgba(196,164,100,.7) !important; box-shadow:0 1px 3px rgba(0,0,0,.5) !important;
+  color:#e8dfc0 !important; text-shadow:none !important; font-size:12px !important;
+  font-weight:400 !important; letter-spacing:0; font-family:Argos, Georgia, serif; }
+.zoomRect .zrItem:hover { border-color:var(--gold) !important; color:var(--gold) !important; filter:none; }
+.zoomRect .zrItem::before, .zoomRect .zrItem::after { display:none !important; }
+.zoomRect .zrCap { margin:4px 0 0; font-size:11px; color:#9b8850; text-align:center; }
+
 #artUsage { max-width:720px; margin:10px auto 0; padding:10px 14px; text-align:left;
   background:rgba(20,18,14,.92); border:1px solid var(--edge); border-radius:8px; font-size:13px; }
 #artUsage .inspRows { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; margin:0; }
@@ -554,8 +616,12 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
    small stud in the top-left now, and everything about the data file lives
    behind it. */
 #archiveMenuBtn { position:fixed; top:8px; left:8px; z-index:41; width:auto; margin:0;
-  min-height:0 !important; padding:4px 12px !important; font-size:11px !important;
-  opacity:.62; }
+  min-height:0 !important; padding:5px 16px !important; font-size:11.5px !important;
+  letter-spacing:.06em; opacity:.62;
+  clip-path:polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%) !important; }
+/* The bolt studs are positioned 16px in from each end, which on a stud this
+   small lands on top of the label. */
+#archiveMenuBtn::before, #archiveMenuBtn::after { display:none !important; }
 #archiveMenuBtn:hover { opacity:1; }
 #archiveMenuBtn.urgent { opacity:1; font-size:14px !important; padding:9px 18px !important; }
 #archiveMenu { position:fixed; top:38px; left:8px; z-index:42; display:none;
@@ -1150,7 +1216,9 @@ function labelForUnnormalized(resid) {
   const zn = zoneNameFor(resid);
   if (zn) return zn;
   // The archive names many of its own resources; prefer that over our tables.
-  try { const sy = resourceSymbol(resid); if (sy) return sy; } catch (e) {}
+  // They are code identifiers -- "LKH_Guard", "Od_Trough1" -- so the
+  // underscores become spaces for display. The symbol itself is untouched.
+  try { const sy = resourceSymbol(resid); if (sy) return sy.replace(/_/g, ' '); } catch (e) {}
   const subn = Math.floor(resid / 0x100) - 1;
   const n = resid % 0x100;
   if (window.SHOW_BUILTIN_LABELS) {
@@ -5389,6 +5457,7 @@ function rerenderMapTerrain() {
   if (old && old.parentNode) old.parentNode.replaceChild(result.canvas, old);
   cm.canvas = result.canvas;
   cm.props = result.props;
+  cm.allProps = result.allProps;
   cm.animCells = result.animCells;
   startMapAnimation();
   drawMapMarks();
@@ -6470,6 +6539,10 @@ function renderMapVisual(resid, mapData) {
   const propResid = resid + 0x0100;
   const propDataRaw = getResourceBytes(propResid);
   let propCount = 0;
+  // Every record, drawn or not. The ones that are NOT drawn are the
+  // interesting half: 990 of the archive's prop records are inside a chest, a
+  // dresser or somebody's pack rather than on the floor.
+  let allRecs = [];
   // Which prop ended up on which square, kept so a click on the map can say
   // what it landed on. The prop list is the richest structured data in the
   // archive and it used to be drawn and then thrown away.
@@ -6477,6 +6550,7 @@ function renderMapVisual(resid, mapData) {
   if (propDataRaw) {
     const { data: propData } = smartDecrypt(propDataRaw, propResid);
     const recs = parseDelverPropList(propData);
+    allRecs = recs;
     const propTiles = getPropTileList();
     const attrs = getTileAttributes();
     const visible = [];
@@ -6572,7 +6646,7 @@ function renderMapVisual(resid, mapData) {
     }
   }
   return {canvas, width:m.width, height:m.height, propCount, tileSize:TS, m, animCells,
-          props: drawnProps, propResid};
+          props: drawnProps, propResid, allProps: allRecs};
 }
 // --- Map viewport pan & zoom state -----------------------------------
 const mapView = { scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
@@ -6816,8 +6890,23 @@ function propInspectRows(p) {
   const name = propTypeName(r.proptype);
   rows.push(['Prop type', '0x' + r.proptype.toString(16).toUpperCase() + (name ? ' — ' + name : '')]);
   rows.push(['Aspect', r.aspect + (r.rotated ? ' (rotated)' : '')]);
-  rows.push(['Tile', '0x' + p.tileId.toString(16).toUpperCase()]);
-  rows.push(['Flags', '0x' + r.flags.toString(16).padStart(2, '0').toUpperCase()]);
+  rows.push(['Tile', '0x' + p.tileId.toString(16).toUpperCase() +
+                     (terrainNameFor(p.tileId) ? ' — ' + terrainNameFor(p.tileId) : '')]);
+  rows.push(['Flags', '0x' + r.flags.toString(16).padStart(2, '0').toUpperCase() +
+                      (r.takeable ? ' (can be taken)' : '')]);
+  // What the square is actually being asked about most of the time: how heavy
+  // is that thing, and what does its class say about it. Both come out of the
+  // prop type's own script resource, which was already parsed for the Items
+  // gallery and never consulted here.
+  const w = itemWeight(r.proptype);
+  if (w !== null) rows.push(['Weight', w + (w === 1 ? ' unit' : ' units')]);
+  const cls = parseItemClass(r.proptype);
+  if (cls) for (const f of cls.data) {
+    if (f.key === 0x24) continue;                      // weight, shown above
+    const info = ITEM_FIELD_INFO[f.key];
+    if (!info || !info.scalar) continue;
+    rows.push([itemFieldLabel(f.key), itemFieldValue(f)]);
+  }
   if (r.d1 || r.d2) rows.push(['Data', r.d1 + ' / ' + r.d2 + '  (0x' + r.d3.toString(16).toUpperCase() + ')']);
   if (r.storeref) {
     const sym = typeof storeSymbol === 'function' ? storeSymbol(r.storeref) : null;
@@ -6825,6 +6914,97 @@ function propInspectRows(p) {
   }
   if (r.otherprop) rows.push(['Word 8-11', '0x' + r.otherprop.toString(16).toUpperCase()]);
   return rows;
+}
+
+/* ---------------------------------------------------------------------------
+   Containers
+   ---------------------------------------------------------------------------
+   A prop record whose flags carry 0x08 is not on the floor: its location word
+   is the index of the prop in the SAME list that holds it (see
+   parseDelverPropList). So a chest's contents are already in the file, and
+   until now the map simply did not draw them and the inspector did not
+   mention them.
+
+   The game shows an opened container as a "zoomrect": a picture of the
+   inside of that kind of container with the contents laid on it. Those are
+   subindex 142 graphics -- 0x8F09 is the crate, 0x8F0A the chest, 0x8F0E the
+   drawer -- and the mapping from a container to its picture is by kind, since
+   nothing in the archive links a prop type to a zoomrect.
+--------------------------------------------------------------------------- */
+const CONTAINER_ZOOMRECT = [
+  [/crate/,                                   0x8F09],
+  [/chest|coffer|trunk/,                      0x8F0A],
+  [/jar|urn|vat|pitcher|bowl|pot\b/,          0x8F0C],
+  [/sack|pouch|bag|basket/,                   0x8F0D],
+  [/dresser|desk|cupboard|cabinet|wardrobe|drawer|end table|table/, 0x8F0E],
+  [/corpse|skeleton|bones/,                   0x8F0F],
+  [/bookshelf|shelf/,                         0x8F02],
+  [/tombstone|grave/,                         0x8F10],
+  [/scroll/,                                  0x8F03],
+];
+function containerZoomrect(pt) {
+  const nm = (propTypeName(pt) || '').toLowerCase();
+  for (const [re, rid] of CONTAINER_ZOOMRECT) if (re.test(nm)) return rid;
+  return 0x8F0A;                                  // a chest, for want of better
+}
+
+// The records this one holds, from the map's full prop list.
+function containerContents(rec) {
+  const cm = window.CUR_MAP;
+  if (!cm || !cm.allProps) return [];
+  return cm.allProps.filter(o => o.container === rec.index && o.flags !== 0xFF && o.proptype);
+}
+
+// The zoomrect with the contents' sprites laid out across it, the way the game
+// shows an opened container.
+function buildContainerView(rec, contents) {
+  const wrap = document.createElement('div');
+  const box = document.createElement('div');
+  box.className = 'zoomRect';
+  const rid = containerZoomrect(rec.proptype);
+  // The zoomrect is a frame with a hollow middle, so it goes on as a
+  // background stretched to the card and the contents sit in the hollow.
+  try {
+    const raw = getResourceBytes(rid);
+    if (raw) {
+      const d = decodeResource(raw, 142);
+      const back = document.createElement('canvas');
+      drawToCanvas(back, d.W, d.H, d.image, null);
+      box.style.backgroundImage = 'url(' + back.toDataURL('image/png') + ')';
+      box.style.minHeight = Math.min(190, Math.round(d.H * 0.62)) + 'px';
+    }
+  } catch (e) {}
+  const label = RESOURCE_LABELS[rid] || labelFor(rid) || '';
+  const items = document.createElement('div');
+  items.className = 'zrItems';
+  const tiles = getPropTileList();
+  for (const o of contents) {
+    const chip = document.createElement('button');
+    chip.className = 'zrItem';
+    const base = tiles[o.proptype];
+    if (base !== undefined) {
+      const c = document.createElement('canvas');
+      try { drawTileToCanvas(c, base + o.aspect, 32, o.rotated); } catch (e) {}
+      c.style.cssText = 'width:32px;height:32px;image-rendering:pixelated';
+      chip.appendChild(c);
+    }
+    const nm = document.createElement('span');
+    const w = itemWeight(o.proptype);
+    nm.textContent = (terrainNameFor((tiles[o.proptype] || 0) + o.aspect) ||
+                      propTypeName(o.proptype) || ('0x' + o.proptype.toString(16))) +
+                     (w !== null ? ' · ' + w : '');
+    chip.appendChild(nm);
+    chip.onclick = (ev) => { ev.stopPropagation(); showPropTypeDetail(o.proptype); };
+    items.appendChild(chip);
+  }
+  box.appendChild(items);
+  wrap.appendChild(box);
+  const cap = document.createElement('div');
+  cap.className = 'zrCap';
+  cap.textContent = contents.length + (contents.length === 1 ? ' thing inside' : ' things inside') +
+                    (label ? ' \u00b7 shown in the game\u2019s ' + label.toLowerCase() : '');
+  wrap.appendChild(cap);
+  return wrap;
 }
 
 function inspectMapSquare(tx, ty) {
@@ -6836,15 +7016,33 @@ function inspectMapSquare(tx, ty) {
     .filter(c => Math.round(c.x) === tx && Math.round(c.y) === ty);
   const tileId = cm.m ? mapTileAt(cm.m, tx, ty) : 0;
   const terrain = tileId ? (terrainNameFor(tileId) || compositeTileName(tileId)) : null;
+  const exits = mapExitSquares(cm.resid).filter(e => e.x === tx && e.y === ty);
+  const faux = tileId ? getFauxProps().get(tileId) : null;
 
   const parts = ['<div class="inspHead">Square ' + tx + ', ' + ty +
     (tileId ? ' &nbsp;·&nbsp; terrain tile 0x' + tileId.toString(16).toUpperCase() +
       (terrain ? ' <i>' + svEsc(terrain) + '</i>' : '') : '') +
+    (tileId && !tilePassable(tileId) ? ' &nbsp;·&nbsp; <span class="inspDim">blocks movement</span>' : '') +
     '<button class="linkbtn inspClose" onclick="clearMapInspector()">close</button></div>'];
+
+  for (const e of exits) {
+    parts.push('<div class="inspCard"><b>Zone exit</b> <span class="inspDim">zoneport 0x' +
+      e.idx.toString(16).toUpperCase() + '</span><div class="inspDim">The map graph arrives on this ' +
+      'square from somewhere else, and in play the same square is the way back out.</div></div>');
+  }
+
+  if (faux) {
+    parts.push('<div class="inspCard"><b>' +
+      svEsc(propTypeName(faux.proptype) || ('0x' + faux.proptype.toString(16))) + '</b>' +
+      ' <span class="inspDim">faux prop &mdash; drawn by the terrain tile itself (0xF010), ' +
+      'not placed in the prop list</span><div class="inspActs">' +
+      '<button class="sv-chip" onclick="showPropTypeDetail(' + faux.proptype + ')">Prop type</button>' +
+      '</div></div>');
+  }
 
   for (const c of people) {
     parts.push('<div class="inspCard"><b>' + svEsc(c.name || ('Character ' + c.index)) + '</b>' +
-      ' <span class="inspDim">' + (c.walking ? 'walking' : svEsc(String(c.mode || 'here'))) + '</span>' +
+      ' <span class="inspDim">' + (c.walking ? 'walking' : c.sitting ? 'sitting' : svEsc(String(c.mode || 'here'))) + '</span>' +
       '<div class="inspActs">' +
       '<button class="sv-chip" onclick="showCharacterDetail(' + c.index + ')">Dossier</button>' +
       '<button class="sv-chip" onclick="jumpToResource(' + (0x8800 + c.index) + ')">Portrait</button>' +
@@ -6852,23 +7050,40 @@ function inspectMapSquare(tx, ty) {
       '</div></div>');
   }
 
+  const boxes = [];
   for (const p of hits) {
     const rows = propInspectRows(p).map(([k, v]) =>
       '<dt>' + svEsc(k) + '</dt><dd>' + svEsc(v) + '</dd>').join('');
     const acts = ['<button class="sv-chip" onclick="showPropTypeDetail(' + p.rec.proptype + ')">Prop type</button>'];
-    if (refExists(p.propResid)) acts.push('<button class="sv-chip" onclick="jumpToResource(' + p.propResid + ')">Prop list</button>');
+    if (isInventoryItem(p.rec.proptype))
+      acts.push('<button class="sv-chip" onclick="showItemDetail(' + p.rec.proptype + ')">Item</button>');
+    if (refExists(0x1000 + p.rec.proptype))
+      acts.push('<button class="sv-chip" onclick="jumpToResource(' + (0x1000 + p.rec.proptype) + ')">Object script</button>');
+    if (refExists(p.propResid))
+      acts.push('<button class="sv-chip" onclick="jumpToResource(' + p.propResid + ')">Prop list</button>');
+    const contents = containerContents(p.rec);
+    const slot = contents.length ? ('insp-box-' + p.rec.index) : null;
+    if (slot) boxes.push([slot, p.rec, contents]);
     parts.push('<div class="inspCard"><b>' +
-      svEsc(propTypeName(p.rec.proptype) || ('prop 0x' + p.rec.proptype.toString(16).toUpperCase())) +
+      svEsc(terrainNameFor(p.tileId) || propTypeName(p.rec.proptype) ||
+            ('prop 0x' + p.rec.proptype.toString(16).toUpperCase())) +
       '</b> <span class="inspDim">record #' + p.rec.index + '</span>' +
       '<dl class="inspRows">' + rows + '</dl>' +
+      (slot ? '<div id="' + slot + '"></div>' : '') +
       '<div class="inspActs">' + acts.join('') + '</div></div>');
   }
 
-  if (!hits.length && !people.length)
+  if (!hits.length && !people.length && !exits.length && !faux)
     parts.push('<div class="inspDim">Nothing but terrain on this square.</div>');
 
   host.innerHTML = parts.join('');
   host.style.display = 'block';
+  // The zoomrect is a canvas, so it is built and hung in place afterwards
+  // rather than serialised into the string above.
+  for (const [slot, rec, contents] of boxes) {
+    const el = document.getElementById(slot);
+    if (el) el.appendChild(buildContainerView(rec, contents));
+  }
 }
 
 function renderMapPreview() {
@@ -6915,6 +7130,7 @@ function renderMapPreview() {
                        width: result.canvas.width, height: result.canvas.height,
                        canvas: result.canvas, m: result.m, animCells: result.animCells,
                        props: result.props, propResid: result.propResid,
+                       allProps: result.allProps,
                        tilesW: result.width, tilesH: result.height, mapData,
                        roofSections: mapRoofSections(resid) };
     clearMapInspector();
@@ -8891,8 +9107,42 @@ function isCompletelyWhite(image) {
 }
 
 // Decode enough of a text/data resource to identify it at a glance.
+// A run of readable bytes that is worth showing a reader. Symbol names,
+// opcode soup and single words with no vowels are not: they fill the tile with
+// something that looks like text and says nothing.
+function snippetWorth(run) {
+  const t = run.trim();
+  if (t.length < 6) return 0;
+  const letters = (t.match(/[A-Za-z]/g) || []).length;
+  if (letters / t.length < 0.6) return 0;
+  const words = t.split(/\s+/).filter(w => w.length > 1);
+  let score = letters;
+  if (words.length >= 3) score *= 3;               // reads as a sentence
+  else if (words.length === 2) score *= 1.5;
+  if (/[.!?]/.test(t)) score *= 1.4;               // punctuated prose
+  if (/^[A-Z][a-z]/.test(t)) score *= 1.2;
+  if (/^[a-z_][A-Za-z0-9_]*$/.test(t)) score *= 0.2;   // an identifier
+  if (/_/.test(t)) score *= 0.5;
+  return score;
+}
+
 function sheetTextSnippet(resid, roff, rlen, limit) {
   limit = limit || 150;
+  // A string object's first byte is sometimes the opcode that pushed it -- the
+  // same off-by-two the skill names hit (see normalizeLabel) -- so a preview
+  // opens with a stray '@' or 'P' before the quotation mark. Dropped only in
+  // that exact position, and only for display.
+  const tidy = t => t.replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ')
+                     .replace(/^[\x40-\x50](?=["'*\u201c])/, '').replace(/^@(?=[A-Za-z])/, '').trim();
+  // Cut on a word boundary. A snippet used to stop wherever the character
+  // count ran out, which in a 150-character box meant most tiles ended in the
+  // middle of a word.
+  const clip = t => {
+    if (t.length <= limit) return t;
+    const cut = t.slice(0, limit);
+    const sp = cut.lastIndexOf(' ');
+    return (sp > limit * 0.6 ? cut.slice(0, sp) : cut).replace(/[\s,;:.\u2014-]+$/, '') + '\u2026';
+  };
   try {
     const raw = fileBytes.slice(roff, roff + Math.min(rlen, 4096));
     const { data } = smartDecrypt(raw, resid);
@@ -8902,8 +9152,8 @@ function sheetTextSnippet(resid, roff, rlen, limit) {
     // Container strings first, in file order, same as everywhere else.
     const owned = dvmStringObjects(data, resid);
     if (owned.length) {
-      const joined = owned.map(e => e.str).join(' \u00b7 ').replace(/\s+/g, ' ').trim();
-      if (joined) return joined.slice(0, limit);
+      const joined = tidy(owned.map(e => e.str).join(' \u00b7 '));
+      if (joined) return clip(joined);
     }
     // These resources are structured records with text embedded partway in,
     // so dumping from byte 0 just shows packed binary. Collect the readable
@@ -8917,14 +9167,23 @@ function sheetTextSnippet(resid, roff, rlen, limit) {
     }
     if (cur.length >= 4) runs.push(cur);
     if (!runs.length) return '(binary, ' + rlen + ' bytes)';
-    runs.sort((a, b) => b.length - a.length);
-    const best = runs.slice(0, 6).join(' \u00b7 ').replace(/\s+/g, ' ').trim();
-    return best.slice(0, limit) || '(binary, ' + rlen + ' bytes)';
+    // The old rule was "the six longest runs, longest first", which put the
+    // resource's text in an order it does not appear in and led with whatever
+    // symbol name happened to be longest. Score every run for how much it
+    // reads like something a person wrote, keep the ones that clear the bar,
+    // and show them IN FILE ORDER.
+    const scored = runs.map((r, i) => ({ r, i, s: snippetWorth(r) }));
+    const best = scored.filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 6);
+    if (!best.length) {
+      const longest = runs.slice().sort((a, b) => b.length - a.length)[0];
+      const t = tidy(longest);
+      return t.length >= 6 ? clip(t) : '(binary, ' + rlen + ' bytes)';
+    }
+    best.sort((a, b) => a.i - b.i);
+    return clip(tidy(best.map(x => x.r).join(' \u00b7 '))) || '(binary, ' + rlen + ' bytes)';
   } catch (e) { return '(' + rlen + ' bytes)'; }
 }
 
-// Maps are expensive to draw, so build thumbnails only as tiles scroll into
-// view and immediately downscale, discarding the full-size canvas.
 function attachMapThumb(canvas, resid) {
   // One shared observer for the whole grid; this used to create its own per
   // tile, so a 42-map gallery held 42 of them.
@@ -9217,8 +9476,10 @@ function renderContactSheet() {
       // Show what the bytes actually say, the same way the resource-fork
       // browser previews undecodable types.
       const snip = document.createElement('div');
-      snip.className = 'cellChars';
-      snip.textContent = sheetTextSnippet(resid, roff, rlen);
+      const text = sheetTextSnippet(resid, roff, rlen, 110);
+      snip.className = 'cellChars' + (/^\(/.test(text) ? ' binary' : '');
+      snip.textContent = text;
+      snip.title = text;
       cell.appendChild(snip);
       
       const lbl = labelFor(resid);
