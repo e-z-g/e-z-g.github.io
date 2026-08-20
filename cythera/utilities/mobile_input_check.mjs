@@ -134,7 +134,7 @@ function buildPage({webgl = true} = {}) {
   byClass.set('.dir-btn', []);
 
   const posted = [];
-  registry.get('mac-iframe').contentWindow = {postMessage: msg => posted.push(msg)};
+  registry.get('mac-iframe').contentWindow = {postMessage: msg => posted.push(Object.assign({at: clock.now}, msg))};
 
   const glCalls = [];
   registry.get('gl-canvas').getContext = kind => {
@@ -162,12 +162,18 @@ function buildPage({webgl = true} = {}) {
 
   const sandbox = {
     console: {log() {}, warn() {}, error() {}},
-    Math, JSON, Date, Object, Array, String, Number, Boolean, Set, Map, Error, TypeError,
+    Math, JSON, Object, Array, String, Number, Boolean, Set, Map, Error, TypeError,
+    Date: Object.assign(function (...a) { return new Date(...a); }, {now: () => clock.now}),
     RegExp, Promise, isNaN, isFinite, parseInt, parseFloat, Infinity, NaN, undefined,
     URL, URLSearchParams, Uint8Array, Float32Array,
     setTimeout: (fn, ms) => { clock.queue.push({fn, at: clock.now + (ms || 0), id: clock.queue.length + 1}); return clock.queue.length; },
     clearTimeout: id => { const t = clock.queue.find(t => t.id === id); if (t) t.cancelled = true; },
-    setInterval: () => 0, clearInterval() {}, requestAnimationFrame: () => 0,
+    setInterval: () => 0, clearInterval() {},
+    // The page coalesces pointer moves to one a frame and spaces its button
+    // transitions in milliseconds, so both have to be on the same clock as the
+    // timers or none of it is reproducible.
+    requestAnimationFrame: fn => { clock.queue.push({fn, at: clock.now + 16, id: clock.queue.length + 1}); return clock.queue.length; },
+    cancelAnimationFrame: id => { const t = clock.queue.find(t => t.id === id); if (t) t.cancelled = true; },
     localStorage: {
       getItem: k => (store.has(k) ? store.get(k) : null),
       setItem: (k, v) => store.set(k, String(v)),
@@ -198,26 +204,34 @@ function buildPage({webgl = true} = {}) {
     peek: n => { try { return ctx.__peek(n); } catch (e) { return undefined; } },
     fireWindow: (t, ev) => fire(winListeners, t, ev),
     fireDoc: (t, ev) => fire(docListeners, t, ev),
-    // Timers, in order, until nothing is due. The page uses them to hold a
-    // click down for 50ms and to lock a trackpad drag after 400ms.
+    // Everything the page has queued -- frames and timers alike -- up to the
+    // moment `ms` from now, in order.
+    settle() { api.tick(300); },
     tick(ms) {
-      clock.now += (ms || 0);
+      // A real event loop, not one jump: the clock stops at each callback's
+      // own time, so a callback that schedules another 40ms out gets its turn
+      // inside the same tick and reads a Date.now() that makes sense.
+      const until = clock.now + (ms || 0);
       for (;;) {
-        const due = clock.queue.filter(t => !t.cancelled && !t.done && t.at <= clock.now).sort((a, b) => a.at - b.at)[0];
+        const due = clock.queue.filter(t => !t.cancelled && !t.done && t.at <= until).sort((a, b) => a.at - b.at)[0];
         if (!due) break;
+        clock.now = Math.max(clock.now, due.at);
         due.done = true;
         due.fn();
       }
+      clock.now = until;
     },
     start() {
       registry.get('start-overlay').dispatch('pointerdown', {});
       api.fireWindow('message', {origin: 'https://infinitemac.org', data: {type: 'emulator_loaded'}});
+      api.settle();
       posted.length = 0;
     },
     // Tell the page what the emulator actually came up with, the way the
     // emulator does.
     screen(width, height) {
       api.fireWindow('message', {origin: 'https://infinitemac.org', data: {type: 'emulator_screen', width, height}});
+      api.settle();
       posted.length = 0;
     },
     types: () => posted.map(m => m.type),
@@ -263,6 +277,7 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   const mouse = pointer(a.el('touch-overlay'), 1, 'mouse');
   mouse.down(VIEW_W / 2, VIEW_H / 2);
   mouse.up(VIEW_W / 2, VIEW_H / 2);
+  a.settle();
   const move = a.lastMove();
   check(a.buttons().join(' ') === 'down0 up0', 'a mouse click reaches the emulator', a.buttons().join(' ') || 'nothing was sent');
   check(!!move && near(move.x, 320) && near(move.y, 240),
@@ -275,12 +290,14 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   a.start(); a.screen(640, 480);
   const mouse = pointer(a.el('touch-overlay'), 1, 'mouse');
   mouse.move(VIEW_W / 2, VIEW_H / 2);
+  a.settle();
   const hover = a.lastMove();
   check(!!hover && near(hover.x, 320) && near(hover.y, 240),
         'a mouse with no button down still moves the pointer', hover ? `(${hover.x}, ${hover.y})` : 'nothing');
   a.clear();
   mouse.down(100, 400, {button: 2});
   mouse.up(100, 400, {button: 2});
+  a.settle();
   check(a.buttons().join(' ') === 'down2 up2', 'the right button goes through as the right button', a.buttons().join(' '));
   const menu = a.el('touch-overlay').dispatch('contextmenu', {});
   check(menu.defaultPrevented, 'the browser context menu is suppressed');
@@ -294,6 +311,7 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   finger.down(100, 400);
   a.clear();
   finger.cancel(100, 400);
+  a.settle();
   check(a.buttons().join(' ') === 'up0', 'a cancelled gesture releases the button', a.buttons().join(' ') || 'the button stayed down');
 
   const b = buildPage();
@@ -302,6 +320,7 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   b.clear();
   b.ctx.document.hidden = true;
   b.fireDoc('visibilitychange', {});
+  b.settle();
   check(b.buttons().join(' ') === 'up0', 'hiding the page releases the button', b.buttons().join(' ') || 'the button stayed down');
 }
 
@@ -312,10 +331,11 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   a.start(); a.screen(640, 480);
   const finger = pointer(a.el('touch-overlay'), 1, 'touch');
   finger.down(VIEW_W / 2, VIEW_H / 2);
+  a.settle();
   const down = a.lastMove();
   finger.move(VIEW_W / 2 + 30, VIEW_H / 2);
   finger.up(VIEW_W / 2 + 30, VIEW_H / 2);
-  a.tick(100);
+  a.settle();
   check(a.buttons().join(' ') === 'down0 up0', 'direct: a finger drag holds the button down', a.buttons().join(' '));
   check(!!down && near(down.x, 320) && near(down.y, 240 - 12, 1.5),
         'direct: aim sits a little above the fingertip', down ? `(${down.x}, ${down.y})` : 'nothing');
@@ -328,9 +348,10 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   b.clear();
   const t = pointer(b.el('touch-overlay'), 1, 'touch');
   t.down(100, 400);
+  b.tick(50);
   const noJump = b.moves().length === 0;
   t.up(100, 400);
-  b.tick(100);
+  b.settle();
   check(noJump, 'trackpad: the pointer does not jump to the finger');
   check(b.buttons().join(' ') === 'down0 up0', 'trackpad: a tap is a click', b.buttons().join(' '));
 
@@ -344,7 +365,7 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   c.tick(500);
   const locked = c.buttons().join(' ') === 'down0';
   held.up(100, 400);
-  c.tick(100);
+  c.settle();
   check(locked && c.buttons().join(' ') === 'down0 up0', 'trackpad: holding still locks a drag', c.buttons().join(' '));
 
   // Pan View: dragging moves the view, and the pointer stays in the middle.
@@ -356,7 +377,7 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   pan.down(200, 400);
   pan.move(160, 380);
   pan.up(160, 380);
-  d.tick(100);
+  d.settle();
   check(d.buttons().length === 0, 'pan view: a drag does not click', d.buttons().join(' '));
   check(d.moves().length > 0, 'pan view: the pointer is kept on the crosshair');
 }
@@ -369,25 +390,26 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   const one = pointer(overlay, 1, 'touch'), two = pointer(overlay, 2, 'touch');
   one.down(150, 400);
   two.down(250, 400);
-  a.clear();
   one.up(150, 400);
   two.up(250, 400);
-  a.tick(100);
-  check(a.buttons().join(' ') === 'down2 up2', 'a two-finger tap is a right click', a.buttons().join(' ') || 'nothing');
+  a.settle();
+  check(a.buttons().slice(-2).join(' ') === 'down2 up2', 'a two-finger tap is a right click', a.buttons().join(' ') || 'nothing');
 
   const b = buildPage();
   b.start(); b.screen(640, 480);
   const o = b.el('touch-overlay');
   const p1 = pointer(o, 1, 'touch'), p2 = pointer(o, 2, 'touch');
   p1.down(150, 400);
+  b.settle();
   const landed = b.buttons().join(' ');       // direct mode presses as it lands
   p2.down(250, 400);
+  b.settle();
   const handedBack = b.buttons().join(' ');
   b.clear();
   p2.move(350, 400);
   const zoomed = parseTransform(b.el('pan-zoom-container').style.transform).s;
   p1.up(150, 400); p2.up(350, 400);
-  b.tick(100);
+  b.settle();
   check(zoomed > 1.2, 'pinching zooms the view', 'scale ' + zoomed.toFixed(2));
   // Direct mode presses the button the moment a finger lands, which is what
   // makes dragging work; a second finger has to take that press back, or the
@@ -458,16 +480,92 @@ ok('page initialises', `${boot.glCalls.length} GL calls`);
   for (let y = 20; y <= 120; y += 20) stroke.move(20, y);     // down
   for (let x = 20; x <= 120; x += 20) stroke.move(x, 120);    // then right: an L
   stroke.up(120, 120);
-  a.tick(100);
+  a.settle();
   check(a.keys().join(' ') === '+KeyL -KeyL', 'a gesture can be drawn with a mouse', a.keys().join(' ') || 'nothing');
 }
 
-// ---- 10. the screen size comes from the emulator ---------------------------
+/* ---- 10. what the emulated Mac actually ends up seeing ---------------------
+   The checks above ask what the page sends. This one asks what survives.
+
+   From updateInputBufferWithEvents() in the emulator's own
+   src/emulator/common/common.ts: everything queued between two of its input
+   syncs is collapsed into a single state. The FIRST mousemove of the batch is
+   kept and every later one is dropped; each mousedown/mouseup overwrites the
+   one before it, because what reaches the Mac is a button LEVEL, not an edge.
+
+   So a press and its release inside one window cancel out and the click never
+   happens, and a release and the next press inside one window lose the
+   release -- the level stays down and the Mac reads the next tap somewhere
+   else as a DRAG from the last one. That is what "Direct mode drags in random
+   directions when I tap" was.
+
+   The sync period is not fixed: the emulator consumes input when the guest
+   next polls, so a busy or slow machine has a longer window. Hence the sweep. */
+function asTheMacSeesIt(posted, syncEveryMs) {
+  const states = [];
+  let batch = [], nextSync = syncEveryMs;
+  const flush = () => {
+    if (!batch.length) return;
+    let pos = null, button = null;
+    for (const m of batch) {
+      if (m.type === 'emulator_mouse_move') { if (pos === null) pos = {x: m.x, y: m.y}; }
+      else if (m.type === 'emulator_mouse_down') button = 'down';
+      else if (m.type === 'emulator_mouse_up') button = 'up';
+    }
+    if (pos || button) states.push({pos, button});
+    batch = [];
+  };
+  for (const m of posted) {
+    while (m.at >= nextSync) { flush(); nextSync += syncEveryMs; }
+    batch.push(m);
+  }
+  flush();
+  return states;
+}
+
+// The level the Mac is holding, and where the pointer was each time it changed.
+function buttonStory(states) {
+  const story = [];
+  let level = 'up', at = null;
+  for (const s of states) {
+    if (s.pos) at = s.pos;
+    if (s.button && s.button !== level) { level = s.button; story.push(`${level}@${at ? at.x + ',' + at.y : '?'}`); }
+  }
+  return story;
+}
+
+{
+  // Up to a 50ms window, i.e. a guest polling at 20Hz. Past that the emulator
+  // would swallow a physical mouse click as well, so it is not this page's
+  // problem to solve.
+  const PERIODS = [8, 16, 33, 50];
+  let clean = [], broken = [];
+  for (const period of PERIODS) {
+    const a = buildPage();
+    a.start(); a.screen(640, 480);
+    const finger = pointer(a.el('touch-overlay'), 1, 'touch');
+    // One tap, then another somewhere else -- the thing that dragged.
+    finger.down(120, 300); finger.up(120, 300);
+    a.tick(120);
+    finger.down(300, 500); finger.up(300, 500);
+    a.settle();
+    const story = buttonStory(asTheMacSeesIt(a.posted, period));
+    // Two taps: down, up, down, up. Anything else and the Mac is holding the
+    // button across a move, which is a drag.
+    const shape = story.map(s => s.split('@')[0]).join(' ');
+    (shape === 'down up down up' ? clean : broken).push(`${period}ms: ${story.join(' ') || 'nothing'}`);
+  }
+  check(broken.length === 0, 'two taps are two clicks, whatever the emulator\'s sync period',
+        broken.length ? broken.join(' | ') : clean.length + ' periods, 8ms to 50ms');
+}
+
+// ---- 11. the screen size comes from the emulator ---------------------------
 {
   const a = buildPage();
   a.start();
   a.screen(800, 600);
   pointer(a.el('touch-overlay'), 1, 'mouse').move(VIEW_W / 2, VIEW_H / 2);
+  a.settle();
   const m = a.lastMove();
   check(!!m && near(m.x, 400) && near(m.y, 300),
         'coordinates follow the resolution the emulator reports', m ? `(${m.x}, ${m.y}) of 800x600` : 'nothing');
