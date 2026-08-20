@@ -483,6 +483,22 @@ pre.sv-code { background:#090806; color:#f9f86f; padding:11px; overflow:auto; ma
   .navBtn { font-size:9.5px !important; padding:5px 2px 4px !important; }
   .navBtn canvas { width:22px !important; height:22px !important; }
 }
+/* The trail. Distinct from the plaques so the two backs never read as a pair
+   of alternatives for the same thing: this one is a quiet link with a note
+   saying what makes it different. */
+#crumbBar { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px;
+  margin:2px 0 10px; font-size:12px; }
+.crumbBtn { width:auto !important; margin:0 !important; min-height:0 !important;
+  padding:4px 12px !important; border-radius:14px !important; clip-path:none !important;
+  background:#1d1a15 !important; background-image:none !important;
+  border:1px solid var(--edge) !important; box-shadow:none !important;
+  color:#e8dfc0 !important; text-shadow:none !important; font-size:12.5px !important;
+  font-weight:400 !important; letter-spacing:0; font-family:Argos, Georgia, serif; }
+.crumbBtn::before, .crumbBtn::after { display:none !important; }
+.crumbBtn:hover { color:var(--gold) !important; border-color:var(--gold) !important; filter:none; }
+.crumbNote { color:#7d745a; font-size:11.5px; }
+@media (max-width:520px) { .crumbNote { display:none; } }
+
 #propFilterWrap { margin:8px 0 2px; }
 #propFilter { width:100%; box-sizing:border-box; padding:9px 12px; border-radius:8px;
   border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
@@ -578,10 +594,41 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
 #artUsage button.secondary { width:auto; margin:0; }
 
 /* Bulk export lives with the gallery, not with a single resource. */
-#galleryTools { display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+#galleryTools { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center;
   justify-content:center; margin:10px 0 0; }
 #galleryTools button { width:auto; margin:0; }
 #exportNote { font-size:12px; color:#9b8850; }
+#galleryArrange { display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:12.5px; }
+#gallerySortWrap { display:flex; align-items:center; gap:6px; color:#9b8850; }
+#gallerySortSel { width:auto; margin:0; min-height:32px !important;
+  padding:3px 30px 3px 10px !important; font-size:12.5px !important; }
+
+/* ---- List view ---------------------------------------------------------
+   The same cells, laid out as rows. A tile is right for artwork and wrong for
+   a hundred near-identical lines of text, which is what the script and
+   dialogue galleries are. */
+#sheetGrid.listView { display:block; }
+#sheetGrid.listView .cell { display:grid; grid-template-columns:96px 1fr auto;
+  align-items:center; gap:12px; height:auto !important; min-height:56px;
+  text-align:left; padding:7px 12px; margin-bottom:5px; }
+#sheetGrid.listView .cell.charCell, #sheetGrid.listView .cell.propCell,
+#sheetGrid.listView .cell.itemCell { height:auto !important; justify-content:stretch; }
+#sheetGrid.listView .cellimgwrap { flex:none !important; height:auto !important;
+  width:96px; max-height:72px; overflow:hidden; justify-content:flex-start; }
+#sheetGrid.listView .cell.charCell .cellimgwrap { flex:none !important; height:auto !important; }
+#sheetGrid.listView .cell.charCell .portraitBox { margin:0; width:56px; height:56px; }
+#sheetGrid.listView .cell.charCell .portraitBox > canvas.portrait { width:56px !important; height:56px !important; }
+#sheetGrid.listView .cell.charCell .portraitBox > canvas.walker { display:none; }
+#sheetGrid.listView .cellChars { width:96px; height:58px; font-size:10px; line-height:1.28; }
+#sheetGrid.listView .cell canvas { max-height:72px; }
+#sheetGrid.listView .lbl { margin-top:0 !important; font-size:15px; -webkit-line-clamp:2; }
+#sheetGrid.listView .resid { margin-top:0; text-align:right; white-space:nowrap; }
+#sheetGrid.listView .propHead { display:none; }
+@media (max-width:520px) {
+  #sheetGrid.listView .cell { grid-template-columns:64px 1fr; }
+  #sheetGrid.listView .cellimgwrap, #sheetGrid.listView .cellChars { width:64px; }
+  #sheetGrid.listView .resid { grid-column:2; text-align:left; }
+}
 
 /* ---- Map controls ------------------------------------------------------
    Fourteen loose checkboxes in one wrapping row read as a wall of words, and
@@ -658,6 +705,7 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
 </div>
 <div id="navBar"></div>
 <div id="navSub"></div>
+<div id="crumbBar" style="display:none"></div>
 <div id="searchWrap" style="display:none">
   <h2>Ask the Scripts</h2>
   <p class="sv-why" style="text-align:center;margin-bottom:8px">Searches every decoded script at once
@@ -739,7 +787,7 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
            oninput="setPropFilter(this.value)">
   </div>
 <div id="resourceNav" style="display:none">
-  <button id="backToSheet" class="secondary" onclick="returnToSheet()">← Back to Gallery</button>
+  <button id="backToSheet" class="secondary" onclick="returnToSheet()">▦ All of this gallery</button>
   <button class="secondary" onclick="navigateResource(-1)">← Previous</button>
   <button class="secondary" onclick="navigateResource(1)">Next →</button>
 </div>
@@ -866,6 +914,18 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
 </div>
 <div id="labelLegend" style="display:none">† name supplied by this tool — not present in the archive</div>
 <div id="galleryTools" style="display:none">
+  <span id="galleryArrange">
+    <button class="secondary" id="viewToggleBtn"
+            onclick="setGalleryView(window.GALLERY_VIEW === 'list' ? 'grid' : 'list')">&#9776; List</button>
+    <label id="gallerySortWrap">Sort
+      <select id="gallerySortSel" onchange="setGallerySort(this.value)">
+        <option value="archive">as the archive has them</option>
+        <option value="name">by name</option>
+        <option value="id">by id</option>
+        <option value="size">by size, largest first</option>
+      </select>
+    </label>
+  </span>
   <button class="secondary" id="exportBtn" onclick="exportGallery()">Save this gallery as .zip</button>
   <span id="exportNote"></span>
 </div>
@@ -1531,7 +1591,7 @@ function showCompositeDetail(tileId, entry, builtCanvas) {
   grid.innerHTML = '';
   const back = document.createElement('button');
   back.className = 'secondary';
-  back.textContent = '\u2190 Back to composites';
+  back.textContent = '\u25a6 All composite tiles';
   back.onclick = () => renderCompositeSheet();
   grid.appendChild(back);
 
@@ -1990,7 +2050,7 @@ function showPropTypeDetail(pt) {
   grid.innerHTML = '';
   const back = document.createElement('button');
   back.className = 'secondary';
-  back.textContent = '\u2190 Back to creatures & props';
+  back.textContent = '\u25a6 All creatures & props';
   back.onclick = renderPropTypeSheet;
   grid.appendChild(back);
 
@@ -2335,7 +2395,7 @@ function showItemDetail(pt) {
   grid.innerHTML = '';
   const back = document.createElement('button');
   back.className = 'secondary';
-  back.textContent = '\u2190 Back to items';
+  back.textContent = '\u25a6 All items';
   back.onclick = renderItemSheet;
   grid.appendChild(back);
 
@@ -2663,7 +2723,7 @@ function showRsrcDetail(type, id) {
 
   const back = document.createElement('button');
   back.className = 'secondary';
-  back.textContent = '← Back to stamps & brushes';
+  back.textContent = '\u25a6 All stamps & brushes';
   back.onclick = () => { setMode('sheet'); };
   grid.appendChild(back);
 
@@ -2830,7 +2890,7 @@ function showCharacterDetail(i) {
   grid.innerHTML = '';
   const back = document.createElement('button');
   back.className = 'secondary';
-  back.textContent = '\u2190 Back to characters';
+  back.textContent = '\u25a6 All characters';
   back.onclick = renderCharacterSheet;
   grid.appendChild(back);
 
@@ -3384,6 +3444,81 @@ function markDetailView(kind, id) {
   syncDeepLink();
 }
 
+/* ---------------------------------------------------------------------------
+   Two kinds of back
+   ---------------------------------------------------------------------------
+   Every gallery and detail view already had a back button, and all of them
+   meant the same thing: up, to the gallery this page belongs to. None of them
+   meant back, to the page you came from -- so following a cross-reference out
+   of a dossier into a portrait and then pressing back landed you in the
+   portrait gallery, which is not anywhere you had been.
+
+   The deep link is already a complete description of a view, so the trail is
+   just the hashes, and the two controls can be labelled for what they do:
+   "Back to <the last page>" against "All <this category>".
+--------------------------------------------------------------------------- */
+window.VIEW_TRAIL = [];
+let _navBack = false;
+
+function viewLabel(hash) {
+  const q = {};
+  for (const part of String(hash).replace(/^#/, '').split('&')) {
+    const i = part.indexOf('=');
+    if (i > 0) q[part.slice(0, i)] = decodeURIComponent(part.slice(i + 1));
+  }
+  if (q.d) {
+    const [kind, ...rest] = q.d.split(':');
+    const id = rest.join(':');
+    try {
+      if (kind === 'char') return characterName(parseInt(id, 10));
+      if (kind === 'prop') {
+        const b = getPropTileList()[parseInt(id, 10)];
+        return terrainNameFor(b) || propTypeName(parseInt(id, 10)) || ('prop 0x' + id);
+      }
+      if (kind === 'item') return propTypeName(parseInt(id, 10)) || ('item 0x' + id);
+      if (kind === 'monster') return 'monster ' + id;
+      if (kind === 'rsrc') return id;
+    } catch (e) {}
+    return kind + ' ' + id;
+  }
+  if (q.r) {
+    const rid = parseInt(q.r, 16);
+    const l = labelFor(rid);
+    return (l ? l + ' ' : '') + '0x' + q.r.toUpperCase();
+  }
+  return q.c ? (optionLabel(q.c) || ('category ' + q.c)) : 'the last page';
+}
+
+function renderCrumbBar() {
+  const bar = document.getElementById('crumbBar');
+  if (!bar) return;
+  if (!window.VIEW_TRAIL.length) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+  const prev = window.VIEW_TRAIL[window.VIEW_TRAIL.length - 1];
+  bar.style.display = '';
+  bar.innerHTML = '<button class="crumbBtn" onclick="goViewBack()">\u21b0 Back to ' +
+    svEsc(viewLabel(prev)) + '</button>' +
+    '<span class="crumbNote">the page you came from \u2014 the other back button goes up to this ' +
+    'gallery</span>';
+}
+
+function goViewBack() {
+  const prev = window.VIEW_TRAIL.pop();
+  if (!prev) return;
+  _navBack = true;
+  try {
+    window.DETAIL_VIEW = null;
+    const q = {};
+    for (const part of prev.replace(/^#/, '').split('&')) {
+      const i = part.indexOf('=');
+      if (i > 0) q[part.slice(0, i)] = decodeURIComponent(part.slice(i + 1));
+    }
+    applyDeepLink(q);
+  } finally {
+    _navBack = false;
+    renderCrumbBar();
+  }
+}
+
 function syncDeepLink() {
   if (!fileBytes || !masterIndexGlobal) return;
   const cat = document.getElementById('categorySelect');
@@ -3394,9 +3529,18 @@ function syncDeepLink() {
   const r = currentMode === 'single' ? currentSelectedResid() : null;
   if (r != null) h += '&r=' + r.toString(16).toUpperCase();
   if (h === location.hash) return;
+  // The view being left is the one to come back to. Bare category changes are
+  // not worth remembering -- the gallery button already goes there -- so only
+  // a detail or a single resource joins the trail.
+  if (!_navBack && location.hash && /[&#](d|r)=/.test(location.hash)) {
+    if (window.VIEW_TRAIL[window.VIEW_TRAIL.length - 1] !== location.hash)
+      window.VIEW_TRAIL.push(location.hash);
+    if (window.VIEW_TRAIL.length > 40) window.VIEW_TRAIL.shift();
+  }
   _hashWrite = true;
   try { history.replaceState(null, '', h); } catch (e) { location.hash = h; }
   setTimeout(() => { _hashWrite = false; }, 0);
+  renderCrumbBar();
 }
 
 function parseDeepLink() {
@@ -8240,7 +8384,7 @@ function showMonsterDetail(idx) {
   grid.innerHTML = '';
   const back = document.createElement('button');
   back.className = 'secondary';
-  back.textContent = '\u2190 Back to monsters';
+  back.textContent = '\u25a6 All monsters';
   back.onclick = renderMonsterSheet;
   grid.appendChild(back);
 
@@ -9333,13 +9477,108 @@ async function exportGallery() {
   if (btn) btn.disabled = false;
 }
 
+/* ---------------------------------------------------------------------------
+   Gallery arrangement
+   ---------------------------------------------------------------------------
+   Every gallery in this file -- resources, characters, prop types, items,
+   monsters, fork resources, composites -- builds the same thing: a run of
+   .cell elements inside #sheetGrid, each carrying a .lbl name and a .resid
+   line. So the list view and the sort are one pair of controls applied to the
+   grid afterwards rather than a variant of seven different renderers.
+
+   A tile is the right shape for artwork and the wrong shape for a hundred
+   near-identical rows of text, which is what the script and dialogue galleries
+   are. The list gives each entry a line, the name at reading size and its id
+   and facts beside it.
+--------------------------------------------------------------------------- */
+window.GALLERY_VIEW = 'grid';
+window.GALLERY_SORT = 'archive';
+
+function setGalleryView(v) {
+  window.GALLERY_VIEW = v;
+  try { localStorage.setItem('cythera.galleryView', v); } catch (e) {}
+  applyGalleryArrangement();
+  updateGalleryTools();
+}
+function setGallerySort(v) {
+  window.GALLERY_SORT = v;
+  const ss = document.getElementById('gallerySortSel');
+  if (ss && ss.value !== v) ss.value = v;
+  applyGalleryArrangement();
+}
+try {
+  const v = localStorage.getItem('cythera.galleryView');
+  if (v === 'list' || v === 'grid') window.GALLERY_VIEW = v;
+} catch (e) {}
+
+// The size of a resource, for the "largest first" sort. Only resource-backed
+// galleries have one; the synthetic ones sort to the end of that ordering.
+function cellSortKeys(cell) {
+  const lbl = cell.querySelector('.lbl');
+  const rid = cell.querySelector('.resid');
+  const name = (lbl ? lbl.textContent : '').trim();
+  const idText = (rid ? rid.textContent : '').trim();
+  const m = /0x([0-9A-Fa-f]+)/.exec(idText);
+  const id = m ? parseInt(m[1], 16) : Number.MAX_SAFE_INTEGER;
+  let size = -1;
+  for (const [r, , len] of (window.CUR_RESIDS || [])) if (r === id) { size = len; break; }
+  return { name, id, size };
+}
+
+function applyGalleryArrangement() {
+  const grid = document.getElementById('sheetGrid');
+  if (!grid) return;
+  grid.classList.toggle('listView', window.GALLERY_VIEW === 'list');
+  const cells = Array.from(grid.children).filter(c => c.classList && c.classList.contains('cell'));
+  if (!cells.length) return;
+  // The order the gallery built, captured once so "as the archive has them"
+  // can be restored exactly, headings and all.
+  if (!grid._origOrder || grid._origOrder.length !== grid.children.length ||
+      grid._origOrder[0] !== grid.children[0]) {
+    grid._origOrder = Array.from(grid.children);
+  }
+  const heads = Array.from(grid.querySelectorAll('.propHead'));
+  const key = window.GALLERY_SORT;
+  if (key === 'archive') {
+    for (const el of grid._origOrder) grid.appendChild(el);
+    for (const h of heads) h.style.display = '';
+    return;
+  }
+  // A sort cuts across the groupings the prop and item galleries print, so
+  // their headings go away rather than sitting over the wrong run.
+  for (const h of heads) h.style.display = 'none';
+  const keyed = cells.map((c, i) => ({ c, i, k: cellSortKeys(c) }));
+  const cmp = {
+    name: (a, b) => (a.k.name || '\uffff').localeCompare(b.k.name || '\uffff') || a.i - b.i,
+    id:   (a, b) => a.k.id - b.k.id || a.i - b.i,
+    size: (a, b) => b.k.size - a.k.size || a.i - b.i,
+  }[key];
+  if (!cmp) return;
+  keyed.sort(cmp);
+  for (const e of keyed) grid.appendChild(e.c);
+}
+
 function updateGalleryTools() {
   const wrap = document.getElementById('galleryTools');
   if (!wrap) return;
-  const on = galleryIsExportable() && currentMode === 'sheet';
+  const grid = document.getElementById('sheetGrid');
+  const hasCells = grid && grid.querySelector('.cell');
+  const inGallery = currentMode === 'sheet' && !!hasCells;
+  const on = (galleryIsExportable() && currentMode === 'sheet') || inGallery;
   wrap.style.display = on ? 'flex' : 'none';
+  const exp = document.getElementById('exportBtn');
+  if (exp) exp.style.display = galleryIsExportable() && currentMode === 'sheet' ? '' : 'none';
+  const arr = document.getElementById('galleryArrange');
+  if (arr) arr.style.display = inGallery ? 'flex' : 'none';
+  const vb = document.getElementById('viewToggleBtn');
+  if (vb) vb.textContent = window.GALLERY_VIEW === 'list' ? '\u25a6 Gallery' : '\u2261 List';
+  const ss = document.getElementById('gallerySortSel');
+  if (ss && ss.value !== window.GALLERY_SORT) ss.value = window.GALLERY_SORT;
   const note = document.getElementById('exportNote');
-  if (note && on) note.textContent = window.CUR_RESIDS.length + ' resources in this gallery';
+  if (note && galleryIsExportable() && currentMode === 'sheet')
+    note.textContent = window.CUR_RESIDS.length + ' resources in this gallery';
+  else if (note) note.textContent = '';
+  if (inGallery) applyGalleryArrangement();
 }
 
 /* ---------------------------------------------------------------------------
