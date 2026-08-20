@@ -82,6 +82,10 @@
             z-index: 100; opacity: 0; transition: opacity 0.5s ease-in;
         }
         #hud-layer.active { opacity: 1; }
+        /* With a keyboard and a mouse the two floating windows are in the way
+           rather than in use. The settings panel stays: it is what brings
+           them back. */
+        #hud-layer.controls-hidden .hud-window { display: none; }
  
         .hud-window {
             position: absolute; pointer-events: auto; background-color: rgba(59, 0, 0, 0.85); 
@@ -121,10 +125,20 @@
  
         #settings-drawer {
             position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); background: rgba(59, 0, 0, 0.95); border: 2px solid #8B6914; border-bottom: none;
-            border-radius: 12px 12px 0 0; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 1000; width: 90%; max-width: 450px; backdrop-filter: blur(4px); pointer-events: auto;
+            /* No transition on `transform`: it existed to animate the slide off
+               the bottom edge, and collapsing no longer moves the panel. Left
+               in place it animated the un-centring as the panel was picked up,
+               so for 300ms the panel was somewhere neither the pointer nor the
+               code thought it was. */
+            border-radius: 12px 12px 0 0; z-index: 1000; width: 90%; max-width: 450px; backdrop-filter: blur(4px); pointer-events: auto;
         }
-        #settings-drawer.collapsed { transform: translate(-50%, calc(100% - 28px)); }
-        .settings-handle { height: 28px; color: #FCE688; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.8rem; cursor: pointer; border-bottom: 1px solid rgba(196, 164, 100, 0.3); }
+        /* Collapsing hides the buttons where the panel stands. It used to slide
+           the panel off the bottom edge, which stops meaning anything once the
+           panel can be anywhere. */
+        #settings-drawer.collapsed .settings-content { display: none; }
+        #settings-drawer.collapsed .settings-handle { border-bottom: none; }
+        .settings-handle { height: 28px; color: #FCE688; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.8rem; cursor: move; border-bottom: 1px solid rgba(196, 164, 100, 0.3); touch-action: none; }
+        .settings-handle::before { content: '≡ '; opacity: 0.7; }
         .settings-content { display: flex; flex-wrap: wrap; justify-content: space-around; padding: 10px; gap: 8px; }
         .settings-btn { flex: 1 1 30%; padding: 8px 0; font-size: 0.7rem; height: auto; }
  
@@ -262,6 +276,8 @@
                      actually do. -->
                 <div class="btn settings-btn" id="fullscreen-btn"><span class="emoji">⛶</span>Full</div>
                 <div class="btn settings-btn" id="disk-btn"><span class="emoji">💿</span>Disk</div>
+                <div class="btn settings-btn" id="controls-btn"><span class="emoji">🎮</span>Pads</div>
+                <div class="btn settings-btn" id="reset-layout-btn"><span class="emoji">↺</span>Reset</div>
                 <div class="btn settings-btn" id="help-btn"><span class="emoji">❔</span>Help</div>
             </div>
         </div>
@@ -276,7 +292,11 @@
             <h3>Moving and acting</h3>
             <p>The two floating windows are the numeric keypad and Cythera's action keys. Drag a
             window by its <b>≡</b> header, resize it from the corner, or press <b>Gestures</b> in
-            its header to swap the buttons for a thumb control.</p>
+            its header to swap the buttons for a thumb control. The settings panel moves the same
+            way — drag its <b>≡</b> bar to put it somewhere it is not in the way, or tap the bar
+            to fold it down to a strip. <b>Pads</b> hides both floating windows, which is what you
+            want once you are using a keyboard; <b>Reset</b> puts everything back where it started.
+            Where you leave them is remembered on this device.</p>
             <ul id="gesture-legend"></ul>
 
             <h3>Touching the screen</h3>
@@ -480,9 +500,13 @@
         // A click to wake the emulated Mac up. It has to happen *somewhere*,
         // and with no move first that somewhere is 0,0 -- the corner of the
         // menu bar, so starting the game pulled down the Apple menu.
+        // Through the outbox, not posted raw: it is what puts the move ahead
+        // of the press and keeps the press and its release in separate sync
+        // windows. Posting these directly would race the queued move and put
+        // the click back at 0,0.
         setCursor(screenWidth / 2, screenHeight / 2);
-        post({ type: 'emulator_mouse_down', button: 0 });
-        post({ type: 'emulator_mouse_up', button: 0 });
+        mouseButton(0, true);
+        mouseButton(0, false);
         touchOverlay.classList.add('active');
         hudLayer.classList.add('active');
     }
@@ -554,16 +578,90 @@
     // machines that are relative-only (Previous, DingusPPC, PearPC) read
     // nothing else. Sending both costs two properties and means ?machine=
     // can point at one of those without the pointer going dead.
+    /* Everything this page sends between two of the emulator's input syncs is
+       collapsed into ONE state before the emulated Mac ever sees it. From
+       updateInputBufferWithEvents() in the emulator's own common.ts: the FIRST
+       mousemove of a batch is kept and every later one is dropped, and each
+       mousedown/mouseup overwrites the last, because what reaches the Mac is a
+       button LEVEL and not an edge.
+
+       Two things follow, and both were happening:
+
+         a press and the release after it, inside one window, cancel out --
+         the level never changes and the click simply does not happen;
+
+         a release and the NEXT press, inside one window, lose the release --
+         the level stays down, so the Mac believes the button has been held
+         since the previous tap and the cursor arriving somewhere else is a
+         DRAG from there to here.
+
+       That is why Direct mode dragged in random directions on a tap: it is
+       the one mode that presses on touch-down and releases on touch-up with
+       nothing in between, so both collapses were live. The other modes went
+       through clickOnce(), whose 50ms straddled a sync window by luck.
+
+       So button transitions are spaced out in time here, and every transition
+       carries the position with it. There is no batch a transition can share
+       with its own opposite. */
+    /* How long a button level has to stand before the opposite one may be
+       sent. It has to outlast the emulator's input window, and that window is
+       not fixed -- input is consumed when the guest next polls, so a busy
+       machine has a longer one. 70ms covers a window of up to 50ms (a guest
+       polling at 20Hz); past that a physical mouse click would be swallowed
+       too, so the machine is not usable at that point anyway.
+
+       It costs nothing that can be felt: a press is sent the moment it
+       happens, and only the release waits. */
+    const BUTTON_GAP_MS = 70;
     let lastSentX = null, lastSentY = null;
-    function moveMouse(x, y) {
-        const rx = Math.round(x), ry = Math.round(y);
+    let pendingMove = null, moveFrame = null;
+    const buttonOutbox = [];
+    let buttonTimer = null, lastButtonAt = 0;
+
+    function sendMove() {
+        if (moveFrame !== null) { cancelAnimationFrame(moveFrame); moveFrame = null; }
+        if (!pendingMove) return;
+        const rx = Math.round(pendingMove.x), ry = Math.round(pendingMove.y);
+        pendingMove = null;
+        // emulator_mouse_move carries an absolute position *and* a delta.
+        // Basilisk II -- the Quadra 650's emulator -- reads the absolute pair,
+        // which is why sending only x/y worked, but the deltas are part of the
+        // message and the machines that are relative-only (Previous,
+        // DingusPPC, PearPC) read nothing else.
         const deltaX = lastSentX === null ? 0 : rx - lastSentX;
         const deltaY = lastSentY === null ? 0 : ry - lastSentY;
         lastSentX = rx; lastSentY = ry;
         post({ type: 'emulator_mouse_move', x: rx, y: ry, deltaX: deltaX, deltaY: deltaY });
     }
+
+    function moveMouse(x, y) {
+        pendingMove = {x: x, y: y};
+        // A button transition flushes the position itself, in order, so that
+        // the press lands where the pointer actually is.
+        if (buttonOutbox.length) return;
+        // One move per frame, carrying the newest position. Sending every
+        // pointermove only fed the emulator more than it keeps -- and what it
+        // keeps is the OLDEST of the batch, so the cursor trailed the finger.
+        if (moveFrame === null) moveFrame = requestAnimationFrame(() => { moveFrame = null; sendMove(); });
+    }
+
     function mouseButton(button, down) {
-        post({ type: down ? 'emulator_mouse_down' : 'emulator_mouse_up', button: button });
+        buttonOutbox.push({button: button, down: down});
+        pumpButtons();
+    }
+
+    function pumpButtons() {
+        if (buttonTimer !== null || !buttonOutbox.length) return;
+        const wait = BUTTON_GAP_MS - (Date.now() - lastButtonAt);
+        if (wait > 0) {
+            buttonTimer = setTimeout(() => { buttonTimer = null; pumpButtons(); }, wait);
+            return;
+        }
+        const next = buttonOutbox.shift();
+        sendMove();     // first in the batch, so the press lands on target
+        post({ type: next.down ? 'emulator_mouse_down' : 'emulator_mouse_up', button: next.button });
+        lastButtonAt = Date.now();
+        if (buttonOutbox.length) pumpButtons();
     }
 
     // Every key this page can send, so that a key held when the page is hidden
@@ -605,27 +703,7 @@
         const toggleBtn = win.querySelector('.mode-toggle'), btnGrid = win.querySelector('.btn-grid'), gestureArea = win.querySelector('.gesture-area');
         hudWindows.push(win);
 
-        let dragId = null, dragStartX = 0, dragStartY = 0, initialLeft = 0, initialTop = 0;
-        dragHandle.addEventListener('pointerdown', e => {
-            e.preventDefault(); e.stopPropagation();
-            dragId = e.pointerId;
-            dragHandle.setPointerCapture?.(e.pointerId);
-            dragStartX = e.clientX; dragStartY = e.clientY;
-            const rect = win.getBoundingClientRect(); initialLeft = rect.left; initialTop = rect.top;
-            win.style.zIndex = 200;
-        });
-        dragHandle.addEventListener('pointermove', e => {
-            if (dragId !== e.pointerId) return;
-            e.preventDefault();
-            placeWindow(win, initialLeft + (e.clientX - dragStartX), initialTop + (e.clientY - dragStartY));
-        });
-        const endDrag = e => {
-            if (dragId !== e.pointerId) return;
-            dragId = null; win.style.zIndex = '';
-            saveHudLayout();
-        };
-        dragHandle.addEventListener('pointerup', endDrag);
-        dragHandle.addEventListener('pointercancel', endDrag);
+        makeDraggable(win, dragHandle, {onEnd: saveHudLayout});
 
         let resizeId = null, resizeStartX = 0, resizeStartY = 0, initialWidth = 0, initialHeight = 0;
         resizeHandle.addEventListener('pointerdown', e => {
@@ -656,6 +734,42 @@
         });
     });
 
+    /* Dragging, for anything with a grab handle. The settings panel wants the
+       same behaviour as the floating windows, and it also has to keep working
+       as a button -- so a press that never travels more than a few pixels is
+       reported as a tap instead of a move. */
+    function makeDraggable(el, handle, opts) {
+        const options = opts || {};
+        let id = null, fromX = 0, fromY = 0, originLeft = 0, originTop = 0, travelled = false;
+        handle.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            id = e.pointerId;
+            handle.setPointerCapture?.(e.pointerId);
+            fromX = e.clientX; fromY = e.clientY;
+            const rect = el.getBoundingClientRect();
+            originLeft = rect.left; originTop = rect.top;
+            travelled = false;
+            el.style.zIndex = 200;
+        });
+        handle.addEventListener('pointermove', e => {
+            if (id !== e.pointerId) return;
+            e.preventDefault();
+            const dx = e.clientX - fromX, dy = e.clientY - fromY;
+            if (!travelled && Math.hypot(dx, dy) <= 5) return;
+            travelled = true;
+            placeWindow(el, originLeft + dx, originTop + dy);
+        });
+        const end = e => {
+            if (id !== e.pointerId) return;
+            id = null;
+            el.style.zIndex = '';
+            if (travelled) { if (options.onEnd) options.onEnd(); }
+            else if (options.onTap) options.onTap();
+        };
+        handle.addEventListener('pointerup', end);
+        handle.addEventListener('pointercancel', end);
+    }
+
     function setWindowMode(win, gestures) {
         const btnGrid = win.querySelector('.btn-grid'), gestureArea = win.querySelector('.gesture-area');
         const toggleBtn = win.querySelector('.mode-toggle');
@@ -679,10 +793,19 @@
         const y = Math.max(0, Math.min(window.innerHeight - Math.min(h, window.innerHeight), top));
         win.style.left = `${x}px`; win.style.top = `${y}px`;
         win.style.bottom = 'auto'; win.style.right = 'auto';
+        // The settings panel is centred with a transform until it is moved.
+        win.style.transform = 'none';
     }
 
     function saveHudLayout() {
         const layout = {};
+        const drawer = document.getElementById('settings-drawer');
+        if (drawer && drawer.style.left) {
+            const r = drawer.getBoundingClientRect();
+            layout.drawer = {left: Math.round(r.left), top: Math.round(r.top)};
+        }
+        layout.drawerCollapsed = drawer ? drawer.classList.contains('collapsed') : true;
+        layout.controlsHidden = hudLayer.classList.contains('controls-hidden');
         for (const win of hudWindows) {
             const r = win.getBoundingClientRect();
             layout[win.id] = {
@@ -697,6 +820,12 @@
     function restoreHudLayout() {
         const layout = loadPrefs().hud;
         if (!layout) return;
+        const drawer = document.getElementById('settings-drawer');
+        if (drawer) {
+            drawer.classList.toggle('collapsed', layout.drawerCollapsed !== false);
+            if (layout.drawer) placeWindow(drawer, layout.drawer.left, layout.drawer.top);
+        }
+        if (layout.controlsHidden) setControlsHidden(true);
         for (const win of hudWindows) {
             const s = layout[win.id];
             if (!s) continue;
@@ -843,7 +972,7 @@
             }
         }
         const hit = recogniseGesture(dirs, totalDist < 15 && gesturePoints.length < 10);
-        if (hit) { showToast(hit.name); pressKey(hit.key); setTimeout(() => releaseKey(hit.key), 50); }
+        if (hit) { showToast(hit.name); pressKey(hit.key); setTimeout(() => releaseKey(hit.key), 50); }   // keys are queued by the emulator, not collapsed
         else { showToast("?"); }
     });
  
@@ -1156,8 +1285,26 @@
     }
 
     // Settings Drawer Buttons
-    onTap(document.getElementById('settings-handle'),
-          () => document.getElementById('settings-drawer').classList.toggle('collapsed'));
+    /* The settings panel used to be bolted to the bottom of the screen, where
+       it sat on top of whatever was there -- and on a phone in landscape that
+       is most of the game. It moves now, like the other floating windows, and
+       collapsing it hides its buttons where it stands rather than sliding it
+       off the bottom edge, which would be meaningless once it has been moved.
+
+       Its handle is both the grab bar and the collapse button: a press that
+       goes nowhere toggles, a press that travels moves it. */
+    const settingsDrawer = document.getElementById('settings-drawer');
+    const settingsHandle = document.getElementById('settings-handle');
+    function toggleSettings() {
+        settingsDrawer.classList.toggle('collapsed');
+        saveHudLayout();
+    }
+    makeDraggable(settingsDrawer, settingsHandle, {onTap: toggleSettings, onEnd: saveHudLayout});
+    settingsHandle.tabIndex = 0;
+    settingsHandle.setAttribute('role', 'button');
+    settingsHandle.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSettings(); }
+    });
  
     let touchMode = 0;
     const touchModeToggle = document.getElementById('touch-mode-toggle');
@@ -1272,6 +1419,37 @@
             }, config.cdrom);
     });
 
+    const controlsBtn = document.getElementById('controls-btn');
+    function setControlsHidden(hidden) {
+        hudLayer.classList.toggle('controls-hidden', hidden);
+        controlsBtn.innerHTML = hidden ? '<span class="emoji">🎮</span>Pads off'
+                                       : '<span class="emoji">🎮</span>Pads';
+        // Whatever a hidden pad was holding down, it is not holding it now.
+        if (hidden) { stopMovement(); releaseAllKeys(); }
+    }
+    onTap(controlsBtn, () => {
+        setControlsHidden(!hudLayer.classList.contains('controls-hidden'));
+        saveHudLayout();
+    });
+
+    // Windows can be dragged somewhere unhelpful, and a layout saved on a
+    // phone makes no sense on a desktop. This is the way back.
+    onTap(document.getElementById('reset-layout-btn'), () => {
+        askConfirm('Put the floating windows and the settings panel back where they started?', () => {
+            savePrefs({hud: null});
+            for (const win of hudWindows) {
+                win.style.left = win.style.top = win.style.right = win.style.bottom = '';
+                win.style.width = win.style.height = '';
+                setWindowMode(win, false);
+            }
+            settingsDrawer.style.left = settingsDrawer.style.top = '';
+            settingsDrawer.style.transform = '';
+            settingsDrawer.classList.add('collapsed');
+            setControlsHidden(false);
+            showToast('Layout reset');
+        });
+    });
+
     const helpPanel = document.getElementById('help-panel');
     onTap(document.getElementById('help-btn'), () => { helpPanel.hidden = false; });
     onTap(document.getElementById('help-close'), () => { helpPanel.hidden = true; });
@@ -1354,7 +1532,9 @@
     function pressButton(b) { if (!heldButtons.has(b)) { heldButtons.add(b); mouseButton(b, true); } }
     function releaseButton(b) { if (heldButtons.delete(b)) mouseButton(b, false); }
     function releaseAllButtons() { for (const b of Array.from(heldButtons)) releaseButton(b); }
-    function clickOnce(button) { pressButton(button); setTimeout(() => releaseButton(button), 50); }
+    // The outbox below guarantees the press and the release reach the Mac as
+    // two separate levels, so a click no longer has to time its own release.
+    function clickOnce(button) { pressButton(button); releaseButton(button); }
     const buttonOf = e => (e.button === 2 ? 2 : e.button === 1 ? 1 : 0);
 
     function getEmulatorCoords(clientX, clientY, offsetY) {
@@ -1549,7 +1729,7 @@
                 // Pan View: tap where you meant, and click there.
                 const c = getEmulatorCoords(e.clientX, e.clientY, isPrecise(e) ? 0 : FINGER_OFFSET_Y);
                 setCursor(c.x, c.y);
-                setTimeout(() => clickOnce(0), 20);
+                clickOnce(0);
             } else {
                 clickOnce(0);
             }
@@ -1697,6 +1877,11 @@
         for (const win of hudWindows) {
             const r = win.getBoundingClientRect();
             placeWindow(win, r.left, r.top);
+        }
+        // Only once it has been moved: until then its own CSS centres it.
+        if (settingsDrawer.style.left) {
+            const r = settingsDrawer.getBoundingClientRect();
+            placeWindow(settingsDrawer, r.left, r.top);
         }
     });
 </script>
