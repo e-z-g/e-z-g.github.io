@@ -123,6 +123,10 @@
     }
     #help-toggle { font-weight: 700; }
 
+    /* A disclosure control, not a peer of the version buttons. */
+    #ai-toggle { font-size: 11px; letter-spacing: 0.5px; opacity: 0.6; padding: 6px 8px; }
+    #ai-toggle:hover { opacity: 1; }
+
     #help-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.82); z-index: 9998;
       display: flex; justify-content: center; align-items: center;
@@ -318,7 +322,7 @@
         hasDepth: false,
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' },
-          { label: '4K',       suffix: '_seamless.webp' }
+          { label: '4K',       suffix: '_seamless.webp', ai: true }
         ]
       },
       {
@@ -342,8 +346,8 @@
         hasDepth: false,
         versions: [
           { label: 'Original',    suffix: '-orig.jpg' },
-          { label: '2K (HD)',     suffix: '-hdmod.webp' },
-          { label: '6K',          suffix: '-seamless.webp' }
+          { label: '2K (HD)',     suffix: '-hdmod.webp', ai: true },
+          { label: '6K',          suffix: '-seamless.webp', ai: true }
         ]
       },
       {
@@ -370,6 +374,9 @@
 
     let currentLocation = locations[1];
     let currentVersionIndex = 0;
+    // `Original` is the untouched game capture; the other versions are
+    // AI-upscaled derivatives of it. They stay folded away until asked for.
+    let showAiVersions = false;
     let hasActiveDepth = false; 
     let isTransitioning = false;
     let currentLoadId = 0;
@@ -1915,8 +1922,12 @@
           uploadUI.style.display = 'none';
           qBar.innerHTML = '';
           currentLocation.versions.forEach((v, idx) => {
+            // Keep the active button on show even when collapsed, so the bar
+            // never hides the version actually on screen.
+            if (v.ai && !showAiVersions && idx !== currentVersionIndex) return;
             const btn = document.createElement('button'); btn.textContent = v.label;
             if (idx === currentVersionIndex) btn.classList.add('active');
+            if (v.ai) btn.title = 'AI-upscaled from the original capture';
             btn.onclick = () => {
               if (currentVersionIndex !== idx && !isTransitioning) {
                 currentVersionIndex = idx; updateUI(); loadPanorama('fade');
@@ -1924,6 +1935,20 @@
             };
             qBar.appendChild(btn);
           });
+
+          // Only ages that have AI versions get the toggle.
+          if (currentLocation.versions.some(v => v.ai)) {
+            const aiBtn = document.createElement('button');
+            aiBtn.id = 'ai-toggle';
+            aiBtn.textContent = showAiVersions ? 'AI \u25be' : 'AI \u25b8';
+            aiBtn.title = showAiVersions
+              ? 'Hide AI-upscaled versions'
+              : 'Show AI-upscaled versions';
+            aiBtn.setAttribute('aria-expanded', String(showAiVersions));
+            // Purely a visibility change — nothing about the loaded panorama moves.
+            aiBtn.onclick = () => { showAiVersions = !showAiVersions; updateUI(); };
+            qBar.appendChild(aiBtn);
+          }
       }
     }
 
