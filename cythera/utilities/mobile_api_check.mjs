@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Checks cythera_mobile.html against the emulator it embeds.
+// Checks mobile.html against the emulator it embeds.
 //
-//   node utilities/mobile_api_check.mjs cythera_mobile.html infinite-mac
+//   node utilities/mobile_api_check.mjs mobile.html infinite-mac
 //
 // The page is a touch shell around an infinitemac.org embed, and everything it
 // sends -- postMessage payloads, key codes, iframe query parameters, emulator
@@ -27,7 +27,7 @@ import {readFileSync, existsSync} from 'node:fs';
 import vm from 'node:vm';
 import {pageSource} from './page_scripts.mjs';
 
-const [htmlPath = 'cythera_mobile.html', repoPath = 'infinite-mac'] = process.argv.slice(2);
+const [htmlPath = 'mobile.html', repoPath = 'infinite-mac'] = process.argv.slice(2);
 for (const p of [htmlPath, repoPath]) {
   if (!existsSync(p)) { console.error('missing: ' + p); process.exit(2); }
 }
@@ -179,21 +179,29 @@ function run({webgl = true} = {}) {
   const winListeners = new Map();
   const docListeners = new Map();
   const store = new Map();
+  // A clock the checks drive. Nothing fires unless a check asks it to, as
+  // before -- but the page now coalesces pointer moves to one a frame and
+  // spaces its button transitions in milliseconds, so there has to be a clock
+  // to ask. See the note on BUTTON_GAP_MS in the page.
+  const clock = {now: 0, queue: []};
+  const schedule = (fn, ms) => { clock.queue.push({fn, at: clock.now + (ms || 0), id: clock.queue.length + 1}); return clock.queue.length; };
+  const cancel = id => { const t = clock.queue.find(t => t.id === id); if (t) t.cancelled = true; };
   const sandbox = {
     console: {log() {}, warn() {}, error() {}},
-    Math, JSON, Date, Object, Array, String, Number, Boolean, Set, Map, Error, TypeError,
+    Math, JSON, Object, Array, String, Number, Boolean, Set, Map, Error, TypeError,
+    Date: Object.assign(function (...a) { return new Date(...a); }, {now: () => clock.now}),
     RegExp, Promise, isNaN, isFinite, parseInt, parseFloat, Infinity, NaN, undefined,
     URL, URLSearchParams, TextEncoder, TextDecoder, Uint8Array, Float32Array, Array_,
-    setTimeout: (fn) => { return 0; },      // never fire timers; the checks drive things directly
-    clearTimeout() {}, setInterval: () => 0, clearInterval() {},
-    requestAnimationFrame: () => 0,
+    setTimeout: schedule, clearTimeout: cancel,
+    setInterval: () => 0, clearInterval() {},
+    requestAnimationFrame: fn => schedule(fn, 16), cancelAnimationFrame: cancel,
     prompt: () => null,
     localStorage: {
       getItem: k => (store.has(k) ? store.get(k) : null),
       setItem: (k, v) => store.set(k, String(v)),
       removeItem: k => store.delete(k),
     },
-    location: {search: '', href: 'file:///cythera_mobile.html', hash: ''},
+    location: {search: '', href: 'file:///mobile.html', hash: ''},
     innerWidth: 390, innerHeight: 844,
     document: {
       getElementById: id => registry.get(id) || registry.set(id, makeEl('div', id)).get(id),
@@ -223,6 +231,18 @@ function run({webgl = true} = {}) {
   };
   return {
     ctx, posted, threw, registry, btnEls, glCalls, rawPosted,
+    // Frames and timers up to `ms` from now, each at its own time.
+    tick(ms) {
+      const until = clock.now + (ms || 0);
+      for (;;) {
+        const due = clock.queue.filter(t => !t.cancelled && !t.done && t.at <= until).sort((a, b) => a.at - b.at)[0];
+        if (!due) break;
+        clock.now = Math.max(clock.now, due.at);
+        due.done = true;
+        due.fn();
+      }
+      clock.now = until;
+    },
     // A symbol that is not there is a finding, not a crash: this harness has
     // to be able to report on a page that predates the structure it expects.
     peek: n => { try { return ctx.__peek(n); } catch (e) { return undefined; } },
@@ -260,8 +280,11 @@ if (noGl.threw) {
   else ok('start before load', 'messages held until the emulator reports in');
 
   a.fireWindow('message', {origin: 'https://infinitemac.org', data: {type: 'emulator_loaded'}});
+  a.tick(300);      // the press and its release are deliberately spaced
   const types = a.posted.map(p => p.msg.type);
-  const want = ['emulator_unpause', 'emulator_mouse_down', 'emulator_mouse_up'];
+  // The move is not decoration: a click with no move before it lands at 0,0,
+  // which on a Mac is the corner of the menu bar.
+  const want = ['emulator_unpause', 'emulator_mouse_move', 'emulator_mouse_down', 'emulator_mouse_up'];
   if (JSON.stringify(types) === JSON.stringify(want)) ok('start after load', types.join(', '));
   else fail('start after load', 'sent ' + JSON.stringify(types));
 
@@ -362,6 +385,7 @@ if (!app.peek('GESTURES') || !app.peek('recogniseGesture')) {
     if (!/-btn$|-toggle$|-handle$/.test(id)) continue;
     try { el.dispatch('pointerdown', {}); el.dispatch('pointerup', {}); } catch (e) { /* a control that needs more DOM than this */ }
   }
+  a.tick(1000);     // let everything the page queued actually go out
   // Anything the page posts directly, rather than through post().
   for (const p of a.rawPosted) a.posted.push(p);
 
