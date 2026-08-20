@@ -209,6 +209,13 @@ button::before { content:''; position:absolute; top:50%; left:16px; right:16px;
     radial-gradient(circle at 4.5px 4.5px, #efe9d8 0 1.4px, #8e8474 1.6px 3.4px, rgba(0,0,0,.55) 3.6px 4.4px, transparent 4.6px) left center/9px 9px no-repeat,
     radial-gradient(circle at 4.5px 4.5px, #efe9d8 0 1.4px, #8e8474 1.6px 3.4px, rgba(0,0,0,.55) 3.6px 4.4px, transparent 4.6px) right center/9px 9px no-repeat; }
 .modebtns button::before, #resourceNav button::before { left:12px; right:12px; }
+/* A stud is 9px wide and pinned 16px in from each end, so on the compact
+   buttons -- whose side padding is cut to 12px by the rule above -- both studs
+   land on top of the label: "Fit" rendered as "IOt". Decoration goes, words
+   stay. */
+.toolbar button::before, .actionRow button::before, #sheetGrid button::before,
+#mapPreview button::before, #charControls button::before, #galleryTools button::before
+  { display:none !important; }
 #resourceNav { max-width:760px !important; gap:12px !important; }
 #resourceNav button { font-size:1.18rem !important; font-weight:700; min-height:52px !important; }
 #backToSheet { flex:1.6 !important; }
