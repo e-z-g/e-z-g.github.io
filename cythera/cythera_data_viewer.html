@@ -265,12 +265,17 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
   background:#12100c; border:1px solid #4a432f; border-radius:4px;
   width:84px; height:84px; padding:4px; overflow:hidden; word-break:break-word;
   text-align:left; white-space:pre-wrap; }
-.cell .lbl.placeholder { color:#7d7358; font-style:italic; }
-/* A name we inferred from a built-in table rather than read out of the
-   archive: marked so you never mistake a guess for data. */
-.cell .lbl.guessed, .lbl.guessed { color:#c9a86a; }
-.cell .lbl.guessed::after, .lbl.guessed::after { content:' \2020'; opacity:.85; }
-#labelLegend { font-size:12px; color:#9b8850; margin:6px 0 2px; }
+/* One colour for every name. There used to be three -- gold for a name read
+   out of the archive, a duller ochre plus a dagger for one this tool supplies,
+   grey italic for none at all -- which meant the gallery was colour-coded on a
+   distinction most readers never needed, and the daggers made a wall of
+   footnote marks. Names supplied by this tool are now a setting (off by
+   default) rather than a typeface. */
+.cell .lbl, .cell .lbl.guessed, .cell .lbl.placeholder, .lbl.guessed {
+  color:var(--gold) !important; font-style:normal; font-weight:600; }
+.cell .lbl.guessed::after, .lbl.guessed::after { content:none; }
+.cell .lbl.nolabel, .cell .lbl.placeholder { font-weight:400; opacity:.62; }
+#labelLegend { display:none !important; }
 /* Four fixed columns could not survive a phone. A grid item defaults to
    min-width:auto, so each plaque refused to shrink below the width of its own
    icon and label -- "Characters" is about 120px -- and the fourth column was
@@ -515,6 +520,56 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
   justify-content:center; margin:10px 0 0; }
 #galleryTools button { width:auto; margin:0; }
 #exportNote { font-size:12px; color:#9b8850; }
+
+/* ---- Map controls ------------------------------------------------------
+   Fourteen loose checkboxes in one wrapping row read as a wall of words, and
+   which of them changed the picture and which changed the overlay was not
+   visible at all. Three labelled groups -- what is drawn, what is marked on
+   top, and time -- with the notes on their own line underneath. */
+#charControls { margin-top:12px; display:flex; flex-direction:column; gap:6px;
+  align-items:stretch; max-width:720px; margin-left:auto; margin-right:auto; }
+.mapToggleGroup { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center;
+  justify-content:flex-start; padding:7px 12px; font-size:13.5px;
+  background:rgba(20,18,14,.72); border:1px solid rgba(155,136,80,.45); border-radius:7px; }
+.mapToggleGroup .mtgLabel { flex:0 0 46px; font-size:10.5px; letter-spacing:1.4px;
+  text-transform:uppercase; color:#9b8850; }
+.mapToggleGroup label { display:flex; align-items:center; gap:5px; cursor:pointer;
+  white-space:nowrap; }
+.mapToggleGroup input[type=checkbox] { width:auto; min-height:0; margin:0; accent-color:#c4a464; }
+.mapToggleGroup select { width:auto; min-height:30px !important; margin:0;
+  padding:2px 26px 2px 8px !important; font-size:12px !important; }
+.mapToggleGroup input[type=range] { flex:1 1 120px; min-width:90px; }
+.mapToggleGroup #mapHourLabel { min-width:56px; text-align:right; }
+.mapToggleGroup.mtgNotes { background:none; border:0; padding:2px 12px; font-size:12px;
+  color:#9b8850; gap:14px; }
+.mapToggleGroup.mtgNotes button { margin:0; }
+@media (max-width:520px) {
+  .mapToggleGroup { font-size:12.5px; gap:4px 10px; }
+  .mapToggleGroup .mtgLabel { flex-basis:100%; }
+}
+
+/* ---- The archive menu --------------------------------------------------
+   Choosing a file, forgetting the remembered copy and the loaded-from line
+   used to be three separate things in three corners of the page. They are one
+   small stud in the top-left now, and everything about the data file lives
+   behind it. */
+#archiveMenuBtn { position:fixed; top:8px; left:8px; z-index:41; width:auto; margin:0;
+  min-height:0 !important; padding:4px 12px !important; font-size:11px !important;
+  opacity:.62; }
+#archiveMenuBtn:hover { opacity:1; }
+#archiveMenuBtn.urgent { opacity:1; font-size:14px !important; padding:9px 18px !important; }
+#archiveMenu { position:fixed; top:38px; left:8px; z-index:42; display:none;
+  min-width:250px; max-width:min(360px, calc(100vw - 24px));
+  padding:12px 14px; background:rgba(18,15,10,.98); border:1px solid var(--edge);
+  border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.7); font-size:12.5px;
+  text-align:left; line-height:1.6; }
+#archiveMenu.open { display:block; }
+#archiveMenu button { width:100%; margin:8px 0 0; }
+#archiveMenu label { display:flex; gap:7px; align-items:flex-start; margin-top:10px;
+  padding-top:10px; border-top:1px solid rgba(155,136,80,.35); cursor:pointer; }
+#archiveMenu label input { width:auto; min-height:0; margin:3px 0 0; accent-color:#c4a464; }
+#archiveMenu .amNote { color:#9b8850; font-size:11.5px; display:block; }
+
 @media (prefers-reduced-motion: reduce) { * { animation-duration:.01ms !important; transition-duration:.01ms !important; } }
 </style>
 </head>
@@ -522,9 +577,19 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
 <div id="frameFill" aria-hidden="true"></div>
 <div id="appShell">
 <a href="#sheetGrid" class="skipToGallery">Skip to the gallery</a>
-<div id="sourceStatus" role="status" aria-live="polite">Looking for the Cythera Data archive…</div>
 <input type="file" id="fileInput" accept="*/*" onchange="loadArchive()" style="display:none">
-<button id="chooseFileBtn" class="linky" onclick="document.getElementById('fileInput').click()">data file</button>
+<button id="archiveMenuBtn" class="secondary" onclick="toggleArchiveMenu()"
+        aria-haspopup="dialog" aria-expanded="false" aria-controls="archiveMenu">Data file</button>
+<div id="archiveMenu" role="dialog" aria-label="Data file">
+  <div id="sourceStatus" role="status" aria-live="polite">Looking for the Cythera Data archive…</div>
+  <button class="secondary" id="chooseFileBtn"
+          onclick="document.getElementById('fileInput').click()">Open a different file…</button>
+  <button class="secondary" id="forgetArchiveBtn" onclick="archiveCacheClear()">Forget the remembered copy</button>
+  <label><input type="checkbox" id="chkBuiltinLabels" onchange="setBuiltinLabels(this.checked)">
+    <span>Names this tool supplies
+      <span class="amNote">Hand-identified labels for resources the archive never names.
+      Off, the gallery shows only the file&rsquo;s own strings.</span></span></label>
+</div>
 <div id="navBar"></div>
 <div id="navSub"></div>
 <div id="searchWrap" style="display:none">
@@ -642,53 +707,44 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
   <div style="margin-top:8px;">
     <button class="secondary" onclick="downloadMapPNG()">Save Map as PNG</button>
   </div>
-  <div id="charControls" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:center;">
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkChars" checked onchange="toggleCharacters(this.checked)" style="width:auto;min-height:0;margin:0"> Inhabitants
-    </label>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkCharNames" checked onchange="toggleCharNames(this.checked)" style="width:auto;min-height:0;margin:0"> Names
-    </label>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkMapAnim" checked onchange="toggleMapAnim(this.checked)" style="width:auto;min-height:0;margin:0"> Tile animation
-    </label>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkLighting" onchange="toggleLighting(this.checked)" style="width:auto;min-height:0;margin:0"> Lighting
-    </label>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkRoofs" onchange="toggleRoofs(this.checked)" style="width:auto;min-height:0;margin:0"> Roofs
-    </label>
-    <span id="roofNote" style="font-size:12px; color:#9b8850;"></span>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkWalk" onchange="toggleMapWalk(this.checked)" style="width:auto;min-height:0;margin:0"> Walk the day
-    </label>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkMarkDoors" onchange="toggleMapMarks('doors',this.checked)" style="width:auto;min-height:0;margin:0"> Doors
-    </label>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkMarkSecret" onchange="toggleMapMarks('secret',this.checked)" style="width:auto;min-height:0;margin:0"> Hidden ways
-    </label>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      <input type="checkbox" id="chkMarkChest" onchange="toggleMapMarks('chest',this.checked)" style="width:auto;min-height:0;margin:0"> Containers
-    </label>
-    <label style="display:flex; align-items:center; gap:6px; font-size:14px;">
-      Speed
-      <select id="walkSpeed" onchange="window.MAP_WALK_SPEED=+this.value" style="width:auto;min-height:30px;padding:2px 6px;font-size:13px">
-        <option value="0.25">0.25x</option>
-        <option value="1" selected>1x</option>
-        <option value="4">4x</option>
-        <option value="12">12x</option>
-        <option value="40">40x</option>
-      </select>
-    </label>
-    <span id="charCount" style="font-size:13px; color:#c9bd90;"></span>
-    <button id="charBackLink" class="secondary" style="display:none;margin:0;padding:6px 12px;min-height:32px;font-size:12px"></button>
-    <span id="mapAnimNote" style="font-size:12px; color:#9b8850;"></span>
-  </div>
-  <div style="margin-top:6px; display:flex; align-items:center; gap:10px; justify-content:center;">
-    <span style="font-size:14px;">Hour</span>
-    <input type="range" id="mapHourSlider" min="0" max="23" value="12" oninput="setMapHour(this.value)" style="flex:1; max-width:340px;">
-    <span id="mapHourLabel" style="min-width:56px; text-align:right; font-size:14px;">12 pm</span>
+  <div id="charControls">
+    <div class="mapToggleGroup">
+      <span class="mtgLabel">Show</span>
+      <label><input type="checkbox" id="chkWalls" checked onchange="toggleWalls(this.checked)"> Walls</label>
+      <label><input type="checkbox" id="chkRoofs" onchange="toggleRoofs(this.checked)"> Roofs</label>
+      <label><input type="checkbox" id="chkChars" checked onchange="toggleCharacters(this.checked)"> Inhabitants</label>
+      <label><input type="checkbox" id="chkCharNames" checked onchange="toggleCharNames(this.checked)"> Names</label>
+      <label><input type="checkbox" id="chkLighting" onchange="toggleLighting(this.checked)"> Lighting</label>
+      <label><input type="checkbox" id="chkMapAnim" checked onchange="toggleMapAnim(this.checked)"> Tile animation</label>
+    </div>
+    <div class="mapToggleGroup">
+      <span class="mtgLabel">Mark</span>
+      <label><input type="checkbox" id="chkMarkDoors" onchange="toggleMapMarks('doors',this.checked)"> Doors</label>
+      <label><input type="checkbox" id="chkMarkSecret" onchange="toggleMapMarks('secret',this.checked)"> Hidden ways</label>
+      <label><input type="checkbox" id="chkMarkChest" onchange="toggleMapMarks('chest',this.checked)"> Containers</label>
+      <label><input type="checkbox" id="chkMarkExits" onchange="toggleMapMarks('exits',this.checked)"> Zone exits</label>
+    </div>
+    <div class="mapToggleGroup">
+      <span class="mtgLabel">Time</span>
+      <label><input type="checkbox" id="chkWalk" onchange="toggleMapWalk(this.checked)"> Walk the day</label>
+      <label style="gap:6px">Speed
+        <select id="walkSpeed" onchange="window.MAP_WALK_SPEED=+this.value">
+          <option value="0.25">0.25&times;</option>
+          <option value="1" selected>1&times;</option>
+          <option value="4">4&times;</option>
+          <option value="12">12&times;</option>
+          <option value="40">40&times;</option>
+        </select>
+      </label>
+      <input type="range" id="mapHourSlider" min="0" max="23" value="12" oninput="setMapHour(this.value)">
+      <span id="mapHourLabel">12 pm</span>
+    </div>
+    <div class="mapToggleGroup mtgNotes">
+      <span id="charCount"></span>
+      <span id="roofNote"></span>
+      <span id="mapAnimNote"></span>
+      <button id="charBackLink" class="secondary" style="display:none"></button>
+    </div>
   </div>
 </div>
 
@@ -904,9 +960,11 @@ function labelForResource(subn, n, resid) {
   if (subn === 135) {
     const d = derivedCharacterName(n);
     if (d) return d;
-    if (CYTHERA_CHARACTERS[n+1] !== undefined) return prettyLabel(CYTHERA_CHARACTERS[n+1]);
+    if (window.SHOW_BUILTIN_LABELS && CYTHERA_CHARACTERS[n+1] !== undefined)
+      return prettyLabel(CYTHERA_CHARACTERS[n+1]);
   }
-  if (subn === 131 && CYTHERA_LANDSCAPES[n] !== undefined) return CYTHERA_LANDSCAPES[n];
+  if (subn === 131 && window.SHOW_BUILTIN_LABELS && CYTHERA_LANDSCAPES[n] !== undefined)
+    return CYTHERA_LANDSCAPES[n];
   if (subn === 137) { const sk = skillNameForIcon(n); if (sk) return sk; }
   return null;
 }
@@ -1041,10 +1099,10 @@ function applyLabel(el, resid) {
   const txt = labelFor(resid);
   el.textContent = txt || '\u2014';
   el.classList.toggle('placeholder', !txt);
-  el.classList.toggle('guessed', !!txt && labelSource(resid) === 'builtin');
-  if (txt && labelSource(resid) === 'builtin') {
+  // Still recorded in the tooltip -- just not in the colour of the text.
+  if (txt && labelSource(resid) === 'builtin')
     el.title = 'Name supplied by this tool, not found in the archive';
-  }
+  else el.removeAttribute('title');
   return txt;
 }
 
@@ -1068,18 +1126,40 @@ function normalizeLabel(s) {
 
 function labelFor(resid) { return normalizeLabel(labelForUnnormalized(resid)); }
 
+// Names this tool supplies rather than reads. RESOURCE_LABELS, RESHINTS, the
+// ZONES fallbacks, TILE_SHEET_HINTS, CYTHERA_LANDSCAPES and the character-name
+// fallback are all hand-identified from the wiki -- good guesses, but guesses,
+// and they used to be indistinguishable from the archive's own strings except
+// for a dagger nobody reads. They are off by default now and switched on from
+// the archive menu; with them off the gallery shows only what the file
+// actually says. Generic numbering ("Sound 12") is not an override and stays.
+window.SHOW_BUILTIN_LABELS = false;
+try {
+  const st = localStorage.getItem('cythera.builtinLabels');
+  if (st !== null) window.SHOW_BUILTIN_LABELS = st === '1';
+} catch (e) {}
+function setBuiltinLabels(on) {
+  window.SHOW_BUILTIN_LABELS = !!on;
+  try { localStorage.setItem('cythera.builtinLabels', on ? '1' : '0'); } catch (e) {}
+  if (window.masterIndexGlobal || typeof masterIndexGlobal !== 'undefined') {
+    try { onCategoryChange(); } catch (e) {}
+  }
+}
+
 function labelForUnnormalized(resid) {
   const zn = zoneNameFor(resid);
   if (zn) return zn;
   // The archive names many of its own resources; prefer that over our tables.
   try { const sy = resourceSymbol(resid); if (sy) return sy; } catch (e) {}
-  if (RESOURCE_LABELS[resid]) return RESOURCE_LABELS[resid];
-  if (RESHINTS[resid]) return RESHINTS[resid];
   const subn = Math.floor(resid / 0x100) - 1;
   const n = resid % 0x100;
+  if (window.SHOW_BUILTIN_LABELS) {
+    if (RESOURCE_LABELS[resid]) return RESOURCE_LABELS[resid];
+    if (RESHINTS[resid]) return RESHINTS[resid];
+  }
   const structural = labelForResource(subn, n, resid);
   if (structural) return structural;
-  if (subn === 141) return TILE_SHEET_HINTS[n] || ('Tile Sheet ' + n);
+  if (subn === 141) return (window.SHOW_BUILTIN_LABELS && TILE_SHEET_HINTS[n]) || ('Tile Sheet ' + n);
   if (subn === 142) return 'General Graphic ' + n;
   if (subn === 144) return 'Sound ' + n;
   return null;
@@ -1666,6 +1746,24 @@ function livingPropTypes() {
 
 function propTypeName(pt) { return PROP_TYPE_NAMES[pt] || null; }
 
+// Which of a prop's frames are still the SAME THING. A prop's frame block is
+// bounded by the end of its 16-tile sheet, and that bound is too generous for
+// small props: prop type 0x141 is the crystal ball at tile 0x883, but its
+// block runs to 0x88F, which takes in the four paintings at 0x88C-0x88F. The
+// gallery picked its representative frame by looking for span bits, found them
+// on the 2x1 painting at 0x88D, and drew a painting captioned "crystal ball".
+// 0xF004 names tiles in runs and settles it: 0x883-0x886 are "crystal ball"
+// and 0x887 starts "boards". Frames outside the base tile's run are still
+// listed (aspects do run past a run boundary -- the rope is aspect 3 of
+// "post"), they are just not what the prop is shown AS, and the detail view
+// now names each one from the archive.
+function framesSharingName(base, present) {
+  const own = terrainNameFor(base);
+  if (!own) return present;
+  const same = present.filter(f => terrainNameFor(base + f) === own);
+  return same.length ? same : present;
+}
+
 // Draw a prop's sprite, assembling the extra squares when the tile attributes
 // say it spans more than one. Returns the canvas, or null if there is nothing.
 function drawPropSprite(tileId, px) {
@@ -1755,8 +1853,9 @@ function renderPropTypeSheet() {
     // Pick the first frame that actually carries span bits, and fall back to
     // frame 0 for everything single-square.
     const attrs = getTileAttributes();
-    let rep = e.info.present[0] || 0;
-    for (const f of e.info.present) {
+    const own = framesSharingName(e.base, e.info.present);
+    let rep = own[0] || 0;
+    for (const f of own) {
       if ((attrs[e.base + f] || 0) & 0xC0) { rep = f; break; }
     }
     const spr = drawPropSprite(e.base + rep, 34);
@@ -1764,8 +1863,12 @@ function renderPropTypeSheet() {
     cell.appendChild(wrap);
     const lbl = document.createElement('div');
     lbl.className = 'lbl';
-    lbl.innerHTML = e.name ? svEsc(e.name) + '<span class="guessed" title="name from the delvmod wiki, not the archive">\u2020</span>'
-                           : '<span style="color:#7d7358">unnamed</span>';
+    // The archive's own name for the base tile, where it has one, in
+    // preference to the wiki's prop-type list.
+    const own0 = terrainNameFor(e.base);
+    lbl.textContent = own0 || e.name || 'unnamed';
+    if (!own0 && e.name) lbl.title = 'name from the delvmod wiki, not the archive';
+    if (!own0 && !e.name) lbl.classList.add('nolabel');
     cell.appendChild(lbl);
     const sub = document.createElement('div');
     sub.className = 'resid';
@@ -1801,7 +1904,7 @@ function showPropTypeDetail(pt) {
   panel.style.cssText = 'width:100%;max-width:560px;margin:12px auto;text-align:left';
   const head = document.createElement('div');
   head.innerHTML = '<div style="font-size:19px;color:var(--gold)">' +
-    (name ? svEsc(name) : 'unnamed prop type') +
+    svEsc(terrainNameFor(base) || name || 'unnamed prop type') +
     ' <span style="font-size:12px;color:#9b8850">proptype 0x' + pt.toString(16).toUpperCase() + '</span></div>' +
     '<div style="font-size:13px;color:#cfc4a0;margin:4px 0 10px">Sheet 0x' +
       (base >> 4).toString(16).toUpperCase() + ', base tile 0x' + base.toString(16).toUpperCase() +
@@ -1812,12 +1915,19 @@ function showPropTypeDetail(pt) {
 
   const sheet = document.createElement('div');
   sheet.style.cssText = 'display:grid;grid-template-columns:repeat(4,44px);gap:3px;margin-bottom:12px';
+  const ownName = terrainNameFor(base);
   for (const f of info.present) {
     const holder = document.createElement('div');
     holder.style.cssText = 'width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:#1c1913;border:1px solid #33302a;overflow:hidden';
     const spr = drawPropSprite(base + f, 20);
     if (spr) holder.appendChild(spr.canvas);
-    holder.title = 'frame ' + f + ' \u00b7 tile 0x' + (base + f).toString(16).toUpperCase();
+    const tn = terrainNameFor(base + f);
+    holder.title = 'frame ' + f + ' \u00b7 tile 0x' + (base + f).toString(16).toUpperCase() +
+                   (tn ? ' \u00b7 ' + tn : '');
+    // A frame the archive names something else is a neighbour that happens to
+    // share the sheet, not another view of this prop. Dimmed rather than
+    // dropped, because aspects really do reach into them.
+    if (tn && tn !== ownName) holder.style.opacity = '.45';
     sheet.appendChild(holder);
   }
   panel.appendChild(sheet);
@@ -3022,6 +3132,30 @@ const LOCAL_ARCHIVE_CANDIDATES = [
   'sources/Cythera Data.hqx', 'Cythera Data.hqx'
 ];
 
+// One stud in the top-left corner holds everything about the data file:
+// where it came from, how to open another, how to forget the remembered copy,
+// and whether this tool's own names are shown. Those used to be a status line
+// at the top, a hairline link in the bottom-right corner and a link that only
+// appeared when the archive happened to be cached.
+function openArchiveMenu(on) {
+  const menu = document.getElementById('archiveMenu');
+  const btn = document.getElementById('archiveMenuBtn');
+  if (!menu) return;
+  menu.classList.toggle('open', !!on);
+  if (btn) btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+}
+function toggleArchiveMenu() {
+  const menu = document.getElementById('archiveMenu');
+  openArchiveMenu(menu && !menu.classList.contains('open'));
+}
+document.addEventListener('click', e => {
+  const menu = document.getElementById('archiveMenu');
+  if (!menu || !menu.classList.contains('open')) return;
+  if (menu.contains(e.target)) return;
+  if (e.target.closest && e.target.closest('#archiveMenuBtn')) return;
+  openArchiveMenu(false);
+});
+
 function adoptArchive(raw, sourceName, opts) {
   opts = opts || {};
   let found;
@@ -3041,13 +3175,9 @@ function adoptArchive(raw, sourceName, opts) {
 
 function archiveLoadFailed(failures) {
   setStatus('No archive loaded. Choose or drop a "Cythera Data" file (.hqx is fine).', true);
-  const cb = document.getElementById('chooseFileBtn');
-  if (cb) {
-    cb.className = 'secondary';
-    cb.style.position = 'static';
-    cb.style.opacity = '1';
-    cb.textContent = 'Select Cythera Data file';
-  }
+  const mb = document.getElementById('archiveMenuBtn');
+  if (mb) { mb.classList.add('urgent'); mb.textContent = 'Select Cythera Data file'; }
+  openArchiveMenu(true);
   const out = document.getElementById('output');
   if (out) out.textContent = 'Tried, in order:\n  ' + failures.join('\n  ');
 }
@@ -3270,18 +3400,13 @@ function parseArchiveBytes(bytes, sourceName, meta) {
       populated + ' subindexes' + (meta.via && meta.via !== 'data fork' ? ', unwrapped from ' + meta.via : '') +
       (window.CYTHERA_RSRC ? ', plus a ' + window.CYTHERA_RSRC.total() + '-resource fork' : '') +
       (meta.cached ? ' (remembered from ' + new Date(meta.savedAt || Date.now()).toLocaleDateString() + ') ' : ' ')));
-    if (meta.cached) {
-      const forget = document.createElement('button');
-      forget.className = 'linkbtn';
-      forget.textContent = 'forget it and reload';
-      forget.onclick = archiveCacheClear;
-      ss.appendChild(forget);
-    }
-    const btn = document.getElementById('chooseFileBtn');
-    btn.className = 'linky';
-    btn.style.position = '';
-    btn.style.opacity = '';
-    btn.textContent = 'data file';
+    const fb = document.getElementById('forgetArchiveBtn');
+    if (fb) fb.style.display = meta.cached ? '' : 'none';
+    const btn = document.getElementById('archiveMenuBtn');
+    if (btn) { btn.classList.remove('urgent'); btn.textContent = 'Data file'; }
+    openArchiveMenu(false);
+    const cbl = document.getElementById('chkBuiltinLabels');
+    if (cbl) cbl.checked = !!window.SHOW_BUILTIN_LABELS;
     onCategoryChange();
     out.textContent = 'Title: ' + title + ' — ' + sourceName;
     applyDeepLink(arrivedOn);
@@ -4519,6 +4644,66 @@ function getPropOffsets() {
   _propOffYCache = getResourceBytes(0xF012) || new Uint8Array(0);
   return [_propOffXCache, _propOffYCache];
 }
+// A prop's draw offset, in source pixels, ready to be SUBTRACTED from the
+// square's top-left corner -- which is what delvmod's draw_tile() does
+// (`x*32-xo, y*32-yo`). This viewer used to add it, so the eight offset
+// statues, the candlestands and Land King Hall's rope all sat 8-13px down and
+// right of where the game puts them. The bytes are signed: 0xF011 holds 232
+// for one cavern aspect, which is -24, not a quarter-tile shove off the map.
+// When the record's rotate bit is set the pair is transposed with the image
+// (delvmod: `offset[::-1] if rotated`).
+function propOffsetFor(proptype, aspect, rotated) {
+  const [offX, offY] = getPropOffsets();
+  const oi = ((proptype & 0x3FF) << 5) + (aspect & 0x1F);
+  const sgn = v => (v > 127 ? v - 256 : v);
+  let ox = sgn(offX[oi] || 0), oy = sgn(offY[oi] || 0);
+  if (rotated) { const t = ox; ox = oy; oy = t; }
+  return [ox, oy];
+}
+
+// --- Faux props ------------------------------------------------------------
+// 0xF010 gives every TILE an optional prop to draw on top of it: one uint16
+// per tile holding proptype (0x3FF), aspect (bits 10-14) and a rotate bit.
+// delvmod's draw_tile() draws it straight after the tile itself, so it sits
+// under anything the prop list places on the same square. 114 tiles carry one.
+// This is not decoration that could be left out: Land King Hall's cave mouths
+// are terrain tiles whose faux prop is the "cavern" sprite, so without this
+// the caves had no walls at all, and the world map's trees, shrubs, mountains
+// and snowcaps are all faux props too.
+let _fauxPropCache = null;
+function getFauxProps() {
+  if (_fauxPropCache) return _fauxPropCache;
+  const out = new Map();
+  try {
+    const b = getResourceBytes(0xF010);
+    if (b) for (let i = 0; i + 1 < b.length; i += 2) {
+      const w = (b[i] << 8) | b[i+1];
+      const pt = w & 0x3FF;
+      if (pt) out.set(i >> 1, { proptype: pt, aspect: (w >> 10) & 0x1F, rotated: w >> 15 });
+    }
+  } catch (e) {}
+  return (_fauxPropCache = out);
+}
+
+// Draw one prop sprite -- its own tile plus whatever extra squares the tile
+// attributes say it spans -- at a map square. Returns the squares it covered.
+function drawPropAt(ctx, TS, gx, gy, tileId, rotated, ox, oy, mw, mh) {
+  const scale = TS / 32;
+  const dx = -ox * scale, dy = -oy * scale;
+  const cells = [[gx, gy]];
+  const extra = multiTilePieces(tileId, rotated);
+  if (extra) {
+    for (const p of extra) {
+      const ex = gx + p.dx, ey = gy + p.dy;
+      if (ex < 0 || ey < 0 || ex >= mw || ey >= mh) continue;
+      drawTileAt(ctx, p.tile, ex*TS + dx, ey*TS + dy, true, TS, 0, rotated);
+      cells.push([ex, ey]);
+    }
+  }
+  drawTileAt(ctx, tileId, gx*TS + dx, gy*TS + dy, true, TS, 0, rotated);
+  return cells;
+}
+
 function getCompositionTableCached() {
   if (_compTableCache) return _compTableCache;
   _compTableCache = loadCompositionTable();
@@ -4569,11 +4754,26 @@ function tileIsAnimated(tileId) {
   return anim;
 }
 
-function getTileCanvas(tileId, transparent, frame) {
-  const key = tileId + ':t' + (frame ? ':' + frame : '');
+// delvmod's Tile.rotate(): row y of the result is column y of the source, a
+// transpose across the main diagonal. The prop record's 0x20 bit selects it,
+// and the viewer used to ignore the bit entirely -- which is why Land King
+// Hall's rope barricade lay across the corridor instead of running down it,
+// and why several fences, wall runs and one corpse were drawn on the wrong
+// axis. The offset pair is transposed with the image (delvmod: `offset[::-1]
+// if rotated`), so the two have to travel together.
+function rotateTileImage(img) {
+  const out = new Uint8Array(32*32);
+  for (let y = 0; y < 32; y++)
+    for (let x = 0; x < 32; x++) out[y*32 + x] = img[x*32 + y];
+  return out;
+}
+
+function getTileCanvas(tileId, transparent, frame, rotated) {
+  const key = tileId + ':t' + (frame ? ':' + frame : '') + (rotated ? ':r' : '');
   if (tileCanvasCache.has(key)) return tileCanvasCache.get(key);
-  const img = resolveTileImage(tileId);
+  let img = resolveTileImage(tileId);
   if (!img) { tileCanvasCache.set(key, null); return null; }
+  if (rotated) img = rotateTileImage(img);
   // `const PAL_RGB` at module scope is not a window property, so this must
   // not shadow it by name.
   const PAL = frame ? cycledPalette(frame) : PAL_RGB;
@@ -4598,7 +4798,7 @@ function getTileCanvas(tileId, transparent, frame) {
 }
 // Draw a single terrain tile into its own canvas (used by the composite
 // drill-down to show each source fragment).
-function drawTileToCanvas(canvas, tileId, size) {
+function drawTileToCanvas(canvas, tileId, size, rotated) {
   size = size || 32;
   canvas.width = size; canvas.height = size;
   const ctx = canvas.getContext('2d');
@@ -4606,12 +4806,12 @@ function drawTileToCanvas(canvas, tileId, size) {
   // getTileCanvas), and painting a slab behind it here is what made sprites
   // look like they had a solid black background instead of being cut out.
   // Callers that want a panel behind the sprite set that via CSS.
-  drawTileAt(ctx, tileId, 0, 0, false, size);
+  drawTileAt(ctx, tileId, 0, 0, false, size, 0, rotated);
 }
 
-function drawTileAt(ctx, tileId, px, py, transparent, size, frame) {
+function drawTileAt(ctx, tileId, px, py, transparent, size, frame, rotated) {
   const TS = size || 32;
-  const c = getTileCanvas(tileId, transparent, frame);
+  const c = getTileCanvas(tileId, transparent, frame, rotated);
   if (!c) return;
   ctx.drawImage(c, px, py, TS, TS);
 }
@@ -4820,11 +5020,10 @@ function drawCharacterLayer() {
   const people = charactersOnLevel(cm.level, window.MAP_WALK ? window.MAP_TIME : window.MAP_HOUR);
   deconflictPositions(people);
   drawOpenDoors(ctx, TS, people);
-  const [offX, offY] = getPropOffsets();
   const scale = TS / 32;
   for (const c of people) {
-    const oi = (c.proptype << 5) + c.aspect;
-    const dx = (offX[oi] || 0) * scale, dy = (offY[oi] || 0) * scale;
+    const [pox, poy] = propOffsetFor(c.proptype, c.aspect, 0);
+    const dx = -pox * scale, dy = -poy * scale;
     // Large props span several squares, flagged by bits 0xC0 of attribute
     // byte 3. Characters do NOT: Alaric's frames 0x0710-0x071F all carry
     // byte3 = 0x00, so this call returns null for every character in the
@@ -5011,12 +5210,22 @@ function nightAlpha(hour) {
 // The classification is by name, so it is only as good as the wiki's list and
 // is marked as such in the legend. What is NOT guessed: whether a wall blocks
 // comes from tile attribute byte 3 bit 0x02, straight out of 0xF002.
-window.MAP_MARKS = { doors: false, secret: false, chest: false };
+window.MAP_MARKS = { doors: false, secret: false, chest: false, exits: false };
 function toggleMapMarks(kind, on) { window.MAP_MARKS[kind] = on; drawMapMarks(); }
+
+// Prop types that are a way through something rather than a thing: the ones
+// the game hides, plus the ones it merely tucks behind other scenery. Matching
+// on /wall/ alone -- which is what this used to do -- caught "lit wall torch",
+// "wall shelf" and "wall hanging", so Land King Hall reported sixteen torches
+// as hidden passages. A wall is a name that ENDS in "wall".
+const PASSAGE_PROPS = /^(secret |tight )?(passage|door)$|passthrough|mousehole|trapdoor|mineshaft|^cave$|^hole$|small hole|loose board|loose dirt|^sewer$|^crack$|^ladder$/;
+function isWallProp(pt) {
+  return /(^|\s)wall$/.test((propTypeName(pt) || '').toLowerCase());
+}
 
 function classifyProp(pt, tileId) {
   const nm = (propTypeName(pt) || '').toLowerCase();
-  if (/secret/.test(nm)) return 'secret';
+  if (/secret/.test(nm) || PASSAGE_PROPS.test(nm)) return 'secret';
   if (/door|gate|portcullis/.test(nm)) return 'doors';
   if (/chest|barrel|crate|sack|cupboard|cabinet|dresser|wardrobe|trunk|urn|pot\b|coffer|bookshelf/.test(nm)) return 'chest';
   return null;
@@ -5133,6 +5342,29 @@ function toggleRoofs(on) {
   }
 }
 
+// Walls are baked into the terrain canvas rather than living on a layer of
+// their own, so switching them re-renders that one canvas in place. The
+// viewport transform, the zoom and every overlay above it are left alone.
+window.MAP_WALLS = true;
+function rerenderMapTerrain() {
+  const cm = window.CUR_MAP;
+  if (!cm || !cm.mapData) return;
+  const result = renderMapVisual(cm.resid, cm.mapData);
+  if (!result) return;
+  const old = document.getElementById('mapTerrainCanvas');
+  result.canvas.id = 'mapTerrainCanvas';
+  if (old && old.parentNode) old.parentNode.replaceChild(result.canvas, old);
+  cm.canvas = result.canvas;
+  cm.props = result.props;
+  cm.animCells = result.animCells;
+  startMapAnimation();
+  drawMapMarks();
+}
+function toggleWalls(on) {
+  window.MAP_WALLS = on;
+  rerenderMapTerrain();
+}
+
 function ensureMarkLayer() {
   const wrap = document.getElementById('mapCanvasWrap');
   if (!wrap) return null;
@@ -5146,6 +5378,38 @@ function ensureMarkLayer() {
   return mc;
 }
 
+// How much of a tile is opaque, 0..1. Used to tell "a passage with something
+// standing over it" from "a passage in plain sight".
+const _tileFillCache = new Map();
+function tileOpacity(tileId) {
+  if (_tileFillCache.has(tileId)) return _tileFillCache.get(tileId);
+  let v = 0;
+  try {
+    const img = resolveTileImage(tileId);
+    if (img) { let n = 0; for (let i = 0; i < img.length; i++) if (img[i]) n++; v = n / img.length; }
+  } catch (e) {}
+  _tileFillCache.set(tileId, v);
+  return v;
+}
+
+// Every zoneport that lands on this map. A zoneport is the game's own
+// cross-map link (0xF00C), so these are the squares you arrive on and, being
+// two-way in practice, the squares you leave from: Land King Hall's door out
+// to the world map and the mouths of its tunnels are all here. This replaced
+// four "N -> somewhere" buttons that only ever fired on maps whose edges are
+// open, which is a minority of them.
+function mapExitSquares(resid) {
+  const out = [];
+  const ports = loadZoneports();
+  for (let i = 0; i < ports.length; i++) {
+    const z = ports[i];
+    if (!z || z.map !== resid) continue;
+    if (!i && !z.map) continue;
+    out.push({ idx: i, x: z.x, y: z.y });
+  }
+  return out;
+}
+
 function drawMapMarks() {
   const cm = window.CUR_MAP;
   const mc = ensureMarkLayer();
@@ -5155,50 +5419,86 @@ function drawMapMarks() {
   const ctx = mc.getContext('2d');
   ctx.clearRect(0, 0, mc.width, mc.height);
   const M = window.MAP_MARKS;
-  if (!M.doors && !M.secret && !M.chest) return;
+  const legend = document.getElementById('markLegend');
+  if (!M.doors && !M.secret && !M.chest && !M.exits) { if (legend) legend.innerHTML = ''; return; }
   const TS = cm.TS;
-  const colours = { doors: '#ffd166', secret: '#8fd4ff', chest: '#a8e06a' };
-  let praw = null;
-  try { praw = getResourceBytes(cm.resid + 0x100); } catch (e) {}
-  if (!praw) return;
-  const recs = parseDelverPropList(smartDecrypt(praw, cm.resid + 0x100).data);
-  const tiles = getPropTileList();
-  const attrs = getTileAttributes();
-  const ring = (x, y, col, dashed) => {
+  const colours = { doors: '#ffd166', secret: '#8fd4ff', chest: '#a8e06a', exits: '#ff9ad5' };
+  // Ring the squares the sprite was actually DRAWN on, offset and all, rather
+  // than the bare record coordinate. A statue carries an 8px draw offset and a
+  // bed spans two squares, so a ring on the record square alone sat away from
+  // the thing it was pointing at.
+  const ring = (cells, col, dashed, ox, oy) => {
     ctx.save();
     ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, TS / 16);
     if (dashed) ctx.setLineDash([TS / 5, TS / 5]);
-    ctx.strokeRect(x * TS + 1, y * TS + 1, TS - 2, TS - 2);
+    const sc = TS / 32;
+    for (const [x, y] of cells)
+      ctx.strokeRect(x * TS + 1 - (ox || 0) * sc, y * TS + 1 - (oy || 0) * sc, TS - 2, TS - 2);
     ctx.restore();
   };
-  const counts = { doors: 0, secret: 0, chest: 0 };
-  for (const r of recs) {
-    if (r.flags === 0xFF) continue;
-    if (r.x >= cm.m.width || r.y >= cm.m.height) continue;
-    const base = tiles[r.proptype];
-    if (base === undefined) continue;
-    const tile = base + r.aspect;
-    let kind = classifyProp(r.proptype, tile);
-    // A "wall" that does not block is a way through it. Bit 0x02 of attribute
-    // byte 3 is the blocking flag the map renderer already uses.
-    if (!kind && M.secret && /wall/.test((propTypeName(r.proptype) || '').toLowerCase())) {
-      const b2 = ((attrs[tile] || 0) >> 8) & 0xFF;   // same byte the map's own
-      if (!(b2 & 0x02)) kind = 'secret';              // blocker test reads
+  const counts = { doors: 0, secret: 0, chest: 0, exits: 0 };
+  let occluded = 0;
 
+  if (M.exits) {
+    for (const e of mapExitSquares(cm.resid)) {
+      counts.exits++;
+      ring([[e.x, e.y]], colours.exits, false, 0, 0);
+      ctx.save();
+      ctx.fillStyle = colours.exits;
+      ctx.globalAlpha = 0.22;
+      ctx.fillRect(e.x * TS + 1, e.y * TS + 1, TS - 2, TS - 2);
+      ctx.restore();
     }
-    if (!kind && M.chest && r.storeref) kind = 'chest';
-    if (!kind || !M[kind]) continue;
-    counts[kind]++;
-    ring(r.x, r.y, colours[kind], kind === 'secret');
   }
-  const legend = document.getElementById('markLegend');
+
+  if (M.doors || M.secret || M.chest) {
+    const attrs = getTileAttributes();
+    // What is drawn on each square, in draw order, so "hidden behind
+    // something" can be answered without guessing.
+    const stack = new Map();
+    for (const d of (cm.props || []))
+      for (const [x, y] of d.cells) {
+        const k = y * 4096 + x;
+        if (!stack.has(k)) stack.set(k, []);
+        stack.get(k).push(d);
+      }
+    for (const d of (cm.props || [])) {
+      const r = d.rec;
+      let kind = classifyProp(r.proptype, d.tileId);
+      // A wall that does not block is a way through it. Bit 0x02 of attribute
+      // byte 3 is the same blocking flag the map's own walkability test reads.
+      if (!kind && M.secret && isWallProp(r.proptype)) {
+        if (!(((attrs[d.tileId] || 0) >> 8) & 0x02)) kind = 'secret';
+      }
+      if (!kind && M.chest && r.storeref) kind = 'chest';
+      if (!kind || !M[kind]) continue;
+      // A passage with scenery drawn over it is invisible on the map even
+      // though nothing conceals it in the data. Those are worth flagging
+      // separately -- they are the ones you would never find by looking.
+      let hidden = false;
+      if (kind === 'secret') {
+        const later = (stack.get(r.y * 4096 + r.x) || []);
+        const mine = later.indexOf(d);
+        for (let i = mine + 1; i < later.length; i++)
+          if (tileOpacity(later[i].tileId) > 0.75) { hidden = true; break; }
+        if (hidden) occluded++;
+      }
+      counts[kind]++;
+      const [ox, oy] = propOffsetFor(r.proptype, r.aspect, r.rotated);
+      ring(d.cells, colours[kind], kind === 'secret', ox, oy);
+      if (hidden) ring(d.cells, '#ffffff', true, ox, oy);
+    }
+  }
+
   if (legend) {
     const parts = [];
-    if (M.doors) parts.push('<span style="color:' + colours.doors + '">\u25a1 ' + counts.doors + ' doors</span>');
-    if (M.secret) parts.push('<span style="color:' + colours.secret + '">\u25a1 ' + counts.secret + ' hidden ways</span>');
-    if (M.chest) parts.push('<span style="color:' + colours.chest + '">\u25a1 ' + counts.chest + ' containers</span>');
+    const chip = (k, label) => parts.push('<span style="color:' + colours[k] + '">\u25a1 ' + counts[k] + ' ' + label + '</span>');
+    if (M.doors) chip('doors', 'doors');
+    if (M.secret) chip('secret', 'hidden ways' + (occluded ? ' (' + occluded + ' buried under scenery)' : ''));
+    if (M.chest) chip('chest', 'containers');
+    if (M.exits) chip('exits', counts.exits === 1 ? 'zone exit' : 'zone exits');
     legend.innerHTML = parts.length
-      ? parts.join(' &nbsp; ') + ' <span style="color:#7d7358">\u2014 identified by prop-type name, from the wiki\u2019s list</span>'
+      ? parts.join(' &nbsp; ') + ' <span style="color:#7d7358">\u2014 doors, ways and containers are identified by prop-type name; zone exits come from 0xF00C</span>'
       : '';
   }
 }
@@ -6011,45 +6311,15 @@ function dvmRender(b, resid) {
 }
 
 // The four exits in a map header are zoneport indices; resolve and show them.
-function renderZoneportExits(mapData, resid) {
-  const host = document.getElementById('mapLabel');
-  if (!host) return;
-  let bar = document.getElementById('zoneportBar');
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.id = 'zoneportBar';
-    bar.className = 'actionRow';
-    bar.style.cssText = 'font-size:13px;color:#c9bd90;margin:6px 0 2px;display:flex;flex-wrap:wrap;gap:10px;justify-content:center';
-    host.parentNode.insertBefore(bar, host.nextSibling);
-  }
-  bar.innerHTML = '';
-  const m = parseDelverMap(mapData);
-  if (!m) return;
-  const dirs = [['N', m.exitZoneportNorth], ['E', m.exitZoneportEast],
-                ['S', m.exitZoneportSouth], ['W', m.exitZoneportWest]];
-  let any = false;
-  for (const [d, idx] of dirs) {
-    if (!idx) continue;
-    const z = zoneportInfo(idx);
-    if (!z) continue;
-    any = true;
-    const a = document.createElement('button');
-    a.className = 'secondary';
-    a.style.cssText = 'margin:0;padding:6px 12px;min-height:32px;font-size:12px';
-    a.textContent = d + ' \u2192 ' + z.name + ' (' + z.x + ', ' + z.y + ')';
-    a.title = 'Zoneport 0x' + idx.toString(16).toUpperCase() + ' \u2014 open this map';
-    a.onclick = () => {
-      const sel = document.getElementById('residSelect');
-      for (let i = 0; i < sel.options.length; i++) {
-        if (parseInt(sel.options[i].textContent.slice(2, 6), 16) === z.resid) { sel.selectedIndex = i; break; }
-      }
-      renderImage();
-    };
-    bar.appendChild(a);
-  }
-  if (!any) {
-    bar.textContent = 'No zoneport exits (edges are sealed).';
-  }
+// The four "N -> somewhere" buttons that used to sit above the map are gone.
+// They read the map header's edge zoneports, which most maps leave empty, so
+// on nearly every map they said "No zoneport exits (edges are sealed)" and on
+// the rest they duplicated the gallery. Zone exits are now a map overlay
+// (drawMapMarks, "Zone exits"), which finds the tunnel mouths and the door out
+// to the world map as well as the open edges.
+function removeZoneportBar() {
+  const bar = document.getElementById('zoneportBar');
+  if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
 }
 
 function renderMapVisual(resid, mapData) {
@@ -6076,14 +6346,29 @@ function renderMapVisual(resid, mapData) {
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // Draw base terrain tiles. Always opaque -- see drawTileAt comment.
+  // Draw base terrain tiles. Always opaque -- see drawTileAt comment. Each
+  // one may carry a faux prop (0xF010), drawn immediately on top of it, which
+  // is where the cave walls, trees, shrubs and mountains come from.
   const u16 = (o) => (mapData[o] << 8) | mapData[o+1];
+  const faux = getFauxProps();
+  const fauxTiles = getPropTileList();
+  const fauxDrawn = [];
   for (let y=0; y<m.height; y++) {
     for (let x=0; x<m.width; x++) {
       const off = m.mapDataOffset + (x + y*m.width)*2;
       const tileId = u16(off);
       drawTileAt(ctx, tileId, x*TS, y*TS, false, TS);
+      const fp = faux.get(tileId);
+      if (fp) fauxDrawn.push([x, y, fp]);
     }
+  }
+  // In a second pass so a faux prop is never clipped by the terrain tile of
+  // the square below it -- the sprites are authored to overhang.
+  for (const [x, y, fp] of fauxDrawn) {
+    const base = fauxTiles[fp.proptype];
+    if (base === undefined) continue;
+    const [ox, oy] = propOffsetFor(fp.proptype, fp.aspect, fp.rotated);
+    drawPropAt(ctx, TS, x, y, base + fp.aspect, fp.rotated, ox, oy, m.width, m.height);
   }
 
   // Draw props on top, if the matching Prop List resource exists. Prop
@@ -6101,8 +6386,8 @@ function renderMapVisual(resid, mapData) {
     const { data: propData } = smartDecrypt(propDataRaw, propResid);
     const recs = parseDelverPropList(propData);
     const propTiles = getPropTileList();
-    const [offX, offY] = getPropOffsets();
-    const scale = TS / 32;
+    const attrs = getTileAttributes();
+    const visible = [];
     for (const r of recs) {
       // Ported from delv/level.py PropListEntry.show_in_map(): hide deleted
       // entries (flags==0xFF) and anything with flags & 0x58 set (inside a
@@ -6136,28 +6421,52 @@ function renderMapVisual(resid, mapData) {
       if (r.flags === 0x42 || r.flags === 0x44) continue;
       if ((r.flags & 0x58) && !characterProptypes().has(r.proptype)) continue;
       if (r.x >= m.width || r.y >= m.height) continue;
+      // Interior walls are props, not terrain, on most indoor maps. Hiding
+      // them is the indoor equivalent of lifting the roof: the floor plan,
+      // the furniture and who is standing where all become visible at once.
+      if (!window.MAP_WALLS && isWallProp(r.proptype)) continue;
       const baseTile = propTiles[r.proptype];
       if (baseTile === undefined) continue;
-      const tileId = baseTile + r.aspect;
-      const oi = (r.proptype << 5) + r.aspect;
-      const dx = (offX[oi] || 0) * scale, dy = (offY[oi] || 0) * scale;
-      // Multi-square props (large creatures, beds, tables, trees) store only
-      // their bottom-right square in the prop record; the remaining squares
-      // are the immediately preceding tile indices. Draw those first so the
-      // sprite appears whole instead of clipped to a single 32x32 square.
-      const extra = multiTilePieces(tileId, r.rotated);
-      const cells = [[r.x, r.y]];
-      if (extra) {
-        for (const p of extra) {
-          const ex = r.x + p.dx, ey = r.y + p.dy;
-          if (ex < 0 || ey < 0) continue;
-          drawTileAt(ctx, p.tile, ex*TS + dx, ey*TS + dy, true, TS);
-          cells.push([ex, ey]);
+      visible.push(r);
+    }
+    // Draw order. delvmod's draw_map() walks the map square by square in row
+    // order and, within a square, sorts that square's props by draw_priority
+    // (`attributes & 0xBFCDFD1C`, with attribute-less tiles last so they land
+    // on top). Prop-list order -- which is what this used to use -- puts a
+    // statue over the wall it stands behind whenever the statue happens to be
+    // the later record, which is the "props not occluded by walls" case.
+    // Row order also means a sprite that overhangs upward is covered by the
+    // row below it, the way the game draws it.
+    const priority = t => { const a = attrs[t] || 0; return a ? (a & 0xBFCDFD1C) >>> 0 : 0xFFFFFFFF; };
+    const cellOf = new Map();
+    // Reversed before the stable sort, as delvmod does: among props of equal
+    // priority on one square, the later record goes underneath.
+    for (let i = visible.length - 1; i >= 0; i--) {
+      const r = visible[i];
+      const k = r.y * m.width + r.x;
+      if (!cellOf.has(k)) cellOf.set(k, []);
+      cellOf.get(k).push(r);
+    }
+    for (let y = 0; y < m.height; y++) {
+      for (let x = 0; x < m.width; x++) {
+        const group = cellOf.get(y * m.width + x);
+        if (!group) continue;
+        if (group.length > 1) {
+          group.forEach((r, i) => { r._ord = i; });
+          group.sort((a, b) => (priority(propTiles[a.proptype] + a.aspect) -
+                                priority(propTiles[b.proptype] + b.aspect)) || (a._ord - b._ord));
+        }
+        for (const r of group) {
+          const tileId = propTiles[r.proptype] + r.aspect;
+          const [ox, oy] = propOffsetFor(r.proptype, r.aspect, r.rotated);
+          // Multi-square props (large creatures, beds, tables, trees) store
+          // only their bottom-right square in the prop record; the remaining
+          // squares are the immediately preceding tile indices.
+          const cells = drawPropAt(ctx, TS, r.x, r.y, tileId, r.rotated, ox, oy, m.width, m.height);
+          drawnProps.push({ rec: r, tileId, cells, propResid });
+          propCount++;
         }
       }
-      drawTileAt(ctx, tileId, r.x*TS + dx, r.y*TS + dy, true, TS);
-      drawnProps.push({ rec: r, tileId, cells, propResid });
-      propCount++;
     }
   }
   // Cells whose terrain tile uses palette-animated colours. Only these get
@@ -6509,12 +6818,12 @@ function renderMapPreview() {
     }
     result.canvas.id = 'mapTerrainCanvas';
     wrap.appendChild(result.canvas);
-    renderZoneportExits(mapData, resid);
+    removeZoneportBar();
     window.CUR_MAP = { resid, level: resid & 0xFF, TS: result.tileSize,
                        width: result.canvas.width, height: result.canvas.height,
                        canvas: result.canvas, m: result.m, animCells: result.animCells,
                        props: result.props, propResid: result.propResid,
-                       tilesW: result.width, tilesH: result.height,
+                       tilesW: result.width, tilesH: result.height, mapData,
                        roofSections: mapRoofSections(resid) };
     clearMapInspector();
     startMapAnimation();
