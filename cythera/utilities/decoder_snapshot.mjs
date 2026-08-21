@@ -142,7 +142,10 @@ for (const subn of IMG_SUBN) {
   const digest = createHash('sha256');
   for (const [idx, off, len] of es) {
     const bytes = archive.slice(off, off + len);
-    const r = tryCall('decodeResource', () => g.decodeResource(bytes, subn));
+    // The resid matters: one 0x8Exx resource is a sized picture rather than a
+    // tile strip, and decodeResource can only tell which from its id.
+    const resid = ((subn + 1) << 8) | idx;
+    const r = tryCall('decodeResource', () => g.decodeResource(bytes, subn, resid));
     if (!r.ok) { fail++; continue; }
     const img = r.v && (r.v.image || r.v);
     if (!img || !img.length) { blank++; continue; }
