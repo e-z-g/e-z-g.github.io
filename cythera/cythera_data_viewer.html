@@ -309,14 +309,19 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
 /* One colour for every name. There used to be three -- gold for a name read
    out of the archive, a duller ochre plus a dagger for one this tool supplies,
    grey italic for none at all -- which meant the gallery was colour-coded on a
-   distinction most readers never needed, and the daggers made a wall of
-   footnote marks. Names supplied by this tool are now a setting (off by
-   default) rather than a typeface. */
-.cell .lbl, .cell .lbl.guessed, .cell .lbl.placeholder, .lbl.guessed {
-  color:var(--gold) !important; font-style:normal; font-weight:600; }
-.cell .lbl.guessed::after, .lbl.guessed::after { content:none; }
+   distinction most readers never needed. Provenance is a setting (off by
+   default) plus, where a supplied name is showing, the tag below. */
+.cell .lbl, .cell .lbl.placeholder { color:var(--gold) !important; font-style:normal; font-weight:600; }
 .cell .lbl.nolabel, .cell .lbl.placeholder { font-weight:400; opacity:.62; }
-#labelLegend { display:none !important; }
+/* Replaces the dagger. A footnote mark with no footnote told a reader that
+   something was special about the name without ever saying what; a two-letter
+   tag says it outright and still fits on one line of a gallery caption. */
+.guessTag, .nameOffTag { display:inline-block; margin-left:5px; padding:0 5px; border-radius:8px;
+  border:1px solid #6a5f3e; background:#241f17; color:#a89a6e;
+  font-family:system-ui, sans-serif; font-size:9px; font-weight:600; letter-spacing:.6px;
+  text-transform:uppercase; vertical-align:2px; }
+.nameOffTag { border-style:dashed; opacity:.7; text-transform:none; letter-spacing:0; font-weight:400; }
+#labelLegend { font-size:12px; color:#9b8850; margin:4px 0 2px; text-align:center; }
 /* Four fixed columns could not survive a phone. A grid item defaults to
    min-width:auto, so each plaque refused to shrink below the width of its own
    icon and label -- "Characters" is about 120px -- and the fourth column was
@@ -340,19 +345,27 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
 .navChip::after { display:none; }
 .navChip.active { background:var(--gold); color:#141210; border-color:var(--gold); font-weight:600; }
 #propFilterWrap { margin:8px 0 2px; }
-#propFilter { width:100%; box-sizing:border-box; padding:9px 12px; border-radius:8px;
-  border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
-  font-family:Argos, Georgia, serif; font-size:15px; }
-#propFilter::placeholder { color:#7d745a; }
+#filterNote { font-size:12px; color:#9b8850; min-height:15px; padding:2px 2px 0; }
 .propHead { grid-column:1/-1; text-align:left; color:#9d9270; font-size:11px;
   text-transform:uppercase; letter-spacing:1.2px; margin:12px 0 2px;
   border-bottom:1px solid var(--edge); padding-bottom:4px; }
 .cell.propCell { height:150px; justify-content:flex-start; }
 .cell.propCell .cellimgwrap { flex:0 0 78px; height:78px; }
-#searchBox { width:100%; box-sizing:border-box; padding:11px 14px; border-radius:8px;
+/* Both search fields, one rule. type="search" carries WebKit's `searchfield`
+   appearance, and that appearance imposes the control font metrics on the
+   TEXT YOU TYPE while leaving the placeholder styled from this sheet -- which
+   is exactly the reported symptom: the prompt legible, the query itself
+   shrunk. `appearance:none` drops the native control, and an explicit
+   line-height and font-size then apply to the value as well. */
+#searchBox, #propFilter {
+  -webkit-appearance:none; appearance:none;
+  width:100%; box-sizing:border-box; padding:12px 14px; border-radius:8px;
   border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
-  font-family:Argos, Georgia, serif; font-size:16px; }
-#searchBox::placeholder { color:#7d745a; }
+  -webkit-text-fill-color:var(--gold);
+  font-family:Argos, Georgia, serif; font-size:18px; line-height:1.35; }
+#searchBox::-webkit-search-decoration, #propFilter::-webkit-search-decoration { -webkit-appearance:none; }
+#searchBox::placeholder, #propFilter::placeholder {
+  color:#7d745a; font-size:15px; font-style:italic; -webkit-text-fill-color:#7d745a; }
 #searchResults { margin-top:10px; text-align:left; max-height:56vh; overflow:auto; }
 .sr-item { border-top:1px solid var(--edge); padding:9px 0; }
 .sr-lines { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
@@ -507,10 +520,6 @@ pre.sv-code { background:#090806; color:#f9f86f; padding:11px; overflow:auto; ma
 @media (max-width:520px) { .crumbNote { display:none; } }
 
 #propFilterWrap { margin:8px 0 2px; }
-#propFilter { width:100%; box-sizing:border-box; padding:9px 12px; border-radius:8px;
-  border:1px solid var(--edge); background:rgba(25,22,17,.94); color:var(--gold);
-  font-family:Argos, Georgia, serif; font-size:15px; }
-#propFilter::placeholder { color:#7d745a; }
 .propHead { grid-column:1/-1; text-align:left; color:#9d9270; font-size:11px;
   text-transform:uppercase; letter-spacing:1.2px; margin:12px 0 2px;
   border-bottom:1px solid var(--edge); padding-bottom:4px; }
@@ -707,8 +716,10 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
   <button class="secondary" id="forgetArchiveBtn" onclick="archiveCacheClear()">Forget the remembered copy</button>
   <label><input type="checkbox" id="chkBuiltinLabels" onchange="setBuiltinLabels(this.checked)">
     <span>Names this tool supplies
-      <span class="amNote">Hand-identified labels for resources the archive never names.
-      Off, the gallery shows only the file&rsquo;s own strings.</span></span></label>
+      <span class="amNote">Hand-identified labels from the delvmod wiki &mdash; resource names,
+      tile-sheet names and the prop-type list the Items, Props and Monsters galleries draw on.
+      Off, every gallery shows only names the file itself carries (0xF004 tile names, zone-entry
+      strings, resource symbols); where there is none, the cell says so.</span></span></label>
 </div>
 <div id="navBar"></div>
 <div id="navSub"></div>
@@ -790,8 +801,9 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
   </div>
 </div>
   <div id="propFilterWrap" style="display:none">
-    <input id="propFilter" type="search" placeholder="filter by name or 0x id&hellip;"
-           oninput="setPropFilter(this.value)">
+    <input id="propFilter" type="search" placeholder="filter this gallery by name or 0x id&hellip;"
+           aria-label="Filter this gallery" oninput="setPropFilter(this.value)">
+    <div id="filterNote"></div>
   </div>
 <div id="resourceNav" style="display:none">
   <button id="backToSheet" class="secondary" onclick="returnToSheet()">▦ All of this gallery</button>
@@ -862,6 +874,7 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
     </div>
     <div class="mapToggleGroup mtgNotes">
       <span id="charCount"></span>
+      <span id="wallNote"></span>
       <span id="roofNote"></span>
       <span id="mapAnimNote"></span>
       <button id="charBackLink" class="secondary" style="display:none"></button>
@@ -919,7 +932,9 @@ button.linkbtn:focus-visible { outline:2px solid var(--gold); outline-offset:2px
   </label>
   <span style="font-size:12px; color:#9b8850; margin-left:10px;">reconstructs continuous tone; slower on large galleries</span>
 </div>
-<div id="labelLegend" style="display:none">† name supplied by this tool — not present in the archive</div>
+<div id="labelLegend" style="display:none"><span class="guessTag">wiki</span> — this name is supplied by
+this tool from the delvmod wiki and is not in the archive. Turn tool-supplied names on or off under
+&ldquo;Data file&rdquo;.</div>
 <div id="galleryTools" style="display:none">
   <span id="galleryArrange">
     <button class="secondary" id="viewToggleBtn"
@@ -1483,7 +1498,7 @@ function getTileSheetImage(resid) {
   const data = getResourceBytes(resid);
   if (!data) { tileSheetCache[resid] = null; return null; }
   try {
-    const decoded = decodeResource(data, 141);
+    const decoded = decodeResource(data, 141, resid);
     tileSheetCache[resid] = decoded;
     return decoded;
   } catch(e) { tileSheetCache[resid] = null; return null; }
@@ -1574,7 +1589,13 @@ function loadTerrainNames() {
         // that does not is the start of the trailing 0x0000 padding.
         if (id < prev) break;
         prev = id;
-        list.push([id, nm]);
+        // Six names carry a plural suffix after a backslash -- "arrow\s",
+        // "unlit torch\es", "obol\s/oi" -- which is the game's own notation
+        // for how to pluralise the word, not part of it. Dropped for display;
+        // it is the only editing done to a name read out of the archive, and
+        // without it those six read worse than the wiki's hand-written list
+        // while the other 389 are identical to it.
+        list.push([id, nm.replace(/\\[A-Za-z\/]*$/, '')]);
       }
     }
   } catch (e) {}
@@ -1929,6 +1950,50 @@ function livingPropTypes() {
 
 function propTypeName(pt) { return PROP_TYPE_NAMES[pt] || null; }
 
+/* ---------------------------------------------------------------------------
+   Names this tool supplies
+   ---------------------------------------------------------------------------
+   PROP_TYPE_NAMES above is the delvmod wiki's prop-type list. It is a good
+   list and it is not in the archive, which already put the resource-label
+   tables behind a switch ("Names this tool supplies", off by default) -- but
+   the prop-type names escaped that switch and went on printing, flagged with
+   a dagger that had no legend anywhere on the page because #labelLegend is
+   hidden. So the dagger marked something as a guess without ever saying what
+   kind of guess, which is the worst of both.
+
+   They are behind the same switch now, and where they do print they carry a
+   readable tag rather than a footnote mark. Classification is unaffected:
+   isWallProp, classifyProp and the container-picture table all still read
+   propTypeName directly, because deciding what a prop IS from its name is not
+   the same act as showing that name to a reader.
+--------------------------------------------------------------------------- */
+function propTypeNameShown(pt) {
+  return window.SHOW_BUILTIN_LABELS ? propTypeName(pt) : null;
+}
+// The best name for a prop type: the archive's own name for its base tile
+// (0xF004) first, the wiki's list second and only when it is switched on.
+function propDisplayName(pt, base) {
+  const b = (base === undefined || base === null) ? (getPropTileList()[pt] || 0) : base;
+  return (b && terrainNameFor(b)) || propTypeNameShown(pt) || null;
+}
+const WIKI_TAG = '<span class="guessTag" title="Name from the delvmod wiki\u2019s prop-type list, ' +
+  'not from the archive. Switch these off under \u201cData file\u201d.">wiki</span>';
+// Name plus provenance, as HTML, for a gallery caption. The name itself is
+// wrapped so that sorting and filtering read the name and not the tag beside
+// it -- cellSortKeys prefers .lblText where there is one.
+function propNameHTML(pt, base) {
+  const b = (base === undefined || base === null) ? (getPropTileList()[pt] || 0) : base;
+  const own = b && terrainNameFor(b);
+  if (own) return '<span class="lblText">' + svEsc(own) + '</span>';
+  const wiki = propTypeNameShown(pt);
+  if (wiki) return '<span class="lblText">' + svEsc(wiki) + '</span>' + WIKI_TAG;
+  const hidden = propTypeName(pt);
+  return '<span class="lblText" style="color:#7d7358">unnamed</span>' +
+    (hidden ? '<span class="nameOffTag" title="The wiki calls this \u201c' + svEsc(hidden) +
+      '\u201d. Switch tool-supplied names on under \u201cData file\u201d to show it.">name hidden</span>' : '');
+}
+function itemNameHTML(pt, base) { return propNameHTML(pt, base); }
+
 // Which of a prop's frames are still the SAME THING. A prop's frame block is
 // bounded by the end of its 16-tile sheet, and that bound is too generous for
 // small props: prop type 0x141 is the crystal ball at tile 0x883, but its
@@ -1945,6 +2010,123 @@ function framesSharingName(base, present) {
   if (!own) return present;
   const same = present.filter(f => terrainNameFor(base + f) === own);
   return same.length ? same : present;
+}
+
+// The same frames, cut into runs by the name 0xF004 gives each one. Prop type
+// 0x141 comes back as [{crystal ball, 0-3}, {boards, 4}, {staff, 5-8},
+// {painting, 9-12}] -- which is what the sheet really holds, against the flat
+// "13 frames of crystal ball" the galleries used to print.
+function frameRuns(base, present) {
+  const runs = [];
+  for (const f of present) {
+    const nm = terrainNameFor(base + f) || null;
+    const last = runs[runs.length - 1];
+    if (last && last.name === nm) last.frames.push(f);
+    else runs.push({ name: nm, frames: [f] });
+  }
+  return runs;
+}
+
+/* Frames that share a name can still be different things: 0x883-0x886 are four
+   crystal balls and the archive calls all four "crystal ball", but they are
+   cobalt, green, magenta and lavender, and a gallery that prints the name four
+   times has thrown away the only thing that tells them apart. The palette is
+   fixed and indexed, so the dominant colour of a frame is a fact about it, not
+   a guess -- this averages the SATURATED pixels (the greys and the black
+   outline are shared by every frame and say nothing) and names the hue. */
+const HUE_WORDS = [[15,'red'],[45,'orange'],[70,'yellow'],[160,'green'],[200,'cyan'],
+                   [258,'blue'],[320,'purple'],[345,'pink'],[361,'red']];
+const _frameColourCache = new Map();
+function frameColourWord(tileId) {
+  if (_frameColourCache.has(tileId)) return _frameColourCache.get(tileId);
+  let word = null;
+  try {
+    const img = resolveTileImage(tileId);
+    if (img) {
+      let sx = 0, sy = 0, n = 0, lum = 0, ink = 0;
+      for (let i = 0; i < img.length; i++) {
+        const v = img[i];
+        if (!v) continue;
+        const [r, g, b] = PAL_RGB[v];
+        ink++;
+        lum += (r + g + b) / 3;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        if (max < 24 || (max - min) / max < 0.28) continue;   // grey, or too dark to read
+        let h;
+        const d = max - min;
+        if (max === r) h = 60 * (((g - b) / d) % 6);
+        else if (max === g) h = 60 * ((b - r) / d + 2);
+        else h = 60 * ((r - g) / d + 4);
+        if (h < 0) h += 360;
+        const rad = h * Math.PI / 180;
+        sx += Math.cos(rad); sy += Math.sin(rad); n++;
+      }
+      if (n >= Math.max(6, ink * 0.04)) {
+        let h = Math.atan2(sy, sx) * 180 / Math.PI;
+        if (h < 0) h += 360;
+        for (const [lim, w] of HUE_WORDS) if (h < lim) { word = w; break; }
+      } else if (ink) {
+        const mean = lum / ink;
+        word = mean < 70 ? 'dark' : mean > 185 ? 'pale' : 'grey';
+      }
+    }
+  } catch (e) {}
+  _frameColourCache.set(tileId, word);
+  return word;
+}
+
+// Colour words are only worth printing where they distinguish, and what
+// distinguishes one frame of a run from another is the colour the OTHERS do
+// not have: the four crystal balls share an identical grey stand and black
+// outline and differ only in the glass. So the palette indices common to every
+// frame in the run are dropped first, and each frame is then named by what is
+// left. Returns a map frame -> word, or null when the run has nothing to tell
+// apart.
+function distinguishingColours(base, frames) {
+  if (!frames || frames.length < 2) return null;
+  const hists = frames.map(f => {
+    const h = new Map();
+    const img = resolveTileImage(base + f);
+    if (img) for (const v of img) if (v) h.set(v, (h.get(v) || 0) + 1);
+    return h;
+  });
+  if (hists.some(h => !h.size)) return null;
+  const shared = new Set();
+  for (const idx of hists[0].keys()) if (hists.every(h => h.has(idx))) shared.add(idx);
+  const out = new Map();
+  const seen = new Set();
+  for (let i = 0; i < frames.length; i++) {
+    let best = 0, bestN = 0;
+    for (const [idx, n] of hists[i]) if (!shared.has(idx) && n > bestN) { best = idx; bestN = n; }
+    const w = best ? colourWordFor(PAL_RGB[best]) : frameColourWord(base + frames[i]);
+    out.set(frames[i], w);
+    seen.add(w);
+  }
+  return seen.size > 1 ? out : null;
+}
+
+// Name one palette entry. Lightness first, because "pale green" and "dark
+// green" are the difference between a jade and a bottle.
+function colourWordFor(rgb) {
+  const [r, g, b] = rgb;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const lum = (r + g + b) / 3;
+  if (!max || d / max < 0.22) return lum < 60 ? 'black' : lum > 200 ? 'white' : 'grey';
+  let h;
+  if (max === r) h = 60 * (((g - b) / d) % 6);
+  else if (max === g) h = 60 * ((b - r) / d + 2);
+  else h = 60 * ((r - g) / d + 4);
+  if (h < 0) h += 360;
+  let word = 'red';
+  for (const [lim, w] of HUE_WORDS) if (h < lim) { word = w; break; }
+  const sat = d / max;
+  if (lum < 70) return 'dark ' + word;
+  if (lum > 195 && sat < 0.55) return 'pale ' + word;
+  // A washed-out hue and a pure one read as different colours even when the
+  // hue wheel puts them in the same slice -- crystal ball 3 is a lavender
+  // grey and crystal ball 0 is pure cobalt, and both are nominally "blue".
+  if (sat < 0.45) return 'muted ' + word;
+  return word;
 }
 
 // Draw a prop's sprite, assembling the extra squares when the tile attributes
@@ -1982,12 +2164,27 @@ function propFrameFill(tile) {
   } catch (e) { return 0; }
 }
 
+/* Filtering a gallery.
+   The three synthesised galleries -- props, items, fork resources -- build
+   their cells from tables and re-render to filter. Every OTHER gallery is a
+   list of resources whose cells are already in the DOM with their name and id
+   printed on them, so those filter by hiding cells, which is instant and needs
+   no per-gallery code. That is what makes "a search bar on every gallery"
+   one function rather than a dozen. */
 window.PROP_FILTER = '';
+const REBUILDING_GALLERIES = new Set(['PROPS', 'ITEMS', 'RSRC']);
 function setPropFilter(v) {
   window.PROP_FILTER = v;
   if (window.CUR_SUBN === 'ITEMS') renderItemSheet();
   else if (window.CUR_SUBN === 'RSRC') renderRsrcSheet();
-  else renderPropTypeSheet();
+  else if (window.CUR_SUBN === 'PROPS') renderPropTypeSheet();
+  else applyGalleryArrangement();
+}
+// Category changed: the old query would silently hide the new gallery.
+function clearPropFilter() {
+  window.PROP_FILTER = '';
+  const el = document.getElementById('propFilter');
+  if (el) el.value = '';
 }
 
 function renderPropTypeSheet() {
@@ -2007,7 +2204,8 @@ function renderPropTypeSheet() {
     const name = propTypeName(pt);
     const info = spriteFrameInfo(0, pt);
     if (!info.count) continue;
-    if (q && !(name || '').toLowerCase().includes(q) &&
+    const own = terrainNameFor(base);
+    if (q && !(name || '').toLowerCase().includes(q) && !(own || '').toLowerCase().includes(q) &&
         !('0x' + pt.toString(16)).includes(q)) continue;
     entries.push({ pt, base, name, info, alive: living.has(pt) });
   }
@@ -2049,9 +2247,8 @@ function renderPropTypeSheet() {
     // The archive's own name for the base tile, where it has one, in
     // preference to the wiki's prop-type list.
     const own0 = terrainNameFor(e.base);
-    lbl.textContent = own0 || e.name || 'unnamed';
-    if (!own0 && e.name) lbl.title = 'name from the delvmod wiki, not the archive';
-    if (!own0 && !e.name) lbl.classList.add('nolabel');
+    lbl.innerHTML = propNameHTML(e.pt, e.base);
+    if (!own0) lbl.classList.add('nolabel');
     cell.appendChild(lbl);
     const sub = document.createElement('div');
     sub.className = 'resid';
@@ -2082,38 +2279,58 @@ function showPropTypeDetail(pt) {
 
   const base = getPropTileList()[pt] || 0;
   const info = spriteFrameInfo(0, pt);
-  const name = propTypeName(pt);
   const panel = document.createElement('div');
   panel.style.cssText = 'width:100%;max-width:560px;margin:12px auto;text-align:left';
   const head = document.createElement('div');
   head.innerHTML = '<div style="font-size:19px;color:var(--gold)">' +
-    svEsc(terrainNameFor(base) || name || 'unnamed prop type') +
+    propNameHTML(pt, base) +
     ' <span style="font-size:12px;color:#9b8850">proptype 0x' + pt.toString(16).toUpperCase() + '</span></div>' +
     '<div style="font-size:13px;color:#cfc4a0;margin:4px 0 10px">Sheet 0x' +
       (base >> 4).toString(16).toUpperCase() + ', base tile 0x' + base.toString(16).toUpperCase() +
-      ' \u00b7 ' + info.count + ' frame' + (info.count === 1 ? '' : 's') +
-      (info.rows > 1 ? ' in ' + info.rows + ' facings' : '') +
+      ' \u00b7 ' + framesSharingName(base, info.present).length + ' of its own frame' +
+      (framesSharingName(base, info.present).length === 1 ? '' : 's') +
+      ' in a block of ' + info.count +
+      (info.rows > 1 ? ' \u00b7 ' + info.rows + ' facings' : '') +
       ' \u00b7 script would be resource 0x' + (0x1000 + pt).toString(16).toUpperCase() + '</div>';
   panel.appendChild(head);
 
-  const sheet = document.createElement('div');
-  sheet.style.cssText = 'display:grid;grid-template-columns:repeat(4,44px);gap:3px;margin-bottom:12px';
+  // Frames, in the runs 0xF004 cuts them into. Prop type 0x141's sheet block
+  // runs to the end of its 16-tile sheet, so it takes in a board, four staves
+  // and four paintings after the four crystal balls -- and the gallery used to
+  // print all thirteen as one undifferentiated strip of "crystal ball".
   const ownName = terrainNameFor(base);
-  for (const f of info.present) {
-    const holder = document.createElement('div');
-    holder.style.cssText = 'width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:#1c1913;border:1px solid #33302a;overflow:hidden';
-    const spr = drawPropSprite(base + f, 20);
-    if (spr) holder.appendChild(spr.canvas);
-    const tn = terrainNameFor(base + f);
-    holder.title = 'frame ' + f + ' \u00b7 tile 0x' + (base + f).toString(16).toUpperCase() +
-                   (tn ? ' \u00b7 ' + tn : '');
-    // A frame the archive names something else is a neighbour that happens to
-    // share the sheet, not another view of this prop. Dimmed rather than
-    // dropped, because aspects really do reach into them.
-    if (tn && tn !== ownName) holder.style.opacity = '.45';
-    sheet.appendChild(holder);
+  for (const run of frameRuns(base, info.present)) {
+    const own = run.name && run.name === ownName;
+    const runHead = document.createElement('div');
+    runHead.style.cssText = 'font-size:11px;letter-spacing:1px;text-transform:uppercase;margin:8px 0 3px;' +
+      'color:' + (own ? '#cfc4a0' : '#8a8064');
+    runHead.textContent = (run.name || 'unnamed in 0xF004') + ' \u00b7 frame' +
+      (run.frames.length === 1 ? ' ' + run.frames[0] : 's ' + run.frames[0] + '\u2013' + run.frames[run.frames.length-1]) +
+      (own ? '' : ' \u2014 a neighbour on this sheet, not this prop');
+    panel.appendChild(runHead);
+    const colours = distinguishingColours(base, run.frames);
+    const sheet = document.createElement('div');
+    sheet.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px';
+    for (const f of run.frames) {
+      const cellw = document.createElement('div');
+      cellw.style.cssText = 'width:52px;text-align:center';
+      const holder = document.createElement('div');
+      holder.style.cssText = 'width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:#1c1913;border:1px solid #33302a;overflow:hidden';
+      const spr = drawPropSprite(base + f, 24);
+      if (spr) holder.appendChild(spr.canvas);
+      const col = colours && colours.get(f);
+      holder.title = 'frame ' + f + ' \u00b7 tile 0x' + (base + f).toString(16).toUpperCase() +
+                     (run.name ? ' \u00b7 ' + run.name : '') + (col ? ' \u00b7 ' + col : '');
+      if (!own) holder.style.opacity = '.5';
+      cellw.appendChild(holder);
+      const cap = document.createElement('div');
+      cap.style.cssText = 'font-size:10px;color:#9b8850;line-height:1.3;margin-top:2px';
+      cap.textContent = col ? (f + ' \u00b7 ' + col) : String(f);
+      cellw.appendChild(cap);
+      sheet.appendChild(cellw);
+    }
+    panel.appendChild(sheet);
   }
-  panel.appendChild(sheet);
 
   // Who wears this sprite.
   const users = [];
@@ -2132,8 +2349,9 @@ function showPropTypeDetail(pt) {
     panel.appendChild(u);
   }
   grid.appendChild(panel);
-  out.textContent = (name || 'prop type 0x' + pt.toString(16).toUpperCase()) +
-    ' \u2014 ' + info.count + ' frames';
+  out.textContent = (propDisplayName(pt, base) || 'prop type 0x' + pt.toString(16).toUpperCase()) +
+    ' \u2014 ' + framesSharingName(base, info.present).length + ' frames of its own, ' +
+    info.count + ' in the sheet block';
 }
 
 /* --- Inventory items -------------------------------------------------------
@@ -2366,7 +2584,8 @@ function renderItemSheet() {
   grid.innerHTML = '';
   const q = (window.PROP_FILTER || '').trim().toLowerCase();
   const entries = inventoryItemList().filter(e =>
-    !q || (e.name || '').toLowerCase().includes(q) || ('0x' + e.pt.toString(16)).includes(q));
+    !q || (e.name || '').toLowerCase().includes(q) || ('0x' + e.pt.toString(16)).includes(q) ||
+    (terrainNameFor(getPropTileList()[e.pt] || 0) || '').toLowerCase().includes(q));
   entries.sort((a, b) =>
     (ITEM_GROUP_ORDER.indexOf(a.group) - ITEM_GROUP_ORDER.indexOf(b.group)) ||
     ((a.name ? 0 : 1) - (b.name ? 0 : 1)) ||
@@ -2387,14 +2606,17 @@ function renderItemSheet() {
     wrap.className = 'cellimgwrap';
     const base = getPropTileList()[e.pt] || 0;
     const info = spriteFrameInfo(0, e.pt);
-    const spr = drawPropSprite(base + (info.present[0] || 0), 34);
+    // The item's OWN frames, not the whole tail of its sheet. A frame block is
+    // bounded by the sheet, not by the thing, so full helmet's block runs on
+    // into the grimoire beside it -- which is how the grimoire came to be
+    // listed as the second frame of a helmet.
+    const own = framesSharingName(base, info.present);
+    const spr = drawPropSprite(base + (own[0] || 0), 34);
     if (spr) wrap.appendChild(spr.canvas);
     cell.appendChild(wrap);
     const lbl = document.createElement('div');
     lbl.className = 'lbl';
-    lbl.innerHTML = e.name
-      ? svEsc(e.name) + '<span class="guessed" title="name from the delvmod wiki, not the archive">\u2020</span>'
-      : '<span style="color:#7d7358">unnamed</span>';
+    lbl.innerHTML = itemNameHTML(e.pt, base);
     cell.appendChild(lbl);
     const sub = document.createElement('div');
     sub.className = 'resid';
@@ -2425,7 +2647,6 @@ function showItemDetail(pt) {
   back.onclick = renderItemSheet;
   grid.appendChild(back);
 
-  const name = propTypeName(pt);
   const base = getPropTileList()[pt] || 0;
   const info = spriteFrameInfo(0, pt);
   const cls = parseItemClass(pt);
@@ -2434,24 +2655,56 @@ function showItemDetail(pt) {
   panel.style.cssText = 'width:100%;max-width:620px;margin:12px auto;text-align:left';
 
   let h = '<div class="sv-head"><span class="sv-id">' +
-    (name ? svEsc(name) : 'unnamed item') + '</span></div>' +
+    propNameHTML(pt, base) + '</span></div>' +
     '<div style="font-size:13px;color:#cfc4a0;margin:4px 0 10px">prop type 0x' +
     pt.toString(16).toUpperCase() + ' \u00b7 base tile 0x' + base.toString(16).toUpperCase() +
     (cls ? ' \u00b7 class ' + '0x' + cls.resid.toString(16).toUpperCase() + ', ' + cls.size + ' bytes'
          : ' \u00b7 no class script at 0x' + (0x1000 + pt).toString(16).toUpperCase()) + '</div>';
   panel.innerHTML = h;
 
+  // Only the frames the archive still calls by this item's name. Everything
+  // after them belongs to whatever the sheet holds next, and is named as such
+  // below rather than passed off as another view of this item.
+  const runs = frameRuns(base, info.present);
+  const ownFrames = framesSharingName(base, info.present);
+  const ownColours = distinguishingColours(base, ownFrames);
   const sheet = document.createElement('div');
-  sheet.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;margin-bottom:12px';
-  for (const f of info.present.slice(0, 8)) {
+  sheet.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px';
+  for (const f of ownFrames.slice(0, 16)) {
+    const cellw = document.createElement('div');
+    cellw.style.cssText = 'width:52px;text-align:center';
     const holder = document.createElement('div');
-    holder.style.cssText = 'width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:#1c1913;border:1px solid #33302a;overflow:hidden';
-    const spr = drawPropSprite(base + f, 20);
+    holder.style.cssText = 'width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:#1c1913;border:1px solid #33302a;overflow:hidden';
+    const spr = drawPropSprite(base + f, 24);
     if (spr) holder.appendChild(spr.canvas);
-    holder.title = 'frame ' + f + ' \u00b7 tile 0x' + (base + f).toString(16).toUpperCase();
-    sheet.appendChild(holder);
+    const col = ownColours && ownColours.get(f);
+    holder.title = 'frame ' + f + ' \u00b7 tile 0x' + (base + f).toString(16).toUpperCase() +
+                   (col ? ' \u00b7 ' + col : '');
+    cellw.appendChild(holder);
+    const cap = document.createElement('div');
+    cap.style.cssText = 'font-size:10px;color:#9b8850;line-height:1.3;margin-top:2px';
+    cap.textContent = col ? (f + ' \u00b7 ' + col) : String(f);
+    cellw.appendChild(cap);
+    sheet.appendChild(cellw);
   }
   panel.appendChild(sheet);
+  const strangers = runs.filter(r => r.name !== terrainNameFor(base));
+  if (strangers.length) {
+    const note = document.createElement('div');
+    note.className = 'sv-note';
+    note.style.cssText = 'font-size:12px;color:#8a8064;margin:-4px 0 12px';
+    // The scythe's block runs on into fourteen other things, so the list is
+    // capped -- the point is that the block is not all one item, not to
+    // enumerate a sheet.
+    note.innerHTML = 'The rest of this sheet block is other things: ' +
+      strangers.slice(0, 6).map(r => '<b style="color:#cfc4a0">' + svEsc(r.name || 'unnamed') + '</b> (frame' +
+        (r.frames.length === 1 ? ' ' + r.frames[0] : 's ' + r.frames[0] + '\u2013' + r.frames[r.frames.length-1]) + ')'
+      ).join(', ') +
+      (strangers.length > 6 ? ' and ' + (strangers.length - 6) + ' more' : '') +
+      '. A frame block ends where the 16-tile sheet does, not where the item does; ' +
+      'the names come from 0xF004.';
+    panel.appendChild(note);
+  }
 
   const add = html => {
     const d = document.createElement('div');
@@ -2542,7 +2795,7 @@ function showItemDetail(pt) {
       body += '<div style="margin-top:10px"><b style="color:#9d9270;font-size:11px;text-transform:uppercase;letter-spacing:1px">Found inside</b><br>' +
         Object.keys(byHost).sort((a, b) => byHost[b] - byHost[a]).slice(0, 16).map(k =>
           '<button class="sv-chip" onclick="showItemDetail(' + k + ')">' +
-          svEsc(propTypeName(+k) || ('0x' + (+k).toString(16).toUpperCase())) +
+          svEsc(propDisplayName(+k) || ('0x' + (+k).toString(16).toUpperCase())) +
           ' <em>\u00d7' + byHost[k] + '</em></button>').join(' ') +
         '</div>';
     }
@@ -2554,7 +2807,7 @@ function showItemDetail(pt) {
 
   grid.appendChild(panel);
   const w = itemWeight(pt);
-  out.textContent = (name || 'item 0x' + pt.toString(16).toUpperCase()) +
+  out.textContent = (propDisplayName(pt, base) || 'item 0x' + pt.toString(16).toUpperCase()) +
     (w !== null ? ' \u2014 ' + w + ' grains' : '') +
     (idx && idx.total ? ', ' + idx.total + ' placed in the world' : '');
 }
@@ -2688,7 +2941,6 @@ function renderRsrcSheet() {
   const out = document.getElementById('output');
   grid.style.display = '';
   grid.innerHTML = '';
-  document.getElementById('propFilterWrap').style.display = 'block';
 
   const inv = rsrcInventory();
   if (!inv) {
@@ -3056,7 +3308,7 @@ function renderCompositeSheet() {
 // through, and both have several early returns, so the URL is kept in step by
 // wrapping them rather than by sprinkling syncDeepLink() through the branches.
 function setMode(m) { setModeImpl(m); syncDeepLink(); updateGalleryTools(); }
-function onCategoryChange() { onCategoryChangeImpl(); syncDeepLink(); updateGalleryTools(); }
+function onCategoryChange() { clearPropFilter(); onCategoryChangeImpl(); syncDeepLink(); updateGalleryTools(); }
 
 // Leaving a view has to stop what that view started. Sprite animation was
 // only ever stopped by the three sheets that start it, so walking from the
@@ -3084,22 +3336,13 @@ function setModeImpl(m) {
   // to block and must switch it back -- see returnToSheet()).
   document.getElementById('sheetGrid').style.display = '';
   if (window.CUR_SUBN === 'CHARACTERS') { renderCharacterSheet(); return; }
-  if (window.CUR_SUBN === 'PROPS') {
-    document.getElementById('propFilterWrap').style.display = 'block';
-    renderPropTypeSheet();
-    return;
-  }
-  if (window.CUR_SUBN === 'ITEMS') {
-    document.getElementById('propFilterWrap').style.display = 'block';
-    renderItemSheet();
-    return;
-  }
+  if (window.CUR_SUBN === 'PROPS') { renderPropTypeSheet(); return; }
+  if (window.CUR_SUBN === 'ITEMS') { renderItemSheet(); return; }
   if (window.CUR_SUBN === 'RSRC') {
     renderRsrcSheet();
     return;
   }
   if (window.CUR_SUBN === 'MONSTERS') { renderMonsterSheet(); return; }
-  document.getElementById('propFilterWrap').style.display = 'none';
   const isComposite = window.CUR_SUBN === 'COMPOSITE';
   // The resource dropdown stays visible in both gallery and detail view now
   // that there's no separate mode toggle -- it's a second way to jump
@@ -3145,6 +3388,11 @@ function setModeImpl(m) {
 // schedules -- so a second archive was drawn with the first one's sprites and
 // populated with the first one's people. Anything memoised belongs here.
 function resetDerivedCaches() {
+  window.MAP_VIEW_MEMORY = Object.create(null);
+  window.MAP_SEL_MEMORY = Object.create(null);
+  window.MAP_SEL = null;
+  window.MAP_ROPES = null;
+  window.MAP_SEATS = null;
   window.TERRAIN_NAMES = null;
   window.STORE_SYMBOLS = null;
   window.XREF_INDEX = null;
@@ -3175,6 +3423,8 @@ function resetDerivedCaches() {
   tileAnimCache.clear();
   pathCache.clear();
   _tileFillCache.clear();
+  _frameColourCache.clear();
+  _sizedSheetCache.clear();
   _fauxPropCache = null;
   window.MAP_SEATS = null;
   window.LIGHT_SOURCES = null;
@@ -3534,9 +3784,9 @@ function viewLabel(hash) {
       if (kind === 'char') return characterName(parseInt(id, 10));
       if (kind === 'prop') {
         const b = getPropTileList()[parseInt(id, 10)];
-        return terrainNameFor(b) || propTypeName(parseInt(id, 10)) || ('prop 0x' + id);
+        return propDisplayName(parseInt(id, 10), b) || ('prop 0x' + id);
       }
-      if (kind === 'item') return propTypeName(parseInt(id, 10)) || ('item 0x' + id);
+      if (kind === 'item') return propDisplayName(parseInt(id, 10)) || ('item 0x' + id);
       if (kind === 'monster') return 'monster ' + id;
       if (kind === 'rsrc') return id;
     } catch (e) {}
@@ -3940,9 +4190,56 @@ function decompressDCG(data, width, height) {
   return image;
 }
 
-function decodeResource(resData, subn) {
+/* One resource in subindex 141 is not a tile sheet at all.
+   ---------------------------------------------------------------------------
+   0x8EFF -- the wiki's "Tombstone" -- was being decompressed as the fixed
+   32x512 strip every other 0x8Exx resource is, which produced a sheared mess:
+   its rows are 196 pixels long, so reading them 32 at a time walks diagonally
+   through the picture. It is a SIZED resource, the same 4-byte {width, height}
+   header subindex 142 uses, and it decodes to a 194x127 tombstone slab -- the
+   panel the game lays a gravestone inscription on.
+
+   Two things have to hold before the header reading is used, and across all
+   160 tile sheets in the archive only 0x8EFF passes both:
+
+     * the header parses to a plausible picture (every other sheet's first four
+       bytes read as sizes like 61693x128 or 20x61185 -- they are compression
+       opcodes, not a header; only 0x8E8D at 272x46 and 0x8EFF at 194x127 are
+       even arguable), and
+     * none of the sixteen tile ids the sheet would occupy carries any tile
+       attribute in 0xF002. 0x8E8D's sixteen are all attributed and all named
+       ("earthen wall", "small hole", "fine wire"...) and all referenced by
+       maps; 0x8EFF's sixteen are attributed nowhere and referenced by nothing.
+
+   Row-to-row self-similarity confirms the reading: 0.58 flat against 0.82 at
+   the header's width. */
+const _sizedSheetCache = new Map();
+function tileSheetIsSized(resid, resData) {
+  if (_sizedSheetCache.has(resid)) return _sizedSheetCache.get(resid);
+  let ok = false;
+  try {
+    if (resData && resData.length >= 8) {
+      const h = resData.slice(0, 4);
+      const w2 = bitsOf(h, 14, 0) << 2, fl = bitsOf(h, 2, 14);
+      const h2 = bitsOf(h, 15, 16) << 1, fl2 = bitsOf(h, 1, 31);
+      const lw = w2 + (fl ? 4 : 0), lh = h2 + fl2;
+      if (lw >= 8 && lw <= 1024 && lh >= 8 && lh <= 1024 && lw * lh >= 1024) {
+        const attrs = getTileAttributes();
+        const first = (resid & 0xFF) << 4;
+        let used = false;
+        for (let t = first; t < first + 16; t++) if (attrs[t]) { used = true; break; }
+        ok = !used;
+      }
+    }
+  } catch (e) {}
+  _sizedSheetCache.set(resid, ok);
+  return ok;
+}
+
+function decodeResource(resData, subn, resid) {
   let W, H, logW, logH, image;
   if (UNCOMPRESSED[subn]) { [W,H] = CANONICAL_SIZE[subn]; image = resData.slice(0, W*H); return {W,H,image}; }
+  if (subn === 141 && resid !== undefined && tileSheetIsSized(resid, resData)) subn = 142;
   if (HAS_HEADER[subn] && resData.length >= 4) {
     const header = resData.slice(0,4);
     let W2 = bitsOf(header, 14, 0) << 2;
@@ -5534,6 +5831,47 @@ const PASSAGE_PROPS = /^(secret |tight )?(passage|door)$|passthrough|mousehole|t
 function isWallProp(pt) {
   return /(^|\s)wall$/.test((propTypeName(pt) || '').toLowerCase());
 }
+// The walls the Walls toggle should take away, which are not the same set as
+// the prop-list records whose name ends in "wall".
+//
+//   * Land King Hall's rock faces are FAUX props (0xF010) -- drawn by the
+//     terrain tile itself, prop type "cavern", 277 squares of them -- so
+//     "hide the walls" left every wall on that map exactly where it was,
+//     which is the reported bug.
+//   * Odemia's and Cademia's city walls are the faux prop "crenellation"
+//     (226 and 106 squares). Their prop lists contain no wall records at all.
+//
+// Not everything solid is a wall: trees, fences, pillars, tables and urns all
+// block and all stay, because hiding them would not be lifting a wall, it
+// would be emptying the map. Terrain that is simply wall-coloured ground stays
+// too -- there is no floor underneath it to reveal.
+function isWallLikeProp(pt) {
+  const nm = (propTypeName(pt) || '').toLowerCase();
+  return isWallProp(pt) || nm === 'cavern' || nm === 'crenellation';
+}
+
+/* ---------------------------------------------------------------------------
+   Ways through, ways out
+   ---------------------------------------------------------------------------
+   Two questions are asked of every passage prop, and they are independent:
+
+     is it a way OUT of here?   -- a cave mouth, a mineshaft, a stair, a
+                                   trapdoor, a ravine you can climb into
+     is it CONCEALED?           -- a secret door, a mousehole, a loose board,
+                                   or anything the map draws something else on
+                                   top of
+
+   A cave mouth answers yes to the first and no to the second, so it is marked
+   as an exit and not as a hidden way, even where the only route to it is
+   through a secret door. A tunnel with a crate standing over it answers yes to
+   both, and gets both rings. Ravines ("crack") are in both lists as well: they
+   go somewhere and they are not obvious, and some of them cannot be entered at
+   all until a rope has been fixed to them -- which the archive records as a
+   rope prop placed on the square, so those are called out separately.
+--------------------------------------------------------------------------- */
+const EXIT_PROPS = /^(cave|mineshaft|sewer|portal|trapdoor|ladder|stairs|hole|small hole|tight passage|crack|mousehole|passthrough|loose dirt|loose board|secret passage)$/;
+const HIDDEN_PROPS = /^(secret door|secret passage|passthrough|mousehole|loose board|loose dirt|small hole|fine wire|crack)$/;
+const ROPE_PROPTYPE = 0x14B;              // "rope" -- 4 records, all on ravines
 
 function classifyProp(pt, tileId) {
   const nm = (propTypeName(pt) || '').toLowerCase();
@@ -5542,6 +5880,11 @@ function classifyProp(pt, tileId) {
   if (/chest|barrel|crate|sack|cupboard|cabinet|dresser|wardrobe|trunk|urn|pot\b|coffer|bookshelf/.test(nm)) return 'chest';
   return null;
 }
+// Is this prop a way off the map or down to another level?
+function isExitProp(pt) { return EXIT_PROPS.test((propTypeName(pt) || '').toLowerCase()); }
+// Is this prop concealed by its own nature (rather than by something drawn
+// over it, which drawMapMarks works out from the draw stack)?
+function isConcealedProp(pt) { return HIDDEN_PROPS.test((propTypeName(pt) || '').toLowerCase()); }
 
 /* ---------------------------------------------------------------------------
    Roofs
@@ -5669,12 +6012,18 @@ function rerenderMapTerrain() {
   cm.props = result.props;
   cm.allProps = result.allProps;
   cm.animCells = result.animCells;
+  cm.wallsHidden = result.wallsHidden;
   startMapAnimation();
   drawMapMarks();
 }
 function toggleWalls(on) {
   window.MAP_WALLS = on;
   rerenderMapTerrain();
+  const note = document.getElementById('wallNote');
+  if (note) {
+    const n = (window.CUR_MAP && window.CUR_MAP.wallsHidden) || 0;
+    note.textContent = on ? '' : (n ? n + ' wall squares hatched — still solid' : 'no walls on this map');
+  }
 }
 
 function ensureMarkLayer() {
@@ -5716,10 +6065,57 @@ function mapExitSquares(resid) {
   for (let i = 0; i < ports.length; i++) {
     const z = ports[i];
     if (!z || z.map !== resid) continue;
-    if (!i && !z.map) continue;
+    // 0xF00C is 4KB of fixed-size records and most of it is zero padding. A
+    // padding record reads as map 0x8000 at (0,0), which put 834 phantom
+    // "zone exits" on map 0x8000 alone -- the whole tail of the table.
+    if (!z.x && !z.y && !(z.map & 0xFF)) continue;
     out.push({ idx: i, x: z.x, y: z.y });
   }
   return out;
+}
+
+// The map header's four edge zoneports. Where one is set you leave the map by
+// walking far enough that way at ANY row or column -- Odemia's four edges all
+// carry zoneport 5, the world map -- so the mark is the whole outermost row or
+// column, not a square. Where it is zero the edge is sealed and nothing is
+// drawn. (0x8026, the Sitia bridge, has only east and west set, which is what
+// a bridge is.)
+function mapExitEdges(resid, m) {
+  if (!m) return [];
+  const sides = [
+    ['N', m.exitZoneportNorth], ['E', m.exitZoneportEast],
+    ['S', m.exitZoneportSouth], ['W', m.exitZoneportWest]
+  ];
+  const out = [];
+  for (const [side, idx] of sides) {
+    if (!idx) continue;
+    const cells = [];
+    if (side === 'N') for (let x = 0; x < m.width; x++) cells.push([x, 0]);
+    if (side === 'S') for (let x = 0; x < m.width; x++) cells.push([x, m.height - 1]);
+    if (side === 'W') for (let y = 0; y < m.height; y++) cells.push([0, y]);
+    if (side === 'E') for (let y = 0; y < m.height; y++) cells.push([m.width - 1, y]);
+    out.push({ side, idx, cells });
+  }
+  return out;
+}
+
+// Squares carrying a rope prop. In the shipped scenario there are four, two in
+// Cademia and two in Kosha, and every one of them sits on a ravine: the rope
+// is what makes that ravine enterable, so a ravine marked here is one you
+// cannot simply walk into.
+function ropeSquares(resid) {
+  const key = 'rope:' + resid;
+  if (window.MAP_ROPES && window.MAP_ROPES.key === key) return window.MAP_ROPES.set;
+  const set = new Set();
+  try {
+    const raw = getResourceBytes(resid + 0x100);
+    if (raw) for (const r of parseDelverPropList(smartDecrypt(raw, resid + 0x100).data)) {
+      if (r.flags === 0xFF || (r.flags & 0x58)) continue;
+      if (r.proptype === ROPE_PROPTYPE) set.add(r.x + ',' + r.y);
+    }
+  } catch (e) {}
+  window.MAP_ROPES = { key, set };
+  return set;
 }
 
 function drawMapMarks() {
@@ -5732,39 +6128,67 @@ function drawMapMarks() {
   ctx.clearRect(0, 0, mc.width, mc.height);
   const M = window.MAP_MARKS;
   const legend = document.getElementById('markLegend');
-  if (!M.doors && !M.secret && !M.chest && !M.exits) { if (legend) legend.innerHTML = ''; return; }
   const TS = cm.TS;
   const colours = { doors: '#ffd166', secret: '#8fd4ff', chest: '#a8e06a', exits: '#ff9ad5' };
-  // Ring the squares the sprite was actually DRAWN on, offset and all, rather
-  // than the bare record coordinate. A statue carries an 8px draw offset and a
-  // bed spans two squares, so a ring on the record square alone sat away from
-  // the thing it was pointing at.
-  const ring = (cells, col, dashed, ox, oy) => {
+  // Ring the SQUARES, not the sprites. This used to subtract the prop's draw
+  // offset so the ring followed the artwork, which is wrong twice over: the
+  // offsets are up to 24px on a 32px tile, so the ring sat the best part of a
+  // square up and left of the thing it marked, and what a reader wants marked
+  // is the square they would have to stand on, which is the record's own
+  // coordinate whatever the sprite does above it.
+  const ring = (cells, col, dashed) => {
     ctx.save();
     ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, TS / 16);
     if (dashed) ctx.setLineDash([TS / 5, TS / 5]);
-    const sc = TS / 32;
     for (const [x, y] of cells)
-      ctx.strokeRect(x * TS + 1 - (ox || 0) * sc, y * TS + 1 - (oy || 0) * sc, TS - 2, TS - 2);
+      ctx.strokeRect(x * TS + 1, y * TS + 1, TS - 2, TS - 2);
     ctx.restore();
   };
+  const wash = (cells, col, alpha) => {
+    ctx.save();
+    ctx.fillStyle = col; ctx.globalAlpha = alpha;
+    for (const [x, y] of cells) ctx.fillRect(x * TS + 1, y * TS + 1, TS - 2, TS - 2);
+    ctx.restore();
+  };
+  // A rope tied to a ravine: a short knotted line across the square, so
+  // "you need the rope for this one" reads without a legend.
+  const ropeGlyph = (x, y) => {
+    ctx.save();
+    ctx.strokeStyle = '#f6e7b0'; ctx.lineWidth = Math.max(1, TS / 14);
+    ctx.beginPath();
+    ctx.moveTo(x * TS + TS * 0.5, y * TS + TS * 0.16);
+    ctx.lineTo(x * TS + TS * 0.5, y * TS + TS * 0.84);
+    ctx.moveTo(x * TS + TS * 0.32, y * TS + TS * 0.38);
+    ctx.lineTo(x * TS + TS * 0.68, y * TS + TS * 0.38);
+    ctx.moveTo(x * TS + TS * 0.32, y * TS + TS * 0.62);
+    ctx.lineTo(x * TS + TS * 0.68, y * TS + TS * 0.62);
+    ctx.stroke();
+    ctx.restore();
+  };
+
   const counts = { doors: 0, secret: 0, chest: 0, exits: 0 };
-  let occluded = 0;
+  let occluded = 0, edges = 0, ropes = 0;
+  const ropeDone = new Set();
+  const anyMark = M.doors || M.secret || M.chest || M.exits;
 
   if (M.exits) {
+    // The four edge bands first, so a passage ring drawn on an edge square
+    // still reads on top of the wash.
+    for (const e of mapExitEdges(cm.resid, cm.m)) {
+      edges++;
+      wash(e.cells, colours.exits, 0.18);
+      ring(e.cells, colours.exits, true);
+    }
     for (const e of mapExitSquares(cm.resid)) {
       counts.exits++;
-      ring([[e.x, e.y]], colours.exits, false, 0, 0);
-      ctx.save();
-      ctx.fillStyle = colours.exits;
-      ctx.globalAlpha = 0.22;
-      ctx.fillRect(e.x * TS + 1, e.y * TS + 1, TS - 2, TS - 2);
-      ctx.restore();
+      ring([[e.x, e.y]], colours.exits, false);
+      wash([[e.x, e.y]], colours.exits, 0.22);
     }
   }
 
-  if (M.doors || M.secret || M.chest) {
+  if (anyMark) {
     const attrs = getTileAttributes();
+    const ropes_ = ropeSquares(cm.resid);
     // What is drawn on each square, in draw order, so "hidden behind
     // something" can be answered without guessing.
     const stack = new Map();
@@ -5779,40 +6203,121 @@ function drawMapMarks() {
       let kind = classifyProp(r.proptype, d.tileId);
       // A wall that does not block is a way through it. Bit 0x02 of attribute
       // byte 3 is the same blocking flag the map's own walkability test reads.
-      if (!kind && M.secret && isWallProp(r.proptype)) {
+      if (!kind && isWallProp(r.proptype)) {
         if (!(((attrs[d.tileId] || 0) >> 8) & 0x02)) kind = 'secret';
       }
-      if (!kind && M.chest && r.storeref) kind = 'chest';
-      if (!kind || !M[kind]) continue;
-      // A passage with scenery drawn over it is invisible on the map even
-      // though nothing conceals it in the data. Those are worth flagging
-      // separately -- they are the ones you would never find by looking.
-      let hidden = false;
-      if (kind === 'secret') {
+      if (!kind && r.storeref) kind = 'chest';
+      // Something drawn over a passage hides it as surely as a secret door
+      // does, and unlike a secret door nothing in the record says so.
+      let buried = false;
+      if (kind === 'secret' || isExitProp(r.proptype)) {
         const later = (stack.get(r.y * 4096 + r.x) || []);
         const mine = later.indexOf(d);
         for (let i = mine + 1; i < later.length; i++)
-          if (tileOpacity(later[i].tileId) > 0.75) { hidden = true; break; }
-        if (hidden) occluded++;
+          if (tileOpacity(later[i].tileId) > 0.75) { buried = true; break; }
       }
-      counts[kind]++;
-      const [ox, oy] = propOffsetFor(r.proptype, r.aspect, r.rotated);
-      ring(d.cells, colours[kind], kind === 'secret', ox, oy);
-      if (hidden) ring(d.cells, '#ffffff', true, ox, oy);
+      // An exit is anything that leads somewhere else, whether or not it is
+      // concealed; a hidden way is anything concealed, whether by its own
+      // nature or by the scenery on top of it. A cave mouth is only the first;
+      // a mousehole and a buried tunnel are both.
+      const isExit = isExitProp(r.proptype);
+      const isHidden = kind === 'secret' && (isConcealedProp(r.proptype) || buried ||
+                                             isWallProp(r.proptype));
+      const needsRope = ropes_.has(r.x + ',' + r.y);
+
+      if (M.exits && isExit) {
+        counts.exits++;
+        ring(d.cells, colours.exits, false);
+        wash(d.cells, colours.exits, 0.14);
+      }
+      if (M.secret && isHidden) {
+        counts.secret++;
+        if (buried) occluded++;
+        ring(d.cells, colours.secret, true);
+        if (buried) ring(d.cells, '#ffffff', true);
+      }
+      if (M.doors && kind === 'doors') { counts.doors++; ring(d.cells, colours.doors, false); }
+      if (M.chest && kind === 'chest') { counts.chest++; ring(d.cells, colours.chest, false); }
+      if ((M.exits || M.secret) && needsRope && (isExit || isHidden)) {
+        ropes++; ropeGlyph(r.x, r.y); ropeDone.add(r.x + ',' + r.y);
+      }
+    }
+    // A rope square with no passage prop on it is the commoner case: in
+    // Cademia and Kosha the drop itself is terrain and the rope prop is the
+    // only thing in the file that says you can get down there. Ring it as an
+    // exit in its own right rather than letting it go unmarked.
+    if (M.exits || M.secret) {
+      for (const k of ropes_) {
+        if (ropeDone.has(k)) continue;
+        const [rx, ry] = k.split(',').map(Number);
+        ropes++;
+        if (M.exits) { counts.exits++; ring([[rx, ry]], colours.exits, false); wash([[rx, ry]], colours.exits, 0.14); }
+        ropeGlyph(rx, ry);
+      }
     }
   }
 
+  drawMapSelection(ctx, TS);
+
   if (legend) {
     const parts = [];
-    const chip = (k, label) => parts.push('<span style="color:' + colours[k] + '">\u25a1 ' + counts[k] + ' ' + label + '</span>');
+    const chip = (k, label) => parts.push('<span style="color:' + colours[k] + '">□ ' + counts[k] + ' ' + label + '</span>');
     if (M.doors) chip('doors', 'doors');
     if (M.secret) chip('secret', 'hidden ways' + (occluded ? ' (' + occluded + ' buried under scenery)' : ''));
     if (M.chest) chip('chest', 'containers');
-    if (M.exits) chip('exits', counts.exits === 1 ? 'zone exit' : 'zone exits');
+    if (M.exits) chip('exits', (counts.exits === 1 ? 'zone exit' : 'zone exits') +
+      (edges ? ' + ' + edges + (edges === 1 ? ' open edge' : ' open edges') : ''));
+    if (ropes) parts.push('<span style="color:#f6e7b0">‡ ' + ropes +
+      (ropes === 1 ? ' needs a rope' : ' need a rope') + '</span>');
     legend.innerHTML = parts.length
-      ? parts.join(' &nbsp; ') + ' <span style="color:#7d7358">\u2014 doors, ways and containers are identified by prop-type name; zone exits come from 0xF00C</span>'
+      ? parts.join(' &nbsp; ') + ' <span style="color:#7d7358">— doors, ways and containers are identified by ' +
+        'prop-type name; zone exits are 0xF00C zoneports plus the map header’s open edges, which you leave by ' +
+        'walking off at any row or column</span>'
       : '';
   }
+}
+
+/* ---------------------------------------------------------------------------
+   The square you clicked
+   ---------------------------------------------------------------------------
+   The inspector below the map named the square it was reading, and that was
+   the only sign of which one it was: on a 64x64 map, "Square 41, 12" is not
+   somewhere you can find again by eye. The selection is drawn on the mark
+   layer, which is above the props and below nothing, so it survives the
+   character and lighting layers being redrawn.
+--------------------------------------------------------------------------- */
+window.MAP_SEL = null;
+function drawMapSelection(ctx, TS) {
+  const sel = window.MAP_SEL;
+  if (!sel) return;
+  const x = sel.tx * TS, y = sel.ty * TS;
+  ctx.save();
+  ctx.lineWidth = Math.max(2, TS / 10);
+  ctx.strokeStyle = 'rgba(0,0,0,.75)';
+  ctx.strokeRect(x + 1, y + 1, TS - 2, TS - 2);
+  ctx.lineWidth = Math.max(1, TS / 16);
+  ctx.strokeStyle = '#ffffff';
+  ctx.strokeRect(x + 1, y + 1, TS - 2, TS - 2);
+  // Corner ticks, so the square is still findable when the map is zoomed out
+  // far enough that a one-pixel outline disappears.
+  const t = Math.max(3, TS * 0.34);
+  ctx.lineWidth = Math.max(2, TS / 8);
+  ctx.beginPath();
+  for (const [cx, cy, dx, dy] of [[x, y, 1, 1], [x + TS, y, -1, 1],
+                                  [x, y + TS, 1, -1], [x + TS, y + TS, -1, -1]]) {
+    ctx.moveTo(cx + dx * t, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + dy * t);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+function setMapSelection(tx, ty) {
+  window.MAP_SEL = (tx === null) ? null : { tx, ty };
+  const cm = window.CUR_MAP;
+  if (cm) {
+    if (window.MAP_SEL) window.MAP_SEL_MEMORY[cm.resid] = window.MAP_SEL;
+    else delete window.MAP_SEL_MEMORY[cm.resid];
+  }
+  drawMapMarks();
 }
 
 window.SHOW_LIGHTING = false;
@@ -6076,35 +6581,98 @@ function walkingPosition(entries, t, m) {
    only uses columns 0-2 -- and it was never drawn, so everyone stood to
    attention on top of the chair they are scheduled to be sitting in.
 
-   Which way the chair faces is read off the aspect. The four single-square
-   chair aspects come in transpose pairs: aspect 0 and 3 are each other's
-   transpose, and so are 1 and 2 (measured -- 0x302/0x305 and 0x303/0x304 have
-   mirrored pixel distributions). Transposing an image swaps north with west
-   and south with east, so whatever the mapping is, {facing(0),facing(3)} and
-   {facing(1),facing(2)} have to be {N,W} and {S,E} in some order. The
-   artwork settles which: each chair is a rail enclosing the seat on three
-   sides with the fourth rounded open, and the open side is the front -- open
-   at the bottom for aspect 0, at the left for 1, at the top for 2, at the
-   right for 3. This is read off 32x32 artwork rather than out of a table, so
-   it is the least certain thing on this page; it is also only a facing.
+   Which way the chair faces is read off the aspect, and the mapping is no
+   longer read off the artwork -- it is measured, twice, and the two agree.
+
+   1. Chairs are placed with their backs to walls. Over every prop list in the
+      archive, taking only the chairs with exactly one blocking neighbour
+      (n=180): aspect 0 has a wall to the north 30 times against 2/8/3 for the
+      other three sides, aspect 1 has one to the east 26 against 0/2/13,
+      aspect 2 to the south 20 against 1/5/1, and aspect 3 to the west 24
+      against 10/2/3. Back to the wall means facing away from it, which gives
+      aspect 0 -> south, 1 -> west, 2 -> north, 3 -> east.
+
+   2. The wiki's Save Format page prints a saved game taken "standing in
+      Alaric's throne room". Alaric's record there is
+      `03 02 90 0c 2c 22 ...`: zone 3 (Land King Hall), xy24 02 90 0c =
+      (41, 12) -- which is the throne square in this archive's own prop list --
+      and the aspect/proptype word 0x2C22, which unpacks to proptype 0x22
+      (king) at ASPECT 11. The throne is placed at aspect 0. So aspect 0 seats
+      a person in sprite frame 11: row 2, column 3. That single record fixes
+      three separate things at once -- that column 3 is the seated pose, that
+      row 2 is facing south, and that a chair at aspect 0 faces south -- and
+      all three are what this file already computed.
+
+   What the aspect does NOT survive is a seat with fewer than four frames of
+   its own. Prop type 227's block holds two, so `aspect & 3` was inventing a
+   four-way facing out of a two-way field; and prop type 12's block runs on
+   into an end table at frame 4, so an aspect past the chair's own name run is
+   not a chair aspect at all. Those fall back to the placement itself: a seat
+   with exactly one blocking neighbour faces away from it, and one with none is
+   left facing the reader and says so.
 --------------------------------------------------------------------------- */
 const CHAIR_FACING = [SPR_S, SPR_W, SPR_N, SPR_E];
 const SEAT_PROPTYPES = new Set([12, 41, 220, 227]);   // chair, throne, chair, chair
+// How many frames of its own a seat prop has, so an aspect can be told from an
+// index that has run off the end of the chair and into the next thing on the
+// sheet.
+function seatOwnFrames(pt) {
+  const base = getPropTileList()[pt];
+  if (base === undefined) return 0;
+  return framesSharingName(base, spriteFrameInfo(0, pt).present).length;
+}
+
 function seatsOnMap(resid, m) {
   const key = resid + ':' + (m ? m.width : 0);
   if (window.MAP_SEATS && window.MAP_SEATS.key === key) return window.MAP_SEATS.map;
   const seats = new Map();
   try {
     const praw = getResourceBytes(resid + 0x100);
-    if (praw) {
-      for (const r of parseDelverPropList(smartDecrypt(praw, resid + 0x100).data)) {
+    if (praw && m) {
+      const recs = parseDelverPropList(smartDecrypt(praw, resid + 0x100).data);
+      // Blocking squares, for the fallback below. Same test the walkability
+      // check uses: attribute byte 2, bit 0x02.
+      const tiles = getPropTileList(), attrs = getTileAttributes();
+      const blocked = new Set();
+      for (const r of recs) {
+        if (r.flags === 0xFF || (r.flags & 0x58)) continue;
+        const b = tiles[r.proptype];
+        if (b === undefined) continue;
+        if (((attrs[b + r.aspect] || 0) >> 8) & 0x02) blocked.add(r.x + ',' + r.y);
+      }
+      const solid = (x, y) => (x < 0 || y < 0 || x >= m.width || y >= m.height) ||
+        blocked.has(x + ',' + y) || !tilePassable(mapTileAt(m, x, y));
+      for (const r of recs) {
         if (r.flags === 0xFF || r.flags === 0x42 || r.flags === 0x44) continue;
         if (!SEAT_PROPTYPES.has(r.proptype)) continue;
-        let face = CHAIR_FACING[r.aspect & 3];
-        // A rotated chair is the transposed image, and transposing swaps
-        // north with west and south with east.
-        if (r.rotated) face = { [SPR_N]: SPR_W, [SPR_W]: SPR_N, [SPR_S]: SPR_E, [SPR_E]: SPR_S }[face];
-        seats.set(r.x + ',' + r.y, face);
+        const own = seatOwnFrames(r.proptype);
+        // The aspect can only BE a four-way facing where the seat has four
+        // frames to hold one -- or where it has exactly one, so aspect 0 is
+        // the only value it can take and the saved game above says what that
+        // one means (the throne). Two- and three-frame seats fall through.
+        const aspectIsFacing = (own >= 4 || own === 1) && r.aspect < Math.max(own, 1);
+        let face = null, why = '';
+        if (aspectIsFacing) {
+          face = CHAIR_FACING[r.aspect & 3];
+          why = 'aspect ' + r.aspect;
+          // A rotated chair is the transposed image, and transposing swaps
+          // north with west and south with east.
+          if (r.rotated) {
+            face = { [SPR_N]: SPR_W, [SPR_W]: SPR_N, [SPR_S]: SPR_E, [SPR_E]: SPR_S }[face];
+            why += ', rotated';
+          }
+        } else {
+          // Not a four-way aspect. Fall back to the placement: one wall behind
+          // and nothing else, and the seat faces away from it.
+          const walls = [[0, -1, SPR_S], [1, 0, SPR_W], [0, 1, SPR_N], [-1, 0, SPR_E]]
+            .filter(([dx, dy]) => solid(r.x + dx, r.y + dy));
+          if (walls.length === 1) { face = walls[0][2]; why = 'wall behind it'; }
+          else { face = SPR_S; why = 'not known — this seat has ' + own +
+                   ' frame' + (own === 1 ? '' : 's') + ', so its aspect is not a four-way facing, ' +
+                   'and nothing stands behind it to say which way it is turned'; }
+        }
+        seats.set(r.x + ',' + r.y, { face, why, proptype: r.proptype, aspect: r.aspect,
+                                     certain: aspectIsFacing });
       }
     }
   } catch (e) {}
@@ -6129,10 +6697,11 @@ function charactersOnLevel(level, hour) {
     // A sheet is 4 facings x 4 poses. While walking, face the direction of
     // travel and cycle the pose so they stride rather than slide.
     let aspect = c.aspect;
-    let sitting = false;
+    let sitting = null;
     if (w.walking && w.dir !== undefined) {
-      // Column layout (confirmed): 0=left-foot-forward, 1=standing,
-      // 2=right-foot-forward, 3=sitting (not used while walking). A real
+      // Column layout: 0=left-foot-forward, 1=standing, 2=right-foot-forward,
+      // 3=sitting (not used while walking). Confirmed by the saved game quoted
+      // above seatsOnMap: Alaric on the throne is frame 11, row 2 column 3. A real
       // gait alternates contact poses through the neutral stance rather than
       // stepping 0,1,2,3 in order.
       const GAIT = [1, 0, 1, 2];
@@ -6140,11 +6709,12 @@ function charactersOnLevel(level, hour) {
       aspect = (w.dir & 3) * 4 + pose;
     } else if (seats && seats.size) {
       // Standing still on a chair means sitting in it, facing the way it does.
-      const face = seats.get(w.x + ',' + w.y);
-      if (face !== undefined) { aspect = face * 4 + SPR_REST; sitting = true; }
+      const seat = seats.get(w.x + ',' + w.y);
+      if (seat) { aspect = seat.face * 4 + SPR_REST; sitting = seat; }
     }
     out.push({ index: i, name: characterName(i), x: w.x, y: w.y, mode: e.mode,
-               walking: !!w.walking, dir: w.dir, sitting,
+               walking: !!w.walking, dir: w.dir, sitting: !!sitting,
+               seat: sitting || null,
                proptype: c.proptype, aspect, tile: base + aspect });
   }
   return out;
@@ -6675,14 +7245,6 @@ function dvmRender(b, resid) {
   return lines.join('\n');
 }
 
-// The four exits in a map header are zoneport indices; resolve and show them.
-// The four "N -> somewhere" buttons that used to sit above the map are gone.
-// They read the map header's edge zoneports, which most maps leave empty, so
-// on nearly every map they said "No zoneport exits (edges are sealed)" and on
-// the rest they duplicated the gallery. Zone exits are a map overlay now
-// (drawMapMarks, "Zone exits"), which finds the tunnel mouths and the door out
-// to the world map as well as the open edges.
-
 function renderMapVisual(resid, mapData) {
   const m = parseDelverMap(mapData);
   if (m) m.raw = mapData;
@@ -6713,6 +7275,10 @@ function renderMapVisual(resid, mapData) {
   const faux = getFauxProps();
   const fauxTiles = getPropTileList();
   const fauxDrawn = [];
+  // Squares whose wall was suppressed by the Walls toggle. They are hatched at
+  // the end so the floor plan is readable without the reader forgetting that
+  // nobody can walk there.
+  const suppressed = [];
   for (let y=0; y<m.height; y++) {
     for (let x=0; x<m.width; x++) {
       const off = m.mapDataOffset + (x + y*m.width)*2;
@@ -6727,6 +7293,12 @@ function renderMapVisual(resid, mapData) {
   for (const [x, y, fp] of fauxDrawn) {
     const base = fauxTiles[fp.proptype];
     if (base === undefined) continue;
+    // Cave walls are faux props, not prop-list records, which is why turning
+    // the walls off used to do nothing at all on Land King Hall: every wall on
+    // that map is rock face drawn by the terrain tile. The world map's trees,
+    // shrubs and mountains are faux props too and are NOT walls, so the test
+    // is on the prop type, not on being a faux prop.
+    if (!window.MAP_WALLS && isWallLikeProp(fp.proptype)) { suppressed.push([x, y]); continue; }
     const [ox, oy] = propOffsetFor(fp.proptype, fp.aspect, fp.rotated);
     drawPropAt(ctx, TS, x, y, base + fp.aspect, fp.rotated, ox, oy, m.width, m.height);
   }
@@ -6789,7 +7361,7 @@ function renderMapVisual(resid, mapData) {
       // Interior walls are props, not terrain, on most indoor maps. Hiding
       // them is the indoor equivalent of lifting the roof: the floor plan,
       // the furniture and who is standing where all become visible at once.
-      if (!window.MAP_WALLS && isWallProp(r.proptype)) continue;
+      if (!window.MAP_WALLS && isWallLikeProp(r.proptype)) { suppressed.push([r.x, r.y]); continue; }
       const baseTile = propTiles[r.proptype];
       if (baseTile === undefined) continue;
       visible.push(r);
@@ -6834,6 +7406,28 @@ function renderMapVisual(resid, mapData) {
       }
     }
   }
+  // Hatch whatever the Walls toggle took away. Diagonal strokes rather than a
+  // flat wash: a wash reads as a highlight, and this is the opposite -- the
+  // square is still solid, it is just being drawn through.
+  if (suppressed.length) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(190,175,130,.42)';
+    ctx.lineWidth = Math.max(1, TS / 20);
+    for (const [x, y] of suppressed) {
+      const px = x * TS, py = y * TS;
+      ctx.beginPath();
+      for (let k = -TS; k < TS; k += Math.max(3, TS / 4)) {
+        ctx.moveTo(px + Math.max(0, k), py + Math.max(0, -k));
+        ctx.lineTo(px + Math.min(TS, k + TS), py + Math.min(TS, TS - k));
+      }
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(190,175,130,.22)';
+      ctx.strokeRect(px + 0.5, py + 0.5, TS - 1, TS - 1);
+      ctx.strokeStyle = 'rgba(190,175,130,.42)';
+    }
+    ctx.restore();
+  }
+
   // Cells whose terrain tile uses palette-animated colours. Only these get
   // repainted each frame, so a 64x64 map animates without re-rendering.
   const animCells = [];
@@ -6845,7 +7439,7 @@ function renderMapVisual(resid, mapData) {
     }
   }
   return {canvas, width:m.width, height:m.height, propCount, tileSize:TS, m, animCells,
-          props: drawnProps, propResid, allProps: allRecs};
+          props: drawnProps, propResid, allProps: allRecs, wallsHidden: suppressed.length};
 }
 // --- Map viewport pan & zoom state -----------------------------------
 const mapView = { scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
@@ -6896,6 +7490,62 @@ function applyMapZoom(fromSlider) {
   clampMapPan();
   applyMapTransform();
   updateMapArrows();
+  rememberMapView();
+}
+
+/* ---------------------------------------------------------------------------
+   Where you were on the map
+   ---------------------------------------------------------------------------
+   Following a link out of the map -- a prop type, a dossier, the script behind
+   a door -- and pressing back re-rendered the map from scratch and fitted the
+   whole thing to the viewport, so a reader who had zoomed in on one room in
+   Cademia came back to the whole of Cademia. The pan and zoom are three
+   numbers; they are remembered per map and restored instead of re-fitting.
+   Nothing is persisted: this is the state of a session, not a preference.
+--------------------------------------------------------------------------- */
+window.MAP_VIEW_MEMORY = Object.create(null);
+// The selected square is remembered separately from the pan and zoom, and
+// deliberately so: clearMapInspector() runs while a NEW map is being opened,
+// at a moment when CUR_MAP is already the new map but mapView still holds the
+// previous one's transform. Folding the two together let that moment write the
+// old map's scroll position into the new map's memory.
+window.MAP_SEL_MEMORY = Object.create(null);
+function rememberMapView() {
+  const cm = window.CUR_MAP;
+  if (!cm || !mapView.scale) return;
+  window.MAP_VIEW_MEMORY[cm.resid] = { scale: mapView.scale, x: mapView.x, y: mapView.y };
+}
+// Put a remembered view back. Returns false if there is nothing to restore, or
+// if the viewport has not been laid out yet -- the caller then fits as usual.
+function restoreMapView(resid) {
+  const v = window.MAP_VIEW_MEMORY[resid];
+  const viewport = document.getElementById('mapViewport');
+  const canvas = document.getElementById('mapTerrainCanvas');
+  if (!v || !viewport || !canvas) return false;
+  if (viewport.clientWidth < 40 || viewport.clientHeight < 40) return false;
+  mapView.scale = v.scale; mapView.x = v.x; mapView.y = v.y;
+  clampMapPan();
+  const slider = document.getElementById('mapZoomSlider');
+  const pct = Math.max(5, Math.min(400, Math.round(mapView.scale * 100)));
+  if (slider) slider.value = pct;
+  const lab = document.getElementById('mapZoomLabel');
+  if (lab) lab.textContent = pct + '%';
+  applyMapTransform();
+  updateMapArrows();
+  // A restored selection brings its inspector card back with it -- a ring with
+  // nothing under it would be a puzzle rather than a reminder.
+  const sel = window.MAP_SEL_MEMORY[resid];
+  if (sel) { try { inspectMapSquare(sel.tx, sel.ty); } catch (e) {} }
+  return true;
+}
+// Called instead of fitMapToView when a map is opened: the same retry loop,
+// but it prefers the remembered view when there is one.
+function restoreOrFitMap(resid, _retry) {
+  const viewport = document.getElementById('mapViewport');
+  if (viewport && (viewport.clientWidth < 40 || viewport.clientHeight < 40) && (_retry || 0) < 20) {
+    return setTimeout(() => restoreOrFitMap(resid, (_retry || 0) + 1), 50);
+  }
+  if (!restoreMapView(resid)) fitMapToView();
 }
 
 function fitMapToView(_retry) {
@@ -6920,6 +7570,7 @@ function fitMapToView(_retry) {
   mapView.y = (vh - canvas.height * mapView.scale) / 2;
   applyMapTransform();
   updateMapArrows();
+  rememberMapView();
 }
 
 // Hide each hint once there is nothing further to pan to on that side.
@@ -6946,6 +7597,7 @@ function panMapByArrow(dx, dy) {
   clampMapPan();
   applyMapTransform();
   updateMapArrows();
+  rememberMapView();
 }
 
 function setupMapViewportInteraction() {
@@ -6977,6 +7629,7 @@ function setupMapViewportInteraction() {
     const pct = Math.round(mapView.scale * 100);
     slider.value = Math.max(5, Math.min(400, pct));
     document.getElementById('mapZoomLabel').textContent = slider.value + '%';
+    rememberMapView();
   }
 
   // A click has to be told apart from the end of a drag, or every pan would
@@ -6997,7 +7650,7 @@ function setupMapViewportInteraction() {
     clampMapPan();
     applyMapTransform();
   };
-  const onUp = () => { mapView.dragging = false; };
+  const onUp = () => { mapView.dragging = false; rememberMapView(); };
 
   viewport.addEventListener('pointerdown', e => {
     viewport.setPointerCapture(e.pointerId);
@@ -7062,6 +7715,7 @@ function setupMapViewportInteraction() {
    merchant's counter, the script a door runs.
 --------------------------------------------------------------------------- */
 function clearMapInspector() {
+  if (window.MAP_SEL) setMapSelection(null);
   const el = document.getElementById('mapInspect');
   if (!el) return;
   // A hint rather than an empty box: nothing on screen otherwise suggests the
@@ -7086,7 +7740,7 @@ function mapSquareFromClient(clientX, clientY) {
 function propInspectRows(p) {
   const r = p.rec;
   const rows = [];
-  const name = propTypeName(r.proptype);
+  const name = propDisplayName(r.proptype);
   rows.push(['Prop type', '0x' + r.proptype.toString(16).toUpperCase() + (name ? ' — ' + name : '')]);
   rows.push(['Aspect', r.aspect + (r.rotated ? ' (rotated)' : '')]);
   rows.push(['Tile', '0x' + p.tileId.toString(16).toUpperCase() +
@@ -7154,6 +7808,38 @@ function containerContents(rec) {
   return cm.allProps.filter(o => o.container === rec.index && o.flags !== 0xFF && o.proptype);
 }
 
+// What a hover over one of a container's contents says: everything the item's
+// own page would open with, in one tooltip -- weight, what its class script
+// carries, and how many of it the shipped scenario places.
+function containedItemSummary(rec) {
+  const pt = rec.proptype;
+  const bits = [];
+  const nm = propDisplayName(pt);
+  if (nm) bits.push(nm);
+  bits.push('prop type 0x' + pt.toString(16).toUpperCase() + ', aspect ' + rec.aspect);
+  const w = itemWeight(pt);
+  if (w !== null) bits.push('weight ' + w + ' grain' + (w === 1 ? '' : 's'));
+  try {
+    const cls = parseItemClass(pt);
+    if (cls) {
+      for (const f of cls.data) {
+        if (f.key === 0x24) continue;                       // weight, above
+        const info = ITEM_FIELD_INFO[f.key];
+        if (!info || !info.scalar) continue;
+        bits.push(itemFieldLabel(f.key).toLowerCase() + ' ' + itemFieldValue(f));
+      }
+      if (cls.code.length) bits.push('responds to ' + cls.code.length + ' method' +
+                                     (cls.code.length === 1 ? '' : 's'));
+    }
+  } catch (e) {}
+  try {
+    const idx = buildItemIndex()[pt];
+    if (idx && idx.total) bits.push(idx.total + ' placed in the world');
+  } catch (e) {}
+  bits.push(isInventoryItem(pt) ? 'click for its item page' : 'click for its prop type');
+  return bits.join(' · ');
+}
+
 // The zoomrect with the contents' sprites laid out across it, the way the game
 // shows an opened container.
 function buildContainerView(rec, contents) {
@@ -7188,12 +7874,20 @@ function buildContainerView(rec, contents) {
       chip.appendChild(c);
     }
     const nm = document.createElement('span');
-    const w = itemWeight(o.proptype);
-    nm.textContent = (terrainNameFor((tiles[o.proptype] || 0) + o.aspect) ||
-                      propTypeName(o.proptype) || ('0x' + o.proptype.toString(16))) +
-                     (w !== null ? ' · ' + w : '');
+    // No weight here. A chest's contents are a picture of what is in the
+    // chest; a number after every name turned that into a packing list, and
+    // the number it printed was carry weight, which is a fact about the ITEM
+    // and belongs on the item's own page. The details are one hover away and
+    // that page is one click away instead.
+    nm.textContent = terrainNameFor((tiles[o.proptype] || 0) + o.aspect) ||
+                     propDisplayName(o.proptype, base) || ('0x' + o.proptype.toString(16));
     chip.appendChild(nm);
-    chip.onclick = (ev) => { ev.stopPropagation(); showPropTypeDetail(o.proptype); };
+    chip.title = containedItemSummary(o);
+    const goesToItem = isInventoryItem(o.proptype);
+    chip.onclick = (ev) => {
+      ev.stopPropagation();
+      if (goesToItem) showItemDetail(o.proptype); else showPropTypeDetail(o.proptype);
+    };
     items.appendChild(chip);
   }
   box.appendChild(items);
@@ -7210,13 +7904,16 @@ function inspectMapSquare(tx, ty) {
   const host = document.getElementById('mapInspect');
   const cm = window.CUR_MAP;
   if (!host || !cm) return;
+  setMapSelection(tx, ty);
   const hits = (cm.props || []).filter(p => p.cells.some(c => c[0] === tx && c[1] === ty));
   const people = (typeof charactersOnLevel === 'function' ? charactersOnLevel(cm.level, window.MAP_TIME) : [])
     .filter(c => Math.round(c.x) === tx && Math.round(c.y) === ty);
   const tileId = cm.m ? mapTileAt(cm.m, tx, ty) : 0;
   const terrain = tileId ? (terrainNameFor(tileId) || compositeTileName(tileId)) : null;
   const exits = mapExitSquares(cm.resid).filter(e => e.x === tx && e.y === ty);
+  const edges = mapExitEdges(cm.resid, cm.m).filter(e => e.cells.some(c => c[0] === tx && c[1] === ty));
   const faux = tileId ? getFauxProps().get(tileId) : null;
+  const needsRope = ropeSquares(cm.resid).has(tx + ',' + ty);
 
   const parts = ['<div class="inspHead">Square ' + tx + ', ' + ty +
     (tileId ? ' &nbsp;·&nbsp; terrain tile 0x' + tileId.toString(16).toUpperCase() +
@@ -7230,9 +7927,26 @@ function inspectMapSquare(tx, ty) {
       'square from somewhere else, and in play the same square is the way back out.</div></div>');
   }
 
+  const SIDE_WORDS = { N: 'north', E: 'east', S: 'south', W: 'west' };
+  for (const e of edges) {
+    const z = zoneportInfo(e.idx);
+    parts.push('<div class="inspCard"><b>Open ' + SIDE_WORDS[e.side] + ' edge</b> ' +
+      '<span class="inspDim">map header exit, zoneport 0x' + e.idx.toString(16).toUpperCase() +
+      (z ? ' → ' + svEsc(z.name) : '') + '</span><div class="inspDim">Not just this square: the whole ' +
+      (e.side === 'N' || e.side === 'S' ? 'row' : 'column') + ' is a way out. Walking far enough ' +
+      SIDE_WORDS[e.side] + ' at any ' + (e.side === 'N' || e.side === 'S' ? 'column' : 'row') +
+      ' leaves the map here.</div></div>');
+  }
+
+  if (needsRope) {
+    parts.push('<div class="inspCard"><b>Rope</b> <span class="inspDim">prop type 0x14B on this ' +
+      'square</span><div class="inspDim">A rope is fixed here, which is what makes the drop below ' +
+      'passable. There are four in the whole scenario and every one is on a ravine.</div></div>');
+  }
+
   if (faux) {
     parts.push('<div class="inspCard"><b>' +
-      svEsc(propTypeName(faux.proptype) || ('0x' + faux.proptype.toString(16))) + '</b>' +
+      svEsc(propDisplayName(faux.proptype) || ('0x' + faux.proptype.toString(16))) + '</b>' +
       ' <span class="inspDim">faux prop &mdash; drawn by the terrain tile itself (0xF010), ' +
       'not placed in the prop list</span><div class="inspActs">' +
       '<button class="sv-chip" onclick="showPropTypeDetail(' + faux.proptype + ')">Prop type</button>' +
@@ -7241,7 +7955,10 @@ function inspectMapSquare(tx, ty) {
 
   for (const c of people) {
     parts.push('<div class="inspCard"><b>' + svEsc(c.name || ('Character ' + c.index)) + '</b>' +
-      ' <span class="inspDim">' + (c.walking ? 'walking' : c.sitting ? 'sitting' : svEsc(String(c.mode || 'here'))) + '</span>' +
+      ' <span class="inspDim">' + (c.walking ? 'walking'
+          : c.sitting ? ('sitting, facing ' + ['north','east','south','west'][(c.aspect >> 2) & 3] +
+              ' — ' + svEsc(c.seat ? c.seat.why : ''))
+          : svEsc(String(c.mode || 'here'))) + '</span>' +
       '<div class="inspActs">' +
       '<button class="sv-chip" onclick="showCharacterDetail(' + c.index + ')">Dossier</button>' +
       '<button class="sv-chip" onclick="jumpToResource(' + (0x8800 + c.index) + ')">Portrait</button>' +
@@ -7253,6 +7970,11 @@ function inspectMapSquare(tx, ty) {
   for (const p of hits) {
     const rows = propInspectRows(p).map(([k, v]) =>
       '<dt>' + svEsc(k) + '</dt><dd>' + svEsc(v) + '</dd>').join('');
+    const ways = [];
+    if (isExitProp(p.rec.proptype)) ways.push('a way out of here');
+    if (isConcealedProp(p.rec.proptype)) ways.push('concealed');
+    if (isWallProp(p.rec.proptype) && !(((getTileAttributes()[p.tileId] || 0) >> 8) & 0x02))
+      ways.push('a wall you can walk through');
     const acts = ['<button class="sv-chip" onclick="showPropTypeDetail(' + p.rec.proptype + ')">Prop type</button>'];
     if (isInventoryItem(p.rec.proptype))
       acts.push('<button class="sv-chip" onclick="showItemDetail(' + p.rec.proptype + ')">Item</button>');
@@ -7264,15 +7986,16 @@ function inspectMapSquare(tx, ty) {
     const slot = contents.length ? ('insp-box-' + p.rec.index) : null;
     if (slot) boxes.push([slot, p.rec, contents]);
     parts.push('<div class="inspCard"><b>' +
-      svEsc(terrainNameFor(p.tileId) || propTypeName(p.rec.proptype) ||
+      svEsc(terrainNameFor(p.tileId) || propDisplayName(p.rec.proptype) ||
             ('prop 0x' + p.rec.proptype.toString(16).toUpperCase())) +
-      '</b> <span class="inspDim">record #' + p.rec.index + '</span>' +
+      '</b> <span class="inspDim">record #' + p.rec.index +
+      (ways.length ? ' · ' + svEsc(ways.join(', ')) : '') + '</span>' +
       '<dl class="inspRows">' + rows + '</dl>' +
       (slot ? '<div id="' + slot + '"></div>' : '') +
       '<div class="inspActs">' + acts.join('') + '</div></div>');
   }
 
-  if (!hits.length && !people.length && !exits.length && !faux)
+  if (!hits.length && !people.length && !exits.length && !edges.length && !faux && !needsRope)
     parts.push('<div class="inspDim">Nothing but terrain on this square.</div>');
 
   host.innerHTML = parts.join('');
@@ -7331,13 +8054,16 @@ function renderMapPreview() {
                        allProps: result.allProps,
                        tilesW: result.width, tilesH: result.height, mapData,
                        roofSections: mapRoofSections(resid) };
+    // Drop the previous map's selection without going through
+    // setMapSelection, which would take this map's remembered one with it.
+    window.MAP_SEL = null;
     clearMapInspector();
     startMapAnimation();
     toggleRoofs(window.MAP_ROOFS);   // draws the layer and updates the note
     drawMapMarks();
     buildCharacterLayer();
     setupMapViewportInteraction();
-    requestAnimationFrame(fitMapToView);
+    requestAnimationFrame(() => restoreOrFitMap(resid));
     document.getElementById('mapLabel').textContent =
       '0x' + resid.toString(16).toUpperCase() + (lbl ? ' - ' + lbl : '') +
       '  |  ' + result.width + 'x' + result.height + ' tiles' +
@@ -8230,47 +8956,71 @@ function paintDecodedPane() {
 // and writes it -- and this bar drives it, so nothing else had to change.
 //
 // The icons are drawn from the archive, not from an icon font: each button
-// renders a prop-type sprite whose meaning matches the group. A book for the
-// data file, a crystal ball for search, the king for characters, a map for
-// maps, a painting for graphics, a lute for audio, a scroll for text, a lever
-// for the machinery. All eight exist in 0xF000 and are named in the prop-type
-// list, so they are the game's own art.
+// renders one of the game's own 32x32 tiles.
+//
+// Two of them used to be picked by prop type and then by "whichever of the
+// first four frames has the most pixels in it", which is a heuristic and it
+// picked wrong: the Machinery lever (prop 0x0BB) has a sundial at frames 2-4
+// with more ink than the lever, and the crystal ball came out whichever colour
+// frame 0 happened to be. So an icon may name a TILE outright -- `tile:` -- and
+// the five that need a particular frame do. Frame n of sheet 0x8Exx is tile
+// ((0x8Exx & 0xFF) << 4) | n, which is how "0x8E71 index 9" reads here as
+// 0x719.
 const NAV_GROUPS = [
   { id: 'file',   label: 'Data file',  icon: 0x01A, action: 'file' },
-  { id: 'search', label: 'Search',     icon: 0x141, action: 'search' },
-  { id: 'chars',  label: 'Characters', icon: 0x022,
+  // The purple ball (tile 0x885). Frames 0x883-0x886 are four crystal balls in
+  // four colours -- cobalt, green, magenta, lavender -- and the archive calls
+  // all four "crystal ball", so nothing but the tile id can pick one.
+  { id: 'search', label: 'Search',     tile: 0x885, action: 'search' },
+  // 0x8E71 frame 9: the king standing, facing south -- a person looking at the
+  // reader rather than the back of a head mid-stride.
+  { id: 'chars',  label: 'Characters', tile: 0x719,
     values: ['CHARACTERS', 'PROPS', 'MONSTERS', '135', '137', '24', '25'] },
   { id: 'items',  label: 'Items',      icon: 0x08D,
     values: ['ITEMS'] },
-  { id: 'fork',   label: 'Fork',       icon: 0x04B,
+  // The anvil: the resource fork is the editor's half of the file (stamps and
+  // brushes), and a workshop tool says that better than a second scroll --
+  // which is what this was, identical to the one on Narrative.
+  { id: 'fork',   label: 'Fork',       tile: 0x2E0,
     values: ['RSRC'] },
   { id: 'maps',   label: 'Maps',       icon: 0x111,
     values: ['127', '128', '131', '19', '20'] },
-  { id: 'gfx',    label: 'Graphics',   icon: 0x158,
+  // 0x8E89 frame 0: a small framed landscape.
+  { id: 'gfx',    label: 'Graphics',   tile: 0x890,
     values: ['141', '142', 'COMPOSITE'] },
   { id: 'audio',  label: 'Audio',      icon: 0x098,
     values: ['144', '143'] },
-  { id: 'text',   label: 'Words',      icon: 0x04B,
+  // 0x8E26 frame 0: rumpled paper with writing on it.
+  { id: 'text',   label: 'Narrative',  tile: 0x260,
     values: ['23', '1', '7', '11', '12', '13', '15', '26', '27', '0'] },
-  { id: 'code',   label: 'Machinery',  icon: 0x0BB,
+  // The lever itself (0x3CB), not the sundial three frames along.
+  { id: 'code',   label: 'Machinery',  tile: 0x3CB,
     values: ['16', '47', '3', '8', '9', '14', '239', '4', '29', '2', '10'] }
 ];
 
-function navIconCanvas(proptype, px) {
+// `spec` is either {tile} -- an exact tile id -- or {icon} -- a prop type,
+// whose fullest early frame is used.
+function navIconCanvas(spec, px) {
   const c = document.createElement('canvas');
   try {
-    const base = getPropTileList()[proptype];
-    if (base === undefined) return c;
-    // Pick the frame with the most artwork in it, so an icon is never a blank
-    // or half-drawn pose.
-    const info = spriteFrameInfo(0, proptype);
-    let best = info.present[0] || 0, bestN = -1;
-    for (const f of info.present.slice(0, 4)) {
-      let n = 0;
-      try { const img = resolveTileImage(base + f); if (img) for (const v of img) if (v) n++; } catch (e) {}
-      if (n > bestN) { bestN = n; best = f; }
+    let tile = null;
+    if (typeof spec === 'object' && spec && spec.tile !== undefined) tile = spec.tile;
+    else {
+      const proptype = (typeof spec === 'object' && spec) ? spec.icon : spec;
+      const base = getPropTileList()[proptype];
+      if (base === undefined) return c;
+      // Pick the frame with the most artwork in it, so an icon is never a blank
+      // or half-drawn pose.
+      const info = spriteFrameInfo(0, proptype);
+      let best = info.present[0] || 0, bestN = -1;
+      for (const f of info.present.slice(0, 4)) {
+        let n = 0;
+        try { const img = resolveTileImage(base + f); if (img) for (const v of img) if (v) n++; } catch (e) {}
+        if (n > bestN) { bestN = n; best = f; }
+      }
+      tile = base + best;
     }
-    drawTileToCanvas(c, base + best, 32);
+    if (tile !== null) drawTileToCanvas(c, tile, 32);
   } catch (e) {}
   c.style.cssText = 'width:' + px + 'px;height:' + px + 'px;image-rendering:pixelated;display:block;margin:0 auto';
   return c;
@@ -8293,7 +9043,7 @@ function buildNavBar() {
     const b = document.createElement('button');
     b.className = 'navBtn';
     b.id = 'nav_' + g.id;
-    b.appendChild(navIconCanvas(g.icon, 30));
+    b.appendChild(navIconCanvas(g, 30));
     const t = document.createElement('span');
     t.textContent = g.label;
     b.appendChild(t);
@@ -8412,9 +9162,7 @@ function renderMonsterSheet() {
     cell.appendChild(wrap);
     const lbl = document.createElement('div');
     lbl.className = 'lbl';
-    const nm = propTypeName(r.proptype);
-    lbl.innerHTML = nm ? svEsc(nm) + '<span class="guessed" title="prop-type name from the wiki, not the archive">\u2020</span>'
-                       : '<span style="color:#7d7358">unnamed 0x' + r.proptype.toString(16).toUpperCase() + '</span>';
+    lbl.innerHTML = propNameHTML(r.proptype);
     cell.appendChild(lbl);
     const sub = document.createElement('div');
     sub.className = 'resid';
@@ -8443,7 +9191,7 @@ function showMonsterDetail(idx) {
   const r = parseMonsterStats()[idx];
   if (!r) return;
   const tiles = getPropTileList();
-  const nm = propTypeName(r.proptype) || ('prop type 0x' + r.proptype.toString(16).toUpperCase());
+  const nm = propDisplayName(r.proptype) || ('prop type 0x' + r.proptype.toString(16).toUpperCase());
   const panel = document.createElement('div');
   panel.style.cssText = 'width:100%;max-width:560px;margin:12px auto;text-align:left';
 
@@ -8482,7 +9230,7 @@ function showMonsterDetail(idx) {
   const cd = document.createElement('div');
   cd.style.cssText = 'font-size:13px;line-height:1.7;margin-bottom:10px';
   if (r.corpseWord) {
-    const cnm = propTypeName(r.corpseType) || ('0x' + r.corpseType.toString(16).toUpperCase());
+    const cnm = propDisplayName(r.corpseType) || ('0x' + r.corpseType.toString(16).toUpperCase());
     cd.innerHTML = '<b style="color:#9d9270">Leaves behind</b> ' + svEsc(cnm) +
                    ' at aspect ' + r.corpseAspect +
                    ' <span style="font-size:11px;color:#7d7358">(corpse_type 0x' +
@@ -9162,7 +9910,7 @@ function renderArtUsage(resid) {
     r => svChip(r), 24) + '</dd>');
   if (u.props.length) rows.push('<dt>Prop types</dt><dd>' + usageChips(u.props,
     pt => '<button class="sv-chip" onclick="showPropTypeDetail(' + pt + ')">' +
-          svEsc(propTypeName(pt) || ('0x' + pt.toString(16).toUpperCase())) + '</button>', 24) + '</dd>');
+          svEsc(propDisplayName(pt) || ('0x' + pt.toString(16).toUpperCase())) + '</button>', 24) + '</dd>');
   if (u.composites.length) rows.push('<dt>Composite tiles</dt><dd><span class="inspDim">' +
     u.composites.length + ' stitched tile' + (u.composites.length === 1 ? '' : 's') +
     ' use fragments from this sheet</span></dd>');
@@ -9203,7 +9951,7 @@ function renderImage() {
   const [resid, roff, rlen] = window.CUR_RESIDS[idx];
   try {
     const resData = fileBytes.slice(roff, roff+rlen);
-    let {W,H,image} = decodeResource(resData, subn);
+    let {W,H,image} = decodeResource(resData, subn, resid);
     if (subn === 141) ({W,H,image} = reshapeTileSheetGrid(W,H,image));
     const canvas = document.getElementById('canvas');
     document.getElementById('singlePreview').style.display = 'block';
@@ -9430,16 +10178,16 @@ function installBackgroundTexture() {
 
 function refreshLabelLegend() {
   const el = document.getElementById('labelLegend');
-  // The gallery marks tool-supplied names with a dagger, but the sound and
-  // single-resource views print the same daggered names in #textLabel and
-  // #soundLabel, where the legend was never shown -- so every sound looked
-  // like it was flagged for a reason nobody had explained. Sounds in
-  // particular have NO names in the archive at all: subindex 144 carries
-  // audio and nothing else, so all 40-odd labels come from the wiki.
-  const daggered = document.querySelector('.lbl.guessed') ||
-    (document.getElementById('soundPreview') || {}).style &&
-      document.getElementById('soundPreview').style.display !== 'none';
-  if (el) el.style.display = daggered ? 'block' : 'none';
+  // The legend for the "wiki" tag. It used to explain a dagger and was itself
+  // hidden by a `display:none !important` in the stylesheet, so the dagger had
+  // no explanation anywhere on the page -- which is the whole reason to be rid
+  // of it. Only a name actually being shown needs explaining: the dashed
+  // "name hidden" tag explains itself and carries its own tooltip, and the
+  // sound gallery no longer needs a clause of its own, because with
+  // tool-supplied names off it prints "Sound 12", which is generic numbering
+  // rather than a claim about what the sound is.
+  const tagged = !!document.querySelector('.guessTag');
+  if (el) el.style.display = tagged ? 'block' : 'none';
 }
 
 /* ---------------------------------------------------------------------------
@@ -9498,7 +10246,7 @@ async function exportGallery() {
         files.push({ name: stem + '.mid', bytes: m.midi });
         wrote.push('midi (' + m.noteCount + ' notes)');
       } else if (!isText && subn !== 127) {
-        let { W, H, image } = decodeResource(raw, subn);
+        let { W, H, image } = decodeResource(raw, subn, resid);
         if (subn === 141) ({ W, H, image } = reshapeTileSheetGrid(W, H, image));
         files.push({ name: stem + '.png',
                      bytes: await encodeIndexedPNG(W, H, image, PAL_RGB, transparentIndexFor(subn)) });
@@ -9571,7 +10319,10 @@ try {
 // The size of a resource, for the "largest first" sort. Only resource-backed
 // galleries have one; the synthetic ones sort to the end of that ordering.
 function cellSortKeys(cell) {
-  const lbl = cell.querySelector('.lbl');
+  // .lblText, where a caption has one, is the name without the provenance tag
+  // printed beside it -- otherwise every wiki-named cell would sort and filter
+  // on the word "wiki" as well as on its name.
+  const lbl = cell.querySelector('.lblText') || cell.querySelector('.lbl');
   const rid = cell.querySelector('.resid');
   const name = (lbl ? lbl.textContent : '').trim();
   const idText = (rid ? rid.textContent : '').trim();
@@ -9595,10 +10346,32 @@ function applyGalleryArrangement() {
     grid._origOrder = Array.from(grid.children);
   }
   const heads = Array.from(grid.querySelectorAll('.propHead'));
+  // Hide whatever the filter box excludes. The rebuilding galleries have
+  // already dropped their non-matches, so this is a no-op there.
+  const q = REBUILDING_GALLERIES.has(window.CUR_SUBN)
+    ? '' : (window.PROP_FILTER || '').trim().toLowerCase();
+  let shown = cells.length;
+  if (q) {
+    shown = 0;
+    for (const c of cells) {
+      const k = cellSortKeys(c);
+      const hex = Number.isFinite(k.id) && k.id !== Number.MAX_SAFE_INTEGER
+        ? '0x' + k.id.toString(16).toLowerCase() : '';
+      const hit = (k.name || '').toLowerCase().includes(q) || (hex && hex.includes(q)) ||
+                  (c.textContent || '').toLowerCase().includes(q);
+      c.style.display = hit ? '' : 'none';
+      if (hit) shown++;
+    }
+  } else {
+    for (const c of cells) c.style.display = '';
+  }
+  const fnote = document.getElementById('filterNote');
+  if (fnote) fnote.textContent = q ? (shown + ' of ' + cells.length + ' shown') : '';
   const key = window.GALLERY_SORT;
   if (key === 'archive') {
     for (const el of grid._origOrder) grid.appendChild(el);
-    for (const h of heads) h.style.display = '';
+    // A heading whose whole run is filtered out has nothing left to head.
+    for (const h of heads) h.style.display = q ? 'none' : '';
     return;
   }
   // A sort cuts across the groupings the prop and item galleries print, so
@@ -9627,6 +10400,9 @@ function updateGalleryTools() {
   if (exp) exp.style.display = galleryIsExportable() && currentMode === 'sheet' ? '' : 'none';
   const arr = document.getElementById('galleryArrange');
   if (arr) arr.style.display = inGallery ? 'flex' : 'none';
+  // Every gallery gets the filter box, not just the three built from tables.
+  const pw = document.getElementById('propFilterWrap');
+  if (pw) pw.style.display = inGallery ? 'block' : 'none';
   const vb = document.getElementById('viewToggleBtn');
   if (vb) vb.textContent = window.GALLERY_VIEW === 'list' ? '\u25a6 Gallery' : '\u2261 List';
   const ss = document.getElementById('gallerySortSel');
@@ -9636,6 +10412,7 @@ function updateGalleryTools() {
     note.textContent = window.CUR_RESIDS.length + ' resources in this gallery';
   else if (note) note.textContent = '';
   if (inGallery) applyGalleryArrangement();
+  refreshLabelLegend();
 }
 
 /* ---------------------------------------------------------------------------
@@ -9826,7 +10603,7 @@ function renderContactSheet() {
     lazyTile(cell, () => {
       try {
         const resData = fileBytes.slice(roff, roff+rlen);
-        let {W,H,image} = decodeResource(resData, subn);
+        let {W,H,image} = decodeResource(resData, subn, resid);
         if (subn === 141) ({W,H,image} = reshapeTileSheetGrid(W,H,image));
         if (isCompletelyWhite(image)) {
           sheetStats.blank++;
