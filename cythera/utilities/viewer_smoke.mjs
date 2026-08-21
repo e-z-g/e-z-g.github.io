@@ -72,7 +72,7 @@ class El {
     this._text = '';
     this._html = '';
     this._id = '';
-    this.className = '';
+    this._classes = new Set();
     this.value = '';
     this.checked = false;
     this.disabled = false;
@@ -84,14 +84,27 @@ class El {
     this.files = [];
     this.options = [];
     this.selectedIndex = -1;
+    // className and classList are ONE set of classes, as they are in a
+    // browser. They used to be two: `cell.className = 'cell propCell'` left
+    // classList empty, so anything that asked classList.contains('cell') --
+    // which is how the gallery finds its own cells for sorting and filtering
+    // -- saw nothing at all and silently did nothing.
     this.classList = {
-      _set: new Set(),
-      add: (...c) => c.forEach(x => this.classList._set.add(x)),
-      remove: (...c) => c.forEach(x => this.classList._set.delete(x)),
-      contains: c => this.classList._set.has(c),
-      toggle: (c, on) => { if (on === undefined) on = !this.classList._set.has(c);
-                           if (on) this.classList._set.add(c); else this.classList._set.delete(c); },
+      add: (...c) => c.forEach(x => x && this._classes.add(x)),
+      remove: (...c) => c.forEach(x => this._classes.delete(x)),
+      contains: c => this._classes.has(c),
+      toggle: (c, on) => { if (on === undefined) on = !this._classes.has(c);
+                           if (on) this._classes.add(c); else this._classes.delete(c); },
     };
+  }
+  get className() { return [...this._classes].join(' '); }
+  set className(v) {
+    this._classes = new Set(String(v === null || v === undefined ? '' : v).split(/\s+/).filter(Boolean));
+  }
+  replaceChild(next, old) {
+    const i = this.children.indexOf(old);
+    if (i < 0) return this.appendChild(next);
+    next.parentNode = this; this.children[i] = next; old.parentNode = null; return old;
   }
   get id() { return this._id; }
   set id(v) { this._id = v; if (v) REGISTRY.set(v, this); }
@@ -138,11 +151,20 @@ class El {
   toDataURL() { return 'data:image/png;base64,'; }
   toBlob(cb) { setTimeout(() => cb(new Blob([new Uint8Array(8)])), 0); }
   getBoundingClientRect() { return { left: 0, top: 0, right: 300, bottom: 300, width: 300, height: 300 }; }
+  // A laid-out box. Without these the map viewport measured 0x0, so
+  // fitMapToView bailed into its retry loop and the pan/zoom code was never
+  // reached by any check here.
+  get clientWidth() { return 300; }
+  get clientHeight() { return 300; }
+  get offsetWidth() { return 300; }
+  get offsetHeight() { return 300; }
+  get scrollWidth() { return 300; }
+  get scrollHeight() { return 300; }
   play() { this.paused = false; } pause() { this.paused = true; }
   _walk(out) { for (const c of this.children) { out.push(c); c._walk(out); } return out; }
   _matches(sel) {
     sel = sel.trim();
-    if (sel.startsWith('.')) return this.className.split(/\s+/).includes(sel.slice(1)) || this.classList.contains(sel.slice(1));
+    if (sel.startsWith('.')) return this._classes.has(sel.slice(1));
     if (sel.startsWith('#')) return this._id === sel.slice(1);
     if (sel.startsWith('[')) { const k = sel.slice(1, -1).split('=')[0]; return this.hasAttribute(k); }
     return this.tagName === sel.toUpperCase();
@@ -206,6 +228,13 @@ const documentStub = {
 };
 
 const rafQueue = [];
+// Run whatever is waiting on the next frame. Some of the page's work is
+// deferred to rAF (fitting a map to the viewport, restoring a remembered
+// view), so a check that never drains this queue is checking half the code.
+function drainRaf() {
+  let n = 0;
+  while (rafQueue.length && n++ < 200) { const cb = rafQueue.shift(); try { cb(0); } catch (e) { fail('rAF callback', e); } }
+}
 const sandbox = {
   document: documentStub, console,
   TextDecoder, TextEncoder, Uint8Array, Int8Array, Int16Array, Uint16Array, Uint32Array,
@@ -417,6 +446,117 @@ try {
   if (!roofed) fail('roofs', 'no map reported any roof sections');
   else console.log(`  roofs: ${roofed} roofed maps, ${tiles} tiles drawn with the toggle on`);
 } catch (e) { fail('roofs', e); }
+
+// Walls off has to actually take walls away. On most indoor maps they are
+// prop-list records; on Land King Hall every one of them is a faux prop drawn
+// by the terrain tile, which is why the toggle used to do nothing there.
+try {
+  ctx.showCategory('127');
+  let checked = 0, noop = [];
+  for (const [resid] of (ctx.CUR_RESIDS || [])) {
+    ctx.openResource(resid);
+    const cm = ctx.CUR_MAP;
+    if (!cm) continue;
+    const before = cm.propCount;
+    ctx.toggleWalls(false);
+    const hidden = cm.wallsHidden || 0;
+    ctx.toggleWalls(true);
+    if (cm.wallsHidden) fail('walls', `0x${resid.toString(16).toUpperCase()} still hid ` +
+      `${cm.wallsHidden} squares with the toggle back on`);
+    checked++;
+    if (!hidden) noop.push('0x' + resid.toString(16).toUpperCase());
+  }
+  console.log(`  walls: ${checked} maps, ${noop.length} with nothing to hide` +
+    (noop.length ? ` (${noop.slice(0, 6).join(', ')}${noop.length > 6 ? '…' : ''})` : ''));
+  // Land King Hall specifically: the map the bug was reported against.
+  ctx.openResource(0x8003);
+  ctx.toggleWalls(false);
+  if (!(ctx.CUR_MAP && ctx.CUR_MAP.wallsHidden))
+    fail('walls', 'Land King Hall hid no wall squares');
+  ctx.toggleWalls(true);
+} catch (e) { fail('walls', e); }
+
+// Map marks: rings sit on the record's own square, exits include the open
+// edges the map header declares, and a rope square is found where there is one.
+try {
+  ctx.showCategory('127');
+  ctx.openResource(0x8002);                       // Odemia: all four edges open
+  const edges = ctx.mapExitEdges(0x8002, ctx.CUR_MAP.m);
+  if (edges.length !== 4) fail('map marks', `Odemia reported ${edges.length} open edges, expected 4`);
+  if (edges.some(e => !e.cells.length)) fail('map marks', 'an open edge marked no squares');
+  if (ctx.mapExitSquares(0x8000).length > 32)
+    fail('map marks', 'zoneport padding is still being read as exits on 0x8000');
+  const ropes = ctx.ropeSquares(0x8008);          // Cademia
+  if (ropes.size !== 2) fail('map marks', `Cademia reported ${ropes.size} rope squares, expected 2`);
+  for (const kind of ['doors', 'secret', 'chest', 'exits']) ctx.toggleMapMarks(kind, true);
+  for (const [resid] of (ctx.CUR_RESIDS || []).slice(0, 12)) ctx.openResource(resid);
+  const legend = REGISTRY.get('markLegend').innerHTML;
+  if (!/hidden ways/.test(legend)) fail('map marks', 'the legend never mentioned hidden ways');
+  for (const kind of ['doors', 'secret', 'chest', 'exits']) ctx.toggleMapMarks(kind, false);
+  console.log('  map marks: edges, zoneports, ropes and the legend all reported');
+} catch (e) { fail('map marks', e); }
+
+// The selected square has to be visible, not just described, and leaving a map
+// and coming back has to land where you left off rather than re-fitting.
+try {
+  ctx.showCategory('127');
+  ctx.openResource(0x8003);
+  drainRaf();
+  ctx.inspectMapSquare(41, 12);
+  if (!ctx.MAP_SEL || ctx.MAP_SEL.tx !== 41) fail('map selection', 'clicking a square set no selection');
+  const remembered = ctx.MAP_VIEW_MEMORY[0x8003];
+  if (!remembered) fail('map selection', 'opening a map remembered no view for it');
+  const zoomed = { ...remembered, scale: remembered.scale * 2 };
+  ctx.MAP_VIEW_MEMORY[0x8003] = zoomed;
+  ctx.openResource(0x8008); drainRaf();           // go somewhere else
+  ctx.openResource(0x8003); drainRaf();           // and back
+  if (!ctx.MAP_SEL_MEMORY[0x8003] || ctx.MAP_SEL_MEMORY[0x8003].tx !== 41)
+    fail('map selection', 'switching maps threw away the remembered selection');
+  if (!ctx.MAP_VIEW_MEMORY[0x8003]) fail('map selection', 'the remembered view was lost');
+  else if (Math.abs(ctx.MAP_VIEW_MEMORY[0x8003].scale - zoomed.scale) > 1e-6)
+    fail('map selection', 'coming back to a map re-fitted it instead of restoring the zoom');
+  ctx.inspectMapSquare(41, 12);
+  ctx.clearMapInspector();
+  if (ctx.MAP_SEL) fail('map selection', 'closing the inspector left the selection behind');
+  if (ctx.MAP_SEL_MEMORY[0x8003]) fail('map selection', 'closing the inspector did not forget the square');
+  console.log('  map selection: set, remembered across a map switch, and cleared on close');
+} catch (e) { fail('map selection', e); }
+
+// A frame block ends where the 16-tile sheet does, not where the thing does.
+// Prop 0x141 is four crystal balls followed by a board, four staves and four
+// paintings, and the galleries must not call the lot "crystal ball".
+try {
+  const base = ctx.getPropTileList()[0x141];
+  const runs = ctx.frameRuns(base, ctx.spriteFrameInfo(0, 0x141).present);
+  const names = runs.map(r => r.name).join('/');
+  if (names !== 'crystal ball/boards/staff/painting')
+    fail('frame runs', `0x141 came out as ${names}`);
+  const own = ctx.framesSharingName(base, ctx.spriteFrameInfo(0, 0x141).present);
+  if (own.length !== 4) fail('frame runs', `0x141 claimed ${own.length} frames of its own`);
+  const cols = ctx.distinguishingColours(base, own);
+  if (!cols || new Set([...cols.values()]).size < 3)
+    fail('frame runs', 'the four crystal balls were not told apart by colour');
+  console.log(`  frame runs: 0x141 -> ${names}; balls are ${[...cols.values()].join(', ')}`);
+} catch (e) { fail('frame runs', e); }
+
+// A filter box on every gallery, filtering by what the cells actually say.
+try {
+  for (const cat of ['135', '141', 'ITEMS', 'CHARACTERS']) {
+    ctx.showCategory(cat);
+    const grid = REGISTRY.get('sheetGrid');
+    const all = (grid.children || []).filter(c => c.className && c.className.includes('cell')).length;
+    if (!all) continue;
+    ctx.setPropFilter('zzzznothing');
+    const after = (REGISTRY.get('sheetGrid').children || [])
+      .filter(c => c.className && c.className.includes('cell') && c.style.display !== 'none').length;
+    if (after) fail('gallery filter', `${cat}: ${after} cells survived a nonsense filter`);
+    ctx.setPropFilter('');
+    const back = (REGISTRY.get('sheetGrid').children || [])
+      .filter(c => c.className && c.className.includes('cell') && c.style.display !== 'none').length;
+    if (!back) fail('gallery filter', `${cat}: clearing the filter brought nothing back`);
+  }
+  console.log('  gallery filter: every gallery filters and unfilters');
+} catch (e) { fail('gallery filter', e); }
 
 // The map inspector: every square a prop was drawn on must name that prop.
 try {
