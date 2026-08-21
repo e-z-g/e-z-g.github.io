@@ -199,7 +199,7 @@ button { line-height:1.35 !important; min-height:44px;
    such button demanded 48px+ of padding and wrapped its label across
    several lines inside anything narrower than the top-level nav. */
 .toolbar button, .actionRow button,
-#sheetGrid button, #mapPreview button, #charControls button, #zoneportBar button
+#sheetGrid button, #mapPreview button, #charControls button
   { padding-left:12px !important; padding-right:12px !important; font-size:13px !important; min-height:34px !important; }
 button:hover { color:#241f18 !important; filter:brightness(1.10); }
 /* Bolt studs near each end, as on the in-game plaques. */
@@ -1004,19 +1004,17 @@ function skillNameForIcon(n) { return selfNameFor(0x1A00 | n); }
 window.DERIVED_NAMES = null;
 function parseDelverStringTable(p) {
   if (!p || p.length < 6) return null;
-  const hdr = (p[0] << 8) | p[1];
+  const hdr = u16be(p, 0);
   if ((hdr & 0xF000) !== 0x9000) return null;
   const count = hdr & 0x0FFF;
   const out = [];
   for (let i = 0; i < count; i++) {
     const e = 2 + i * 4;
     if (e + 4 > p.length) break;
-    const off = (p[e+2] << 8) | p[e+3];
+    const off = u16be(p, e+2);
     if (off >= p.length) { out.push(''); continue; }
     let end = off; while (end < p.length && p[end] !== 0) end++;
-    let str = '';
-    for (let k = off; k < end; k++) str += String.fromCharCode(p[k]);
-    out.push(str);
+    out.push(decodeMacRoman(p.subarray(off, end)));
   }
   return out;
 }
@@ -1172,7 +1170,7 @@ function loadZoneports() {
   try {
     const b = getResourceBytes(0xF00C);
     if (b) for (let i = 0; i + 4 <= b.length; i += 4) {
-      const xy = (b[i+1] << 16) | (b[i+2] << 8) | b[i+3];
+      const xy = (b[i+1] << 16) | u16be(b, i+2);
       out.push({ map: 0x8000 | b[i], x: xy >> 12, y: xy & 0xFFF });
     }
   } catch (e) {}
@@ -1300,29 +1298,32 @@ function labelForUnnormalized(resid) {
   return null;
 }
 
+// A cursor over the archive. The readers themselves live in js/mac-bytes.js,
+// so this only keeps the position: `pstring` decodes Mac Roman rather than
+// Latin-1, which is what the archive's title actually is -- the two agree on
+// ASCII and disagree on every accented character.
 class BinReader {
   constructor(bytes) { this.data = bytes; this.pos = 0; }
   seek(p) { this.pos = p; }
   u8() { return this.data[this.pos++]; }
-  u32() { const v = (this.data[this.pos]*0x1000000) + (this.data[this.pos+1]<<16) + (this.data[this.pos+2]<<8) + this.data[this.pos+3]; this.pos+=4; return v>>>0; }
-  pstring(off) { const p = off !== undefined ? off : this.pos; const len = this.data[p];
-    return new TextDecoder('latin1').decode(this.data.slice(p+1, p+1+len)); }
+  u16() { const v = u16be(this.data, this.pos); this.pos += 2; return v; }
+  u32() { const v = u32be(this.data, this.pos); this.pos += 4; return v; }
+  pstring(off) { return pstring(this.data, off !== undefined ? off : this.pos); }
 }
 
 const SOUND_CATEGORIES = new Set([144]);
 
 function decodeSound(resData) {
   let p = 0;
-  const magic = new TextDecoder('latin1').decode(resData.slice(0,4)); p += 4;
+  const magic = fourcc(resData, 0); p += 4;
   if (magic !== 'asnd') throw new Error("Bad magic: expected 'asnd', got '" + magic + "'");
-  const duration = (resData[p]<<24)|(resData[p+1]<<16)|(resData[p+2]<<8)|resData[p+3]; p+=4;
-  const rate = (resData[p]<<8)|resData[p+1]; p+=2;
-  const flags = (resData[p]<<8)|resData[p+1]; p+=2;
+  const duration = u32be(resData, p); p+=4;
+  const rate = u16be(resData, p); p+=2;
+  const flags = u16be(resData, p); p+=2;
   const nsamples = Math.floor((resData.length - p)/2);
   const samples = new Int16Array(nsamples);
   for (let i=0;i<nsamples;i++) {
-    let v = (resData[p]<<8)|resData[p+1]; p+=2;
-    if (v >= 0x8000) v -= 0x10000;
+    const v = i16be(resData, p); p+=2;
     samples[i] = v << 8;
   }
   return {rate: rate || 22050, samples};
@@ -1382,10 +1383,11 @@ function renderSound() {
 
 function downloadCurrentWAV() {
   if (!currentWavBlob) return;
-  const link = document.createElement('a');
-  link.download = 'cythera_0x' + currentSoundResid.toString(16).toUpperCase() + '.wav';
-  link.href = URL.createObjectURL(currentWavBlob);
-  link.click();
+  // dlBlob (js/mac-export.js) is the one save path both pages use: it attaches
+  // the anchor before clicking it, which Firefox and iOS Safari require, and
+  // revokes the object URL later rather than in the same tick, which cancels
+  // the download in Firefox. This used to do neither.
+  dlBlob(currentWavBlob, 'cythera_0x' + currentSoundResid.toString(16).toUpperCase() + '.wav');
 }
 
 // --- undither toggle --------------------------------------------------
@@ -1469,7 +1471,7 @@ function loadCompositionTable() {
   let p = 0;
   while (p + 32 <= data.length) {
     const words = [];
-    for (let i=0;i<16;i++) { words.push((data[p]<<8)|data[p+1]); p+=2; }
+    for (let i=0;i<16;i++) { words.push(u16be(data, p)); p+=2; }
     entries.push(words.map(parseCompositionWord));
   }
   return entries;
@@ -1537,7 +1539,24 @@ function buildCompositeTile(entry) {
 //   * The table ends with a 0x7FFF catch-all and then 0x0000 padding, so it
 //     must be read in file order and truncated where the values stop rising.
 //     Sorting instead would move the trailing zeroes to the front.
+//
+// One more: the stored string is a NAME CODE, not a name. delvmod's
+// store.namecode (and redelv, which shows the raw code and both derived forms
+// in adjacent columns) reads a backslash as the point where the plural
+// suffix begins -- "sling stone\s" is "sling stone" and "sling stones" -- and a
+// slash inside that suffix as a choice of two endings, singular first, which
+// is how an irregular plural is spelled out: "obol\s/oi" gives "obols" and
+// "oboloi". Eight entries in 0xF004 use it, and this viewer was showing all
+// eight raw, backslash and all.
 window.TERRAIN_NAMES = null;
+function delverNameCode(nameCode, plural) {
+  const b = String(nameCode).indexOf('\\');
+  if (b < 0) return nameCode;
+  const stem = nameCode.slice(0, b), ending = nameCode.slice(b + 1);
+  const slash = ending.indexOf('/');
+  if (slash >= 0) return stem + (plural ? ending.slice(slash + 1) : ending.slice(0, slash));
+  return plural ? stem + ending : stem;
+}
 function loadTerrainNames() {
   if (window.TERRAIN_NAMES) return window.TERRAIN_NAMES;
   const list = [];
@@ -1546,10 +1565,10 @@ function loadTerrainNames() {
     if (raw) {
       let i = 0, prev = -1;
       while (i + 3 <= raw.length) {
-        const id = (raw[i] << 8) | raw[i+1];
+        const id = u16be(raw, i);
         i += 2;
         let end = i; while (end < raw.length && raw[end] !== 0) end++;
-        let nm = ''; for (let k = i; k < end; k++) nm += String.fromCharCode(raw[k]);
+        const nm = decodeMacRoman(raw.subarray(i, end));
         i = end + 1;
         // Values ascend monotonically through the real table; the first one
         // that does not is the start of the trailing 0x0000 padding.
@@ -1562,12 +1581,12 @@ function loadTerrainNames() {
   window.TERRAIN_NAMES = list;
   return list;
 }
-function terrainNameFor(tileId) {
+function terrainNameFor(tileId, plural) {
   const list = loadTerrainNames();
   if (!list.length) return null;
   // First entry whose value is >= the tile: that run ends at or after it.
   for (const [id, nm] of list) {
-    if (id >= tileId) return nm || null;
+    if (id >= tileId) return nm ? delverNameCode(nm, !!plural) : null;
   }
   // Past the last entry (including the 0x7FFF catch-all) nothing is named.
   return null;
@@ -2173,12 +2192,12 @@ function itemFieldLabel(key) {
 // the disassembly; a stat panel needs the numbers themselves.
 function dvmArrayWords(b, off) {
   if (off + 2 > b.length) return null;
-  const size = ((b[off] << 8) | b[off+1]) & 0x0FFF;
+  const size = u16be(b, off) & 0x0FFF;
   if (size < 1 || size > 64 || off + 2 + size * 4 > b.length) return null;
   const out = [];
   for (let i = 0; i < size; i++) {
     const o = off + 2 + i * 4;
-    out.push((((b[o] << 24) | (b[o+1] << 16) | (b[o+2] << 8) | b[o+3]) >>> 0));
+    out.push(u32be(b, o));
   }
   return out;
 }
@@ -2204,11 +2223,11 @@ function parseItemClass(pt) {
   try { disc = dvmDiscover(b, resid); } catch (e) {}
   const toff = disc ? disc.tableOffset : null;
   if (toff === null || toff + 2 > b.length || (b[toff] & 0xF0) !== 0xA0) return (cache[pt] = null);
-  const count = ((b[toff] << 8) | b[toff+1]) & 0x0FFF;
+  const count = u16be(b, toff) & 0x0FFF;
   const cls = { resid, size: b.length, data: [], code: [], text: [], empty: 0, unknown: 0 };
   for (let i = 0, p = toff + 2; i < count && p + 6 <= b.length; i++, p += 6) {
-    const val = (((b[p] << 24) | (b[p+1] << 16) | (b[p+2] << 8) | b[p+3]) >>> 0);
-    const key = (b[p+4] << 8) | b[p+5];
+    const val = u32be(b, p);
+    const key = u16be(b, p+4);
     // The Table page: a None entry is the same as no entry, and dead keys
     // propagated by copy-and-paste are common. Neither is worth showing.
     if (val === 0x5000FFFF) { cls.empty++; continue; }
@@ -2592,14 +2611,13 @@ const RSRC_DELVER_TYPES = {
 
 // A stamp declares its own dimensions; a brush is a flat run of tiles.
 function rsrcTilePattern(type, data) {
-  const u16 = o => (data[o] << 8) | data[o + 1];
   if (type === 'eSTM') {
     if (data.length < 8) return null;
-    const w = u16(0), h = u16(2);
+    const w = u16be(data, 0), h = u16be(data, 2);
     if (w < 1 || h < 1 || w > 64 || h > 64) return null;
     const n = Math.min(w * h, Math.floor((data.length - 4) / 2));
     const tiles = [];
-    for (let i = 0; i < n; i++) tiles.push(u16(4 + i * 2));
+    for (let i = 0; i < n; i++) tiles.push(u16be(data, 4 + i * 2));
     // ID 128 is 164 bytes where the others are 132, so it carries 32 bytes this
     // reading does not account for. The 8x8 grid it declares is complete, so
     // the extra is reported rather than guessed at.
@@ -2608,7 +2626,7 @@ function rsrcTilePattern(type, data) {
   const n = Math.floor(data.length / 2);
   if (!n) return null;
   const tiles = [];
-  for (let i = 0; i < n; i++) tiles.push(u16(i * 2));
+  for (let i = 0; i < n; i++) tiles.push(u16be(data, i * 2));
   const cols = n === 16 ? 4 : Math.min(n, 8);
   return { tiles, cols, rows: Math.ceil(n / cols), extraBytes: data.length - n * 2, guessedShape: true };
 }
@@ -2634,11 +2652,20 @@ function rsrcInventory() {
   const fork = window.CYTHERA_RSRC;
   if (!fork) return null;
   const delver = [], other = [];
+  let bytes = 0;
   for (const t of fork.typeList) {
-    const row = { type: t.type, count: t.count };
+    // sizeOf reads the length word without copying the payload, which is the
+    // whole reason it is separate from dataOf in js/mac-resfork.js -- summing
+    // the fork this way costs nothing.
+    let size = 0;
+    for (const e of fork.resourcesByType[t.type] || []) {
+      try { size += fork.sizeOf(t.type, e); } catch (err) { /* a bad entry costs its own size */ }
+    }
+    bytes += size;
+    const row = { type: t.type, count: t.count, bytes: size };
     (RSRC_DELVER_TYPES[t.type] ? delver : other).push(row);
   }
-  return { delver, other, total: fork.total(), types: fork.typeList.length };
+  return { delver, other, total: fork.total(), types: fork.typeList.length, bytes };
 }
 
 function rsrcPatternList() {
@@ -2709,7 +2736,8 @@ function renderRsrcSheet() {
   const kinds = {};
   for (const it of list) kinds[it.type] = (kinds[it.type] || 0) + 1;
   out.textContent =
-    'Resource fork: ' + inv.total + ' resources in ' + inv.types + ' types. Showing ' +
+    'Resource fork: ' + inv.total + ' resources in ' + inv.types + ' types, ' +
+    fmtBytes(inv.bytes) + '. Showing ' +
     Object.keys(kinds).map(k => kinds[k] + ' ' + RSRC_DELVER_TYPES[k]).join(' and ') +
     (q ? ' matching “' + q + '”' : '') + '. ' +
     'Also in the fork, and better read in resource_fork_browser.html: ' +
@@ -3175,10 +3203,33 @@ function setStatus(msg, failed) {
 // js/mac-containers.js, which resource_fork_browser.html loads as well -- both
 // pages had their own copy, and each had fixed a bug the other still had.
 
-// Does this buffer actually hold a Delver archive? The master index at 0x88 is
-// 256 (offset,length) pairs; a real one has dozens that point inside the file
-// and are whole numbers of 8-byte entries. Checking that is what tells a data
-// fork from a resource fork, from BinHex ASCII, from an unrelated file.
+// Where the master index is, and how long it is, per delvmod's
+// archive.load_header/load_index: an (offset,length) pair at 0x80, and the
+// index entries start 8 bytes into it -- the first pair describes the index
+// itself. Cythera Data says 0x80/0x800, so the entries run 0x88..0x87F and
+// there are length/8 - 1 = 255 of them.
+//
+// This used to be hardcoded as "256 pairs at 0x88", which invented a subindex
+// 255: that entry sits at 0x880, one slot PAST the end of the index, so the
+// reader was taking the first subindex's own data as an index entry and
+// getting off=0xA07F5000 len=0xFFFF0000. It was bounds-checked away rather
+// than explained. There is no subindex 255 -- those bytes were never anything
+// but what follows the index.
+function delverMasterIndexExtent(bytes) {
+  if (!bytes || bytes.length < 0x88) return null;
+  const off = u32be(bytes, 0x80), len = u32be(bytes, 0x84);
+  // 16 bytes is the smallest index that could hold one entry after its own
+  // self-describing pair, and the whole thing has to be inside the file.
+  if (off < 0x80 || len < 16 || len % 8 !== 0 || off + len > bytes.length) return null;
+  // Nothing past the index can be a subindex, so this is also the floor every
+  // entry's offset has to clear.
+  return { off, len, first: off + 8, count: Math.min(256, len / 8 - 1), dataStart: off + len };
+}
+
+// Does this buffer actually hold a Delver archive? A real master index has
+// dozens of entries that point inside the file and are whole numbers of
+// 8-byte records. Checking that is what tells a data fork from a resource
+// fork, from BinHex ASCII, from an unrelated file.
 function describeDelverArchive(bytes) {
   if (!bytes || bytes.length < 0x888)
     return { ok: false, reason: 'only ' + (bytes ? bytes.length : 0) + ' bytes, too small to hold a master index' };
@@ -3195,13 +3246,16 @@ function describeDelverArchive(bytes) {
     if (printable) title = decodeMacRoman(bytes.subarray(1, 1 + tlen));
   }
   if (!title) return { ok: false, title: '', reason: 'no title string at byte 0' };
+  const mi = delverMasterIndexExtent(bytes);
+  if (!mi) return { ok: false, title, reason: 'no usable master index (offset,length) pair at 0x80' };
   let populated = 0;
-  for (let i = 0; i < 256; i++) {
-    const off = u32be(bytes, 0x88 + i*8), len = u32be(bytes, 0x88 + i*8 + 4);
-    if (off >= 0x888 && len > 0 && len % 8 === 0 && off + len <= bytes.length) populated++;
+  for (let i = 0; i < mi.count; i++) {
+    const off = u32be(bytes, mi.first + i*8), len = u32be(bytes, mi.first + i*8 + 4);
+    if (off >= mi.dataStart && len > 0 && len % 8 === 0 && off + len <= bytes.length) populated++;
   }
   if (populated < 8)
-    return { ok: false, title, populated, reason: 'the master index at 0x88 yields ' + populated + ' usable subindexes' };
+    return { ok: false, title, populated, reason: 'the master index at 0x' + mi.first.toString(16).toUpperCase() +
+      ' yields ' + populated + ' usable subindexes' };
   return { ok: true, title, populated };
 }
 
@@ -3617,17 +3671,20 @@ function parseArchiveBytes(bytes, sourceName, meta) {
   try {
     const r = new BinReader(fileBytes);
     const title = r.pstring(0);
-    r.seek(0x0088);
+    const mi = delverMasterIndexExtent(fileBytes);
+    if (!mi) throw new Error('no master index: the (offset,length) pair at 0x80 does not describe one');
+    r.seek(mi.first);
+    // Bounds-check every entry instead of trusting it, and keep 256 slots
+    // whatever the header says so that a subindex number is always its own
+    // index here. Everything downstream -- getResourceBytes, buildXrefIndex,
+    // buildScriptTextIndex -- sees 34 real subindexes.
     const masterIndex = [];
-    // Bounds-check every entry instead of trusting it. Subindex 255 of the
-    // shipped archive declares off=0xA07F5000 len=0xFFFF0000, and the only
-    // reason that never hung the tool is an accident: getResourceBytes reads
-    // past the buffer, undefined*0x1000000 is NaN, and NaN>>>0 is 0, which
-    // trips the "no offset" test. Everything downstream -- getResourceBytes,
-    // buildXrefIndex, buildScriptTextIndex -- now sees 34 real subindexes.
     for (let i=0; i<256; i++) {
-      let off = r.u32(), len = r.u32();
-      if (!(off >= 0x888 && len > 0 && len % 8 === 0 && off + len <= fileBytes.length)) { off = 0; len = 0; }
+      let off = 0, len = 0;
+      if (i < mi.count) {
+        off = r.u32(); len = r.u32();
+        if (!(off >= mi.dataStart && len > 0 && len % 8 === 0 && off + len <= fileBytes.length)) { off = 0; len = 0; }
+      }
       masterIndex.push([off, len]);
     }
     masterIndexGlobal = masterIndex;
@@ -4679,7 +4736,7 @@ const DELVER_TEXT_ARRAY_RESIDS = new Set([
 ]);
 function parseDelverTextArray(data) {
   if (data.length < 2) return null;
-  const header = (data[0] << 8) | data[1];
+  const header = u16be(data, 0);
   const typecode = (header >> 12) & 0xF;
   const count = header & 0x0FFF;
   if (typecode !== 9) return null; // not an Array-type resource
@@ -4691,7 +4748,7 @@ function parseDelverTextArray(data) {
     // atom advances by 4 like any other. Skipping 1 byte desynced the rest
     // of the array behind it.
     if (b0 < 0x80) { p += 4; continue; } // inline atom, not a dref (rare)
-    const off = (data[p+2] << 8) | data[p+3];
+    const off = u16be(data, p+2);
     p += 4;
     if (off >= data.length) { entries.push({ index: n, offset: off, str: '(offset out of range)' }); continue; }
     let end = off;
@@ -4710,11 +4767,10 @@ function parseDelverTextArray(data) {
 // agrees with the wiki here rather than adding anything to it.
 function parseDelverMap(data) {
   if (data.length < 32) return null;
-  const u16 = (o) => (data[o] << 8) | data[o+1];
-  const width = u16(0), height = u16(2), unknown = u16(4);
-  const roofLayerSize = u16(6), roofUnderlayerSize = u16(8);
+  const width = u16be(data, 0), height = u16be(data, 2), unknown = u16be(data, 4);
+  const roofLayerSize = u16be(data, 6), roofUnderlayerSize = u16be(data, 8);
   const hEdge = data[10], vEdge = data[11];
-  const exitN = u16(12), exitE = u16(14), exitS = u16(16), exitW = u16(18);
+  const exitN = u16be(data, 12), exitE = u16be(data, 14), exitS = u16be(data, 16), exitW = u16be(data, 18);
   // Sanity bounds -- reject anything that isn't a plausible Map header.
   // The format's own ceiling is 4096x4096 (prop coordinates are 12-bit), per
   // the wiki, so that is the limit enforced here. Cythera's own maps are far
@@ -4766,7 +4822,7 @@ function parseDelverPropList(data) {
   for (let p = 0; p + recSize <= data.length; p += recSize) {
     const flags = data[p];
     // read_xy24: 3 bytes packing 12-bit x, 12-bit y
-    const raw = (data[p+1] << 16) | (data[p+2] << 8) | data[p+3];
+    const raw = (data[p+1] << 16) | u16be(data, p+2);
     const x = raw >> 12, y = raw & 0x0FFF;
     // ...except when the prop is not on the floor at all. delvmod's level.py
     // (textual_location / inside_something) and the wiki's subindex 128 page
@@ -4782,12 +4838,12 @@ function parseDelverPropList(data) {
     // "okay to take".
     const carried = !!(flags & 0x10), inside = !!(flags & 0x08);
     const holder = raw & 0xFFFF;
-    const aw = (data[p+4] << 8) | data[p+5];
+    const aw = u16be(data, p+4);
     const aspectRot = (aw >> 10) & 0x3F, proptype = aw & 0x03FF;
-    const d3 = (data[p+6] << 8) | data[p+7];
-    const storeref = (data[p+8] << 8) | data[p+9];
-    const otherprop = (((data[p+8]<<24)|(data[p+9]<<16)|(data[p+10]<<8)|data[p+11]) >>> 0);
-    const u = (data[p+14] << 8) | data[p+15];
+    const d3 = u16be(data, p+6);
+    const storeref = u16be(data, p+8);
+    const otherprop = u32be(data, p+8);
+    const u = u16be(data, p+14);
     let tail = '';
     for (let k = p+10; k < p+16; k++) tail += data[k].toString(16).padStart(2,'0');
     records.push({
@@ -4817,10 +4873,10 @@ function loadStoreSymbols() {
     if (raw) {
       let i = 0;
       while (i + 3 <= raw.length) {
-        const key = (raw[i] << 8) | raw[i+1];
+        const key = u16be(raw, i);
         i += 2;
         let end = i; while (end < raw.length && raw[end] !== 0) end++;
-        let nm = ''; for (let k = i; k < end; k++) nm += String.fromCharCode(raw[k]);
+        const nm = decodeMacRoman(raw.subarray(i, end));
         i = end + 1;
         if (nm) names[key] = nm;
       }
@@ -4841,7 +4897,7 @@ function storeSymbol(key) { return key ? (loadStoreSymbols()[key] || null) : nul
 function parseDelverScheduleList(data) {
   if (data.length < 512) return null;
   const lengths = [];
-  for (let i = 0; i < 256; i++) lengths.push((data[i*2] << 8) | data[i*2+1]);
+  for (let i = 0; i < 256; i++) lengths.push(u16be(data, i*2));
   let p = 512;
   const schedules = [];
   for (let ci = 0; ci < 256; ci++) {
@@ -4849,10 +4905,10 @@ function parseDelverScheduleList(data) {
     const entries = [];
     for (let n = 0; n < len && p + 8 <= data.length; n++) {
       const hour = data[p], mode = data[p+1];
-      const scripting = (data[p+2] << 8) | data[p+3];
+      const scripting = u16be(data, p+2);
       const level = data[p+4];
       // read_xy24: 3 bytes packing 12-bit x, 12-bit y
-      const raw = (data[p+5] << 16) | (data[p+6] << 8) | data[p+7];
+      const raw = (data[p+5] << 16) | u16be(data, p+6);
       const x = raw >> 12, y = raw & 0x0FFF;
       p += 8;
       entries.push({ hour, mode, scripting, level, x, y });
@@ -4886,7 +4942,7 @@ function getPropTileList() {
   const data = getResourceBytes(0xF000);
   if (!data) { _propTileListCache = []; return _propTileListCache; }
   const arr = [];
-  for (let i=0;i+1<data.length;i+=2) arr.push((data[i]<<8)|data[i+1]);
+  for (let i=0;i+1<data.length;i+=2) arr.push(u16be(data, i));
   _propTileListCache = arr;
   return arr;
 }
@@ -4900,15 +4956,19 @@ function getPropOffsets() {
 // square's top-left corner -- which is what delvmod's draw_tile() does
 // (`x*32-xo, y*32-yo`). This viewer used to add it, so the eight offset
 // statues, the candlestands and Land King Hall's rope all sat 8-13px down and
-// right of where the game puts them. The bytes are signed: 0xF011 holds 232
-// for one cavern aspect, which is -24, not a quarter-tile shove off the map.
-// When the record's rotate bit is set the pair is transposed with the image
-// (delvmod: `offset[::-1] if rotated`).
+// right of where the game puts them. When the record's rotate bit is set the
+// pair is transposed with the image (delvmod: `offset[::-1] if rotated`).
+//
+// The bytes are read UNSIGNED, as delvmod's store.ByteList does. Exactly one
+// of the 32768 entries exceeds 127 -- prop type 381 ("cavern") aspect 13, at
+// 232 -- and it is reachable by nothing: no prop record, no faux prop on any
+// map's terrain and no character record uses that type-and-aspect pair. So
+// whether it means 232 or -24 is unobservable in this archive, and matching
+// the reference implementation beats guessing.
 function propOffsetFor(proptype, aspect, rotated) {
   const [offX, offY] = getPropOffsets();
   const oi = ((proptype & 0x3FF) << 5) + (aspect & 0x1F);
-  const sgn = v => (v > 127 ? v - 256 : v);
-  let ox = sgn(offX[oi] || 0), oy = sgn(offY[oi] || 0);
+  let ox = offX[oi] || 0, oy = offY[oi] || 0;
   if (rotated) { const t = ox; ox = oy; oy = t; }
   return [ox, oy];
 }
@@ -4929,7 +4989,7 @@ function getFauxProps() {
   try {
     const b = getResourceBytes(0xF010);
     if (b) for (let i = 0; i + 1 < b.length; i += 2) {
-      const w = (b[i] << 8) | b[i+1];
+      const w = u16be(b, i);
       const pt = w & 0x3FF;
       if (pt) out.set(i >> 1, { proptype: pt, aspect: (w >> 10) & 0x1F, rotated: w >> 15 });
     }
@@ -5084,7 +5144,7 @@ function getTileAttributes() {
   const n = Math.floor(data.length / 4);
   const arr = new Uint32Array(n);
   for (let i = 0; i < n; i++) {
-    arr[i] = ((data[i*4]<<24)|(data[i*4+1]<<16)|(data[i*4+2]<<8)|data[i*4+3])>>>0;
+    arr[i] = u32be(data, i*4);
   }
   tileAttrCache = arr;
   return arr;
@@ -5141,15 +5201,15 @@ function loadSchedules() {
   const raw = getResourceBytes(0xF00B);
   if (!raw) return (window.SCHEDULES = []);
   const lengths = [];
-  for (let i = 0; i < 0x100; i++) lengths.push((raw[i*2] << 8) | raw[i*2+1]);
+  for (let i = 0; i < 0x100; i++) lengths.push(u16be(raw, i*2));
   let p = 512;
   const all = [];
   for (const len of lengths) {
     const entries = [];
     for (let k = 0; k < len && p + 8 <= raw.length; k++) {
-      const xy = (raw[p+5] << 16) | (raw[p+6] << 8) | raw[p+7];
+      const xy = (raw[p+5] << 16) | u16be(raw, p+6);
       entries.push({ hour: raw[p], mode: raw[p+1],
-                     script: (raw[p+2] << 8) | raw[p+3], level: raw[p+4],
+                     script: u16be(raw, p+2), level: raw[p+4],
                      x: xy >> 12, y: xy & 0xFFF });
       p += 8;
     }
@@ -5177,13 +5237,13 @@ function loadCharacterTable() {
   // exactly his 0-hour schedule position), bytes 4-5 aspect<<10 | proptype.
   const out = [];
   for (let i = 0; i + 32 <= raw.length; i += 32) {
-    const ap = (raw[i+4] << 8) | raw[i+5];
-    const xy = (raw[i+1] << 16) | (raw[i+2] << 8) | raw[i+3];
+    const ap = u16be(raw, i+4);
+    const xy = (raw[i+1] << 16) | u16be(raw, i+2);
     out.push({
       proptype: ap & 0x03FF, aspect: ap >> 10,
       zone: raw[i], x: xy >> 12, y: xy & 0xFFF,
       body: raw[i+9], reflex: raw[i+10], mind: raw[i+11],
-      xp: (raw[i+12] << 8) | raw[i+13],
+      xp: u16be(raw, i+12),
       hp: raw[i+14], hpMax: raw[i+15],
       mp: raw[i+16], mpMax: raw[i+17],
       level: raw[i+19], training: raw[i+28]
@@ -5560,7 +5620,6 @@ function drawRoofLayer() {
   if (!window.MAP_ROOFS || !cm.roofSections || !cm.roofSections.length) return;
   const m = cm.m, TS = cm.TS;
   if (!m || !m.raw) return;
-  const u16 = o => (m.raw[o] << 8) | m.raw[o+1];
   let drawn = 0;
   // In prop-list order, so a later block laid over an earlier one wins -- which
   // is how the ridge block finishes the roof of Charax's house.
@@ -5569,7 +5628,7 @@ function drawRoofLayer() {
     if (base + 128 > m.raw.length) continue;
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
-        const tile = u16(base + (row * 8 + col) * 2);
+        const tile = u16be(m.raw, base + (row * 8 + col) * 2);
         if (!tile) continue;                      // 0 is nothing, not a tile
         const gx = sec.x - 7 + col, gy = sec.y - 7 + row;
         if (gx < 0 || gy < 0 || gx >= m.width || gy >= m.height) continue;
@@ -5887,7 +5946,7 @@ function mapTileAt(m, x, y) {
   const d = m.raw;
   if (!d) return 0;
   const o = m.mapDataOffset + (x + y*m.width)*2;
-  return (d[o] << 8) | d[o+1];
+  return u16be(d, o);
 }
 // getTileAttributes() returns one packed u32 per tile (b0<<24|b1<<16|b2<<8|b3),
 // not raw bytes -- indexing it as bytes read only a quarter of the table and
@@ -6235,12 +6294,12 @@ function dvmClassName(resid) {
 // things like an item's weight.
 function dvmArrayContents(seg) {
   if (seg.length < 2) return null;
-  const size = ((seg[0] << 8) | seg[1]) & 0x0FFF;
+  const size = u16be(seg, 0) & 0x0FFF;
   if (size > 64 || 2 + size*4 > seg.length) return null;
   const vals = [];
   for (let i = 0; i < size; i++) {
     const o = 2 + i*4;
-    vals.push(dvmWord(((seg[o] << 24) | (seg[o+1] << 16) | (seg[o+2] << 8) | seg[o+3]) >>> 0));
+    vals.push(dvmWord(u32be(seg, o)));
   }
   return vals;
 }
@@ -6279,11 +6338,11 @@ function loadResourceSymbols() {
     const raw = getResourceBytes(0x0101);
     if (raw) {
       const d = smartDecrypt(raw, 0x0101).data;
-      const n = (((d[0] << 8) | d[1]) & 0x0FFF);
+      const n = u16be(d, 0) & 0x0FFF;
       let p = 2;
       for (let i = 0; i < n && p + 6 <= d.length; i++) {
-        const v = (((d[p] << 24) | (d[p+1] << 16) | (d[p+2] << 8) | d[p+3]) >>> 0);
-        const k = (d[p+4] << 8) | d[p+5];
+        const v = u32be(d, p);
+        const k = u16be(d, p+4);
         p += 6;
         if (!(v & 0x80000000)) continue;
         if (((v & 0x7FFF0000) >>> 16) !== 0x0101) continue;
@@ -6351,7 +6410,6 @@ function dvmDisassemble(b, start) {
     const imp = dvmImplicitString(b, p);
     if (imp && imp.text !== null) { out.push([p, 0, 'string(implicit)', JSON.stringify(imp.text)]); p = imp.next; }
   }
-  const u16 = o => (b[o] << 8) | b[o+1];
   const hex = (o,n) => { let s=''; for (let i=0;i<n;i++) s += b[o+i].toString(16).padStart(2,'0').toUpperCase(); return s; };
   while (p < b.length) {
     const op = b[p], at = p; p++;
@@ -6360,7 +6418,7 @@ function dvmDisassemble(b, start) {
     if (op === 0x40) {
       const owner = stack.pop();
       if (DVM_TARGETED.has(owner) && p + 2 <= b.length) {
-        out.push([at, -1, 'then', '-> 0x' + u16(p).toString(16).padStart(4,'0').toUpperCase()]); p += 2;
+        out.push([at, -1, 'then', '-> 0x' + u16be(b, p).toString(16).padStart(4,'0').toUpperCase()]); p += 2;
       } else out.push([at, -1, 'end', '']);
       // delvmod drops out of code mode whenever the expectation stack drains,
       // and can re-enter it, so a drain is NOT the end of the function -- it is
@@ -6387,13 +6445,14 @@ function dvmDisassemble(b, start) {
     const mn = e[0], spec = e[1], expect = e[2];
     let arg = '';
     if (spec === 'c' || spec === 'C') {
-      let s = '';
-      while (p < b.length && b[p] !== 0) { s += String.fromCharCode(b[p]); p++; }
-      p++;
+      let z = p;
+      while (z < b.length && b[z] !== 0) z++;
+      const s = decodeMacRoman(b.subarray(p, z));
+      p = z + 1;
       arg = JSON.stringify(s);
-      if (spec === 'C') { arg += ' -> 0x' + (p + 2 <= b.length ? u16(p) : 0).toString(16).padStart(4,'0').toUpperCase(); p += 2; }
+      if (spec === 'C') { arg += ' -> 0x' + (p + 2 <= b.length ? u16be(b, p) : 0).toString(16).padStart(4,'0').toUpperCase(); p += 2; }
     } else if (spec === 'D') {
-      const sz = p + 2 <= b.length ? u16(p) : 0; p += 2 + sz; arg = '<' + sz + ' bytes>';
+      const sz = p + 2 <= b.length ? u16be(b, p) : 0; p += 2 + sz; arg = '<' + sz + ' bytes>';
     } else if (spec === 1 && (mn === 'get_field' || mn === 'set_field')) {
       arg = dvmSym('field', b[p]); p += 1;
     } else if (spec === 1 && (mn === 'method' || mn === 'has_member')) {
@@ -6405,11 +6464,11 @@ function dvmDisassemble(b, start) {
     } else if (spec === 1 && (mn === 'cast' || mn === 'is_type')) {
       arg = dvmSym('objtype', b[p]); p += 1;
     } else if (spec === 2 && mn === 'call_resource') {
-      const rid = (b[p] << 8) | b[p+1]; p += 2;
+      const rid = u16be(b, p); p += 2;
       const nm = resourceSymbol(rid);
       arg = nm ? nm + ' (0x' + rid.toString(16).toUpperCase() + ')' : dvmSym('resource', rid);
     } else if (spec === 4 && mn === 'word') {
-      arg = dvmWord(((b[p] << 24) | (b[p+1] << 16) | (b[p+2] << 8) | b[p+3]) >>> 0);
+      arg = dvmWord(u32be(b, p));
       p += 4;
     } else if (spec) { arg = '0x' + hex(p, spec); p += spec; }
     out.push([at, expect ? 1 : 0, mn, arg]);
@@ -6446,12 +6505,8 @@ function dvmNamedScript(b) {
   if (!b || b.length < 6) return null;
   const n = b[0];
   if (n < 3 || n > 63 || n + 2 >= b.length) return null;
-  let name = '';
-  for (let i = 1; i <= n; i++) {
-    const c = b[i];
-    if (c < 0x20 || c > 0x7E) return null;
-    name += String.fromCharCode(c);
-  }
+  for (let i = 1; i <= n; i++) if (b[i] < 0x20 || b[i] > 0x7E) return null;
+  const name = decodeMacRoman(b.subarray(1, n + 1));
   if (!/[A-Za-z]/.test(name)) return null;
   return { name, bodyOffset: n + 1 };
 }
@@ -6461,13 +6516,13 @@ function dvmPlausibleContainer(b, resid) {
   const v = b[0];
   if (v === 0x81) return b[1] < 0x10 && b[2] < 0x30;
   if ((v & 0xF0) === 0x90 || (v & 0xF0) === 0xA0) return true;
-  const toff = (b[0] << 8) | b[1];
+  const toff = u16be(b, 0);
   if (toff < 2 || toff + 2 > b.length) return false;
-  const count = ((b[toff] << 8) | b[toff+1]) & 0x0FFF;
+  const count = u16be(b, toff) & 0x0FFF;
   if (count === 0 || toff + 2 + count * 6 > b.length + 6) return false;
   let hits = 0;
   for (let i = 0, p = toff + 2; i < count && p + 6 <= b.length; i++, p += 6) {
-    const value = (((b[p] << 24) | (b[p+1] << 16) | (b[p+2] << 8) | b[p+3]) >>> 0);
+    const value = u32be(b, p);
     if (!(value & 0x80000000)) continue;
     if (((value & 0x7FFF0000) >>> 16) !== resid) continue;
     if ((value & 0xFFFF) < b.length) hits++;
@@ -6478,8 +6533,6 @@ function dvmPlausibleContainer(b, resid) {
 function dvmDiscover(b, resid) {
   const n = b.length;
   if (!n) return { tableOffset: null, kinds: {} };
-  const u16 = o => (b[o] << 8) | b[o+1];
-  const u32 = o => (((b[o] << 24) | (b[o+1] << 16) | (b[o+2] << 8) | b[o+3]) >>> 0);
   const kindAt = off => {
     if (off >= n) return 'oob';
     const v = b[off];
@@ -6502,7 +6555,7 @@ function dvmDiscover(b, resid) {
   }
   if ((head & 0xF0) === 0x90 || (head & 0xF0) === 0xA0) { tableOffset = n; roots = [0]; }
   else {
-    tableOffset = u16(0);
+    tableOffset = u16be(b, 0);
     if (tableOffset + 2 > n) return { tableOffset: null, kinds: {} };
     roots = [tableOffset];
   }
@@ -6513,11 +6566,11 @@ function dvmDiscover(b, resid) {
     seen.add(off);
     const k = kindAt(off); kinds[off] = k;
     if (k === 'array' || k === 'table' || off === tableOffset) {
-      const size = u16(off) & 0x0FFF;
+      const size = u16be(b, off) & 0x0FFF;
       const stride = (k === 'table' || off === tableOffset) ? 6 : 4;
       let p = off + 2;
       for (let i = 0; i < size && p + stride <= n; i++) {
-        const value = u32(p); p += stride;
+        const value = u32be(b, p); p += stride;
         if (!(value & 0x80000000)) continue;
         if (((value & 0x7FFF0000) >>> 16) !== resid) continue;
         const t = value & 0xFFFF;
@@ -6582,7 +6635,7 @@ function dvmRender(b, resid) {
   const lines = [];
   let clean = 0, failed = 0;
   const hex4 = v => v.toString(16).padStart(4,'0').toUpperCase();
-  const str = seg => { let t=''; for (const c of seg) if (c) t += String.fromCharCode(c); return t; };
+  const str = seg => decodeMacRoman(seg.filter(c => c));
   for (const [st, en, kind] of objs) {
     const seg = b.subarray(st, Math.min(en, b.length));
     if (!seg.length) continue;
@@ -6626,13 +6679,9 @@ function dvmRender(b, resid) {
 // The four "N -> somewhere" buttons that used to sit above the map are gone.
 // They read the map header's edge zoneports, which most maps leave empty, so
 // on nearly every map they said "No zoneport exits (edges are sealed)" and on
-// the rest they duplicated the gallery. Zone exits are now a map overlay
+// the rest they duplicated the gallery. Zone exits are a map overlay now
 // (drawMapMarks, "Zone exits"), which finds the tunnel mouths and the door out
 // to the world map as well as the open edges.
-function removeZoneportBar() {
-  const bar = document.getElementById('zoneportBar');
-  if (bar && bar.parentNode) bar.parentNode.removeChild(bar);
-}
 
 function renderMapVisual(resid, mapData) {
   const m = parseDelverMap(mapData);
@@ -6661,14 +6710,13 @@ function renderMapVisual(resid, mapData) {
   // Draw base terrain tiles. Always opaque -- see drawTileAt comment. Each
   // one may carry a faux prop (0xF010), drawn immediately on top of it, which
   // is where the cave walls, trees, shrubs and mountains come from.
-  const u16 = (o) => (mapData[o] << 8) | mapData[o+1];
   const faux = getFauxProps();
   const fauxTiles = getPropTileList();
   const fauxDrawn = [];
   for (let y=0; y<m.height; y++) {
     for (let x=0; x<m.width; x++) {
       const off = m.mapDataOffset + (x + y*m.width)*2;
-      const tileId = u16(off);
+      const tileId = u16be(mapData, off);
       drawTileAt(ctx, tileId, x*TS, y*TS, false, TS);
       const fp = faux.get(tileId);
       if (fp) fauxDrawn.push([x, y, fp]);
@@ -6792,7 +6840,7 @@ function renderMapVisual(resid, mapData) {
   for (let ty = 0; ty < m.height; ty++) {
     for (let tx = 0; tx < m.width; tx++) {
       const o = m.mapDataOffset + (tx + ty*m.width)*2;
-      const t = (mapData[o] << 8) | mapData[o+1];
+      const t = u16be(mapData, o);
       if (t && tileIsAnimated(t)) animCells.push([tx, ty, t]);
     }
   }
@@ -7276,7 +7324,6 @@ function renderMapPreview() {
     }
     result.canvas.id = 'mapTerrainCanvas';
     wrap.appendChild(result.canvas);
-    removeZoneportBar();
     window.CUR_MAP = { resid, level: resid & 0xFF, TS: result.tileSize,
                        width: result.canvas.width, height: result.canvas.height,
                        canvas: result.canvas, m: result.m, animCells: result.animCells,
@@ -7482,7 +7529,7 @@ function dvmStringObjects(b, resid) {
         for (let i = 0; i < body.length; i++) if (body[i] === 0) { z = i; break; }
         const head = z > 0 ? body.subarray(0, z) : body;
         if (dvmIsProse(head)) {
-          let t = ''; for (const c of head) if (c) t += String.fromCharCode(c);
+          const t = decodeMacRoman(head.filter(c => c));
           if (t.trim()) out.push({ offset: st + 3, str: t, kind: 'delver' });
           continue;
         }
@@ -7502,7 +7549,7 @@ function dvmStringObjects(b, resid) {
         }
       } else if (kind !== 'array' && kind !== 'table') {
         if (!(dvmIsProse(seg) || dvmIsIdentifier(seg))) continue;
-        let t = ''; for (const c of seg) if (c) t += String.fromCharCode(c);
+        const t = decodeMacRoman(seg.filter(c => c));
         if (t.trim()) out.push({ offset: st, str: t, kind: 'delver' });
       }
     }
@@ -7638,8 +7685,6 @@ function dvmOutboundRefs(b, resid) {
   const refs = [];
   const n = b ? b.length : 0;
   if (!n) return refs;
-  const u16 = o => (b[o] << 8) | b[o+1];
-  const u32 = o => (((b[o] << 24) | (b[o+1] << 16) | (b[o+2] << 8) | b[o+3]) >>> 0);
   const take = (off, w, via) => {
     if (w & 0x80000000) {
       // dref: 0x8000_0000 | resid<<16 | offset
@@ -7665,10 +7710,10 @@ function dvmOutboundRefs(b, resid) {
   for (const off of offs) {
     const kind = (off === tableOffset) ? 'table' : kinds[off];
     if (kind === 'array' || kind === 'table') {
-      const size = u16(off) & 0x0FFF;
+      const size = u16be(b, off) & 0x0FFF;
       const stride = (kind === 'table') ? 6 : 4;
       for (let i = 0, p = off + 2; i < size && p + 4 <= n; i++, p += stride) {
-        take(p, u32(p), kind);
+        take(p, u32be(b, p), kind);
       }
     } else if (kind === 'function') {
       // Slice to the next discovered offset so a function does not decode on
@@ -7679,9 +7724,9 @@ function dvmOutboundRefs(b, resid) {
       try { ops = dvmDisassemble(b.slice(off, end), 3).ops; } catch (e) { continue; }
       for (const [at, , mn] of ops) {
         const a = off + at;
-        if (mn === 'word' && a + 5 <= n) take(a, u32(a + 1), 'code');
+        if (mn === 'word' && a + 5 <= n) take(a, u32be(b, a + 1), 'code');
         else if (mn === 'call_resource' && a + 3 <= n) {
-          const r = (b[a+1] << 8) | b[a+2];
+          const r = u16be(b, a+1);
           if (r && r !== resid) refs.push({ off: a, kind: 'call', target: r, detail: 'call_resource', via: 'code' });
         }
       }
@@ -8330,13 +8375,13 @@ function parseMonsterStats() {
         const p = i * 16, r = d.subarray(p, p + 16);
         let blank = true;
         for (const v of r) if (v) { blank = false; break; }
-        const cw = (r[14] << 8) | r[15];
+        const cw = u16be(r, 14);
         out.push({
           index: i, blank, raw: r,
           body: r[0], reflex: r[1], mind: r[2], armor: r[3], size: r[4], hp: r[5],
-          unknown2: (((r[6] << 24) | (r[7] << 16) | (r[8] << 8) | r[9]) >>> 0),
-          flags: (r[10] << 8) | r[11],
-          proptype: (r[12] << 8) | r[13],
+          unknown2: u32be(r, 6),
+          flags: u16be(r, 10),
+          proptype: u16be(r, 12),
           corpseWord: cw, corpseType: cw & 0x03FF, corpseAspect: (cw >> 10) & 0x3F
         });
       }
@@ -8510,7 +8555,7 @@ function renderTableInspector(resid) {
     const p = i * w;
     let hexs = '', words = '';
     for (let k = 0; k < w; k++) hexs += d[p + k].toString(16).padStart(2, '0') + ' ';
-    for (let k = 0; k + 1 < w; k += 2) words += (((d[p + k] << 8) | d[p + k + 1]) + '').padStart(6) + ' ';
+    for (let k = 0; k + 1 < w; k += 2) words += (u16be(d, p+k) + '').padStart(6) + ' ';
     body += String(i).padStart(4) + '  ' + hexs + ' |' + words + '\n';
   }
   if (Math.floor(d.length / w) > rows) body += '... ' + (Math.floor(d.length / w) - rows) + ' more records\n';
@@ -8796,12 +8841,7 @@ function downloadCurrentRawBytes() {  const bytes = window.CUR_RAW_BYTES;
   if (!bytes || currentResid == null) return;
   const subn = window.CUR_SUBN;
   const ext = (subn === 143) ? 'qtma' : 'bin';
-  const blob = new Blob([bytes], {type: 'application/octet-stream'});
-  const link = document.createElement('a');
-  link.download = 'cythera_0x' + currentResid.toString(16).toUpperCase() + '.' + ext;
-  link.href = URL.createObjectURL(blob);
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+  downloadBlob(bytes, 'cythera_0x' + currentResid.toString(16).toUpperCase() + '.' + ext);
 }
 
 // General MIDI program names (1-128), used to label decoded QTMA parts.
@@ -8878,7 +8918,7 @@ function qExtractGmFromNoteReq(bytes){
   // gmNumber is the last long of ToneDescription.
   if (bytes.length < 8+76) return null;
   const o = 8+72;
-  const gm = ((bytes[o]<<24)|(bytes[o+1]<<16)|(bytes[o+2]<<8)|bytes[o+3])>>>0;
+  const gm = u32be(bytes, o);
   return (gm>=0 && gm<=128) ? gm : null;
 }
 function qParseTune(words){
@@ -9020,8 +9060,9 @@ function qtmaToMidi(data){
   const dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
   if (data.length < 8) throw new Error('Resource too short to be a QTMA tune.');
   const musiLen = dv.getUint32(0);
-  if (String.fromCharCode(data[4],data[5],data[6],data[7]) !== 'musi')
-    throw new Error("Not a QTMA 'musi' atom.");
+  const atom = fourcc(data, 4);
+  if (atom !== 'musi')
+    throw new Error("Not a QTMA 'musi' atom (found '" + atom + "').");
   const toWords = (start, end) => {
     let len = end - start; len -= len % 4;
     const w = new Array(len/4);
@@ -9041,12 +9082,8 @@ function qtmaToMidi(data){
 function downloadCurrentMidi(){
   try {
     const info = qtmaToMidi(window.CUR_RAW_BYTES);
-    const blob = new Blob([info.midi], {type:'audio/midi'});
-    const link = document.createElement('a');
-    link.download = 'cythera_0x' + currentResid.toString(16).toUpperCase() + '.mid';
-    link.href = URL.createObjectURL(blob);
-    link.click();
-    setTimeout(()=>URL.revokeObjectURL(link.href), 4000);
+    dlBlob(new Blob([info.midi], {type:'audio/midi'}),
+           'cythera_0x' + currentResid.toString(16).toUpperCase() + '.mid');
   } catch(e) {
     // An alert() is a modal interruption for something the page can simply
     // say; every other failure in this file reports through #output.
@@ -9088,7 +9125,7 @@ function buildTileSheetUsage() {
     const seen = new Set();
     for (let i = 0; i < m.width * m.height; i++) {
       const o = m.mapDataOffset + i*2;
-      const t = (data[o] << 8) | data[o+1];
+      const t = u16be(data, o);
       if (t && t < 0x1000) seen.add(sheetResidForTile(t));
     }
     for (const s of seen) bucket(s).maps.push(mapResid);
@@ -9213,25 +9250,27 @@ function downloadCurrentPNG() {
 // else attached. Otherwise -- a composited map, say -- fall back to
 // canvas.toBlob() and strip the metadata the browser added.
 function triggerPNGDownload(canvas, filename) {
-  const finish = (href, revoke) => {
+  // The blob paths go through dlBlob (js/mac-export.js), which is where the
+  // attach-then-click and the delayed revoke now live. Only the data: URI
+  // fallback -- a canvas with no toBlob at all -- still builds its own anchor,
+  // because there is no blob to hand over.
+  const dataUri = (href) => {
     const link = document.createElement('a');
     link.download = filename;
     link.href = href;
     link.rel = 'noopener';
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    if (revoke) setTimeout(() => URL.revokeObjectURL(href), 4000);
+    link.remove();
   };
-  const send = (bytes) =>
-    finish(URL.createObjectURL(new Blob([bytes], { type: 'image/png' })), true);
+  const send = (bytes) => dlBlob(new Blob([bytes], { type: 'image/png' }), filename);
   const fallback = () => {
-    if (!canvas.toBlob) { finish(canvas.toDataURL('image/png'), false); return; }
+    if (!canvas.toBlob) { dataUri(canvas.toDataURL('image/png')); return; }
     canvas.toBlob((blob) => {
-      if (!blob) { finish(canvas.toDataURL('image/png'), false); return; }
+      if (!blob) { dataUri(canvas.toDataURL('image/png')); return; }
       blob.arrayBuffer()
         .then((buf) => send(stripPngMetadata(new Uint8Array(buf))))
-        .catch(() => finish(URL.createObjectURL(blob), true));
+        .catch(() => dlBlob(blob, filename));
     }, 'image/png');
   };
   const meta = canvas && canvas.__cythIndexed;
@@ -9264,7 +9303,11 @@ function isCompletelyWhite(image) {
 function snippetWorth(run) {
   const t = run.trim();
   if (t.length < 6) return 0;
-  const letters = (t.match(/[A-Za-z]/g) || []).length;
+  // Mac Roman decoding (js/mac-bytes.js) turns the archive's high bytes into
+  // real accented letters and curly punctuation, so the letter test has to
+  // count them -- otherwise every line of Cythera's own prose that happens to
+  // carry an accent scores as though it were half punctuation.
+  const letters = (t.match(/[A-Za-z\u00C0-\u024F]/g) || []).length;
   if (letters / t.length < 0.6) return 0;
   const words = t.split(/\s+/).filter(w => w.length > 1);
   let score = letters;
@@ -9279,12 +9322,19 @@ function snippetWorth(run) {
 
 function sheetTextSnippet(resid, roff, rlen, limit) {
   limit = limit || 150;
-  // A string object's first byte is sometimes the opcode that pushed it -- the
-  // same off-by-two the skill names hit (see normalizeLabel) -- so a preview
-  // opens with a stray '@' or 'P' before the quotation mark. Dropped only in
-  // that exact position, and only for display.
+  // A string object picks up the odd opcode byte at either end -- the same
+  // off-by-two the skill names hit (see normalizeLabel). At the front it shows
+  // as a stray '@' or 'P' before the quotation mark; at the back, now that the
+  // bytes decode as Mac Roman rather than vanishing into C1 controls, it shows
+  // as a lone accented capital after the final stop ("...proud demeanor.*Ç").
+  // Both are dropped only in those exact positions, and only for display: the
+  // Strings and Hex tabs still show the raw bytes.
   const tidy = t => t.replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ')
-                     .replace(/^[\x40-\x50](?=["'*\u201c])/, '').replace(/^@(?=[A-Za-z])/, '').trim();
+                     .replace(/^[\x40-\x50](?=["'*\u2018\u201c])/, '')
+                     .replace(/^@(?=[A-Za-z])/, '')
+                     .replace(/([.!?*"'\u201d])[\u0080-\u00FF]$/, '$1')
+                     .replace(/\*$/, '')
+                     .trim();
   // Cut on a word boundary. A snippet used to stop wherever the character
   // count ran out, which in a 150-character box meant most tiles ended in the
   // middle of a word.
