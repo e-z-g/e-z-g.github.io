@@ -85,6 +85,12 @@ input[type=range]{width:100%; accent-color:var(--aqua); margin:0; height:18px}
 .rampBtn{display:grid; grid-template-columns:auto minmax(0,1fr); gap:7px; align-items:center; text-align:left;
   width:100%; padding:4px 5px; cursor:pointer; background:transparent; border:1px solid transparent;
   border-radius:3px}
+.regRow{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:6px; align-items:center}
+.regRow{margin-bottom:4px}
+.regRow .rampBtn{grid-template-columns:auto minmax(0,1fr) auto; border-color:var(--line-soft)}
+.rateBox{display:inline-flex; align-items:center; gap:6px}
+.rateBox input[type=range]{width:90px}
+.rateBox input[type=number]{width:66px; padding:3px 5px}
 .dirBtn{width:25px; height:25px; padding:0; border-radius:3px; border:1px solid var(--line);
   background:var(--raise); color:var(--ink-2); cursor:pointer; font-size:14px; line-height:1}
 .dirBtn:hover{border-color:var(--aqua); color:var(--aqua)}
@@ -169,7 +175,7 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
         <input type="range" id="lam" min="2" max="40" value="8"></label>
       <label class="fld" data-for="turb"><span><span id="turbName">Turbulence</span> <b id="vTurb">1.4</b></span>
         <input type="range" id="turb" min="0" max="60" value="14"></label>
-      <label class="fld" data-for="spin"><span>Spiral arms <b id="vSpin">0</b></span>
+      <label class="fld" data-for="spin"><span><span id="spinName">Spiral arms</span> <b id="vSpin">0</b></span>
         <input type="range" id="spin" min="-80" max="80" value="0"></label>
       <div>
         <label class="chk"><input type="checkbox" id="rev"> Reverse</label>
@@ -199,6 +205,8 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
         <button type="button" class="btn" id="bPng">PNG</button>
       </div>
       <input type="file" id="fileIn" accept="image/*" hidden>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="impCycle" checked>
+        Import onto live registers</label>
       <p class="mono" id="saveNote" style="font-size:11px; color:var(--muted); margin:7px 0 0"></p>
     </div>
   </aside>
@@ -209,8 +217,11 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       <button type="button" class="btn" id="stepB" aria-label="Previous frame">&#9664;</button>
       <div class="frames" id="frames"></div>
       <button type="button" class="btn" id="stepF" aria-label="Next frame">&#9654;</button>
-      <label class="fld" style="margin:0; width:104px"><span>Rate <b id="vRate">140 ms</b></span>
-        <input type="range" id="rate" min="50" max="400" step="10" value="140"></label>
+      <span class="rateBox"><span class="eyebrow">Rate</span>
+        <input type="range" id="rate" min="16" max="600" step="2" value="140" aria-label="Frame rate">
+        <input type="number" id="rateN" min="1" max="600000" step="1" value="140"
+               aria-label="Frame interval in milliseconds" title="Milliseconds per frame. Below about 16 the display cannot keep up.">
+        <span class="mono" style="font-size:11px; color:var(--muted)">ms</span></span>
       <span class="sp" style="flex:1"></span>
       <button type="button" class="btn" id="undo">Undo</button>
       <button type="button" class="btn" id="clear">Clear</button>
@@ -245,7 +256,8 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
   <button type="button" class="btn" data-close>Close</button></div>
   <div class="db">
     <p>Delver animates exactly 28 indices &mdash; <code>0xE0&ndash;0xFB</code>, the five ramps at the top
-      of the list. That is all the cycling colour the game itself has.</p>
+      of the list. That is all the cycling colour the game itself has. They are registers like any other,
+      so you can switch them off too: those indices then hold perfectly ordinary still paint.</p>
     <p>You can allocate more from the rest of the CLUT. They cycle here and export correctly to GIF,
       but Delver will draw them as still paint, so leave them off if the art is bound for the game.</p>
     <p>Switching one on <em>takes those indices over</em>: still paint already sitting in that range
@@ -255,9 +267,9 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
     <p>Any two colours and however many steps you like. A long ramp moves far more smoothly than
       Delver's four- and eight-step registers &mdash; try 64.</p>
     <div class="buildgrid">
-      <label>from <input type="color" id="rbA" value="#06214a"></label>
-      <label>to <input type="color" id="rbB" value="#9fe8ff"></label>
-      <label><input type="checkbox" id="rbMid"> via <input type="color" id="rbC" value="#2f7fd0"></label>
+      <label>from <input type="color" id="rbA" value="#2a5c8a"></label>
+      <label>to <input type="color" id="rbB" value="#8fd4e8"></label>
+      <label><input type="checkbox" id="rbMid"> via <input type="color" id="rbC" value="#4e9bc4"></label>
       <label style="display:flex; gap:6px; align-items:center">steps
         <input type="range" id="rbSteps" min="4" max="256" value="64" style="flex:1">
         <span class="mono" id="rbCount" style="font-size:11px; white-space:nowrap">64 steps</span></label>
@@ -284,9 +296,16 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
   <div class="db">
     <p>The whole canvas &mdash; size, registers and every pixel &mdash; packs into the link itself.
       Nothing is uploaded.</p>
-    <textarea id="shareUrl" rows="4" readonly></textarea>
+    <textarea id="shareUrl" rows="3" readonly></textarea>
     <div class="row"><button type="button" class="btn pri" id="bCopy">Copy link</button>
       <span class="mono" id="shareLen" style="font-size:11px; color:var(--muted)"></span></div>
+    <h4>Compact code</h4>
+    <p>The same data at 14 bits a character instead of six. It is not a link &mdash; a URL has to
+      percent-encode anything outside ASCII, which would make it <em>longer</em>. Pasted as text it is
+      about 2.3&times; shorter.</p>
+    <textarea id="shareUni" rows="3" readonly></textarea>
+    <div class="row"><button type="button" class="btn" id="bCopyUni">Copy code</button>
+      <span class="mono" id="shareUniLen" style="font-size:11px; color:var(--muted)"></span></div>
     <h4>Load a link or code</h4>
     <textarea id="loadCode" rows="3" placeholder="paste a flowbrush link or code"></textarea>
     <div class="row"><button type="button" class="btn" id="bLoadCode">Load it</button>
@@ -851,7 +870,10 @@ var PRESET = [
   { id: 'steel16', name: 'Steel', base: 0xD0, len: 16, dir: 1, eng: 0, on: 0, hint: 'white into blue-black' }
 ];
 var CUSTOM = [];
-function ramps() { return ENGINE.concat(PRESET.filter(function (r) { return r.on; })).concat(CUSTOM); }
+// Cythera's own five are registers like any other -- switch them off and
+// those indices stop turning and become ordinary still paint.
+function allRegs() { return ENGINE.concat(PRESET).concat(CUSTOM); }
+function ramps() { return allRegs().filter(function (r) { return r.on; }); }
 var RLUT = new Int32Array(0);
 function relut() {
   RLUT = new Int32Array(PAL.length).fill(-1);
@@ -911,6 +933,7 @@ var idx = new Uint16Array(W * H), imgData = ctx.createImageData(W, H);
 var undoStack = [];
 var tool = 'flow', lastFlowTool = 'flow', ramp = ENGINE[1], still = 222;
 var brush = 7, lam = 8, turb = 1.4, spin = 0, reverse = false, ragged = true;
+var swirl = 2.6;
 var frame = 0, playing = true, rateMs = 140;
 
 function snapshot() { undoStack.push({ w: W, h: H, px: idx.slice() }); if (undoStack.length > 20) undoStack.shift(); }
@@ -977,6 +1000,14 @@ function dab(cx, cy, dx, dy, arc) {
       }
       var along = arc + (hasDir ? ex * dx + ey * dy : 0);
       var perp = hasDir ? (ex * -dy + ey * dx) : ex;
+      // Liquid warps the coordinate the bands are measured along, rather than
+      // nudging the phase. Displacing by whole wavelengths is what folds them
+      // back over each other into the marbling a still pool has.
+      if (tool === 'liquid') {
+        var ws = 0.055;
+        along += swirl * lam * ((fbm(x * ws, y * ws) - 0.5) * 2.2 +
+                                (fbm(x * ws * 2.4 + 19, y * ws * 2.4 + 7) - 0.5) * 0.9);
+      }
       var k = -(along * ramp.len / lam);
       if (reverse) k = -k;
       k += turb * (fbm(perp * 0.9, along * 0.17) - 0.5) * 2;
@@ -1085,6 +1116,8 @@ var I = {
   flow: '<path d="M3.4 8.2c2.4 0 2.4 2.7 4.8 2.7s2.4-2.7 4.8-2.7 2.4 2.7 4.8 2.7"/>' +
         '<path d="M12 13.4v6.8"/><path d="M9.1 17.3 12 20.2l2.9-2.9"/>',
   vortex: '<path d="' + SPIRAL + '"/>',
+  liquid: '<path d="M12 3.1c3.6 4.3 5.8 7.1 5.8 9.8a5.8 5.8 0 0 1-11.6 0c0-2.7 2.2-5.5 5.8-9.8z"/>' +
+          '<path d="M8.3 13.9c1.1 0 1.1 1.5 2.2 1.5s1.1-1.5 2.2-1.5 1.1 1.5 2.2 1.5"/>',
   sparkle: '<path d="M10.4 2.6 12 8.1l5.5 1.6-5.5 1.6-1.6 5.5-1.6-5.5L3.3 9.7l5.5-1.6z"/>' +
            '<path d="M17.6 14.4l.7 2.2 2.2.7-2.2.7-.7 2.2-.7-2.2-2.2-.7 2.2-.7z"/>',
   paint: '<path d="M13.2 6.1 16.9 2.4a1.5 1.5 0 0 1 2.1 0l1.6 1.6a1.5 1.5 0 0 1 0 2.1l-3.7 3.7z"/>' +
@@ -1103,6 +1136,8 @@ var TOOLS = [
     help: 'Drag. The direction you drag becomes the direction the colour travels — down for a fall, across for a current.' },
   { id: 'vortex', name: 'Vortex', use: ['lam', 'turb', 'spin'],
     help: 'Press at the centre and drag out — the radius is how far you drag, so brush size does not apply. Arms at zero gives rings; turn it up for a spiral.' },
+  { id: 'liquid', name: 'Liquid', use: ['brush', 'lam', 'turb', 'spin'],
+    help: 'A flow whose bands are folded back over themselves by a large, slow noise — the marbling a lava crust or a still pool has. Swirl sets how far they fold.' },
   { id: 'sparkle', name: 'Sparkle', use: ['brush', 'turb'],
     help: 'Scatters random phases so the area twinkles instead of flowing. Embers, stars, magic dust.' },
   { id: 'paint', name: 'Paint', use: ['brush'], help: 'Flat colour from the palette. Never cycles.' },
@@ -1123,7 +1158,7 @@ var TOOLS = [
 })();
 function setTool(t) {
   tool = t;
-  if (t === 'flow' || t === 'vortex' || t === 'sparkle') lastFlowTool = t;
+  if (['flow', 'liquid', 'vortex', 'sparkle'].indexOf(t) >= 0) lastFlowTool = t;
   var def = TOOLS.filter(function (x) { return x.id === t; })[0];
   [].forEach.call(document.querySelectorAll('.tool'), function (b) {
     b.setAttribute('aria-pressed', String(b.dataset.tool === t));
@@ -1133,6 +1168,7 @@ function setTool(t) {
     l.classList.toggle('off', def.use.indexOf(l.dataset.for) < 0);
   });
   document.getElementById('turbName').textContent = t === 'sparkle' ? 'Density' : 'Turbulence';
+  document.getElementById('spinName').textContent = t === 'liquid' ? 'Swirl' : 'Spiral arms';
   document.getElementById('vTurb').textContent = t === 'sparkle' ? (turb / 6).toFixed(2) : turb.toFixed(1);
   art.style.cursor = t === 'pick' ? 'copy' : 'crosshair';
 }
@@ -1147,8 +1183,21 @@ bindRange('size', 'vSize', function (v) { brush = v; }, String);
 bindRange('lam', 'vLam', function (v) { lam = v; }, function (v) { return v + ' px'; });
 bindRange('turb', 'vTurb', function (v) { turb = v / 10; },
   function (v) { return tool === 'sparkle' ? (v / 60).toFixed(2) : (v / 10).toFixed(1); });
-bindRange('spin', 'vSpin', function (v) { spin = v / 10; }, function (v) { return (v / 10).toFixed(1); });
-bindRange('rate', 'vRate', function (v) { rateMs = v; }, function (v) { return v + ' ms'; });
+bindRange('spin', 'vSpin', function (v) { spin = v / 10; swirl = Math.abs(v) / 10; },
+  function (v) { return (tool === 'liquid' ? Math.abs(v / 10) : v / 10).toFixed(1); });
+// The slider covers the useful span; the box is there so nothing is capped by
+// where the slider happens to end.
+(function () {
+  var sl = document.getElementById('rate'), nb = document.getElementById('rateN');
+  function setRate(v, from) {
+    rateMs = Math.max(1, Math.min(600000, v || 1));
+    if (from !== 'slider') sl.value = Math.max(+sl.min, Math.min(+sl.max, rateMs));
+    if (from !== 'box') nb.value = rateMs;
+  }
+  sl.addEventListener('input', function () { setRate(+sl.value, 'slider'); });
+  nb.addEventListener('change', function () { setRate(+nb.value, 'box'); });
+  nb.addEventListener('input', function () { setRate(+nb.value, 'box'); });
+})();
 document.getElementById('rev').addEventListener('change', function (e) { reverse = e.target.checked; });
 document.getElementById('ragged').addEventListener('change', function (e) { ragged = e.target.checked; });
 
@@ -1176,7 +1225,7 @@ function paintRamps() {
     b.appendChild(cv); b.appendChild(txt);
     b.addEventListener('click', function () {
       ramp = r;
-      if (['flow', 'vortex', 'sparkle'].indexOf(tool) < 0) setTool(lastFlowTool);
+      if (['flow', 'liquid', 'vortex', 'sparkle'].indexOf(tool) < 0) setTool(lastFlowTool);
       paintRamps(); sync();
     });
     // Which way the register turns: the wave keeps its direction of travel,
@@ -1201,7 +1250,7 @@ function drawRampSwatches() { rampCv.forEach(function (o) { rampStrip(o.cv, o.r,
 /* ================= registers modal + ramp builder ======================= */
 function paintRegs() {
   var host = document.getElementById('regList'); host.innerHTML = '';
-  PRESET.concat(CUSTOM).forEach(function (r) {
+  allRegs().forEach(function (r) {
     var b = document.createElement('button');
     b.type = 'button'; b.className = 'rampBtn'; b.style.width = '100%';
     b.setAttribute('aria-pressed', String(!!r.on || CUSTOM.indexOf(r) >= 0));
@@ -1210,16 +1259,28 @@ function paintRegs() {
     var txt = document.createElement('span');
     txt.innerHTML = '<span class="rn">' + r.name + '</span><br><span class="rh">' + r.hint +
       ' · ' + r.len + ' steps at ' + r.base + '</span>';
-    var tg = document.createElement('span'); tg.className = 'btn';
+    var tg = document.createElement('span'); tg.className = 'btn' + (r.on ? ' pri' : '');
     var isCustom = CUSTOM.indexOf(r) >= 0;
-    tg.textContent = isCustom ? 'Remove' : (r.on ? 'On' : 'Off');
+    tg.textContent = r.on ? 'On' : 'Off';
     b.appendChild(cv); b.appendChild(txt); b.appendChild(tg);
     b.addEventListener('click', function () {
-      if (isCustom) { CUSTOM.splice(CUSTOM.indexOf(r), 1); if (ramp === r) ramp = ENGINE[1]; }
-      else { r.on = !r.on; if (!r.on && ramp === r) ramp = ENGINE[1]; }
+      r.on = !r.on;
+      if (!r.on && ramp === r) ramp = ramps()[0] || r;
       relut(); invalidateMap(); paintRegs(); paintRamps(); paintPal(); sync(); draw();
     });
-    host.appendChild(b);
+    var row = document.createElement('div'); row.className = 'regRow';
+    row.appendChild(b);
+    if (isCustom) {
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn'; del.textContent = 'Remove';
+      del.addEventListener('click', function () {
+        CUSTOM.splice(CUSTOM.indexOf(r), 1);
+        if (ramp === r) ramp = ramps()[0] || ENGINE[1];
+        relut(); invalidateMap(); paintRegs(); paintRamps(); paintPal(); sync(); draw();
+      });
+      row.appendChild(del);
+    }
+    host.appendChild(row);
   });
 }
 function lerp(a, b, t) { return [Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t), Math.round(a[2] + (b[2] - a[2]) * t)]; }
@@ -1272,7 +1333,7 @@ function paintPal() {
     (function (n) {
       b.addEventListener('click', function () {
         still = n;
-        if (['flow', 'vortex', 'sparkle'].indexOf(tool) >= 0) setTool('paint');
+        if (['flow', 'liquid', 'vortex', 'sparkle'].indexOf(tool) >= 0) setTool('paint');
         paintPal(); syncStill();
       });
     })(i);
@@ -1354,10 +1415,13 @@ document.getElementById('bApplySize').addEventListener('click', function () {
 
 /* ================= colour matching + import ============================= */
 function chroma(c) { return Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]); }
-function snapStill(rgb) {
+// `useRegs` lets an imported picture land on the live registers, so a
+// photograph of embers comes in already burning instead of being held back to
+// still paint.
+function snapStill(rgb, useRegs) {
   var best = 222, bd = Infinity, sc = chroma(rgb);
   for (var i = 1; i < PAL.length; i++) {
-    if (rampOf(i)) continue;
+    if (!useRegs && rampOf(i)) continue;
     var p = PAL[i], rm = (p[0] + rgb[0]) / 2;
     var dr = p[0] - rgb[0], dg = p[1] - rgb[1], db = p[2] - rgb[2];
     var d = (2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db;
@@ -1371,6 +1435,7 @@ document.getElementById('bImport').addEventListener('click', function () { docum
 document.getElementById('fileIn').addEventListener('change', function (e) {
   var f = e.target.files[0]; if (!f) return;
   var url = URL.createObjectURL(f), im = new Image();
+  var useRegs = document.getElementById('impCycle').checked;
   im.onload = function () {
     URL.revokeObjectURL(url); snapshot();
     var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -1382,9 +1447,10 @@ document.getElementById('fileIn').addEventListener('change', function (e) {
     for (var i = 0; i < W * H; i++) {
       if (d[i * 4 + 3] < 40) { idx[i] = 0; continue; }
       var j = (bay(i % W, (i / W) | 0) - 0.5) * 16;
-      idx[i] = snapStill([d[i * 4] + j, d[i * 4 + 1] + j, d[i * 4 + 2] + j]);
+      idx[i] = snapStill([d[i * 4] + j, d[i * 4 + 1] + j, d[i * 4 + 2] + j], useRegs);
     }
-    draw(); say('imported and matched to the palette');
+    draw();
+    say('imported — ' + (useRegs ? 'registers included, so parts of it will move' : 'still paint only'));
   };
   im.src = url; e.target.value = '';
 });
@@ -1405,6 +1471,34 @@ function unb64u(s) {
   var t = atob(s), o = new Uint8Array(t.length);
   for (var i = 0; i < t.length; i++) o[i] = t.charCodeAt(i);
   return o;
+}
+// Base64 is 6 bits a character. A URL cannot do better, because anything
+// outside ASCII gets percent-encoded and ends up longer on the wire. Pasted
+// as plain text, though, characters are what you pay for -- so the compact
+// code packs 14 bits into each CJK ideograph, roughly 2.3x fewer characters.
+var UNI0 = 0x4E00;
+function packUni(b) {
+  var out = String.fromCharCode(UNI0 + ((b.length >> 14) & 0x3FFF), UNI0 + (b.length & 0x3FFF));
+  var acc = 0, nb = 0;
+  for (var i = 0; i < b.length; i++) {
+    acc = ((acc << 8) | b[i]) >>> 0; nb += 8;
+    while (nb >= 14) { nb -= 14; out += String.fromCharCode(UNI0 + ((acc >>> nb) & 0x3FFF)); acc &= (1 << nb) - 1; }
+  }
+  if (nb > 0) out += String.fromCharCode(UNI0 + ((acc << (14 - nb)) & 0x3FFF));
+  return out;
+}
+function unpackUni(s) {
+  var len = ((s.charCodeAt(0) - UNI0) << 14) | (s.charCodeAt(1) - UNI0);
+  if (!(len >= 0 && len < (1 << 28))) throw new Error('bad code');
+  var out = new Uint8Array(len), acc = 0, nb = 0, p = 0;
+  for (var i = 2; i < s.length && p < len; i++) {
+    var c = s.charCodeAt(i) - UNI0;
+    if (c < 0 || c > 0x3FFF) throw new Error('bad code');
+    acc = ((acc << 14) | c) >>> 0; nb += 14;
+    while (nb >= 8 && p < len) { nb -= 8; out[p++] = (acc >>> nb) & 255; acc &= (1 << nb) - 1; }
+  }
+  if (p !== len) throw new Error('truncated code');
+  return out;
 }
 function b64bytes(s) {
   var t = atob(s), o = new Uint8Array(t.length);
@@ -1442,8 +1536,9 @@ async function encodeCanvas() {
   try { var z = await zipRaw(raw); var o = new Uint8Array(z.length + 1); o[0] = 9; o.set(z, 1); return b64u(o); }
   catch (e) { var o2 = new Uint8Array(raw.length + 1); o2[0] = 8; o2.set(raw, 1); return b64u(o2); }
 }
-async function decodeCanvas(code) {
-  var b = unb64u(code), raw;
+async function decodeCanvas(code) { return decodeBytes(unb64u(code)); }
+async function decodeBytes(b) {
+  var raw;
   if (b[0] === 9) raw = await unzipRaw(b.subarray(1));
   else if (b[0] === 8) raw = b.subarray(1);
   else throw new Error('unknown format');
@@ -1478,8 +1573,17 @@ document.getElementById('bShare').addEventListener('click', async function () {
   var code = await encodeCanvas();
   var url = location.href.split('#')[0] + '#c=' + code;
   document.getElementById('shareUrl').value = url;
-  document.getElementById('shareLen').textContent = url.length + ' chars' +
-    (url.length > 8000 ? ' — long; some apps truncate' : '');
+  document.getElementById('shareLen').textContent = url.length.toLocaleString() + ' characters' +
+    (url.length > 8000 ? ' — long; many apps truncate a link this size' : '');
+  var uni = packUni(unb64u(code));
+  document.getElementById('shareUni').value = uni;
+  document.getElementById('shareUniLen').textContent = uni.length.toLocaleString() +
+    ' characters — paste as text, not as a link';
+});
+document.getElementById('bCopyUni').addEventListener('click', async function () {
+  var t = document.getElementById('shareUni');
+  try { await navigator.clipboard.writeText(t.value); document.getElementById('shareUniLen').textContent = 'copied'; }
+  catch (e) { t.select(); document.getElementById('shareUniLen').textContent = 'select and copy'; }
 });
 document.getElementById('bCopy').addEventListener('click', async function () {
   var t = document.getElementById('shareUrl');
@@ -1488,9 +1592,15 @@ document.getElementById('bCopy').addEventListener('click', async function () {
 });
 document.getElementById('bLoadCode').addEventListener('click', async function () {
   var v = document.getElementById('loadCode').value.trim();
-  var m = v.match(/[#?&]c=([A-Za-z0-9\-_]+)/);
-  try { snapshot(); await decodeCanvas(m ? m[1] : v); document.getElementById('dShare').close(); say('loaded'); }
-  catch (e) { document.getElementById('loadNote').textContent = 'could not read that (' + e.message + ')'; }
+  try {
+    snapshot();
+    if (v.charCodeAt(0) >= UNI0) await decodeBytes(unpackUni(v));
+    else {
+      var m = v.match(/[#?&]c=([A-Za-z0-9\-_]+)/);
+      await decodeCanvas(m ? m[1] : v);
+    }
+    document.getElementById('dShare').close(); say('loaded');
+  } catch (e) { document.getElementById('loadNote').textContent = 'could not read that (' + e.message + ')'; }
 });
 
 /* ================= export =============================================== */
@@ -1754,19 +1864,10 @@ var SCENES = [
   { id: 'cavebare', name: 'Cave, bare', w: CAVE.W, h: CAVE.H, note: 'same rock, nothing moving — paint your own',
     run: async function () { idx.set(CAVE.build(true)); } },
 
-  { id: 'alaric', name: 'Alaric, defaced', w: 64, h: 84, note: 'portrait 0x8701, native 64×64',
+  { id: 'alaric', name: 'Alaric', w: 64, h: 64, note: 'portrait 0x8701 at native size',
     run: async function () {
       var a = await asset('alaric', ALARIC_Z, 64, 64);
-      blit(a.px, 64, 64, 0, 18);
-      scripted('flow', ENGINE[0], { brush: 5, lam: 6, turb: 1.0, rev: true }, [[13, 22], [9, 12], [6, 3]]);
-      scripted('flow', ENGINE[0], { brush: 5, lam: 6, turb: 1.0, rev: true }, [[50, 22], [55, 12], [58, 3]]);
-      scripted('flow', ENGINE[2], { brush: 4, lam: 5, turb: 0.8 }, [[19, 62], [26, 60], [32, 61], [39, 60], [45, 62]]);
-      scripted('flow', ENGINE[2], { brush: 3, lam: 5, turb: 0.8 }, [[19, 62], [15, 65]]);
-      scripted('flow', ENGINE[2], { brush: 3, lam: 5, turb: 0.8, rev: true }, [[45, 62], [49, 65]]);
-      scripted('flow', ENGINE[4], { brush: 4, lam: 7, turb: 1.6 }, [[6, 20], [6, 34], [7, 48], [6, 62]]);
-      scripted('flow', ENGINE[4], { brush: 3, lam: 7, turb: 1.6 }, [[58, 44], [57, 58], [58, 72]]);
-      scripted('vortex', ENGINE[3], { lam: 3, turb: 0.4, spin: 2.4, ragged: false }, [[32, 12], [42, 12]]);
-      ell(32, 12, 7, 4, function () { return 0; });
+      blit(a.px, 64, 64, 0, 0);
     } },
 
   { id: 'scroll', name: 'Scroll', w: 256, h: 256, note: 'general graphic 0x8F03, native size',
