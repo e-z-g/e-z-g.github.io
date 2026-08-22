@@ -10950,7 +10950,7 @@ function spitTop(x) {
   return SURF - 2 - 8*Math.pow(1-d, 1.5) + 2*fbm(x, 900, 21);
 }
 
-function buildFooterScene() {
+function buildFooterScene(bare) {
   const IMG = new Uint8Array(FS_W*FS_H);
   const put = (x,y,v) => { x|=0; y|=0; if (x>=0 && x<FS_W && y>=0 && y<FS_H) IMG[y*FS_W+x] = v; };
   const pick = (ramp,t,x,y) => {
@@ -10998,17 +10998,18 @@ function buildFooterScene() {
     const lead = Math.max(w, Math.max(c, m));
     const t = clamp(tone*0.56 + 0.34*lead, 0, 0.95);
     let v;
-    if (lead < 0.14) v = pick(ROCK_COOL, t*0.40, x, y);
+    if (bare) v = pick(ROCK_COOL, t*0.66, x, y);
+    else if (lead < 0.14) v = pick(ROCK_COOL, t*0.40, x, y);
     else if (w >= c && w >= m) v = pick(ROCK_WARM, t, x, y);
     else if (m >= c)          v = pick(ROCK_VIO, t*0.78, x, y);
     else                      v = pick(ROCK_COOL, t*0.70, x, y);
     const g = grain === undefined ? 1 : grain;
     const spec = 0.45 + 0.55*fbm(x*1.7, y*1.7, 6);          // only the rough facets catch it
-    if (w > 0.30 && bay(x,y) < (w-0.30)*0.85*g*spec)
+    if (!bare && w > 0.30 && bay(x,y) < (w-0.30)*0.85*g*spec)
       v = fire(-warmDist(x,y)*0.45 + 5*fbm(x, y, 14));
-    else if (c > 0.34 && bay(x+2,y) < (c-0.34)*0.75*g*spec)
+    else if (!bare && c > 0.34 && bay(x+2,y) < (c-0.34)*0.75*g*spec)
       v = water(-coolDist(x,y)*0.55 + 4*fbm(x+40, y, 16));
-    else if (m > 0.34 && bay(x,y+2) < (m-0.34)*0.70*g*spec)
+    else if (!bare && m > 0.34 && bay(x,y+2) < (m-0.34)*0.70*g*spec)
       v = magic(Math.hypot(x-GATE_X,y-GATE_Y)*0.32);
     return v;
   }
@@ -11022,7 +11023,7 @@ function buildFooterScene() {
     let v;
     // Air only takes a colour where a source is genuinely near it. Tinting on
     // the mere sign of w-versus-c turned half the cave maroon.
-    if (lead < 0.34) v = pick(ROCK_COOL, haze*0.86, x, y);
+    if (bare || lead < 0.34) v = pick(ROCK_COOL, haze*0.86, x, y);
     else if (m >= w && m >= c) v = pick(ROCK_VIO, haze*0.66, x, y);
     else if (w >= c) v = pick(ROCK_WARM, haze*0.80, x, y);
     else v = pick(ROCK_COOL, haze*0.80, x, y);
@@ -11039,7 +11040,7 @@ function buildFooterScene() {
       const tone = 0.13 + 0.13*strata + 0.14*fbm(x*0.9, y*0.9, 26)
                  + 0.26*m - 0.10*smooth(0, 44, d);
       let v = pick(ROCK_COOL, tone*0.62, x, y);
-      if (m > 0.10 && bay(x+1,y+1) < (m-0.10)*0.62) v = pick(ROCK_VIO, 0.18 + 0.5*m, x, y);
+      if (!bare && m > 0.10 && bay(x+1,y+1) < (m-0.10)*0.62) v = pick(ROCK_VIO, 0.18 + 0.5*m, x, y);
       if (d < 2 && bay(x,y) < 0.26 + 0.5*m) v = pick(ROCK_COOL, tone*1.1 + 0.2*m, x, y);
       IMG[y*FS_W+x] = v;
     }
@@ -11068,6 +11069,7 @@ function buildFooterScene() {
     }
   }
 
+  if (!bare) {
   // ---- 4. ore veins: the earth ramp ---------------------------------------
   // A vein stores its phase as distance travelled, so the cycle runs along the
   // seam the way a charge would, out from the deep rock towards the air.
@@ -11168,6 +11170,7 @@ function buildFooterScene() {
     }
   }
 
+  }
   // ---- 8. the shelf, its sand and its moss --------------------------------
   for (let x=150; x<340; x++) {
     const top = spitTop(x);
@@ -11175,16 +11178,17 @@ function buildFooterScene() {
     for (let y=Math.ceil(top); y<FS_H; y++) {
       const d = y-top;
       let v = litRock(x, y, 0.26 + 0.24*fbm(x*1.2, y*1.6, 11) - 0.20*smooth(0,14,d), 0.6);
-      if (d < 3 + 2.5*fbm(x, 5, 9) && bay(x,y) < 0.62)
+      if (!bare && d < 3 + 2.5*fbm(x, 5, 9) && bay(x,y) < 0.62)
         v = earth(x*0.32 + 3*fbm(x*1.5, y, 7));           // wet sand, on the earth ramp
       put(x, y, v);
     }
     for (let y=Math.ceil(top)-2; y<top+5; y++) {
       const n = fbm(x*1.3, y*1.7, 8);
-      if (n > 0.60 && bay(x+1,y) < 0.6) put(x, y, leaf(-x*0.22 + 4*n));
+      if (!bare && n > 0.60 && bay(x+1,y) < 0.6) put(x, y, leaf(-x*0.22 + 4*n));
     }
   }
 
+  if (!bare) {
   // ---- 9. steam where the lava reaches the water --------------------------
   for (let y=94; y<SURF+3; y++) for (let x=178; x<224; x++) {
     const h = (SURF-y)/56;
@@ -11196,6 +11200,7 @@ function buildFooterScene() {
     else if (bay(x+2,y+2) < dens*0.26) put(x, y, fire(y*0.62 + 4*n));
   }
 
+  }
   // ---- 10. the gate -------------------------------------------------------
   for (let y=0; y<FS_H; y++) for (let x=GATE_X-GATE_R-GATE_T-4; x<=GATE_X+GATE_R+GATE_T+4; x++) {
     const dx = x-GATE_X, dy = y-GATE_Y;
@@ -11210,10 +11215,10 @@ function buildFooterScene() {
     const across = inArch ? (r-GATE_R)/GATE_T : (Math.abs(dx)-GATE_R)/GATE_T;
     const tone = 0.30 + 0.34*(1-across) + 0.18*fbm(x*1.5, y*1.5, 7) - (joint?0.30:0);
     let v = pick(ROCK_COOL, clamp(tone, 0.10, 0.92), x, y);
-    if (joint && bay(x,y) < 0.45) v = earth(along*0.4);              // the mortar takes the pulse
+    if (!bare && joint && bay(x,y) < 0.45) v = earth(along*0.4);              // the mortar takes the pulse
     // The inner face is the only part the field actually reaches.
-    if (across < 0.30 && bay(x,y+1) < 0.62 - across) v = magic(along*0.45 + across*3);
-    if (across < 0.22 && ((along+400)|0) % 13 < 4) v = magic(along*0.5 + 2);   // cut runes
+    if (!bare && across < 0.30 && bay(x,y+1) < 0.62 - across) v = magic(along*0.45 + across*3);
+    if (!bare && across < 0.22 && ((along+400)|0) % 13 < 4) v = magic(along*0.5 + 2);   // cut runes
     put(x, y, v);
   }
   for (let y=GATE_Y-GATE_R-GATE_T-5; y<GATE_Y-GATE_R+2; y++)
@@ -11221,12 +11226,12 @@ function buildFooterScene() {
       const d = Math.abs(x-GATE_X)/7 + Math.max(0, (GATE_Y-GATE_R-y)/(GATE_T+5))*0.55;
       if (d > 1.05) continue;
       let v = pick(ROCK_COOL, 0.62 - 0.34*d, x, y);
-      if (Math.abs(x-GATE_X) < 3 && y > GATE_Y-GATE_R-GATE_T) v = magic(y*0.6);
+      if (!bare && Math.abs(x-GATE_X) < 3 && y > GATE_Y-GATE_R-GATE_T) v = magic(y*0.6);
       put(x, y, v);
     }
   // The field: a spiral wound about the gate's centre. Its phase climbs with
   // radius, so the cycle draws the whole figure inwards, frame after frame.
-  for (let y=GATE_Y-GATE_R-1; y<SURF+2; y++) for (let x=GATE_X-GATE_R; x<=GATE_X+GATE_R; x++) {
+  if (!bare) for (let y=GATE_Y-GATE_R-1; y<SURF+2; y++) for (let x=GATE_X-GATE_R; x<=GATE_X+GATE_R; x++) {
     const dx = x-GATE_X, dy = y-GATE_Y;
     const r = Math.hypot(dx,dy);
     const inside = (dy <= 0 && r < GATE_R) || (dy > 0 && Math.abs(dx) < GATE_R && y < spitTop(x)-1);
@@ -11245,17 +11250,17 @@ function buildFooterScene() {
     if (hash2(x*3, y*5) > 0.988) v = 208;                            // stars caught in it
     put(x, y, v);
   }
-  for (let y=4; y<SURF; y++) for (let x=GATE_X-100; x<GATE_X+100; x++) {
+  if (!bare) for (let y=4; y<SURF; y++) for (let x=GATE_X-100; x<GATE_X+100; x++) {
     if (x < 0 || x >= FS_W) continue;
     const dx = x-GATE_X, dy = y-GATE_Y;
     const r = Math.hypot(dx,dy);
     if (r < GATE_R+GATE_T+2 || r > 96) continue;
     const a = Math.atan2(dy,dx);
     const up = Math.max(0, -dy)/Math.max(1,r);                  // only the upward fan
-    const beam = Math.pow(Math.max(0, Math.sin(a*5 + 1.4)), 5);
-    const reach = Math.max(0, 1 - (r-GATE_R-GATE_T)/74);
-    if (bay(x,y) < beam*reach*up*0.30) put(x, y, magic(r*0.3));
-    else if (hash2(x*7+1, y*11) > 0.996 - 0.006*reach*reach) put(x, y, magic(r*0.34));
+    const beam = Math.pow(Math.max(0, Math.sin(a*5 + 1.4)), 7);
+    const reach = Math.max(0, 1 - (r-GATE_R-GATE_T)/56);
+    if (bay(x,y) < beam*reach*up*0.20) put(x, y, magic(r*0.3));
+    else if (hash2(x*7+1, y*11) > 0.9975 - 0.004*reach*reach) put(x, y, magic(r*0.34));
   }
 
   function crystal(bx, by, ang, len, wid, ramp) {
@@ -11277,19 +11282,20 @@ function buildFooterScene() {
               6 + hash2(seed, i*5)*13, 0.9 + hash2(seed, i*7)*1.8, ramp);
     }
   }
-  cluster(312, -Math.PI/2 + 0.18, 3, magic);
+  if (!bare) { cluster(312, -Math.PI/2 + 0.18, 3, magic);
   cluster(384, -Math.PI/2 - 0.28, 7, magic);
   cluster(158, -Math.PI/2 - 0.16, 13, magic);
-  cluster(192, -Math.PI/2 + 0.32, 17, magic);
+  cluster(192, -Math.PI/2 + 0.32, 17, magic); }
 
+  if (!bare) {
   // ---- 11. embers, rising: the fire ramp read the other way round ---------
-  for (let i=0; i<86; i++) {
-    const bx = 8 + hash2(i, 41)*172;
-    const by = SURF - 4 - Math.pow(hash2(i, 43), 2.6)*86;
+  for (let i=0; i<58; i++) {
+    const bx = 10 + hash2(i, 41)*164;
+    const by = SURF - 4 - Math.pow(hash2(i, 43), 3.2)*78;
     const x = bx + 7*Math.sin(by*0.06 + i);
     for (let k=0, n=1+Math.floor(hash2(i,47)*3); k<n; k++) put(x, by+k, fire(by*0.8 + i - k));
   }
-  for (let i=0; i<10; i++) {
+  for (let i=0; i<6; i++) {
     const s = STALACS[(i*3) % STALACS.length];
     const x = s.x + Math.round((hash2(i,53)-0.5)*4);
     const y0 = ceilingAt(x) + 2 + hash2(i,59)*40;
@@ -11320,6 +11326,7 @@ function buildFooterScene() {
       const n = fbm(x*1.4, y*1.6, 10);
       if (n > 0.60 && bay(x,y) < 0.55) put(x, y, leaf(-y*0.4 + 4*n));
     }
+  }
   }
   return IMG;
 }
