@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=6, user-scalable=yes, viewport-fit=cover">
 <title>Desktop View</title>
 <style>
   :root{
@@ -45,7 +45,7 @@
   .ruler .bar::before{left:0}.ruler .bar::after{right:0}
   .ruler b{color:var(--live);font-weight:400}
 
-  #stage{flex:1;position:relative;overflow:auto;-webkit-overflow-scrolling:touch;background:#fff}
+  #stage{flex:1;position:relative;overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;touch-action:pinch-zoom pan-x pan-y}
   #frame{border:0;display:block;transform-origin:0 0;background:#fff}
 
   #msg{position:absolute;inset:0;display:none;place-content:center;text-align:center;
@@ -60,7 +60,8 @@
 <header>
   <div class="row">
     <input id="url" type="url" inputmode="url" autocapitalize="off" autocorrect="off"
-           spellcheck="false" placeholder="example.com" value="">
+           spellcheck="false" autocomplete="off" placeholder="example.com" value="">
+    <button id="paste" title="Paste from clipboard">Paste</button>
     <button id="go">Load</button>
   </div>
   <div class="row">
@@ -97,6 +98,7 @@
 (function(){
   var urlBox=document.getElementById('url'),
       go=document.getElementById('go'),
+      pasteBtn=document.getElementById('paste'),
       widthSel=document.getElementById('width'),
       zoomSel=document.getElementById('zoom'),
       openBtn=document.getElementById('open'),
