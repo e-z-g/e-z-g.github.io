@@ -10777,7 +10777,7 @@ document.addEventListener('DOMContentLoaded', () => {
   installArchiveDropTarget();
   installKeyboardShortcuts();
   if (PREFERS_REDUCED_MOTION) {
-    for (const id of ['chkPalAnim', 'chkMapAnim']) {
+    for (const id of ['chkPalAnim', 'chkMapAnim', 'chkSceneAnim']) {
       const cb = document.getElementById(id);
       if (cb) cb.checked = false;     // the markup ships them checked
     }
@@ -10812,6 +10812,576 @@ document.addEventListener('DOMContentLoaded', () => {
     This is an unofficial fan-made research tool; the Cythera Data file itself remains copyrighted by Ambrosia and/or Glenn Andreas.
     Join the community: <a href="https://discord.gg/u5BDQvyem4" target="_blank" rel="noopener">Cythera Discord</a>.
   </p>
+
+<!-- =====================================================================
+     A tailpiece, drawn for this page. It is here to show the one thing a
+     gallery of still resources cannot: what Cythera's palette animation
+     actually looks like when a whole picture is composed around it.
+
+     Every pixel below is a palette index, and the canvas is never redrawn
+     with different pixels. The only thing that changes between frames is
+     the CLUT -- indices 0xE0-0xFB rotated within their five ramps by the
+     page's own cycledPalette(), the same call the map and tile-sheet views
+     use. The lava pours, the cascade falls, the sparks climb and the gate
+     turns because each of those was drawn with its phase running along the
+     direction of travel: a phase that FALLS with y runs downwards, one that
+     RISES with y runs up, and one that rises with radius winds inward.
+     That is the whole trick, and it is the engine's, not ours.
+     ================================================================== -->
+<figure id="footerScene" style="margin:2em 0 0.4em;">
+  <canvas id="sceneCanvas" width="512" height="176"
+          style="image-rendering:pixelated; display:block; width:100%; max-width:1100px;
+                 margin:0 auto; border:2px solid #6b6b6b; border-radius:6px; background:#000;"></canvas>
+  <figcaption style="max-width:1100px; margin:8px auto 0; font-size:0.85em; color:#9b8850;
+                     display:flex; gap:12px; align-items:center; justify-content:space-between;
+                     flex-wrap:wrap;">
+    <span><em>The Ford at the Gate</em> &mdash; one element apiece to the five ramps this
+      viewer reads in 0xE0&ndash;0xFB, drawn in Cythera&rsquo;s own CLUT. Nothing on this
+      canvas moves; the palette turns underneath it.</span>
+    <label style="display:inline-flex; align-items:center; gap:6px; white-space:nowrap;
+                  color:#c9bd90; cursor:pointer;">
+      <input type="checkbox" id="chkSceneAnim" checked onchange="toggleSceneAnim(this.checked)"
+             style="width:auto; min-height:0; margin:0"> cycling 0xE0&ndash;0xFB
+    </label>
+  </figcaption>
+</figure>
+
+<script>
+(function () {
+const FS_W = 512, FS_H = 176;
+
+// ---- deterministic value noise -------------------------------------------
+function hash2(x, y) {
+  let h = Math.imul(x|0, 374761393) ^ Math.imul(y|0, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function noise(x, y, s) {
+  const xs = x/s, ys = y/s, x0 = Math.floor(xs), y0 = Math.floor(ys);
+  const fx = xs-x0, fy = ys-y0;
+  const u = fx*fx*(3-2*fx), v = fy*fy*(3-2*fy);
+  const a = hash2(x0,y0), b = hash2(x0+1,y0), c = hash2(x0,y0+1), d = hash2(x0+1,y0+1);
+  return (a+(b-a)*u)*(1-v) + (c+(d-c)*u)*v;
+}
+function fbm(x, y, s) {
+  return noise(x,y,s)*0.54 + noise(x+91,y+17,s/2)*0.30 + noise(x+37,y+53,s/4)*0.16;
+}
+const BAYER = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+const bay = (x,y) => (BAYER[(y&3)*4 + (x&3)] + 0.5) / 16;
+const clamp = (v,a,b) => v<a?a:v>b?b:v;
+const smooth = (e0,e1,x) => { const t = clamp((x-e0)/(e1-e0),0,1); return t*t*(3-2*t); };
+function segDist(px,py,ax,ay,bx,by) {
+  const vx=bx-ax, vy=by-ay, wx=px-ax, wy=py-ay;
+  const L=vx*vx+vy*vy;
+  const t = clamp(L ? (wx*vx+wy*vy)/L : 0, 0, 1);
+  return Math.hypot(px-(ax+t*vx), py-(ay+t*vy));
+}
+
+// ---- the five cycling ramps ----------------------------------------------
+const R_FIRE=0xE0, R_WATER=0xE8, R_MAGIC=0xF0, R_EARTH=0xF4, R_LEAF=0xF8;
+const fire  = p => R_FIRE  + (((Math.round(p) % 8) + 8) % 8);
+const water = p => R_WATER + (((Math.round(p) % 8) + 8) % 8);
+const magic = p => R_MAGIC + (((Math.round(p) % 4) + 4) % 4);
+const earth = p => R_EARTH + (((Math.round(p) % 4) + 4) % 4);
+const leaf  = p => R_LEAF  + (((Math.round(p) % 4) + 4) % 4);
+
+// ---- static ramps, black end first ---------------------------------------
+const ROCK_COOL = [223,222,221,220,219,218,217,216,215,214,213,212];
+const ROCK_WARM = [223,191,190,189,188,187,186,185,184,183,182,181];
+const ROCK_VIO  = [223,159,158,157,156,155,154,153,152];
+const DEEP      = [223,127,126,125,124,123,122,121,120];
+const MOSSD     = [111,110,109,108,107,106];
+
+// ---- geometry -------------------------------------------------------------
+const SURF = 148;
+const GATE_X = 250, GATE_Y = 92, GATE_R = 30, GATE_T = 10;
+const FALL_X = 86, FALL_TOP = 62;
+const CASC_X = 420, CASC_TOP = 26;
+
+const STALACS = [
+  {x:12,w:9,l:30},{x:33,w:5,l:14},{x:57,w:4,l:9},{x:112,w:11,l:44},
+  {x:138,w:5,l:18},{x:163,w:8,l:27},{x:190,w:4,l:11},{x:221,w:7,l:36},
+  {x:243,w:4,l:12},{x:284,w:6,l:20},{x:307,w:10,l:41},{x:333,w:5,l:14},
+  {x:359,w:8,l:26},{x:386,w:4,l:10},{x:452,w:7,l:21},{x:477,w:11,l:38},
+  {x:501,w:6,l:16},
+];
+function ceilingAt(x) {
+  let base = 15 + 8*fbm(x+500, 7, 74) + 4*noise(x+120, 3, 190);
+  base -= 8*Math.exp(-Math.pow((x-CASC_X)/24, 2));   // the rent the cascade falls through
+  let c = base;
+  for (const s of STALACS) {
+    const d = Math.abs(x-s.x);
+    if (d < s.w) c = Math.max(c, base + s.l*Math.pow(1-d/s.w, 0.55));
+  }
+  return c;
+}
+function leftWallX(y) {
+  let v = 104 - 42*smooth(54, 82, y)                   // the face steps back at the fissure
+          + 14*smooth(122, 172, y)                     // talus piled at its foot
+          + 4*Math.sin(y*0.23)*(0.5 + 0.5*Math.sin(y*0.061));   // ledges
+  v += 10*fbm(11, y, 26) - 6*fbm(53, y*2.4, 9);
+  v += 10*(hash2(Math.floor(y/6), 5) - 0.5) + 4*(hash2(Math.floor(y/3), 9) - 0.5);
+  return v;
+}
+function rightWallX(y) {
+  let v = 452 - 26*smooth(44, 92, y) + 16*smooth(128, 174, y)
+          + 4*Math.sin(y*0.19 + 1)*(0.5 + 0.5*Math.sin(y*0.053));
+  v -= 10*fbm(29, y+300, 30) + 4 - 5*fbm(71, y*2.2, 9);
+  v -= 10*(hash2(Math.floor(y/7), 13) - 0.5) + 4*(hash2(Math.floor(y/3), 17) - 0.5);
+  return v;
+}
+// The distant ridge the gate stands against. Silhouette only: it is there to
+// put something behind the arch so its light has a wall to fall on.
+function ridgeAt(x) {
+  let r = 138 - 14*fbm(x+800, 11, 110) - 6*noise(x+300, 5, 30);
+  for (const s of [{x:132,w:34,l:26,p:2.4,k:0.5},{x:170,w:13,l:14,p:1.2,k:-0.3},
+                   {x:203,w:24,l:41,p:2.9,k:-0.6},{x:296,w:16,l:19,p:1.5,k:0.4},
+                   {x:331,w:38,l:48,p:2.6,k:-0.5},{x:372,w:14,l:16,p:1.3,k:0.6},
+                   {x:401,w:29,l:27,p:2.1,k:0.3},{x:92,w:22,l:22,p:1.7,k:-0.4}]) {
+    // k leans the spire, so no two of them are the same isoceles triangle.
+    const u = (x-s.x)/s.w, d = Math.abs(u*(1 + s.k*Math.sign(u)*0.9));
+    if (d < 1) r = Math.min(r, r - s.l*Math.pow(1-d, s.p));
+  }
+  return r - 4*fbm(x*2.1, 77, 11) + 1.5;
+}
+function spitTop(x) {
+  const d = Math.abs(x-244)/88;
+  if (d > 1) return 1e9;
+  return SURF - 2 - 8*Math.pow(1-d, 1.5) + 2*fbm(x, 900, 21);
+}
+
+function buildFooterScene(bare) {
+  const IMG = new Uint8Array(FS_W*FS_H);
+  const put = (x,y,v) => { x|=0; y|=0; if (x>=0 && x<FS_W && y>=0 && y<FS_H) IMG[y*FS_W+x] = v; };
+  const pick = (ramp,t,x,y) => {
+    const f = clamp(t,0,1)*(ramp.length-1);
+    const i = Math.floor(f);
+    return ramp[clamp(i + (bay(x,y) < f-i ? 1 : 0), 0, ramp.length-1)];
+  };
+
+  // ---- the light field ----------------------------------------------------
+  // Five sources, three colours. Every surface in the scene asks this what the
+  // light is doing where it stands, which is what keeps the rock, the water and
+  // the gate reading as one place rather than three drawings side by side.
+  const LIGHTS = [
+    {a:[FALL_X-2,FALL_TOP], b:[FALL_X+12,SURF], r:44, k:0},
+    {a:[4,SURF+1],  b:[186,SURF+1], r:50, k:0},
+    {a:[CASC_X,CASC_TOP], b:[CASC_X,SURF], r:44, k:1},
+    {a:[212,SURF+2], b:[508,SURF+2], r:40, k:1},
+    {a:[GATE_X,GATE_Y], b:[GATE_X,GATE_Y+40], r:58, k:2},
+  ];
+  function lightAt(x,y) {
+    let w=0, c=0, m=0;
+    for (const L of LIGHTS) {
+      const d = segDist(x,y, L.a[0],L.a[1], L.b[0],L.b[1]);
+      if (d >= L.r) continue;
+      const v = Math.pow(1-d/L.r, 2.3) * (0.54 + 0.86*fbm(x*0.8, y*0.8, 23));
+      if (L.k===0) w = Math.max(w,v); else if (L.k===1) c = Math.max(c,v); else m = Math.max(m,v);
+    }
+    const mod = 0.72 + 0.56*fbm(x*0.7, y*0.7, 31);
+    w = Math.max(w, 0.44*mod*Math.pow(Math.max(0, 1 - Math.hypot((x-56)/260, (y-146)/180)), 1.05));
+    c = Math.max(c, 0.27*mod*Math.pow(Math.max(0, 1 - Math.hypot((x-450)/240, (y-120)/182)), 1.05));
+    return [w,c,m];
+  }
+  const warmDist = (x,y) => Math.min(
+    segDist(x,y,FALL_X-2,FALL_TOP,FALL_X+12,SURF), segDist(x,y,4,SURF,186,SURF));
+  const coolDist = (x,y) => Math.min(
+    segDist(x,y,CASC_X,CASC_TOP,CASC_X,SURF), segDist(x,y,212,SURF,508,SURF));
+
+  // A lit surface. The tone comes from the static ramp belonging to whichever
+  // source is winning; then live cycling colours are dithered over it in
+  // proportion to the light. Those dithered pixels are the point of the whole
+  // exercise: they are what makes stone near the lava breathe, and stone near
+  // the water swim, without redrawing a thing.
+  function litRock(x, y, tone, grain) {
+    const [w,c,m] = lightAt(x,y);
+    const lead = Math.max(w, Math.max(c, m));
+    const t = clamp(tone*0.56 + 0.34*lead, 0, 0.95);
+    let v;
+    if (bare) v = pick(ROCK_COOL, t*0.66, x, y);
+    else if (lead < 0.14) v = pick(ROCK_COOL, t*0.40, x, y);
+    else if (w >= c && w >= m) v = pick(ROCK_WARM, t, x, y);
+    else if (m >= c)          v = pick(ROCK_VIO, t*0.78, x, y);
+    else                      v = pick(ROCK_COOL, t*0.70, x, y);
+    const g = grain === undefined ? 1 : grain;
+    const spec = 0.45 + 0.55*fbm(x*1.7, y*1.7, 6);          // only the rough facets catch it
+    if (!bare && w > 0.30 && bay(x,y) < (w-0.30)*0.85*g*spec)
+      v = fire(-warmDist(x,y)*0.45 + 5*fbm(x, y, 14));
+    else if (!bare && c > 0.34 && bay(x+2,y) < (c-0.34)*0.75*g*spec)
+      v = water(-coolDist(x,y)*0.55 + 4*fbm(x+40, y, 16));
+    else if (!bare && m > 0.34 && bay(x,y+2) < (m-0.34)*0.70*g*spec)
+      v = magic(Math.hypot(x-GATE_X,y-GATE_Y)*0.32);
+    return v;
+  }
+
+  // ---- 1. the air of the cavern ------------------------------------------
+  for (let y=0; y<FS_H; y++) for (let x=0; x<FS_W; x++) {
+    const [w,c,m] = lightAt(x,y);
+    const lead = Math.max(w, Math.max(c, m));
+    const depth = 0.13 + 0.07*smooth(120, 10, y) + 0.09*fbm(x, y*1.7, 58);
+    const haze = depth + 0.20*lead*(0.72 + 0.5*fbm(x*0.7, y*0.7, 30));
+    let v;
+    // Air only takes a colour where a source is genuinely near it. Tinting on
+    // the mere sign of w-versus-c turned half the cave maroon.
+    if (bare || lead < 0.34) v = pick(ROCK_COOL, haze*0.86, x, y);
+    else if (m >= w && m >= c) v = pick(ROCK_VIO, haze*0.66, x, y);
+    else if (w >= c) v = pick(ROCK_WARM, haze*0.80, x, y);
+    else v = pick(ROCK_COOL, haze*0.80, x, y);
+    IMG[y*FS_W+x] = v;
+  }
+
+  // ---- 2. the far ridge ---------------------------------------------------
+  for (let x=0; x<FS_W; x++) {
+    const r = ridgeAt(x);
+    for (let y=Math.ceil(r); y<FS_H; y++) {
+      const d = y-r;
+      const [ , , m] = lightAt(x,y);
+      const strata = 0.5 + 0.5*Math.sin(y*0.34 + x*0.05 + 5*fbm(x*0.5, y, 34));
+      const tone = 0.13 + 0.13*strata + 0.14*fbm(x*0.9, y*0.9, 26)
+                 + 0.26*m - 0.10*smooth(0, 44, d);
+      let v = pick(ROCK_COOL, tone*0.62, x, y);
+      if (!bare && m > 0.10 && bay(x+1,y+1) < (m-0.10)*0.62) v = pick(ROCK_VIO, 0.18 + 0.5*m, x, y);
+      if (d < 2 && bay(x,y) < 0.26 + 0.5*m) v = pick(ROCK_COOL, tone*1.1 + 0.2*m, x, y);
+      IMG[y*FS_W+x] = v;
+    }
+  }
+
+  // ---- 3. the roof and the walls -----------------------------------------
+  for (let x=0; x<FS_W; x++) {
+    const c = ceilingAt(x);
+    for (let y=0; y<c; y++) {
+      const edge = smooth(c, c-8, y);
+      const strata = 0.5 + 0.5*Math.sin(y*0.42 + 5*fbm(x, y*0.3, 46));
+      put(x, y, litRock(x, y, 0.10 + 0.34*strata + 0.30*edge + 0.26*fbm(x*2.6, y*2.6, 5)));
+    }
+  }
+  for (let y=0; y<FS_H; y++) {
+    const lw = leftWallX(y), rw = rightWallX(y);
+    for (let x=0; x<lw; x++) {
+      const face = smooth(lw, lw-15, x);
+      const strata = Math.pow(0.5 + 0.5*Math.sin(y*0.27 - x*0.07 + 4.4*fbm(x*0.4, y, 44)), 1.6);
+      put(x, y, litRock(x, y, 0.06 + 0.40*strata + 0.36*face + 0.24*fbm(x*2.4, y*2.4, 5)));
+    }
+    for (let x=Math.ceil(rw); x<FS_W; x++) {
+      const face = smooth(rw, rw+15, x);
+      const strata = Math.pow(0.5 + 0.5*Math.sin(y*0.27 + x*0.07 + 4.4*fbm(x*0.4, y+70, 44)), 1.6);
+      put(x, y, litRock(x, y, 0.06 + 0.40*strata + 0.36*face + 0.24*fbm(x*2.4, y*2.4, 5)));
+    }
+  }
+
+  if (!bare) {
+  // ---- 4. ore veins: the earth ramp ---------------------------------------
+  // A vein stores its phase as distance travelled, so the cycle runs along the
+  // seam the way a charge would, out from the deep rock towards the air.
+  function vein(x0, y0, ang, len, spread, branch) {
+    let x=x0, y=y0, a=ang;
+    for (let i=0; i<len; i++) {
+      a += (hash2(i*7+(x0|0), y0|0)-0.5)*spread;
+      x += Math.cos(a); y += Math.sin(a);
+      if (x<-2||x>FS_W+2||y<-2||y>FS_H+2) return;
+      put(x, y, earth(-i*0.5));
+      if ((i&3)===0) put(x + (hash2(i,3)<0.5?1:-1), y, earth(-i*0.5+1));
+      if (branch>0 && i>8 && i%17===0 && hash2(i, y0|0)<0.55)
+        vein(x, y, a + (hash2(i,9)<0.5?1:-1)*0.9, (len-i)*0.55, spread*1.3, branch-1);
+    }
+  }
+  vein(2, 44, 0.5, 78, 0.42, 2);
+  vein(24, 118, -0.35, 58, 0.5, 1);
+  vein(6, 10, 0.8, 46, 0.4, 1);
+  vein(FS_W-3, 62, Math.PI-0.4, 74, 0.45, 2);
+  vein(FS_W-20, 130, Math.PI+0.4, 52, 0.5, 1);
+  vein(140, 3, 1.15, 40, 0.4, 1);
+  vein(330, 2, 1.35, 34, 0.45, 1);
+
+  // ---- 5. the lavafall: the fire ramp -------------------------------------
+  for (let y=FALL_TOP-8; y<FALL_TOP+4; y++) for (let x=FALL_X-26; x<FALL_X+14; x++) {
+    const d = Math.abs(y - (FALL_TOP-3) - 1.6*Math.sin(x*0.2)) / (3 - Math.abs(x-FALL_X+8)/18);
+    if (d < 1) put(x, y, d < 0.5 ? fire(-x*0.3 + 4*fbm(x,y,7)) : pick(ROCK_WARM, 0.16, x, y));
+  }
+  for (let y=FALL_TOP; y<SURF+2; y++) {
+    const fall = (y-FALL_TOP)/(SURF-FALL_TOP);
+    const cx = FALL_X + 3 + 10*fall + 1.6*Math.sin(y*0.055 + 2*fbm(0,y,40));
+    const hw = 7 + 6*fall;
+    for (let x=Math.floor(cx-hw); x<=cx+hw; x++) {
+      const t = Math.abs(x-cx)/hw;
+      if (t > 1) continue;
+      // Phase falls with y, so the ramp rotation carries downwards: it pours.
+      // The per-column jitter is what stops that reading as horizontal bands --
+      // every strand of the sheet starts somewhere else in the ramp.
+      const ph = -y*0.55 - t*1.2 + 7*noise(x*9, 3, 6) + 4*fbm(x*2.4, y*0.13, 9);
+      if (t > 0.74 && bay(x,y) > 0.42) continue;
+      put(x, y, fire(ph));
+      if (t < 0.34 && bay(x+1,y+1) < 0.42) put(x, y, fire(ph+2));
+    }
+    if (hash2(y, 17) < 0.22) put(cx + (hash2(y,3)<0.5?-1:1)*(hw+2+hash2(y,5)*7), y, fire(-y*0.8+3));
+  }
+
+  // ---- 6. the cascade: the water ramp -------------------------------------
+  for (let y=CASC_TOP; y<SURF+2; y++) {
+    const fall = (y-CASC_TOP)/(SURF-CASC_TOP);
+    const cx = CASC_X - 2*fall + 1.8*Math.sin(y*0.06);
+    const hw = 6 + 6*fall;
+    for (let x=Math.floor(cx-hw); x<=cx+hw; x++) {
+      const t = Math.abs(x-cx)/hw;
+      if (t > 1) continue;
+      const ph = -y*0.62 - t*1.6 + 6*noise(x*9, 11, 6) + 4*fbm(x*2.2, y*0.12, 9);
+      if (t > 0.76 && bay(x,y) > 0.38) continue;
+      put(x, y, water(ph));
+      if (t < 0.36 && bay(x+2,y) < 0.44) put(x, y, water(ph+3));
+    }
+    if (hash2(y, 29) < 0.26) put(cx + (hash2(y,7)<0.5?-1:1)*(hw+1+hash2(y,11)*6), y, water(-y*0.9+2));
+  }
+  for (let y=SURF-20; y<SURF+4; y++) for (let x=CASC_X-26; x<CASC_X+26; x++) {
+    const d = Math.hypot((x-CASC_X)/23, (y-SURF+2)/18);
+    if (d > 1) continue;
+    const n = fbm(x*1.1, y*1.3, 9);
+    if (n*(1-d) > 0.38 && bay(x,y) < 0.55-0.4*d) put(x, y, water(y*0.7 + 5*n));
+  }
+
+  // ---- 7. the two waters --------------------------------------------------
+  for (let y=SURF-6; y<FS_H; y++) for (let x=0; x<FS_W; x++) {
+    if (y >= spitTop(x)) continue;
+    const surf = SURF + 1.4*Math.sin(x*0.11) + 1.2*fbm(x, 33, 26);
+    if (y < surf) continue;
+    const dep = y - surf;
+    const u = Math.pow(dep, 1.5)*0.85;                    // ripples widen towards us
+    const lat = 2.2*Math.sin(x*0.09 + dep*0.22) + 3.4*fbm(x*0.6, dep*2, 22);
+    if (x < 194) {
+      // Lava: plates of cooled crust with the cycle running in the seams.
+      const n = fbm(x*0.7, dep*2.2 + 300, 31);
+      const seam = Math.abs(n-0.5) < 0.05 + dep*0.0018;
+      if (seam || n < 0.40) put(x, y, fire(-u - lat*0.5 + 5*n));
+      else {
+        put(x, y, pick(ROCK_WARM, 0.34 - 0.24*n + 0.14*bay(x,y), x, y));
+        if (bay(x+1,y) < 0.08 + dep*0.007) put(x, y, fire(-u + 4*n));
+      }
+    } else if (x > 206) {
+      const ph = -u - lat;
+      put(x, y, bay(x,y+1) < 0.30 ? pick(DEEP, 0.34 + 0.42*fbm(x, dep*3, 18), x, y) : water(ph));
+      // What the pool carries: the lava on its near lip, the cascade's white
+      // water, and the gate hanging upside down in it.
+      const rg = Math.max(0, 1 - (x-202)/30);
+      if (rg > 0 && bay(x,y) < rg*0.8) put(x, y, fire(-u - lat*0.6 + 4));
+      const dc = Math.abs(x - CASC_X + lat*0.7);
+      if (dc < 11 - dep*0.16 && bay(x+2,y) < 0.58) put(x, y, water(ph+4));
+      const dg = Math.abs(x - GATE_X + lat*1.2);
+      if (dg < 22 - dep*0.5 && bay(x,y+2) < 0.60 - dep*0.022)
+        put(x, y, magic(-u*0.6 - dg*0.2));
+    }
+  }
+
+  }
+  // ---- 8. the shelf, its sand and its moss --------------------------------
+  for (let x=150; x<340; x++) {
+    const top = spitTop(x);
+    if (top > 1e8) continue;
+    for (let y=Math.ceil(top); y<FS_H; y++) {
+      const d = y-top;
+      let v = litRock(x, y, 0.26 + 0.24*fbm(x*1.2, y*1.6, 11) - 0.20*smooth(0,14,d), 0.6);
+      if (!bare && d < 3 + 2.5*fbm(x, 5, 9) && bay(x,y) < 0.62)
+        v = earth(x*0.32 + 3*fbm(x*1.5, y, 7));           // wet sand, on the earth ramp
+      put(x, y, v);
+    }
+    for (let y=Math.ceil(top)-2; y<top+5; y++) {
+      const n = fbm(x*1.3, y*1.7, 8);
+      if (!bare && n > 0.60 && bay(x+1,y) < 0.6) put(x, y, leaf(-x*0.22 + 4*n));
+    }
+  }
+
+  if (!bare) {
+  // ---- 9. steam where the lava reaches the water --------------------------
+  for (let y=94; y<SURF+3; y++) for (let x=178; x<224; x++) {
+    const h = (SURF-y)/56;
+    const d = Math.abs(x - 198 - 8*h*h)/(5 + 13*h);
+    if (d > 1) continue;
+    const n = fbm(x*1.3, y*0.9 + 40, 13);
+    const dens = (1-d)*(1-h*0.9)*(0.5 + n);
+    if (bay(x,y) < dens*0.7) put(x, y, water(y*0.62 + 5*n));       // phase up = it rises
+    else if (bay(x+2,y+2) < dens*0.26) put(x, y, fire(y*0.62 + 4*n));
+  }
+
+  }
+  // ---- 10. the gate -------------------------------------------------------
+  for (let y=0; y<FS_H; y++) for (let x=GATE_X-GATE_R-GATE_T-4; x<=GATE_X+GATE_R+GATE_T+4; x++) {
+    const dx = x-GATE_X, dy = y-GATE_Y;
+    const r = Math.hypot(dx, dy);
+    const inArch = dy <= 0 && r >= GATE_R && r <= GATE_R+GATE_T;
+    const inLeg  = dy > 0 && y < spitTop(x)+3 &&
+                   (Math.abs(dx) >= GATE_R && Math.abs(dx) <= GATE_R+GATE_T);
+    if (!inArch && !inLeg) continue;
+    const ang = Math.atan2(-dy, dx);
+    const along = inArch ? ang*GATE_R : (y-GATE_Y) + Math.PI*GATE_R*0.5;
+    const joint = Math.abs(((along/11) % 1) - 0.5) > 0.45;
+    const across = inArch ? (r-GATE_R)/GATE_T : (Math.abs(dx)-GATE_R)/GATE_T;
+    const tone = 0.30 + 0.34*(1-across) + 0.18*fbm(x*1.5, y*1.5, 7) - (joint?0.30:0);
+    let v = pick(ROCK_COOL, clamp(tone, 0.10, 0.92), x, y);
+    if (!bare && joint && bay(x,y) < 0.45) v = earth(along*0.4);              // the mortar takes the pulse
+    // The inner face is the only part the field actually reaches.
+    if (!bare && across < 0.30 && bay(x,y+1) < 0.62 - across) v = magic(along*0.45 + across*3);
+    if (!bare && across < 0.22 && ((along+400)|0) % 13 < 4) v = magic(along*0.5 + 2);   // cut runes
+    put(x, y, v);
+  }
+  for (let y=GATE_Y-GATE_R-GATE_T-5; y<GATE_Y-GATE_R+2; y++)
+    for (let x=GATE_X-7; x<=GATE_X+7; x++) {
+      const d = Math.abs(x-GATE_X)/7 + Math.max(0, (GATE_Y-GATE_R-y)/(GATE_T+5))*0.55;
+      if (d > 1.05) continue;
+      let v = pick(ROCK_COOL, 0.62 - 0.34*d, x, y);
+      if (!bare && Math.abs(x-GATE_X) < 3 && y > GATE_Y-GATE_R-GATE_T) v = magic(y*0.6);
+      put(x, y, v);
+    }
+  // The field: a spiral wound about the gate's centre. Its phase climbs with
+  // radius, so the cycle draws the whole figure inwards, frame after frame.
+  if (!bare) for (let y=GATE_Y-GATE_R-1; y<SURF+2; y++) for (let x=GATE_X-GATE_R; x<=GATE_X+GATE_R; x++) {
+    const dx = x-GATE_X, dy = y-GATE_Y;
+    const r = Math.hypot(dx,dy);
+    const inside = (dy <= 0 && r < GATE_R) || (dy > 0 && Math.abs(dx) < GATE_R && y < spitTop(x)-1);
+    if (!inside) continue;
+    const ang = Math.atan2(dy,dx);
+    const rr = dy > 0 ? Math.max(r, Math.abs(dx)) : r;
+    const s = 3*((ang+Math.PI)/(2*Math.PI)) + 0.062*rr + 0.45*fbm(x+200, y, 15);
+    const arm = Math.abs(((s % 1) + 1) % 1 - 0.5);
+    let v;
+    if (arm > 0.28) v = pick(ROCK_VIO, 0.40 - 0.9*(arm-0.28), x, y);
+    else {
+      v = magic(s*4);
+      if (bay(x,y) < 0.22*(rr/GATE_R)) v = pick(ROCK_VIO, 0.5, x, y);
+    }
+    if (rr < 5) v = magic(-rr + 2);                                  // the eye of it
+    if (hash2(x*3, y*5) > 0.988) v = 208;                            // stars caught in it
+    put(x, y, v);
+  }
+  if (!bare) for (let y=4; y<SURF; y++) for (let x=GATE_X-100; x<GATE_X+100; x++) {
+    if (x < 0 || x >= FS_W) continue;
+    const dx = x-GATE_X, dy = y-GATE_Y;
+    const r = Math.hypot(dx,dy);
+    if (r < GATE_R+GATE_T+2 || r > 96) continue;
+    const a = Math.atan2(dy,dx);
+    const up = Math.max(0, -dy)/Math.max(1,r);                  // only the upward fan
+    const beam = Math.pow(Math.max(0, Math.sin(a*5 + 1.4)), 7);
+    const reach = Math.max(0, 1 - (r-GATE_R-GATE_T)/56);
+    if (bay(x,y) < beam*reach*up*0.20) put(x, y, magic(r*0.3));
+    else if (hash2(x*7+1, y*11) > 0.9975 - 0.004*reach*reach) put(x, y, magic(r*0.34));
+  }
+
+  function crystal(bx, by, ang, len, wid, ramp) {
+    const px = -Math.sin(ang), py = Math.cos(ang);
+    for (let t=0; t<len; t++) {
+      const w = wid*(1 - t/len) + 0.4;
+      const cx = bx + Math.cos(ang)*t, cy = by + Math.sin(ang)*t;
+      for (let k=-Math.ceil(w); k<=w; k++) {
+        const ex = cx + px*k, ey = cy + py*k;
+        put(ex, ey, Math.abs(k)/w > 0.72 ? pick(ROCK_VIO, 0.26, ex, ey) : ramp(-t*0.55 + k*0.8));
+      }
+    }
+  }
+  function cluster(cx, ang0, seed, ramp) {
+    const base = ridgeAt(cx);
+    for (let i=0; i<4; i++) {
+      const a = ang0 + (hash2(seed, i)-0.5)*1.5;
+      crystal(cx + (i-1.5)*3, base + 2 + hash2(seed,i*3)*3, a,
+              6 + hash2(seed, i*5)*13, 0.9 + hash2(seed, i*7)*1.8, ramp);
+    }
+  }
+  if (!bare) { cluster(312, -Math.PI/2 + 0.18, 3, magic);
+  cluster(384, -Math.PI/2 - 0.28, 7, magic);
+  cluster(158, -Math.PI/2 - 0.16, 13, magic);
+  cluster(192, -Math.PI/2 + 0.32, 17, magic); }
+
+  if (!bare) {
+  // ---- 11. embers, rising: the fire ramp read the other way round ---------
+  for (let i=0; i<58; i++) {
+    const bx = 10 + hash2(i, 41)*164;
+    const by = SURF - 4 - Math.pow(hash2(i, 43), 3.2)*78;
+    const x = bx + 7*Math.sin(by*0.06 + i);
+    for (let k=0, n=1+Math.floor(hash2(i,47)*3); k<n; k++) put(x, by+k, fire(by*0.8 + i - k));
+  }
+  for (let i=0; i<6; i++) {
+    const s = STALACS[(i*3) % STALACS.length];
+    const x = s.x + Math.round((hash2(i,53)-0.5)*4);
+    const y0 = ceilingAt(x) + 2 + hash2(i,59)*40;
+    for (let k=0, n=2+Math.floor(hash2(i,61)*3); k<n; k++) put(x, y0+k, water(-(y0+k)*0.8));
+  }
+
+  // ---- 12. hanging growth: the leaf ramp ----------------------------------
+  // The shimmer travels down each strand. That is what a phase falling with
+  // distance buys you: the plant looks alive without one pixel moving.
+  function vine(x0, len, sway, seed) {
+    const y = ceilingAt(x0);
+    for (let i=0; i<len; i++) {
+      const x = x0 + sway*Math.sin(i*0.11 + seed) + 2*fbm(seed*20, i*3, 14);
+      put(x, y+i, i%4===3 ? pick(MOSSD, 0.42, x, y+i) : leaf(-i*0.55));
+      if (i > 3 && i % 5 === Math.floor(hash2(seed,i)*5)) {
+        const s = hash2(i, seed) < 0.5 ? -1 : 1;
+        for (let k=1, n=1+Math.floor(hash2(i,seed*3)*2); k<=n; k++)
+          put(x + s*k, y+i - (k>>1), k === n ? pick(MOSSD, 0.5, x, y) : leaf(-i*0.55 + k));
+      }
+    }
+  }
+  vine(150, 34, 4, 1); vine(212, 44, 5, 3); vine(226, 26, 3, 4);
+  vine(286, 32, 4, 5); vine(300, 46, 5, 6); vine(374, 38, 4, 8);
+  vine(126, 28, 4, 10); vine(356, 18, 3, 12);
+  for (let y=SURF-26; y<SURF+2; y++) {
+    const e = Math.ceil(rightWallX(y));
+    for (let x=e-3; x<e+14 && x<FS_W; x++) {
+      const n = fbm(x*1.4, y*1.6, 10);
+      if (n > 0.60 && bay(x,y) < 0.55) put(x, y, leaf(-y*0.4 + 4*n));
+    }
+  }
+  }
+  return IMG;
+}
+
+// ---- the canvas ----------------------------------------------------------
+// The scene costs a few tens of milliseconds to compose, which is not worth
+// spending on somebody who never scrolls this far, so it is built the first
+// time the figure comes into view and cached from then on.
+let IMG = null, buf = null, ctx = null, timer = null, frame = 0, onScreen = false;
+let wanted = !PREFERS_REDUCED_MOTION;
+const canvas = document.getElementById('sceneCanvas');
+
+function paint() {
+  if (!IMG) {
+    IMG = buildFooterScene();
+    ctx = canvas.getContext('2d');
+    buf = ctx.createImageData(FS_W, FS_H);
+    const d = buf.data;
+    for (let i = 0; i < IMG.length; i++) d[i*4+3] = 255;
+  }
+  // The one line that does the animating: ask the page for the CLUT as it
+  // stands at this frame and re-expand the same indices through it.
+  const pal = frame ? cycledPalette(frame) : PAL_RGB;
+  const d = buf.data;
+  for (let i = 0; i < IMG.length; i++) {
+    const c = pal[IMG[i]];
+    d[i*4] = c[0]; d[i*4+1] = c[1]; d[i*4+2] = c[2];
+  }
+  ctx.putImageData(buf, 0, 0);
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; } }
+function start() {
+  stop();
+  if (!wanted || !onScreen || document.hidden) return;
+  timer = setInterval(() => { frame = (frame + 1) % 8; paint(); }, 140);   // as startPaletteAnimation
+}
+window.toggleSceneAnim = function (on) {
+  wanted = on;
+  if (!on) { stop(); frame = 0; paint(); } else start();
+};
+
+// Cycling a canvas nobody is looking at is pure waste, on a laptop battery
+// especially. Off-screen and background tabs both put it to sleep.
+try {
+  new IntersectionObserver(es => {
+    onScreen = es[es.length-1].isIntersecting;
+    if (onScreen) { paint(); start(); } else stop();
+  }, {rootMargin: '120px'}).observe(canvas);
+} catch (e) {
+  onScreen = true; paint(); start();                  // no observer: just run it
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); else start(); });
+})();
+</script>
+
 </section>
 
 </body>
