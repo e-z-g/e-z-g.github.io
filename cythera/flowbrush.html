@@ -1,0 +1,1162 @@
+<title>Flowbrush</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Pixelify+Sans:wght@600&display=swap">
+<style>
+:root{
+  --ground:#eef1f0; --surface:#fbfcfb; --raise:#ffffff; --line:#c6d0ce; --line-soft:#dde4e2;
+  --ink:#141b1e; --ink-2:#3f4b4f; --muted:#6b7a7e;
+  --aqua:#116a9e; --aqua-ink:#ffffff; --ember:#a24a06; --free:#7a5aa8;
+  --chk-a:#dfe5e3; --chk-b:#cfd7d5;
+  --shadow:0 1px 0 rgba(0,0,0,.04), 0 10px 26px -18px rgba(10,30,35,.6);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ground:#0d1214; --surface:#151d20; --raise:#1d272b; --line:#2c393d; --line-soft:#243033;
+  --ink:#e3e9e7; --ink-2:#b0bcbb; --muted:#7f9095;
+  --aqua:#63b6e8; --aqua-ink:#0b1519; --ember:#f0973a; --free:#b79ae0;
+  --chk-a:#1b2427; --chk-b:#161e21;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 12px 30px -20px #000;
+}}
+:root[data-theme="dark"]{
+  --ground:#0d1214; --surface:#151d20; --raise:#1d272b; --line:#2c393d; --line-soft:#243033;
+  --ink:#e3e9e7; --ink-2:#b0bcbb; --muted:#7f9095;
+  --aqua:#63b6e8; --aqua-ink:#0b1519; --ember:#f0973a; --free:#b79ae0;
+  --chk-a:#1b2427; --chk-b:#161e21;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 12px 30px -20px #000;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0; background:var(--ground); color:var(--ink);
+  font-family:Archivo,system-ui,sans-serif; font-size:13.5px; line-height:1.45;
+  -webkit-font-smoothing:antialiased; overscroll-behavior:none}
+.mono{font-family:"DM Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+.eyebrow{font-size:9.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); font-weight:600}
+svg{display:block}
+
+/* ---------- shell ---------- */
+.app{height:100dvh; min-height:520px; display:flex; flex-direction:column}
+.bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:7px 12px; border-bottom:1px solid var(--line); background:var(--surface)}
+.mark{font-family:"Pixelify Sans",Archivo,sans-serif; font-weight:600; font-size:19px; line-height:1;
+  letter-spacing:.01em; white-space:nowrap}
+.mark em{color:var(--aqua); font-style:normal}
+.bar .sp{flex:1}
+.scenes{display:flex; gap:5px; flex-wrap:wrap}
+.main{flex:1; display:grid; grid-template-columns:254px minmax(0,1fr); min-height:0}
+@media (max-width:820px){ .app{height:auto} .main{grid-template-columns:minmax(0,1fr)} }
+.rail{border-right:1px solid var(--line); background:var(--surface); overflow-y:auto; padding:10px}
+@media (max-width:820px){ .rail{border-right:0; border-top:1px solid var(--line)} }
+.pane{display:flex; flex-direction:column; min-height:0; padding:10px 12px; gap:8px}
+
+/* ---------- buttons ---------- */
+button{font:inherit; color:inherit}
+.btn{font-size:12.5px; font-weight:500; padding:5px 10px; border-radius:3px; cursor:pointer;
+  background:var(--raise); color:var(--ink-2); border:1px solid var(--line); white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--aqua); border-color:var(--aqua); color:var(--aqua-ink); font-weight:600}
+.btn.on{background:var(--aqua); border-color:var(--aqua); color:var(--aqua-ink)}
+.btn:focus-visible,.tool:focus-visible,.rampBtn:focus-visible,.pal button:focus-visible,.fdot:focus-visible{
+  outline:2px solid var(--aqua); outline-offset:2px}
+.btn[disabled]{opacity:.4; cursor:not-allowed}
+.icobtn{display:inline-flex; align-items:center; gap:6px}
+
+/* ---------- tools ---------- */
+.grp{margin-bottom:12px}
+.grp > .hd{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px}
+.tools{display:grid; grid-template-columns:repeat(4,1fr); gap:4px}
+.tool{display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px; cursor:pointer;
+  background:var(--raise); border:1px solid var(--line); border-radius:3px; color:var(--ink-2); font-size:10px}
+.tool[aria-pressed="true"]{background:var(--aqua); border-color:var(--aqua); color:var(--aqua-ink)}
+.tool svg{width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.toolhelp{margin-top:7px; font-size:11.5px; color:var(--muted); min-height:2.6em; line-height:1.3}
+
+label.fld{display:block; margin-top:9px}
+label.fld > span{display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:2px}
+label.fld > span b{color:var(--ink); font-weight:500; font-family:"DM Mono",monospace}
+label.fld.off{display:none}
+input[type=range]{width:100%; accent-color:var(--aqua); margin:0; height:18px}
+.chk{display:inline-flex; gap:6px; align-items:center; margin-top:9px; margin-right:12px;
+  font-size:12px; color:var(--ink-2); cursor:pointer}
+.chk input{accent-color:var(--aqua); margin:0}
+
+/* ---------- ramps ---------- */
+.rampBtn{display:grid; grid-template-columns:auto 1fr auto; gap:7px; align-items:center; text-align:left;
+  width:100%; padding:4px 5px; cursor:pointer; background:transparent; border:1px solid transparent;
+  border-radius:3px; margin-bottom:2px}
+.rampBtn:hover{background:var(--raise)}
+.rampBtn[aria-pressed="true"]{border-color:var(--aqua); background:var(--raise)}
+.rampBtn canvas{width:50px; height:17px; image-rendering:pixelated; border:1px solid var(--line); border-radius:2px}
+.rampBtn .rn{font-size:12px; font-weight:500}
+.rampBtn .rh{font-size:10px; color:var(--muted); line-height:1.2}
+.tag{font-size:8.5px; letter-spacing:.08em; text-transform:uppercase; font-weight:700;
+  padding:1px 4px; border-radius:2px; border:1px solid currentColor}
+.tag.free{color:var(--free)}
+.tag.eng{color:var(--muted)}
+.swatchBtn{display:flex; align-items:center; gap:8px; width:100%; padding:5px 7px; cursor:pointer;
+  background:var(--raise); border:1px solid var(--line); border-radius:3px; font-size:12px}
+.swatchBtn i{width:20px; height:20px; border-radius:2px; border:1px solid var(--line); display:block}
+
+/* ---------- canvas ---------- */
+.transport{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.frames{display:flex; gap:2px; align-items:center}
+.fdot{width:15px; height:15px; padding:0; border-radius:2px; cursor:pointer;
+  border:1px solid var(--line); background:var(--raise)}
+.fdot.on{background:var(--aqua); border-color:var(--aqua)}
+.paperWrap{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:2px}
+.paper{border:1px solid var(--line); border-radius:2px; line-height:0; box-shadow:var(--shadow)}
+#art{display:block; image-rendering:pixelated; touch-action:none; cursor:crosshair;
+  background-image:
+    linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%),
+    linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%);
+  background-size:16px 16px; background-position:0 0,8px 8px; background-color:var(--chk-a)}
+.status{display:flex; gap:14px; flex-wrap:wrap; font-family:"DM Mono",monospace; font-size:11px;
+  color:var(--muted); align-items:center}
+.status b{color:var(--aqua); font-weight:500}
+#say{color:var(--ember)}
+
+/* ---------- modals ---------- */
+dialog{border:1px solid var(--line); border-radius:5px; background:var(--surface); color:var(--ink);
+  padding:0; max-width:min(94vw,560px); box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog .dh{display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:9px 12px; border-bottom:1px solid var(--line-soft); background:var(--raise)}
+dialog .db{padding:12px}
+.pal{display:grid; grid-template-columns:repeat(16,1fr); gap:2px}
+.pal button{width:100%; aspect-ratio:1; border:1px solid transparent; border-radius:1px; padding:0; cursor:pointer}
+.pal button[disabled]{opacity:.12; cursor:not-allowed}
+.pal button[aria-current="true"]{outline:2px solid var(--aqua); outline-offset:-1px; border-color:var(--ink)}
+textarea,input[type=text],input[type=number]{font-family:"DM Mono",monospace; font-size:12px;
+  background:var(--raise); color:var(--ink); border:1px solid var(--line); border-radius:3px; padding:6px}
+textarea{width:100%; resize:vertical}
+input[type=number]{width:74px}
+.row{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:9px}
+dialog p{margin:0 0 9px; color:var(--ink-2); max-width:66ch}
+dialog h4{margin:14px 0 5px; font-size:12.5px}
+code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
+@media (prefers-reduced-motion:reduce){ *{transition:none !important} }
+</style>
+
+<div class="app">
+
+<div class="bar">
+  <div class="mark">FLOW<em>BRUSH</em></div>
+  <div class="scenes" id="scenes"></div>
+  <span class="sp"></span>
+  <button type="button" class="btn" id="bSize">Canvas 192&times;120</button>
+  <button type="button" class="btn" id="bShare">Share</button>
+  <button type="button" class="btn" id="bAbout" aria-label="How this works">?</button>
+</div>
+
+<div class="main">
+  <aside class="rail">
+    <div class="grp">
+      <div class="hd"><span class="eyebrow">Tool</span></div>
+      <div class="tools" id="tools"></div>
+      <p class="toolhelp" id="toolhelp"></p>
+
+      <label class="fld" data-for="brush"><span>Brush size <b id="vSize">7</b></span>
+        <input type="range" id="size" min="1" max="40" value="7"></label>
+      <label class="fld" data-for="lam"><span>Band spacing <b id="vLam">8 px</b></span>
+        <input type="range" id="lam" min="2" max="40" value="8"></label>
+      <label class="fld" data-for="turb"><span id="turbLabel">Turbulence <b id="vTurb">1.4</b></span>
+        <input type="range" id="turb" min="0" max="60" value="14"></label>
+      <label class="fld" data-for="spin"><span>Spiral arms <b id="vSpin">0</b></span>
+        <input type="range" id="spin" min="-80" max="80" value="0"></label>
+      <div>
+        <label class="chk"><input type="checkbox" id="rev"> Reverse</label>
+        <label class="chk"><input type="checkbox" id="ragged" checked> Ragged edge</label>
+      </div>
+    </div>
+
+    <div class="grp">
+      <div class="hd"><span class="eyebrow">Flow ramps</span><span class="eyebrow">live</span></div>
+      <div id="ramps"></div>
+      <button type="button" class="btn" id="bRegisters" style="width:100%; margin-top:6px">Add more ramps&hellip;</button>
+    </div>
+
+    <div class="grp">
+      <div class="hd"><span class="eyebrow">Still colour</span></div>
+      <button type="button" class="swatchBtn" id="bPal">
+        <i id="palChip"></i><span>Palette</span><span class="sp" style="flex:1"></span>
+        <span class="mono" id="palIdx">222</span>
+      </button>
+    </div>
+
+    <div class="grp">
+      <div class="hd"><span class="eyebrow">File</span></div>
+      <div class="row" style="margin:0">
+        <button type="button" class="btn" id="bImport">Import image</button>
+        <button type="button" class="btn" id="bGif">GIF</button>
+        <button type="button" class="btn" id="bPng">PNG</button>
+      </div>
+      <input type="file" id="fileIn" accept="image/*" hidden>
+      <p class="mono" id="saveNote" style="font-size:11px; color:var(--muted); margin:7px 0 0"></p>
+    </div>
+  </aside>
+
+  <section class="pane">
+    <div class="transport">
+      <button type="button" class="btn pri" id="play">Pause</button>
+      <button type="button" class="btn" id="stepB" aria-label="Previous frame">&#9664;</button>
+      <div class="frames" id="frames"></div>
+      <button type="button" class="btn" id="stepF" aria-label="Next frame">&#9654;</button>
+      <label class="fld" style="margin:0; width:104px"><span>Rate <b id="vRate">140 ms</b></span>
+        <input type="range" id="rate" min="50" max="400" step="10" value="140"></label>
+      <span class="sp" style="flex:1"></span>
+      <button type="button" class="btn" id="undo">Undo</button>
+      <button type="button" class="btn" id="clear">Clear</button>
+    </div>
+
+    <div class="paperWrap"><div class="paper"><canvas id="art" width="192" height="120"></canvas></div></div>
+
+    <div class="status">
+      <span>stroke <b id="rDir">&mdash;</b></span>
+      <span>ramp <b id="rRamp">Water</b></span>
+      <span>frame <b id="rFrame">0</b></span>
+      <span>size <b id="rSize">192&times;120</b></span>
+      <span id="say"></span>
+    </div>
+  </section>
+</div>
+</div>
+
+<dialog id="dPal" aria-label="Palette"><div class="dh"><span class="eyebrow">Still colours</span>
+  <button type="button" class="btn" data-close>Close</button></div>
+  <div class="db"><div class="pal" id="pal"></div>
+  <p style="margin-top:10px; font-size:11.5px">Indices held by an active flow ramp are struck out &mdash;
+    those registers are turning, so they cannot hold still paint.</p></div></dialog>
+
+<dialog id="dReg" aria-label="Cycling registers"><div class="dh"><span class="eyebrow">Cycling registers</span>
+  <button type="button" class="btn" data-close>Close</button></div>
+  <div class="db">
+    <p>Delver animates exactly 28 indices &mdash; <code>0xE0&ndash;0xFB</code>, the five ramps at the top
+      of the list. That is all the cycling colour the game itself has.</p>
+    <p>You can allocate more from the rest of the CLUT. They cycle here and export correctly to GIF,
+      but Delver will draw them as still paint, so leave them off if the art is bound for the game.</p>
+    <p>Switching one on <em>takes those indices over</em>: still paint already sitting in that range
+      starts moving. That is what allocating a register means, and switching it back off settles it again.</p>
+    <div id="regList"></div>
+  </div></dialog>
+
+<dialog id="dSize" aria-label="Canvas size"><div class="dh"><span class="eyebrow">Canvas size</span>
+  <button type="button" class="btn" data-close>Close</button></div>
+  <div class="db">
+    <p>Existing paint keeps its position from the top-left; growing adds empty space, shrinking crops.</p>
+    <div class="row">
+      <label>W <input type="number" id="inW" min="8" max="512" value="192"></label>
+      <label>H <input type="number" id="inH" min="8" max="512" value="120"></label>
+      <button type="button" class="btn pri" id="bApplySize">Resize</button>
+    </div>
+    <div class="row" id="presets"></div>
+  </div></dialog>
+
+<dialog id="dShare" aria-label="Share this canvas"><div class="dh"><span class="eyebrow">Share</span>
+  <button type="button" class="btn" data-close>Close</button></div>
+  <div class="db">
+    <p>The whole canvas &mdash; size, registers and every pixel &mdash; packs into the link itself.
+      Nothing is uploaded.</p>
+    <textarea id="shareUrl" rows="4" readonly></textarea>
+    <div class="row"><button type="button" class="btn pri" id="bCopy">Copy link</button>
+      <span class="mono" id="shareLen" style="font-size:11px; color:var(--muted)"></span></div>
+    <h4>Load a link or code</h4>
+    <textarea id="loadCode" rows="3" placeholder="paste a flowbrush link or code"></textarea>
+    <div class="row"><button type="button" class="btn" id="bLoadCode">Load it</button>
+      <span class="mono" id="loadNote" style="font-size:11px; color:var(--ember)"></span></div>
+  </div></dialog>
+
+<dialog id="dAbout" aria-label="How this works"><div class="dh"><span class="eyebrow">How this works</span>
+  <button type="button" class="btn" data-close>Close</button></div>
+  <div class="db">
+    <p><strong>A stroke stores position in a ramp, not colour.</strong> Every pixel holds one palette
+      index. Inside a cycling ramp that index says how far along the ramp the pixel sits, and each frame
+      rotates the ramp by one. So a stroke that writes a falling phase reads as colour travelling that
+      way &mdash; drag down and it falls. Nothing is ever redrawn.</p>
+    <p><strong>Band spacing</strong> is how many pixels one full turn of the ramp covers.
+      <strong>Turbulence</strong> adds noise sampled in the stroke's own frame, so it stretches into
+      streaks that run with the flow rather than speckling across it.
+      <strong>Spiral arms</strong> winds the phase around the centre: zero gives concentric rings,
+      anything else gives a vortex.</p>
+    <p><strong>The palette is Cythera's</strong> &mdash; a 6-bit Mac CLUT widened to 8. The five engine
+      ramps are the range the Delver engine actually rotates; the wiki records
+      <code>0xE0&ndash;0xFB</code>, and the split into fire, water, magic, earth and green is a reading
+      of the palette rather than documented fact.</p>
+    <p><strong>Exports.</strong> The GIF compresses the indices once and writes eight frames that differ
+      only in their colour table, which is what palette cycling actually is. The PNG writes raw indices
+      against the CLUT with index&nbsp;0 transparent, so it drops straight into the game.</p>
+  </div></dialog>
+
+<script>
+var PALETTE = ["ffffff","0000a8","00a800","00a8a8","a80000","a800a8","a85400","a8a8a8","545454","5454fc","54fc54","54fcfc","fc5454","fc54fc","fcfc54","fcfcfc","fcfcfc","ececec","d8d8d8","c8c8c8","b8b8b8","a8a8a8","989898","848484","747474","646464","545454","444444","343434","202020","101010","080808","fcf400","f8c800","f4a400","ec8000","e86000","e44000","e02000","dc0000","c80000","b40000","a00000","8c0000","7c0000","680000","540000","400000","fcfcfc","fcf4c0","fcec84","fce448","fcdc38","fcd024","fcc814","fcb800","e89000","d07000","bc5400","a83c00","942800","7c1800","680800","540000","e8905c","dc7848","d0603c","c04c2c","b4381c","a82414","9c1008","900000","800000","6c0000","5c0000","480000","380000","240000","100000","000000","f8fcd8","f4fcb8","e8fc9c","e0fc7c","d0fc5c","c4fc40","b4fc20","a0fc00","90e400","80cc00","74b400","609c00","508400","447000","345800","284000","d8fcd8","bcfcb8","9cfc9c","80fc7c","60fc5c","40fc40","20fc20","00fc00","00e400","04cc00","04b400","049c00","088400","047000","045800","044000","d8ecfc","b8dcfc","9cd0fc","7cbcfc","5cacfc","4094fc","2084fc","0070fc","0068e4","005ccc","0058b4","00509c","004484","003c70","003058","002440","fcc87c","f0b870","e8a868","dc9c60","d09058","c88450","bc784c","b46c44","a0643c","906034","80542c","6c4c24","5c401c","483818","382c10","28200c","fcd8fc","fcb8fc","fc9cfc","fc7cfc","fc5cfc","fc40fc","fc20fc","fc00fc","e000e4","c800cc","b400b4","9c009c","840084","6c0070","580058","400040","fce8dc","fce0d0","fcd8c4","fcd4bc","fcccb0","fcc4a4","fcbc9c","fcb890","e8a47c","d0946c","bc8458","a8744c","94643c","805830","684824","543c1c","fce8dc","f4c8b4","e8b090","e09470","d47850","cc6034","c44818","bc3400","a82800","981c00","881400","781000","680800","580400","480000","380000","fcf46c","f0f060","dce454","ccdc48","b8d040","a8c434","94b82c","84b024","749820","64841c","506c14","405810","30400c","202c08","101404","000000","fcfcfc","e8e8f0","d4d4e8","c0c4dc","b4b4d0","a0a0c8","9494bc","8484b4","74749c","646484","505470","404058","303044","20202c","101018","000000","fc0000","fc1c00","fc4000","fc6000","fc7c00","fc9800","fcbc00","fcdc00","0010fc","1028fc","1c44fc","2c5cfc","3874fc","4484fc","5498fc","60a8fc","d02094","dc34c0","ec48e8","ec60fc","704820","84542c","9c6038","b56d45","24a800","1cbc00","10d000","00e400","000000","000000","fcf4c0","000000"];
+var ALARIC_B64 = 'AAD///////////////8e//////////////////////////////////////////////////////////////8AAAD/HR0ICBsIHRsIHB0cGxsIHRsIHRwcHR0bCB0bGwgIHAgcCBscHBwbHAgcHB0IHB0cHBwIHBscGxwbCBwI/wD/CBQUFBQUFxcHExcSEhYYGBMWFhYHExEWExgWFhMTFBYWEwcHExMXEhcHFBYUFhMYFhYHFhQWFAcWFxgHFBz//xsSFAcWFhYWFhkHGBYIGBcUFAcXBxYWGBgZGAcWFgcWFBQTFhYWEhcREwcWBxQWFxQXBxQSBxYWFhkWBxEd//8cExIZHAgbGQgcCBwcHBvcGxscGwgdHR0bCAgbCBsZGQgbCBkcGRncCBwIHRscHBsICNwIGdwb3AgbGBcXHP8eHRQWHB4e//8eHv8eHv8dHf8eHh7OHh4dHR4dHR0dHR0eHR4dHR4eHR4eHh0eHhwdHh0cHh0dHBweHRgUFh3//xwWE9z/FxsIGwgZGBgIFgcYFxkUGQcWEhMWExTUExQT1BYWExQTFxgWGRMSFhQUEgcUBxQWFxYHFhwWFxQd//8bFBIczhkWFBIHFhMSFhISBwcHFhYWBxYWBxMTEgfRFhYWBxMWExMTFhEHBxMUEhYWBxMTExYHFwcbFBcHHP//HNEYHB4UFv//////////////Hv8e///OHv//////////////zv//Hv//////////Hv///87//xYTGxYWEx3//wgXFhz/FAce//////////+NqRapGayppaWjMaAxMRAxpaMxMaKyqamrCBsdHv////////////8TFAgTBwcb//8cBxYIHhgQ////////////GauyB6uloxIxoBCgEBAQEGCgMaCgsqmpFxgIHR7/////////////ExMbEhTRHP//HAcWCB7RB///////////rRipsqaioBAQEBAQEBAQEKAQEKCgMbGprKkXrAgbHB0dHR0dHv///xYYHREUFxv//wgWFxv/BxT/////zv//jBmrqKMxoBAQEBAQEBAQEKAQoKCgoDGxsqmpF6usCBsd//8cHR7///8TFBwSFBYb//8dFBQZHgcW/////////42trLESoBAQEBAQEBAQEBAxMaAxMTGisbKpFqyrGRkZCBz/HB0d////FhYIExYHHf//HBMSCP8WE////87Ojo2Mq7KgERAQEBAQEBAQEBAxsaUxMTGgMbGlsrKrixisrK0ICBscHv///xMHHBMWFhse/x0WBxscFNH//87/jo7/rKkUoBAQEBAQEBAQEBCgsaAxsTGgMamxFKYWqYusGBgYGQgc//////8SFhwTFgcb//8IEQcIHRQX////jo7/zqkUoxAQEBAQEBAxMaAQoLExoKCgoKCxsbGmB6mrGasYrK0ZGxwcHB7/EBMbERQHHP//GxTRCNwSFv//jo4e/6yyFKAREBAQEKCgE6ugoDGxsRMTsRQUBweyBwepFqsb/xwICBvN/xwd/xMHGxIWBxv//xwZFhwcFhP//42vjqwXB7ESoBIREqATEweyEqCjFqkUBwcWFhYIFxYWFhcYGI7OHYwb/x0bHB4WFAgUFhMI//8cFhQcHBYS/62Lr6sYF6kUFBMTExMUFKmpFLGmpRarqRcXGBkYGBcXFxgXGBgZHI4bjRwbGxz/FBEb0hIWG/8eGwgTCB0WEx6rq4sXqwgZFxcXGRgZrRscGIUHsoQXrc7////////Nr44bGBgYGYuOHh4dHc3//xYXCBAWExv//xsHFhwbExb/q6sXqRsbqwiOzs7Ozs7N/4urFqisi47//87/zf//zh4ezRkZGRkZCByO//////8WEwgHEhIb//8dFhgbHBIS/4GosrIWqRgIi4wcjo7O/87NGKmoqa2Ozv//zs7///////+OjhsZrKyMHI4cHf//FhYIEBQSHP//GxIYHRwWcP+msROxBxevrx2vHv///80ezo4WqResG//////OHM0eG44ezv//HqwZCIv//x0c/xYTCAcXFh3//xwHGQgcEhT/saKioKUHFh2OHR7//4sIjIuysrKpq60dza+si6sYq6utrKscrayrq6yLG40cG/8XFhnRFwce//8IFxYdHRIS/6MSoBKxBxaL/60IjBsZrBirB6WyFqurrIuLq6mpqamprKurqxgXhhcIixsbGwj/EhQcEAgIHf//HBMXHR0ZFv8xBwcSBxcWF62rGaysqxepshSxpagWrKwZqxepshaoqRapqaupqamGqxuNGxsbHhYTCBAHFx3/HhvRFh0eGBn/sROisRapB7IWqamrrKmsqLKlpbKpq6usq6mpqLKysrKoqampqaypq6usrRsbHP8UGBwRExQI//8cExQZHBkY/7ETExMUHKUUpaipCIypsgeyBwepF6uLHYyrqRaoqaioqauGqRmtq6sIi4sbi47/FhQbEhYUHM7/HRcWGxwW1v8UsROjsRSxE6WyqKiysrKyhagWqasZra2LCKmpqaytq6ysrKmpqamprKwcHI4c/xQTGxASBx3//wgSExkbBxPOq4sHFBQTo7EWq6ysGKgWqYuOjo4djo4cHI0Iq4SpGYarq6mpqRayFqut/////x4UFhsTFhYZ//8bEwcIHRIU/xkYFhYUsROlrKysGauoqBiN//+Ozv///x6MrBepqampqRapqbKpqKkXGB7/////EgcYEBTRHP//HAcYGB0WEx6rq4sYBxSxE6WpqLKysqmtrY5Mjh2vjK8ZrBcXqaupqamoqamprLKpqReOjs7//xQUGBIWFhv//wgSFhwdFhf/rKysGQgWsqUUpaWlpbKrrBcZCBseHQgZGKsXF6kWFq2oFqgWqReyFqmrixwc//8UFhsTFxcc//8cFhYXHRMWHqyLCKzNGRayqKWlE6WmqBarrAgIiwgZGRgXFxgXqRapq6mpqampFqgWGBkZCB0eBwcZEBMWCP//CAcU3B0Wcf+si40bHRmrFgcUFKWyFhcWqxsdGxsbjKwZFxgXCBcWFhYXhq2pFgcWFxcYCAgc/wcWGxAUEx3//x0HBxsdFBT/rK+NrwitF6sHpqUUBxgWFxgdHYyvix0dGRgYF4sXFxYWFhapF6iyBxYWGBkIHf8TERfSFhYc//8cFhIYHBQU/6yLi42v3BgXFhQUBwcWqxiNzs6OHR7/jhsZGBirGBcZF6kWshYHBwcWFggZCM3/FhQYEBQSG///HAcHGx0SEv+sjs7///+OGBYWBxYXFxzNzv+NG68bjAgIGRkZix7/GBcXFhYWFhYWFhgZGxse/xMUCBMWBxv//xwWERsdBxL/rI2Ozf///4wXFhYXFwge//8eja+vjggICAgbHR0ICBgYFxcWFhYWFhYWGRkIG/8HBwgSBxQc//8cEwcXHBIU/6wezv////8ZFxYYHB7/////josYGBitHP////8bGxuNjo4WFhYWFxsIFhgZGR3/FAcZExkWHP//HRYUGR0WB/+L//////8bGBcWFxgcjv8eGRgXFxcXG/8djv/OG80e//8dFgcHFxgbFhcXGRnN/xMUGREYFAj//xsSFhgdFhj/rK8cjv//GxkXFhgIGxcXFxcWFhYWFhYXFxcYGQgdHhsXFgcHBxYWFhcXGRgZCP8UFggTExYb//8cERcIHRYY/6yLjY7//wgZGBYXFxYWGRkXFhYWFhYWFhgXGBgYGBgXFxYHBxYZGAgICBwIGRz/FBQIEhcHHP//G9EUGx0WF/+srxwc//8bGxgWFxYWFhkIGRcWFhYYFhgIFwgYFxgYFxcZFgcHGBkXFxkcHgge/xYZHBMWFhv//xkWEggcGBMerIuNjY4cHB0IFxYWBwcWFhYWFhcXGRcXFxgdCBgYGRcXFwcHBxYXFhYXGBkZCP8UGQgQFAcI//8cBxMYHhcW/6yLr40cjh3/HRgIFhYHBwcHFhcZHRwYFxkIHhgYGRkeGxkWBxQHFhYWFhsIGxz/GBYbBxYWHf//GxYTGB0XFP+si4yNHh4dHQgYCBcWFhYHBxYXGM0bGRgYGRgYGQgcGRgXFgcHBwcXFxcbHBkZ/xQYHBAUFxn//x0HFB0eFhb/rIuNHv//zhwbCAgYGBgdFhYIHRwdHBkYGRkZGRkcHBgXFxcWFhYWFhkXGAgcG/8HFhkQExMd//8cBxIc/xcH/62Ljc3//x0dHBsbGRgXGxYXGx0dHAgZGRkbGxkZHM4XFxcbGBYWFhcbGBgZGRj/ExYIE9EUG/8eCBMWGx4WFv+Lr43Nzs7O/x4bCAgZGBcXFxgIHB4IGQgICB0cFxgWFggcGBgIGxcXGBgYGRkZ/xIWGxEWERv//x0XFxseFxb/zv+Ojs7Ozh4dHh4eHRkZGRgZGx0IGRwIGwgeHBYWBwcWFhgdHBgYGBkZG///G/8HEwgQFBYb//8IFBgcHhET/42Mr45MTM4eHv///x4dGxkZCB0ZGRkIzh0IGBcWFBQTEwcWFhcXGBkZGxwZFwf/BxYcEhMXCP//HBMWGR0UB////x7/////////////Hv/////O////Hs7Ozs7///8eHv////////////8e/x7//xYSGxQUFBn//wgHFhgdBxQUEhIWFNQWFhMWBxQHFBMTFhYXFxMXFwcWBwcUFgcUB9cS1RYTEggY1hYRBxQT0RQHFxgREhEc//8IFBYYHRcTExLRBxYTBxIWFBQHFAcUGBQYBxgYFhcT0RcWFhYSFBMHExMUEhcYBxYTFBYUExYWExMZ0RYUHf//HBIHCBwdHR0cHRwdHB0dCBwcCAgcCBsbCBwcGxwbGBgXGRgZGBkIGxsXCBwbGwgbGwgIGQgYGRkYCAcHFBz//xwWFBYHFBMTExQWFBMSERASExATExISFAfSERAU0tHRE9EQExIQFBQQEhMWEBIT0RIUEBQQEQcUEBITBxQd//8cFxEWBwcWFhIUFhQHFBYYGBcXGRYWBwcSFgcRFtEWBxIHFhEHFAcHFhkXFhYTBxMHGRkSExcWEhYHExMHHP//GxMSFxYRFBgSBxYWFBYYBxYWFgcRFBYUFBMTBxYUFhMWBxISBxYXGRgSEhYWFhIUBxYZBwcSFhEWEgcWEx3//x0cHhwdHRwdHRweHRwdHB4eHB4cHB0dGxwdGxwcHR4dHR4eHR0dHhwdHB0eHB4cHh0cHBwdHR0eGx0dHhwe//8eHR4dHhwdHh0eHh4dGx4cHh4dHRweHB0cHh0eHB0cGx4dHB0dHRweHB0eHR4cGx4cHh4dHB0eHB0eHR0eHv8A/////x7/zh4ezv//Hh7/Hh0e/x4eHh0eHv8e//8d/x4e/87//x3OHf8e/84e//8eHv//Hv8eHh7OHh4dzv8AAAAe/////x7//x7/Hv//////////Hv/////////////////////////////////////////////////O//8AAA==';
+/* ================= palette + cycling registers ========================= */
+var PAL = PALETTE.map(function (h) {
+  function s(v) { return Math.round(((parseInt(v, 16) >> 2) * 255) / 63); }
+  return [s(h.substr(0, 2)), s(h.substr(2, 2)), s(h.substr(4, 2))];
+});
+var CSS = PAL.map(function (c) { return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; });
+
+// The engine rotates 0xE0-0xFB and nothing else -- 28 indices, five ramps.
+// Everything below that line is a register you can allocate yourself: it
+// cycles here and in the GIF, but Delver will draw it still.
+var ENGINE = [
+  { id: 'fire',  name: 'Fire',  base: 0xE0, len: 8, hint: 'lava, torches, embers', eng: 1 },
+  { id: 'water', name: 'Water', base: 0xE8, len: 8, hint: 'falls, rivers, waves', eng: 1 },
+  { id: 'magic', name: 'Magic', base: 0xF0, len: 4, hint: 'portals, sparks', eng: 1 },
+  { id: 'earth', name: 'Earth', base: 0xF4, len: 4, hint: 'sand, ore, dust', eng: 1 },
+  { id: 'green', name: 'Green', base: 0xF8, len: 4, hint: 'foliage, moss', eng: 1 }
+];
+var FREE = [
+  { id: 'flame16', name: 'Flame',  base: 0x20, len: 16, hint: 'yellow into deep red', eng: 0 },
+  { id: 'ash16',   name: 'Ash',    base: 0x10, len: 16, hint: 'white into black', eng: 0 },
+  { id: 'leaf16',  name: 'Leaf',   base: 0x60, len: 16, hint: 'pale green into dark', eng: 0 },
+  { id: 'sky16',   name: 'Sky',    base: 0x70, len: 16, hint: 'ice blue into navy', eng: 0 },
+  { id: 'sand16',  name: 'Sand',   base: 0x80, len: 16, hint: 'tan into brown', eng: 0 },
+  { id: 'rose16',  name: 'Rose',   base: 0x90, len: 16, hint: 'pink into violet', eng: 0 },
+  { id: 'steel16', name: 'Steel',  base: 0xD0, len: 16, hint: 'white into blue-black', eng: 0 }
+];
+var freeOn = {};                                  // which free registers are live
+function ramps() { return ENGINE.concat(FREE.filter(function (r) { return freeOn[r.id]; })); }
+function rampOf(i) {
+  var rs = ramps();
+  for (var k = 0; k < rs.length; k++) if (i >= rs[k].base && i < rs[k].base + rs[k].len) return rs[k];
+  return null;
+}
+var LOOP = 8, FRAME_PAL = [];
+function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+function rebuildFrames() {
+  var rs = ramps(), L = 1;
+  rs.forEach(function (r) { L = L * r.len / gcd(L, r.len); });
+  LOOP = Math.min(L, 48);
+  FRAME_PAL = [];
+  for (var f = 0; f < LOOP; f++) {
+    var p = PAL.slice();
+    rs.forEach(function (r) {
+      for (var i = 0; i < r.len; i++) p[r.base + i] = PAL[r.base + ((i + f) % r.len)];
+    });
+    FRAME_PAL.push(p);
+  }
+  if (frame >= LOOP) frame = 0;
+  buildFrameDots();
+}
+
+/* ================= noise ================================================ */
+function hash2(x, y) {
+  var h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x, y) {
+  var x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  var u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  var a = hash2(x0, y0), b = hash2(x0 + 1, y0), c = hash2(x0, y0 + 1), d = hash2(x0 + 1, y0 + 1);
+  return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v;
+}
+function fbm(x, y) { return vnoise(x, y) * 0.62 + vnoise(x * 2.3 + 7, y * 2.3 + 3) * 0.38; }
+var BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+function bay(x, y) { return (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16; }
+
+/* ================= state ================================================ */
+var W = 192, H = 120;
+var art = document.getElementById('art'), ctx = art.getContext('2d');
+var idx = new Uint8Array(W * H), imgData = ctx.createImageData(W, H);
+var undoStack = [];
+var tool = 'flow', lastFlowTool = 'flow', ramp = ENGINE[1], still = 222;
+var brush = 7, lam = 8, turb = 1.4, spin = 0, reverse = false, ragged = true;
+var frame = 0, playing = true, rateMs = 140;
+
+function snapshot() { undoStack.push({ w: W, h: H, px: idx.slice() }); if (undoStack.length > 24) undoStack.shift(); }
+function draw() {
+  var p = FRAME_PAL[frame % LOOP] || PAL, d = imgData.data;
+  for (var i = 0; i < W * H; i++) {
+    var v = idx[i];
+    if (!v) { d[i * 4 + 3] = 0; continue; }
+    var c = p[v];
+    d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+function resize(nw, nh, keep) {
+  nw = Math.max(8, Math.min(512, nw | 0)); nh = Math.max(8, Math.min(512, nh | 0));
+  var old = idx, ow = W, oh = H;
+  W = nw; H = nh;
+  art.width = W; art.height = H;
+  imgData = ctx.createImageData(W, H);
+  idx = new Uint8Array(W * H);
+  if (keep) for (var y = 0; y < Math.min(oh, H); y++)
+    for (var x = 0; x < Math.min(ow, W); x++) idx[y * W + x] = old[y * ow + x];
+  document.getElementById('rSize').textContent = W + '×' + H;
+  document.getElementById('bSize').textContent = 'Canvas ' + W + '×' + H;
+  document.getElementById('inW').value = W; document.getElementById('inH').value = H;
+  fitCanvas(); draw();
+}
+function fitCanvas() {
+  var wrap = document.querySelector('.paperWrap');
+  var bw = wrap.clientWidth - 10, bh = wrap.clientHeight - 10;
+  if (bw < 20 || bh < 20) return;
+  var z = Math.min(bw / W, bh / H);
+  z = z >= 1 ? Math.floor(z) : z;
+  art.style.width = Math.round(W * z) + 'px';
+  art.style.height = Math.round(H * z) + 'px';
+}
+addEventListener('resize', fitCanvas);
+
+/* ================= brushes ============================================== */
+function put(x, y, v) { if (x >= 0 && x < W && y >= 0 && y < H) idx[y * W + x] = v; }
+function wrapPhase(k, r) { return r.base + ((Math.round(k) % r.len) + r.len) % r.len; }
+
+function dab(cx, cy, dx, dy, arc) {
+  var r = brush / 2, r2 = r * r, hasDir = (dx || dy);
+  for (var y = Math.floor(cy - r - 1); y <= cy + r + 1; y++)
+    for (var x = Math.floor(cx - r - 1); x <= cx + r + 1; x++) {
+      if (x < 0 || x >= W || y < 0 || y >= H) continue;
+      var ex = x - cx, ey = y - cy, dd = ex * ex + ey * ey;
+      if (dd > r2) continue;
+      if (ragged && tool !== 'paint' && tool !== 'erase' && dd > r2 * 0.42 && bay(x, y) > 1.15 - dd / r2) continue;
+      if (tool === 'erase') { put(x, y, 0); continue; }
+      if (tool === 'paint') { put(x, y, still); continue; }
+      if (tool === 'sparkle') {
+        if (hash2(x * 7 + 1, y * 13 + 5) > turb / 6) continue;
+        put(x, y, ramp.base + Math.floor(hash2(x * 31, y * 17) * ramp.len) % ramp.len);
+        continue;
+      }
+      var along = arc + (hasDir ? ex * dx + ey * dy : 0);
+      var perp = hasDir ? (ex * -dy + ey * dx) : ex;
+      var k = -(along * ramp.len / lam);
+      if (reverse) k = -k;
+      k += turb * (fbm(perp * 0.9, along * 0.17) - 0.5) * 2;
+      put(x, y, wrapPhase(k, ramp));
+    }
+}
+// Spiral: phase from the radius, wound round by the angle. Arms at zero is a
+// set of rings travelling in or out; anything else is a vortex.
+function spiral(cx, cy, rad) {
+  for (var y = Math.floor(cy - rad); y <= cy + rad; y++)
+    for (var x = Math.floor(cx - rad); x <= cx + rad; x++) {
+      if (x < 0 || x >= W || y < 0 || y >= H) continue;
+      var ex = x - cx, ey = y - cy, dist = Math.hypot(ex, ey);
+      if (dist > rad) continue;
+      if (ragged && dist > rad * 0.74 && bay(x, y) > 1.3 - dist / rad) continue;
+      var ang = Math.atan2(ey, ex) / (2 * Math.PI);
+      var k = dist * ramp.len / lam + spin * ang * ramp.len;
+      if (reverse) k = -k;
+      k += turb * (fbm(ex * 0.5, ey * 0.5) - 0.5) * 2;
+      put(x, y, wrapPhase(k, ramp));
+    }
+}
+function flood(sx, sy, val) {
+  var target = idx[sy * W + sx];
+  if (target === val) return;
+  var st = [sx + sy * W];
+  while (st.length) {
+    var p = st.pop();
+    if (idx[p] !== target) continue;
+    idx[p] = val;
+    var x = p % W, y = (p / W) | 0;
+    if (x > 0) st.push(p - 1); if (x < W - 1) st.push(p + 1);
+    if (y > 0) st.push(p - W); if (y < H - 1) st.push(p + W);
+  }
+}
+
+var stroking = false, lastX = 0, lastY = 0, arc = 0, startX = 0, startY = 0, baseCopy = null;
+function begin(x, y) {
+  if (tool === 'pick') {
+    var v = idx[y * W + x];
+    if (!v) { say('nothing there'); return; }
+    var r = rampOf(v);
+    if (r) {
+      ramp = r; setTool(lastFlowTool === 'sparkle' ? 'sparkle' : lastFlowTool);
+      paintRamps(); say('picked ' + r.name + ' ramp, phase ' + (v - r.base));
+    } else { still = v; setTool('paint'); paintPal(); say('picked still index ' + v); }
+    sync(); return;
+  }
+  snapshot();
+  stroking = true; lastX = x; lastY = y; arc = 0; startX = x; startY = y;
+  if (tool === 'fill') { flood(x, y, still); stroking = false; draw(); return; }
+  if (tool === 'spiral') { baseCopy = idx.slice(); spiral(x, y, 2); draw(); return; }
+  dab(x, y, 0, 0, 0); draw();
+}
+function extend(x, y) {
+  if (!stroking) return;
+  if (tool === 'spiral') {
+    idx.set(baseCopy);
+    spiral(startX, startY, Math.max(2, Math.hypot(x - startX, y - startY)));
+    setDir(x - startX, y - startY, true); draw(); return;
+  }
+  var dx = x - lastX, dy = y - lastY, len = Math.hypot(dx, dy);
+  if (len < 0.001) return;
+  var ux = dx / len, uy = dy / len, steps = Math.max(1, Math.round(len * 2));
+  for (var s = 1; s <= steps; s++) {
+    var t = s / steps;
+    dab(lastX + dx * t, lastY + dy * t, ux, uy, arc + len * t);
+  }
+  arc += len; lastX = x; lastY = y; setDir(ux, uy, false); draw();
+}
+function end() { stroking = false; baseCopy = null; }
+
+/* ================= readouts ============================================= */
+var rDir = document.getElementById('rDir'), sayEl = document.getElementById('say'), sayT = 0;
+function say(m) { sayEl.textContent = m; sayT = Date.now(); }
+function setDir(dx, dy, isRad) {
+  if (isRad) { rDir.textContent = 'r ' + Math.round(Math.hypot(dx, dy)) + 'px'; return; }
+  var a = Math.atan2(dy, dx) * 180 / Math.PI;
+  var A = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
+  rDir.textContent = A[Math.round(((a + 360) % 360) / 45) % 8] + ' ' + Math.round((a + 360) % 360) + '°';
+}
+function sync() {
+  document.getElementById('rRamp').textContent = ramp.name;
+  document.getElementById('palIdx').textContent = still;
+  document.getElementById('palChip').style.background = CSS[still];
+}
+
+/* ================= pointer ============================================== */
+function pos(e) {
+  var r = art.getBoundingClientRect();
+  return [Math.floor((e.clientX - r.left) / r.width * W), Math.floor((e.clientY - r.top) / r.height * H)];
+}
+art.addEventListener('pointerdown', function (e) {
+  e.preventDefault(); art.setPointerCapture(e.pointerId);
+  var p = pos(e); begin(p[0], p[1]);
+});
+art.addEventListener('pointermove', function (e) {
+  if (!stroking) return; e.preventDefault(); var p = pos(e); extend(p[0], p[1]);
+});
+['pointerup', 'pointercancel'].forEach(function (n) { art.addEventListener(n, end); });
+
+/* ================= tools ================================================ */
+var I = {
+  flow: '<path d="M3 3c4 0 3 5 6 5s2-5 6-5"/><path d="M3 9c4 0 3 5 6 5s2-5 6-5"/><path d="M9 15v-2"/>',
+  spiral: '<path d="M9 9a1.6 1.6 0 1 1 1.6-1.6M9 9a3.4 3.4 0 1 0 3.4-3.4M9 9a5.4 5.4 0 1 1 5.4 5.4"/>',
+  sparkle: '<path d="M9 2.5v4M9 11.5v4M2.5 9h4M11.5 9h4M4.6 4.6l2 2M11.4 11.4l2 2M13.4 4.6l-2 2M6.6 11.4l-2 2"/>',
+  paint: '<path d="M5 15V8.5A1.5 1.5 0 0 1 6.5 7h5A1.5 1.5 0 0 1 13 8.5V15z"/><path d="M7.5 7V3.5h3V7"/>',
+  fill: '<path d="M3.5 8.5 8 4l5 5-4.5 4.5a1.4 1.4 0 0 1-2 0z"/><path d="M8 4 6 2"/><path d="M14.5 11.5c.9 1.4.5 2.5-.7 2.5s-1.6-1.1-.7-2.5l.7-1.1z"/>',
+  erase: '<path d="M7 14.5H3.5L2 12l7.5-8 5 4.5z"/><path d="M6 8.5 11 13"/><path d="M7 14.5h8"/>',
+  pick: '<path d="M11.5 2.5 15 6l-1.6 1.6-1-1L6 13a3 3 0 0 1-1.4.8L2.5 15l1.2-2.1A3 3 0 0 1 4.5 11l6.4-6.4-1-1z"/>'
+};
+var TOOLS = [
+  { id: 'flow', name: 'Flow', use: ['brush', 'lam', 'turb'],
+    help: 'Drag. The direction you drag becomes the direction the colour travels — down for a fall, across for a current.' },
+  { id: 'spiral', name: 'Spiral', use: ['lam', 'turb', 'spin'],
+    help: 'Press at the centre, drag out to set the radius. Arms at zero gives rings closing in; turn it up for a vortex.' },
+  { id: 'sparkle', name: 'Sparkle', use: ['brush', 'turb'],
+    help: 'Scatters random phases so the area twinkles instead of flowing. Good for embers, stars and magic dust.' },
+  { id: 'paint', name: 'Paint', use: ['brush'], help: 'Flat colour from the palette. Never cycles.' },
+  { id: 'fill', name: 'Fill', use: [], help: 'Flood-fills the region you click with the still colour.' },
+  { id: 'erase', name: 'Erase', use: ['brush'], help: 'Back to transparent.' },
+  { id: 'pick', name: 'Pick', use: [], help: 'Click any pixel to adopt whatever it is — a flow ramp with its phase, or a still colour.' }
+];
+(function () {
+  var host = document.getElementById('tools');
+  TOOLS.forEach(function (t) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'tool'; b.dataset.tool = t.id;
+    b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<svg viewBox="0 0 18 18">' + I[t.id] + '</svg><span>' + t.name + '</span>';
+    b.addEventListener('click', function () { setTool(t.id); });
+    host.appendChild(b);
+  });
+})();
+function setTool(t) {
+  tool = t;
+  if (t === 'flow' || t === 'spiral' || t === 'sparkle') lastFlowTool = t;
+  var def = TOOLS.filter(function (x) { return x.id === t; })[0];
+  [].forEach.call(document.querySelectorAll('.tool'), function (b) {
+    b.setAttribute('aria-pressed', String(b.dataset.tool === t));
+  });
+  document.getElementById('toolhelp').textContent = def.help;
+  [].forEach.call(document.querySelectorAll('label.fld[data-for]'), function (l) {
+    l.classList.toggle('off', def.use.indexOf(l.dataset.for) < 0);
+  });
+  document.getElementById('turbLabel').innerHTML = (t === 'sparkle' ? 'Density ' : 'Turbulence ') +
+    '<b id="vTurb">' + (t === 'sparkle' ? (turb / 6).toFixed(2) : turb.toFixed(1)) + '</b>';
+  art.style.cursor = t === 'pick' ? 'copy' : 'crosshair';
+}
+function bindRange(id, out, fn, fmt) {
+  var el = document.getElementById(id);
+  el.addEventListener('input', function () {
+    fn(+el.value);
+    var o = document.getElementById(out); if (o) o.textContent = fmt(+el.value);
+    sync();
+  });
+}
+bindRange('size', 'vSize', function (v) { brush = v; }, String);
+bindRange('lam', 'vLam', function (v) { lam = v; }, function (v) { return v + ' px'; });
+bindRange('turb', 'vTurb', function (v) { turb = v / 10; },
+  function (v) { return tool === 'sparkle' ? (v / 60).toFixed(2) : (v / 10).toFixed(1); });
+bindRange('spin', 'vSpin', function (v) { spin = v / 10; }, function (v) { return (v / 10).toFixed(1); });
+bindRange('rate', 'vRate', function (v) { rateMs = v; }, function (v) { return v + ' ms'; });
+document.getElementById('rev').addEventListener('change', function (e) { reverse = e.target.checked; });
+document.getElementById('ragged').addEventListener('change', function (e) { ragged = e.target.checked; });
+
+/* ================= ramp list + registers ================================ */
+var rampCv = [];
+function paintRamps() {
+  var host = document.getElementById('ramps'); host.innerHTML = ''; rampCv = [];
+  ramps().forEach(function (r) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'rampBtn'; b.setAttribute('aria-pressed', String(r.id === ramp.id));
+    var cv = document.createElement('canvas'); cv.width = 16; cv.height = 1;
+    var txt = document.createElement('span');
+    txt.innerHTML = '<span class="rn">' + r.name + '</span><br><span class="rh">' + r.hint + '</span>';
+    var tg = document.createElement('span');
+    tg.className = 'tag ' + (r.eng ? 'eng' : 'free'); tg.textContent = r.eng ? 'eng' : 'free';
+    b.appendChild(cv); b.appendChild(txt); b.appendChild(tg);
+    b.addEventListener('click', function () {
+      ramp = r;
+      if (['flow', 'spiral', 'sparkle'].indexOf(tool) < 0) setTool(lastFlowTool);
+      paintRamps(); sync();
+    });
+    host.appendChild(b); rampCv.push({ cv: cv, r: r });
+  });
+  drawRampSwatches();
+}
+function drawRampSwatches() {
+  rampCv.forEach(function (o) {
+    var g = o.cv.getContext('2d'), im = g.createImageData(16, 1);
+    for (var x = 0; x < 16; x++) {
+      var c = PAL[o.r.base + ((x + frame) % o.r.len)];
+      im.data[x * 4] = c[0]; im.data[x * 4 + 1] = c[1]; im.data[x * 4 + 2] = c[2]; im.data[x * 4 + 3] = 255;
+    }
+    g.putImageData(im, 0, 0);
+  });
+}
+function paintRegs() {
+  var host = document.getElementById('regList'); host.innerHTML = '';
+  FREE.forEach(function (r) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'rampBtn'; b.setAttribute('aria-pressed', String(!!freeOn[r.id]));
+    var cv = document.createElement('canvas'); cv.width = r.len; cv.height = 1;
+    var g = cv.getContext('2d'), im = g.createImageData(r.len, 1);
+    for (var x = 0; x < r.len; x++) {
+      var c = PAL[r.base + x];
+      im.data[x * 4] = c[0]; im.data[x * 4 + 1] = c[1]; im.data[x * 4 + 2] = c[2]; im.data[x * 4 + 3] = 255;
+    }
+    g.putImageData(im, 0, 0);
+    var txt = document.createElement('span');
+    txt.innerHTML = '<span class="rn">' + r.name + '</span><br><span class="rh">' + r.hint +
+      ' · ' + r.len + ' steps at 0x' + r.base.toString(16).toUpperCase() + '</span>';
+    var tg = document.createElement('span'); tg.className = 'btn';
+    tg.textContent = freeOn[r.id] ? 'On' : 'Off';
+    b.appendChild(cv); b.appendChild(txt); b.appendChild(tg);
+    b.addEventListener('click', function () {
+      freeOn[r.id] = !freeOn[r.id];
+      if (!freeOn[r.id] && ramp.id === r.id) ramp = ENGINE[1];
+      rebuildFrames(); paintRegs(); paintRamps(); paintPal(); sync(); draw();
+    });
+    host.appendChild(b);
+  });
+}
+
+/* ================= still palette ======================================== */
+function paintPal() {
+  var host = document.getElementById('pal'); host.innerHTML = '';
+  for (var i = 0; i < 256; i++) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.style.background = CSS[i];
+    b.title = 'index ' + i + ' (0x' + i.toString(16).toUpperCase() + ')';
+    if (i === 0 || rampOf(i)) b.disabled = true;
+    b.setAttribute('aria-current', String(i === still));
+    (function (n) {
+      b.addEventListener('click', function () {
+        still = n;
+        if (['flow', 'spiral', 'sparkle'].indexOf(tool) >= 0) setTool('paint');
+        paintPal(); sync();
+      });
+    })(i);
+    host.appendChild(b);
+  }
+}
+
+/* ================= transport ============================================ */
+function buildFrameDots() {
+  var host = document.getElementById('frames'); host.innerHTML = '';
+  for (var i = 0; i < LOOP; i++) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'fdot' + (i === frame ? ' on' : '');
+    b.title = 'frame ' + i; b.setAttribute('aria-label', 'Go to frame ' + i);
+    (function (n) {
+      b.addEventListener('click', function () {
+        playing = false; document.getElementById('play').textContent = 'Play';
+        gotoFrame(n);
+      });
+    })(i);
+    host.appendChild(b);
+  }
+}
+function gotoFrame(n) {
+  frame = ((n % LOOP) + LOOP) % LOOP;
+  var dots = document.getElementById('frames').children;
+  for (var k = 0; k < dots.length; k++) dots[k].className = 'fdot' + (k === frame ? ' on' : '');
+  document.getElementById('rFrame').textContent = frame;
+  draw(); drawRampSwatches();
+}
+var playBtn = document.getElementById('play');
+playBtn.addEventListener('click', function () {
+  playing = !playing; playBtn.textContent = playing ? 'Pause' : 'Play';
+});
+document.getElementById('stepB').addEventListener('click', function () {
+  playing = false; playBtn.textContent = 'Play'; gotoFrame(frame - 1);
+});
+document.getElementById('stepF').addEventListener('click', function () {
+  playing = false; playBtn.textContent = 'Play'; gotoFrame(frame + 1);
+});
+document.getElementById('undo').addEventListener('click', function () {
+  var s = undoStack.pop(); if (!s) return;
+  if (s.w !== W || s.h !== H) { W = s.w; H = s.h; art.width = W; art.height = H; imgData = ctx.createImageData(W, H); resize(W, H, false); }
+  idx = s.px; draw();
+});
+document.getElementById('clear').addEventListener('click', function () { snapshot(); idx.fill(0); draw(); });
+var lastTick = 0;
+function loop(t) {
+  if (playing && t - lastTick > rateMs) { lastTick = t; gotoFrame(frame + 1); }
+  if (sayT && Date.now() - sayT > 3200) { sayEl.textContent = ''; sayT = 0; }
+  requestAnimationFrame(loop);
+}
+
+/* ================= modals =============================================== */
+[].forEach.call(document.querySelectorAll('dialog [data-close]'), function (b) {
+  b.addEventListener('click', function () { b.closest('dialog').close(); });
+});
+document.getElementById('bPal').addEventListener('click', function () { paintPal(); document.getElementById('dPal').showModal(); });
+document.getElementById('bRegisters').addEventListener('click', function () { paintRegs(); document.getElementById('dReg').showModal(); });
+document.getElementById('bAbout').addEventListener('click', function () { document.getElementById('dAbout').showModal(); });
+document.getElementById('bSize').addEventListener('click', function () { document.getElementById('dSize').showModal(); });
+document.getElementById('bApplySize').addEventListener('click', function () {
+  snapshot();
+  resize(+document.getElementById('inW').value, +document.getElementById('inH').value, true);
+  document.getElementById('dSize').close();
+});
+(function () {
+  var host = document.getElementById('presets');
+  [[32, 32, 'sprite tile'], [64, 64, 'portrait'], [192, 120, 'scene'], [320, 200, 'MCGA']].forEach(function (p) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn';
+    b.textContent = p[0] + '×' + p[1] + ' · ' + p[2];
+    b.addEventListener('click', function () {
+      document.getElementById('inW').value = p[0]; document.getElementById('inH').value = p[1];
+    });
+    host.appendChild(b);
+  });
+})();
+
+/* ================= colour matching + import ============================= */
+function chroma(c) { return Math.max(c[0], c[1], c[2]) - Math.min(c[0], c[1], c[2]); }
+function snapStill(rgb) {
+  var best = 222, bd = Infinity, sc = chroma(rgb);
+  for (var i = 1; i < 256; i++) {
+    if (rampOf(i)) continue;
+    var p = PAL[i], rm = (p[0] + rgb[0]) / 2;
+    var dr = p[0] - rgb[0], dg = p[1] - rgb[1], db = p[2] - rgb[2];
+    var d = (2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db;
+    var lost = sc - chroma(p);
+    if (lost > 0) d += 6 * lost * lost;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+document.getElementById('bImport').addEventListener('click', function () { document.getElementById('fileIn').click(); });
+document.getElementById('fileIn').addEventListener('change', function (e) {
+  var f = e.target.files[0]; if (!f) return;
+  var url = URL.createObjectURL(f), im = new Image();
+  im.onload = function () {
+    URL.revokeObjectURL(url);
+    snapshot();
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    var g = cv.getContext('2d', { willReadFrequently: true });
+    var s = Math.min(W / im.width, H / im.height);
+    var dw = Math.round(im.width * s), dh = Math.round(im.height * s);
+    g.drawImage(im, ((W - dw) / 2) | 0, ((H - dh) / 2) | 0, dw, dh);
+    var d = g.getImageData(0, 0, W, H).data;
+    for (var i = 0; i < W * H; i++) {
+      if (d[i * 4 + 3] < 40) { idx[i] = 0; continue; }
+      // a touch of ordered dither before the snap, so gradients keep their shape
+      var j = (bay(i % W, (i / W) | 0) - 0.5) * 16;
+      idx[i] = snapStill([d[i * 4] + j, d[i * 4 + 1] + j, d[i * 4 + 2] + j]);
+    }
+    draw(); say('imported and mapped to the CLUT');
+  };
+  im.src = url;
+  e.target.value = '';
+});
+
+/* ================= share ================================================ */
+function rle(px) {
+  var o = [], i = 0;
+  while (i < px.length) { var v = px[i], n = 1; while (i + n < px.length && px[i + n] === v && n < 255) n++; o.push(v, n); i += n; }
+  return o;
+}
+function unrle(b, n) {
+  var o = new Uint8Array(n), p = 0;
+  for (var i = 0; i + 1 < b.length && p < n; i += 2) for (var k = 0; k < b[i + 1] && p < n; k++) o[p++] = b[i];
+  return o;
+}
+function b64u(b) { var s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function unb64u(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
+  var t = atob(s), o = new Uint8Array(t.length);
+  for (var i = 0; i < t.length; i++) o[i] = t.charCodeAt(i);
+  return o;
+}
+async function zip(bytes) {
+  if (typeof CompressionStream !== 'function') return null;
+  try {
+    var s = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  } catch (e) { return null; }
+}
+// Run-length pays on flat art and costs double on noisy art, so both are tried
+// and the shorter wins. Version 2 is deflated runs, version 3 deflated indices.
+async function encodeCanvas() {
+  var mask = 0; FREE.forEach(function (r, i) { if (freeOn[r.id]) mask |= 1 << i; });
+  var head = [W & 255, W >> 8, H & 255, H >> 8, mask];
+  function pack(body) {
+    var raw = new Uint8Array(head.length + body.length);
+    raw.set(head, 0); raw.set(body, head.length);
+    return raw;
+  }
+  var runs = pack(rle(idx)), flat = pack(idx);
+  var zr = await zip(runs), zf = await zip(flat);
+  var best = null, ver = 1, payload = runs;
+  if (zr && zf) { if (zf.length < zr.length) { ver = 3; payload = zf; } else { ver = 2; payload = zr; } }
+  else if (zr) { ver = 2; payload = zr; }
+  var out = new Uint8Array(payload.length + 1);
+  out[0] = ver; out.set(payload, 1);
+  return b64u(out);
+}
+async function unzip(bytes) {
+  var s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+async function decodeCanvas(code) {
+  var b = unb64u(code), ver = b[0], raw, flat = false;
+  if (ver === 2) raw = await unzip(b.subarray(1));
+  else if (ver === 3) { raw = await unzip(b.subarray(1)); flat = true; }
+  else if (ver === 1) raw = b.subarray(1);
+  else throw new Error('unknown format');
+  var w = raw[0] | (raw[1] << 8), h = raw[2] | (raw[3] << 8), mask = raw[4];
+  if (w < 8 || h < 8 || w > 512 || h > 512) throw new Error('bad size');
+  freeOn = {}; FREE.forEach(function (r, i) { if (mask & (1 << i)) freeOn[r.id] = true; });
+  rebuildFrames();
+  resize(w, h, false);
+  idx = flat ? raw.slice(5, 5 + w * h) : unrle(raw.subarray(5), w * h);
+  paintRamps(); paintPal(); draw();
+}
+document.getElementById('bShare').addEventListener('click', async function () {
+  var d = document.getElementById('dShare'); d.showModal();
+  var code = await encodeCanvas();
+  var base = location.href.split('#')[0];
+  var url = base + '#c=' + code;
+  document.getElementById('shareUrl').value = url;
+  document.getElementById('shareLen').textContent = url.length + ' chars' +
+    (url.length > 8000 ? ' — long, some apps may truncate it' : '');
+});
+document.getElementById('bCopy').addEventListener('click', async function () {
+  var t = document.getElementById('shareUrl');
+  try { await navigator.clipboard.writeText(t.value); document.getElementById('shareLen').textContent = 'copied'; }
+  catch (e) { t.select(); document.getElementById('shareLen').textContent = 'select and copy'; }
+});
+document.getElementById('bLoadCode').addEventListener('click', async function () {
+  var v = document.getElementById('loadCode').value.trim();
+  var m = v.match(/[#?]c=([A-Za-z0-9\-_]+)/);
+  var code = m ? m[1] : v.replace(/^.*?c=/, '');
+  try { snapshot(); await decodeCanvas(code); document.getElementById('dShare').close(); say('loaded'); }
+  catch (e) { document.getElementById('loadNote').textContent = 'could not read that (' + e.message + ')'; }
+});
+
+/* ================= export =============================================== */
+var CRC = (function () { var t = []; for (var n = 0; n < 256; n++) { var c = n;
+  for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { var c = 0xFFFFFFFF; for (var i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function adler32(b) { var a = 1, s = 0; for (var i = 0; i < b.length; i++) { a = (a + b[i]) % 65521; s = (s + a) % 65521; } return ((s << 16) | a) >>> 0; }
+function storedZlib(bytes) {
+  var out = [0x78, 0x01], i = 0;
+  while (i < bytes.length) {
+    var n = Math.min(65535, bytes.length - i), last = (i + n >= bytes.length) ? 1 : 0;
+    out.push(last, n & 255, n >> 8, (~n) & 255, ((~n) >> 8) & 255);
+    for (var k = 0; k < n; k++) out.push(bytes[i + k]);
+    i += n;
+  }
+  var a = adler32(bytes);
+  out.push((a >>> 24) & 255, (a >>> 16) & 255, (a >>> 8) & 255, a & 255);
+  return new Uint8Array(out);
+}
+async function deflate(bytes) {
+  if (typeof CompressionStream === 'function') {
+    try {
+      var s = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate'));
+      return new Uint8Array(await new Response(s).arrayBuffer());
+    } catch (e) {}
+  }
+  return storedZlib(bytes);
+}
+function chunk(type, data) {
+  var out = new Uint8Array(12 + data.length), dv = new DataView(out.buffer);
+  dv.setUint32(0, data.length);
+  for (var i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+  out.set(data, 8);
+  dv.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+  return out;
+}
+async function pngIndexed() {
+  var raw = new Uint8Array((W + 1) * H);
+  for (var y = 0; y < H; y++) { raw[y * (W + 1)] = 0; raw.set(idx.subarray(y * W, (y + 1) * W), y * (W + 1) + 1); }
+  var ihdr = new Uint8Array(13), dv = new DataView(ihdr.buffer);
+  dv.setUint32(0, W); dv.setUint32(4, H); ihdr[8] = 8; ihdr[9] = 3;
+  var plte = new Uint8Array(768);
+  for (var i = 0; i < 256; i++) { plte[i * 3] = PAL[i][0]; plte[i * 3 + 1] = PAL[i][1]; plte[i * 3 + 2] = PAL[i][2]; }
+  var parts = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr),
+    chunk('PLTE', plte), chunk('tRNS', new Uint8Array([0])),
+    chunk('IDAT', await deflate(raw)), chunk('IEND', new Uint8Array(0))];
+  var n = parts.reduce(function (a, p) { return a + p.length; }, 0), out = new Uint8Array(n), o = 0;
+  parts.forEach(function (p) { out.set(p, o); o += p.length; });
+  return out;
+}
+function lzw(pix, minCode) {
+  var CLEAR = 1 << minCode, EOI = CLEAR + 1;
+  var size = minCode + 1, next = EOI + 1, dict = new Map();
+  var bytes = [], acc = 0, nb = 0;
+  function emit(code) { acc |= code << nb; nb += size; while (nb >= 8) { bytes.push(acc & 255); acc >>>= 8; nb -= 8; } }
+  emit(CLEAR);
+  var prefix = pix[0];
+  for (var i = 1; i < pix.length; i++) {
+    var c = pix[i], key = (prefix << 8) | c, got = dict.get(key);
+    if (got !== undefined) { prefix = got; continue; }
+    emit(prefix);
+    dict.set(key, next++);
+    if (next === 4096) { emit(CLEAR); dict = new Map(); next = EOI + 1; size = minCode + 1; }
+    else if (next > (1 << size) && size < 12) size++;
+    prefix = c;
+  }
+  emit(prefix); emit(EOI);
+  if (nb > 0) bytes.push(acc & 255);
+  return bytes;
+}
+function gifBytes(delayCs) {
+  var out = [];
+  function b(v) { out.push(v & 255); }
+  function w(v) { out.push(v & 255, (v >> 8) & 255); }
+  function str(s) { for (var i = 0; i < s.length; i++) out.push(s.charCodeAt(i)); }
+  function table(p) { for (var i = 0; i < 256; i++) out.push(p[i][0], p[i][1], p[i][2]); }
+  str('GIF89a'); w(W); w(H); b(0xF7); b(0); b(0);
+  table(PAL);
+  str('!'); b(0xFF); b(11); str('NETSCAPE2.0'); b(3); b(1); w(0); b(0);
+  var data = lzw(idx, 8);
+  for (var fr = 0; fr < LOOP; fr++) {
+    b(0x21); b(0xF9); b(4); b(0x09); w(delayCs); b(0); b(0);
+    b(0x2C); w(0); w(0); w(W); w(H); b(0x87);
+    table(FRAME_PAL[fr]); b(8);
+    for (var i = 0; i < data.length; i += 255) {
+      var n = Math.min(255, data.length - i);
+      b(n); for (var k = 0; k < n; k++) b(data[i + k]);
+    }
+    b(0);
+  }
+  b(0x3B);
+  return new Uint8Array(out);
+}
+// Two ways out. Inside a published artifact the sandbox blocks ordinary
+// downloads and the host offers the file instead; served as a plain page there
+// is no host, and a blob link is the whole of it.
+var downloads = null, saveNote = document.getElementById('saveNote');
+var inArtifact = !!(window.claude && window.claude.use);
+(async function () {
+  if (inArtifact) downloads = await claude.use('downloads');
+  if (inArtifact && !downloads) {
+    document.getElementById('bGif').disabled = true;
+    document.getElementById('bPng').disabled = true;
+    saveNote.textContent = 'file saving unavailable here — use Share instead';
+  }
+})();
+async function offer(name, bytes) {
+  if (downloads) {
+    saveNote.textContent = 'confirm the save…';
+    try { await downloads.save({ filename: name, data: bytes }); saveNote.textContent = 'saved ' + name; }
+    catch (e) { saveNote.textContent = (e && e.code === 'declined') ? 'save cancelled' : 'could not save'; }
+    return;
+  }
+  if (inArtifact) return;
+  var blob = new Blob([bytes], { type: /\.gif$/.test(name) ? 'image/gif' : 'image/png' });
+  var url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+  saveNote.textContent = 'downloaded ' + name;
+}
+document.getElementById('bGif').addEventListener('click', function () { offer('flowbrush.gif', gifBytes(Math.round(rateMs / 10))); });
+document.getElementById('bPng').addEventListener('click', async function () { offer('flowbrush.png', await pngIndexed()); });
+
+/* ================= scene helpers ======================================== */
+var quiet = false;
+var _snapshot = snapshot;
+snapshot = function () { if (!quiet) _snapshot(); };
+
+function scripted(t, r, p, pts) {
+  tool = t; if (r) ramp = r;
+  brush = p.brush === undefined ? 7 : p.brush;
+  lam = p.lam === undefined ? 8 : p.lam;
+  turb = p.turb === undefined ? 1.2 : p.turb;
+  spin = p.spin === undefined ? 0 : p.spin;
+  reverse = !!p.rev; ragged = p.ragged !== false;
+  begin(pts[0][0], pts[0][1]);
+  for (var i = 1; i < pts.length; i++) extend(pts[i][0], pts[i][1]);
+  end();
+}
+function ell(cx, cy, rx, ry, fn) {
+  for (var y = Math.floor(cy - ry); y <= cy + ry; y++)
+    for (var x = Math.floor(cx - rx); x <= cx + rx; x++) {
+      if (x < 0 || x >= W || y < 0 || y >= H) continue;
+      var u = (x - cx) / rx, v = (y - cy) / ry;
+      if (u * u + v * v > 1) continue;
+      var val = typeof fn === 'function' ? fn(x, y, Math.sqrt(u * u + v * v)) : fn;
+      if (val !== null) idx[y * W + x] = val;
+    }
+}
+// The hard black silhouette a Cythera sprite carries.
+function outlineSprite() {
+  var o = idx.slice(), d = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+    if (idx[y * W + x]) continue;
+    for (var k = 0; k < 4; k++) {
+      var nx = x + d[k][0], ny = y + d[k][1];
+      if (nx >= 0 && nx < W && ny >= 0 && ny < H && idx[ny * W + nx] && idx[ny * W + nx] !== 255) { o[y * W + x] = 255; break; }
+    }
+  }
+  idx = o;
+}
+function restoreDefaults() {
+  tool = 'flow'; lastFlowTool = 'flow'; ramp = ENGINE[1];
+  brush = 7; lam = 8; turb = 1.4; spin = 0; reverse = false; ragged = true;
+  document.getElementById('size').value = 7; document.getElementById('vSize').textContent = '7';
+  document.getElementById('lam').value = 8; document.getElementById('vLam').textContent = '8 px';
+  document.getElementById('turb').value = 14;
+  document.getElementById('spin').value = 0; document.getElementById('vSpin').textContent = '0.0';
+  document.getElementById('rev').checked = false;
+  document.getElementById('ragged').checked = true;
+  setTool('flow'); paintRamps(); sync();
+}
+
+/* ================= the scenes =========================================== */
+var ALARIC = (function () {
+  var t = atob(ALARIC_B64), o = new Uint8Array(t.length);
+  for (var i = 0; i < t.length; i++) o[i] = t.charCodeAt(i);
+  return o;
+})();
+
+var SCENES = [
+  { id: 'falls', name: 'Waterfall', w: 192, h: 120, run: function () {
+      for (var y = 0; y < H; y++) {
+        var lw = 62 + Math.round(9 * fbm(0, y * 0.10)), rw = 128 - Math.round(9 * fbm(9, y * 0.10));
+        for (var x = 0; x < W; x++) {
+          var v = 222;
+          if (x < lw || x > rw) {
+            var d = Math.min(Math.abs(x - lw), Math.abs(x - rw));
+            v = 219 - Math.min(4, Math.round(fbm(x * 0.18, y * 0.18) * 4.5 - d * 0.06));
+          }
+          idx[y * W + x] = v;
+        }
+      }
+      for (var fy = 108; fy < H; fy++) for (var fx = 0; fx < W; fx++)
+        idx[fy * W + fx] = 219 - Math.round(fbm(fx * 0.2, fy * 0.4) * 3);
+      scripted('flow', ENGINE[1], { brush: 15, lam: 7, turb: 1.6 },
+        [[95, -6], [95, 30], [96, 60], [95, 90], [95, 116]]);
+      scripted('flow', ENGINE[1], { brush: 9, lam: 13, turb: 2.2 }, [[95, 96], [80, 104], [50, 108], [16, 110]]);
+      scripted('flow', ENGINE[1], { brush: 9, lam: 13, turb: 2.2, rev: true }, [[95, 96], [112, 104], [144, 108], [178, 110]]);
+      scripted('flow', ENGINE[0], { brush: 7, lam: 6, turb: 1.2, rev: true }, [[24, 74], [26, 60], [25, 46], [27, 34]]);
+      scripted('flow', ENGINE[4], { brush: 4, lam: 9, turb: 1.8 }, [[166, 26], [168, 40], [166, 54], [169, 66]]);
+    } },
+
+  { id: 'pool', name: 'Tide pool', w: 64, h: 64, run: function () {
+      // A prop sprite: stone rim, water inside, hard boundary all round.
+      ell(32, 33, 29, 25, function (x, y, q) {          // wet stone, not wood
+        return 24 - Math.round(fbm(x * 0.25, y * 0.25) * 4 - (1 - q) * 1.5);
+      });
+      ell(32, 33, 22, 18, function () { return 0; });
+      scripted('spiral', ENGINE[1], { lam: 6, turb: 1.7, spin: 0.5, rev: true, ragged: false },
+        [[32, 33], [45, 40], [53, 45]]);
+      ell(32, 33, 22, 18, function (x, y, q) { return q > 0.96 ? 27 : null; });
+      // weed on the rim, and a wet gleam
+      scripted('flow', ENGINE[4], { brush: 3, lam: 7, turb: 1.4 }, [[8, 28], [6, 34], [7, 40]]);
+      scripted('flow', ENGINE[4], { brush: 3, lam: 7, turb: 1.4 }, [[57, 26], [59, 32], [57, 38]]);
+      scripted('sparkle', ENGINE[1], { brush: 6, turb: 1.0 }, [[25, 17], [40, 16]]);
+      outlineSprite();
+    } },
+
+  { id: 'monster', name: 'Monster', w: 96, h: 96, run: function () {
+      // A magma thing: cold rock crust with fire moving through the cracks.
+      ell(48, 58, 30, 27, function (x, y) { return 27 - Math.round(fbm(x * 0.2, y * 0.2) * 4); });
+      ell(48, 30, 20, 17, function (x, y) { return 27 - Math.round(fbm(x * 0.3, y * 0.3) * 4); });
+      ell(24, 78, 11, 9, function () { return 26; });
+      ell(72, 78, 11, 9, function () { return 26; });
+      // cracks, running upward
+      scripted('flow', ENGINE[0], { brush: 4, lam: 5, turb: 1.6, rev: true }, [[44, 78], [46, 66], [43, 56], [45, 46]]);
+      scripted('flow', ENGINE[0], { brush: 3, lam: 5, turb: 1.6, rev: true }, [[58, 74], [60, 64], [57, 54]]);
+      scripted('flow', ENGINE[0], { brush: 3, lam: 6, turb: 1.4, rev: true }, [[33, 70], [31, 62], [33, 55]]);
+      scripted('flow', ENGINE[0], { brush: 5, lam: 4, turb: 2.0, rev: true }, [[48, 44], [48, 38], [48, 33]]);
+      // eyes and a mouthful of embers
+      scripted('sparkle', ENGINE[2], { brush: 9, turb: 3.4 }, [[39, 27]]);
+      scripted('sparkle', ENGINE[2], { brush: 9, turb: 3.4 }, [[57, 27]]);
+      scripted('flow', ENGINE[0], { brush: 5, lam: 9, turb: 1.0 }, [[38, 40], [48, 43], [58, 40]]);
+      // horns
+      scripted('flow', ENGINE[3], { brush: 4, lam: 8, turb: .6, rev: true }, [[32, 18], [28, 10], [26, 4]]);
+      scripted('flow', ENGINE[3], { brush: 4, lam: 8, turb: .6, rev: true }, [[64, 18], [68, 10], [70, 4]]);
+      outlineSprite();
+    } },
+
+  { id: 'alaric', name: 'Alaric, defaced', w: 64, h: 84, run: function () {
+      for (var i = 0; i < W * H; i++) idx[i] = 0;
+      for (var y = 0; y < 64; y++) for (var x = 0; x < 64; x++) {
+        var v = ALARIC[y * 64 + x];
+        if (v) idx[(y + 18) * W + x] = v;
+      }
+      // horns out of the frame
+      scripted('flow', ENGINE[0], { brush: 5, lam: 6, turb: 1.0, rev: true }, [[13, 22], [9, 12], [6, 3]]);
+      scripted('flow', ENGINE[0], { brush: 5, lam: 6, turb: 1.0, rev: true }, [[50, 22], [55, 12], [58, 3]]);
+      // a moustache he did not have this morning
+      scripted('flow', ENGINE[2], { brush: 4, lam: 5, turb: 0.8 }, [[19, 62], [26, 60], [32, 61], [39, 60], [45, 62]]);
+      scripted('flow', ENGINE[2], { brush: 3, lam: 5, turb: 0.8 }, [[19, 62], [15, 65]]);
+      scripted('flow', ENGINE[2], { brush: 3, lam: 5, turb: 0.8, rev: true }, [[45, 62], [49, 65]]);
+      // slime down the frame
+      scripted('flow', ENGINE[4], { brush: 4, lam: 7, turb: 1.6 }, [[6, 20], [6, 34], [7, 48], [6, 62]]);
+      scripted('flow', ENGINE[4], { brush: 3, lam: 7, turb: 1.6 }, [[58, 44], [57, 58], [58, 72]]);
+      // a halo, obviously
+      scripted('spiral', ENGINE[2], { lam: 3, turb: 0.4, spin: 2.4, ragged: false }, [[32, 12], [42, 12]]);
+      ell(32, 12, 7, 4, function () { return 0; });
+    } }
+];
+(function () {
+  var host = document.getElementById('scenes');
+  SCENES.forEach(function (s) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn'; b.textContent = s.name;
+    b.addEventListener('click', function () { loadScene(s); });
+    host.appendChild(b);
+  });
+})();
+function loadScene(s) {
+  _snapshot();
+  quiet = true;
+  resize(s.w, s.h, false);
+  idx.fill(0);
+  s.run();
+  quiet = false;
+  restoreDefaults();
+  draw();
+  say(s.name);
+}
+
+/* ================= boot ================================================= */
+rebuildFrames();
+paintRamps(); paintPal(); sync(); setTool('flow');
+document.getElementById('rSize').textContent = W + '×' + H;
+if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  playing = false; playBtn.textContent = 'Play';
+}
+(async function () {
+  var m = location.hash.match(/[#&]c=([A-Za-z0-9\-_]+)/);
+  if (m) { try { await decodeCanvas(m[1]); say('loaded from link'); } catch (e) { loadScene(SCENES[0]); } }
+  else loadScene(SCENES[0]);
+  fitCanvas();
+  requestAnimationFrame(loop);
+})();
+
+</script>
