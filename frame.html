@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Desktop View</title>
+<style>
+  :root{
+    --ink:#0d1117;
+    --panel:#161b22;
+    --line:#2a323d;
+    --text:#e2e8ef;
+    --dim:#8a94a3;
+    --live:#5ad2a0;
+    --warn:#e0a458;
+    --radius:8px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(--text);
+    font:14px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;
+    -webkit-text-size-adjust:100%;}
+  body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:8px;flex:0 0 auto}
+  .row{display:flex;gap:6px;align-items:center}
+  .row + .row{margin-top:6px}
+
+  input,select,button{
+    font:inherit;color:var(--text);background:#0b0f14;
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:8px 10px;-webkit-appearance:none;appearance:none;
+  }
+  input{flex:1;min-width:0}
+  input:focus,select:focus,button:focus-visible{outline:2px solid var(--live);outline-offset:1px}
+  button{background:#1f2732;white-space:nowrap;cursor:pointer}
+  button:active{background:#2a3441}
+  select{padding-right:26px;background-image:linear-gradient(45deg,transparent 50%,var(--dim) 50%),linear-gradient(135deg,var(--dim) 50%,transparent 50%);
+    background-position:calc(100% - 14px) 52%,calc(100% - 9px) 52%;background-size:5px 5px;background-repeat:no-repeat}
+
+  /* the ruler: shows the virtual viewport being emulated */
+  .ruler{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dim);
+    letter-spacing:.06em;text-transform:uppercase}
+  .ruler .bar{flex:1;height:1px;background:var(--line);position:relative}
+  .ruler .bar::before,.ruler .bar::after{content:"";position:absolute;top:-3px;width:1px;height:7px;background:var(--line)}
+  .ruler .bar::before{left:0}.ruler .bar::after{right:0}
+  .ruler b{color:var(--live);font-weight:400}
+
+  #stage{flex:1;position:relative;overflow:auto;-webkit-overflow-scrolling:touch;background:#fff}
+  #frame{border:0;display:block;transform-origin:0 0;background:#fff}
+
+  #msg{position:absolute;inset:0;display:none;place-content:center;text-align:center;
+    padding:28px;background:var(--ink);color:var(--dim);font-size:13px;line-height:1.7}
+  #msg.show{display:grid}
+  #msg strong{color:var(--warn);display:block;margin-bottom:10px;font-weight:400}
+  #msg a{color:var(--live)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="row">
+    <input id="url" type="url" inputmode="url" autocapitalize="off" autocorrect="off"
+           spellcheck="false" placeholder="example.com" value="">
+    <button id="go">Load</button>
+  </div>
+  <div class="row">
+    <select id="width" aria-label="Viewport width">
+      <option value="1024">1024</option>
+      <option value="1280" selected>1280</option>
+      <option value="1440">1440</option>
+      <option value="1600">1600</option>
+      <option value="1920">1920</option>
+    </select>
+    <select id="zoom" aria-label="Zoom">
+      <option value="fit" selected>Fit width</option>
+      <option value="1">100%</option>
+      <option value="0.75">75%</option>
+      <option value="0.5">50%</option>
+      <option value="0.35">35%</option>
+      <option value="0.25">25%</option>
+    </select>
+    <button id="open" title="Open directly">↗</button>
+  </div>
+  <div class="row ruler">
+    <span>viewport</span>
+    <span class="bar"></span>
+    <span><b id="readout">1280 × 0 · 100%</b></span>
+  </div>
+</header>
+
+<div id="stage">
+  <iframe id="frame" title="Page preview" referrerpolicy="no-referrer"></iframe>
+  <div id="msg"></div>
+</div>
+
+<script>
+(function(){
+  var urlBox=document.getElementById('url'),
+      go=document.getElementById('go'),
+      widthSel=document.getElementById('width'),
+      zoomSel=document.getElementById('zoom'),
+      openBtn=document.getElementById('open'),
+      stage=document.getElementById('stage'),
+      frame=document.getElementById('frame'),
+      msg=document.getElementById('msg'),
+      readout=document.getElementById('readout'),
+      current='', timer=null, loaded=false;
+
+  function normalize(v){
+    v=v.trim();
+    if(!v) return '';
+    if(!/^https?:\/\//i.test(v)) v='https://'+v;
+    return v;
+  }
+
+  function layout(){
+    var vw=parseInt(widthSel.value,10),
+        avail=stage.clientWidth,
+        avh=stage.clientHeight,
+        z=zoomSel.value==='fit' ? avail/vw : parseFloat(zoomSel.value);
+    frame.style.width=vw+'px';
+    frame.style.height=Math.ceil(avh/z)+'px';
+    frame.style.transform='scale('+z+')';
+    readout.textContent=vw+' × '+Math.ceil(avh/z)+' · '+Math.round(z*100)+'%';
+  }
+
+  function showMsg(html){ msg.innerHTML=html; msg.classList.add('show'); }
+  function hideMsg(){ msg.classList.remove('show'); }
+
+  function load(){
+    var u=normalize(urlBox.value);
+    if(!u){ showMsg('<div><strong>No address yet</strong>Type a site above and tap Load.</div>'); return; }
+    current=u; urlBox.value=u; loaded=false;
+    hideMsg();
+    frame.src=u;
+    clearTimeout(timer);
+    timer=setTimeout(function(){
+      if(!loaded) showMsg(
+        '<div><strong>This site refuses to be framed</strong>'+
+        'It sends an X-Frame-Options or frame-ancestors header, which blocks embedding. '+
+        'Nothing on this page can override that.<br><br>'+
+        '<a href="'+u.replace(/"/g,'&quot;')+'" target="_blank" rel="noopener">Open it directly ↗</a></div>');
+    },3500);
+  }
+
+  frame.addEventListener('load',function(){ loaded=true; clearTimeout(timer); hideMsg(); });
+  go.addEventListener('click',load);
+  urlBox.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); urlBox.blur(); load(); }});
+  widthSel.addEventListener('change',layout);
+  zoomSel.addEventListener('change',layout);
+  openBtn.addEventListener('click',function(){
+    var u=normalize(urlBox.value); if(u) window.open(u,'_blank','noopener');
+  });
+  window.addEventListener('resize',layout);
+  window.addEventListener('orientationchange',function(){ setTimeout(layout,250); });
+
+  layout();
+  showMsg('<div><strong>Ready</strong>Enter an address to render it at desktop width.</div>');
+})();
+</script>
+</body>
+</html>
