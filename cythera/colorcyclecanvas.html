@@ -40,7 +40,8 @@
   --shadow:0 1px 0 rgba(255,255,255,.03), 0 12px 30px -20px #000;
 }
 *{box-sizing:border-box}
-html,body{height:100%}
+/* no double-tap-to-zoom: it fights every tap on a drawing tool */
+html,body{height:100%; touch-action:manipulation}
 body{margin:0; background:var(--ground); color:var(--ink);
   font-family:Archivo,system-ui,sans-serif; font-size:13.5px; line-height:1.45;
   -webkit-font-smoothing:antialiased; overscroll-behavior:none}
@@ -80,6 +81,7 @@ select:focus-visible{outline:2px solid var(--aqua); outline-offset:1px}
 #rampPrev{width:44px; height:22px; image-rendering:pixelated; border:1px solid var(--line); border-radius:2px; display:block}
 .dirRow{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:8px}
 .fl{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.sheetScroll{display:contents}
 .advOnly{display:none !important}
 body.adv .advOnly{display:block !important}
 body.adv .advOnly.inl{display:inline-flex !important; align-items:center; gap:6px}
@@ -122,7 +124,8 @@ button{font:inherit; color:inherit}
 label.fld{display:block; margin-top:9px}
 label.fld > span{display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:2px}
 label.fld > span b{color:var(--ink); font-weight:500; font-family:"DM Mono",monospace}
-label.fld.off{display:none}
+label.fld.off, .fld.off{display:none !important}
+div.fld{margin-top:9px}
 input[type=range]{width:100%; accent-color:var(--aqua); margin:0; height:18px}
 .chk{display:inline-flex; gap:6px; align-items:center; margin-top:9px; margin-right:12px;
   font-size:12px; color:var(--ink-2); cursor:pointer}
@@ -160,7 +163,8 @@ input[type=range]{width:100%; accent-color:var(--aqua); margin:0; height:18px}
 .fdot{width:15px; height:15px; padding:0; border-radius:2px; cursor:pointer;
   border:1px solid var(--line); background:var(--raise)}
 .fdot.on{background:var(--aqua); border-color:var(--aqua)}
-.paperWrap{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:2px}
+.paperWrap{flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
+  padding:2px; overflow:hidden}
 .paper{border:1px solid var(--line); border-radius:2px; line-height:0; box-shadow:var(--shadow)}
 #art{display:block; image-rendering:pixelated; touch-action:none; cursor:crosshair;
   background-image:
@@ -217,14 +221,17 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
 
   .main{display:flex; flex-direction:column; min-height:0}
   .pane{order:1; flex:1 1 auto; min-height:0; padding:6px 8px; gap:5px}
+  /* The sheet may never take more than this, whatever is open inside it --
+     the painting stays on screen and the settings scroll within their share. */
   .rail{order:2; flex:0 0 auto; border-right:0; border-top:1px solid var(--line);
-    padding:8px 10px 10px; overflow:hidden; max-height:none}
-  body.sheet .rail{max-height:min(46dvh, 330px); overflow-y:auto}
+    padding:8px 10px 10px; overflow:hidden; max-height:62dvh;
+    display:flex; flex-direction:column}
 
-  /* tools always reachable, as a strip rather than a grid */
-  .tools{display:flex; gap:5px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none}
-  .tools::-webkit-scrollbar{display:none}
-  .tool{flex:0 0 auto; width:58px; padding:5px 2px}
+
+  /* every tool on one row, none of it scrolled out of reach */
+  .tools{display:grid; grid-template-columns:repeat(7,1fr); gap:4px}
+  .tool{width:auto; padding:5px 0; font-size:9.5px; gap:2px}
+  .tool svg{width:16px; height:16px}
   .toolhelp{display:none; margin-top:6px}
   body.sheet .toolhelp{display:block}
   .mobOnly{display:inline-flex}
@@ -233,11 +240,15 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
   .grp{margin-bottom:8px}
   .grp .hd{margin-bottom:4px}
   #inkRampBox{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:6px}
+  /* an ID beats [hidden], so say it again */
+  #inkRampBox[hidden]{display:none}
   .rampPick{margin-top:0; flex:1 1 130px}
   .dirRow{margin-top:0; width:auto}
   .dirRow .eyebrow{display:none}
-  .rail > .grp:nth-child(n+3){display:none}
-  body.sheet .rail > .grp:nth-child(n+3){display:block}
+  /* Only the settings scroll. The tool strip and the ink cannot be scrolled
+     out of sight, which is what made it unclear which tool was even active. */
+  .sheetScroll{display:none}
+  body.sheet .sheetScroll{display:block; flex:1 1 auto; min-height:0; overflow-y:auto; padding-top:2px}
 
   .transport{gap:5px}
   .transport .btn{padding:5px 9px}
@@ -247,8 +258,16 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
   dialog{max-width:96vw}
   .pal{grid-template-columns:repeat(12,1fr)}
 }
+/* Turned sideways there is width to spare and no height: put the controls
+   beside the painting rather than under it, and let them all show at once. */
 @media (max-width:860px) and (orientation:landscape){
-  body.sheet .rail{max-height:52dvh}
+  .main{flex-direction:row}
+  .pane{order:1; flex:1 1 auto; min-width:0}
+  .rail{order:2; flex:0 0 clamp(230px,38vw,300px); max-height:none; min-height:0;
+    border-top:0; border-left:1px solid var(--line); overflow-y:auto; padding:8px 10px}
+  .sheetScroll{display:contents}
+  .mobOnly{display:none}
+  .toolhelp{display:none}
   .status{display:none}
 }
 </style>
@@ -263,10 +282,9 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
   <label class="pick"><span class="eyebrow">Example</span>
     <select id="sceneSel" aria-label="Load an example"></select></label>
   <span class="sp"></span>
-  <button type="button" class="btn" id="bImport">Import</button>
+  <button type="button" class="btn" id="bImport">Open</button>
   <button type="button" class="btn" id="bGif">GIF</button>
-  <button type="button" class="btn" id="bPng">PNG</button>
-  <button type="button" class="btn" id="bShare">Share</button>
+  <button type="button" class="btn" id="bVideo">Video</button>
   <button type="button" class="btn" id="bAdv" aria-pressed="false">Advanced</button>
   <button type="button" class="btn" id="bAbout" aria-label="How this works">?</button>
 </div>
@@ -310,6 +328,7 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       </div>
     </div>
 
+    <div class="sheetScroll">
     <div class="grp">
       <div class="hd"><span class="eyebrow">Brush</span></div>
       <label class="fld" data-for="brush"><span><span id="brushName">Size</span> <b id="vSize">7</b></span>
@@ -320,6 +339,15 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
         <input type="range" id="turb" min="0" max="60" value="14"></label>
       <label class="fld" data-for="spin"><span><span id="spinName">Spiral arms</span> <b id="vSpin">0</b></span>
         <input type="range" id="spin" min="-80" max="80" value="0"></label>
+      <label class="fld" data-for="shape"><span>Ring shape <b id="vShape">circle</b></span>
+        <input type="range" id="shape" min="10" max="80" value="20"></label>
+      <div class="fld" data-for="fillstyle"><span class="eyebrow" style="display:block; margin-bottom:3px">Fill follows</span>
+        <div class="seg" id="fillSeg">
+          <button type="button" data-fs="contour" aria-pressed="true" title="Bands parallel to the shoreline">Shore</button>
+          <button type="button" data-fs="radiate" aria-pressed="false" title="Bands spreading from where you click">Spread</button>
+          <button type="button" data-fs="twist" aria-pressed="false" title="Warps whatever is already inside">Twist</button>
+        </div>
+      </div>
       <div>
         <label class="chk"><input type="checkbox" id="rev"> Reverse</label>
         <label class="chk"><input type="checkbox" id="ragged" checked> Ragged edge</label>
@@ -328,10 +356,12 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
 
     <div class="grp advOnly">
       <div class="hd"><span class="eyebrow">Advanced</span></div>
-      <div class="fl"><button type="button" class="btn" id="bSize">Canvas 192&times;120</button></div>
+      <div class="fl"><button type="button" class="btn" id="bSize">Canvas 192&times;120</button>
+        <button type="button" class="btn" id="bPng" title="Indexed PNG against Cythera's CLUT — the form the game reads">PNG</button></div>
       <label class="chk"><input type="checkbox" id="impCycle" checked> Import onto live registers</label>
       <p class="mono" id="saveNote" style="font-size:11px; color:var(--muted); margin:8px 0 0"></p>
-      <input type="file" id="fileIn" accept="image/*" hidden>
+      <input type="file" id="fileIn" accept="image/*,.gif" hidden>
+    </div>
     </div>
   </aside>
 
@@ -411,26 +441,7 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
     <div class="row" id="presets"></div>
   </div></dialog>
 
-<dialog id="dShare" aria-label="Share this canvas"><div class="dh"><span class="eyebrow">Share</span>
-  <button type="button" class="btn" data-close>Close</button></div>
-  <div class="db">
-    <p>The whole canvas &mdash; size, registers and every pixel &mdash; packs into the link itself.
-      Nothing is uploaded.</p>
-    <textarea id="shareUrl" rows="3" readonly></textarea>
-    <div class="row"><button type="button" class="btn pri" id="bCopy">Copy link</button>
-      <span class="mono" id="shareLen" style="font-size:11px; color:var(--muted)"></span></div>
-    <h4>Compact code</h4>
-    <p>The same data at 14 bits a character instead of six. It is not a link &mdash; a URL has to
-      percent-encode anything outside ASCII, which would make it <em>longer</em>. Pasted as text it is
-      about 2.3&times; shorter.</p>
-    <textarea id="shareUni" rows="3" readonly></textarea>
-    <div class="row"><button type="button" class="btn" id="bCopyUni">Copy code</button>
-      <span class="mono" id="shareUniLen" style="font-size:11px; color:var(--muted)"></span></div>
-    <h4>Load a link or code</h4>
-    <textarea id="loadCode" rows="2" placeholder="paste a link or code"></textarea>
-    <div class="row"><button type="button" class="btn" id="bLoadCode">Load it</button>
-      <span class="mono" id="loadNote" style="font-size:11px; color:var(--ember)"></span></div>
-  </div></dialog>
+
 
 <dialog id="dAbout" aria-label="How this works"><div class="dh"><span class="eyebrow">How this works</span>
   <button type="button" class="btn" data-close>Close</button></div>
@@ -453,6 +464,9 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       is not a limit. Colours you mix are appended past it and indices are 16-bit, so the palette can
       run to tens of thousands. What the exports care about is how many <em>distinct</em> colours the
       canvas uses, since GIF and indexed PNG hold 256; the status bar counts them.</p>
+    <p><strong>The GIF is the save file.</strong> Your palette, your registers, your custom ramps and
+      every pixel ride inside it in a comment block that viewers ignore. <strong>Open</strong> one you
+      made and the whole thing comes back. Video is for sending to people; it carries the picture only.</p>
     <p>Cythera and Delver are trademarks of Glenn Andreas and/or Ambrosia Software. Unofficial fan tool.</p>
   </div></dialog>
 
@@ -1055,7 +1069,7 @@ var tool = 'paint', lastFlowTool = 'paint', ramp = ENGINE[1], still = 222;
 var inkMode = 'ramp';      // 'ramp' | 'still'
 function inkIsRamp() { return inkMode === 'ramp'; }
 var brush = 7, lam = 8, turb = 1.4, spin = 0, reverse = false, ragged = true;
-var swirl = 2.6;
+var swirl = 2.6, shape = 2.0, fillStyle = 'contour';
 var frame = 0, playing = true, rateMs = 140;
 
 function snapshot() { undoStack.push({ w: W, h: H, px: idx.slice() }); if (undoStack.length > 20) undoStack.shift(); }
@@ -1092,8 +1106,10 @@ function resize(nw, nh, keep) {
 }
 function fitCanvas() {
   var wrap = document.querySelector('.paperWrap');
-  var bw = wrap.clientWidth - 10, bh = wrap.clientHeight - 10;
-  if (bw < 20 || bh < 20) return;
+  if (wrap.clientWidth < 20 || wrap.clientHeight < 2) return;   // not laid out yet
+  // Never bail on a short box: shrink to whatever room there is, so the
+  // painting can't spill over the controls above it.
+  var bw = wrap.clientWidth - 10, bh = Math.max(8, wrap.clientHeight - 10);
   var z = Math.min(bw / W, bh / H);
   z = z >= 1 ? Math.floor(z) : z;
   art.style.width = Math.round(W * z) + 'px';
@@ -1143,7 +1159,10 @@ function vortex(cx, cy, rad) {
   for (var y = Math.floor(cy - rad); y <= cy + rad; y++)
     for (var x = Math.floor(cx - rad); x <= cx + rad; x++) {
       if (x < 0 || x >= W || y < 0 || y >= H) continue;
-      var ex = x - cx, ey = y - cy, dist = Math.hypot(ex, ey);
+      var ex = x - cx, ey = y - cy;
+      // p-norm: 1 is a diamond, 2 the circle, high values square it off.
+      var dist = shape === 2 ? Math.hypot(ex, ey)
+        : Math.pow(Math.pow(Math.abs(ex), shape) + Math.pow(Math.abs(ey), shape), 1 / shape);
       if (dist > rad) continue;
       if (ragged && dist > rad * 0.74 && bay(x, y) > 1.3 - dist / rad) continue;
       var ang = Math.atan2(ey, ex) / (2 * Math.PI);
@@ -1155,6 +1174,9 @@ function vortex(cx, cy, rad) {
 }
 function region(sx, sy, tol) {
   var seed = idx[sy * W + sx], sc = PAL[seed] || [0, 0, 0];
+  // A body of water is many indices of one register, not one flat colour, so
+  // seeding on a flow takes in every step of that same flow.
+  var sreg = rlut(seed);
   var mask = new Uint8Array(W * H), dist = new Int32Array(W * H);
   var q = [sy * W + sx], head = 0;
   mask[q[0]] = 1;
@@ -1165,7 +1187,7 @@ function region(sx, sy, tol) {
             : k === 2 ? (y > 0 ? p - W : -1) : (y < H - 1 ? p + W : -1);
       if (n < 0 || mask[n]) continue;
       var v = idx[n];
-      if (v !== seed) {
+      if (v !== seed && !(sreg >= 0 && rlut(v) === sreg)) {
         if (!tol) continue;
         if ((v === 0) !== (seed === 0)) continue;      // never bleed across the edge of the art
         var c = PAL[v] || [0, 0, 0];
@@ -1176,9 +1198,66 @@ function region(sx, sy, tol) {
   }
   return { mask: mask, dist: dist };
 }
+// How far each pixel sits from the region's own shoreline. A chamfer pass, so
+// the contours come out round rather than as the diamond a 4-way flood gives.
+function shoreDist(mask) {
+  var D = new Float32Array(W * H), INF = 1e9, i, x, y;
+  for (i = 0; i < W * H; i++) D[i] = mask[i] ? INF : 0;
+  for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+    i = y * W + x; if (!mask[i]) continue;
+    var m = D[i];
+    m = Math.min(m, (x > 0 ? D[i-1] : 0) + 3);
+    m = Math.min(m, (y > 0 ? D[i-W] : 0) + 3);
+    m = Math.min(m, (x > 0 && y > 0 ? D[i-W-1] : 0) + 4);
+    m = Math.min(m, (x < W-1 && y > 0 ? D[i-W+1] : 0) + 4);
+    D[i] = m;
+  }
+  for (y = H - 1; y >= 0; y--) for (x = W - 1; x >= 0; x--) {
+    i = y * W + x; if (!mask[i]) continue;
+    var n = D[i];
+    n = Math.min(n, (x < W-1 ? D[i+1] : 0) + 3);
+    n = Math.min(n, (y < H-1 ? D[i+W] : 0) + 3);
+    n = Math.min(n, (x < W-1 && y < H-1 ? D[i+W+1] : 0) + 4);
+    n = Math.min(n, (x > 0 && y < H-1 ? D[i+W-1] : 0) + 4);
+    D[i] = n;
+  }
+  for (i = 0; i < W * H; i++) D[i] /= 3;
+  return D;
+}
+// Distance from the seed, measured inside the region, so the rings go round
+// obstacles instead of through them -- and come out round, not diamond.
+function seedDist(mask, sx, sy) {
+  var D = new Float32Array(W * H), INF = 1e9, i, x, y, pass;
+  for (i = 0; i < W * H; i++) D[i] = INF;
+  D[sy * W + sx] = 0;
+  function relax(i, j, w) { var v = D[j] + w; if (v < D[i]) D[i] = v; }
+  for (pass = 0; pass < 3; pass++) {
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      i = y * W + x; if (!mask[i]) continue;
+      if (x > 0 && mask[i-1]) relax(i, i-1, 3);
+      if (y > 0 && mask[i-W]) relax(i, i-W, 3);
+      if (x > 0 && y > 0 && mask[i-W-1]) relax(i, i-W-1, 4);
+      if (x < W-1 && y > 0 && mask[i-W+1]) relax(i, i-W+1, 4);
+    }
+    for (y = H - 1; y >= 0; y--) for (x = W - 1; x >= 0; x--) {
+      i = y * W + x; if (!mask[i]) continue;
+      if (x < W-1 && mask[i+1]) relax(i, i+1, 3);
+      if (y < H-1 && mask[i+W]) relax(i, i+W, 3);
+      if (x < W-1 && y < H-1 && mask[i+W+1]) relax(i, i+W+1, 4);
+      if (x > 0 && y < H-1 && mask[i+W-1]) relax(i, i+W-1, 4);
+    }
+  }
+  for (i = 0; i < W * H; i++) D[i] = D[i] >= INF ? 0 : D[i] / 3;
+  return D;
+}
 function fillAt(sx, sy) {
   var tol = Math.round((brush - 1) * 9);              // the brush slider is Sensitivity here
-  var g = region(sx, sy, tol), mask = g.mask, dist = g.dist;
+  var g = region(sx, sy, tol), mask = g.mask;
+  var flat = !inkIsRamp(), twist = inkIsRamp() && fillStyle === 'twist';
+  var field = flat || twist ? null
+            : (fillStyle === 'contour' ? shoreDist(mask) : seedDist(mask, sx, sy));
+  var src = twist ? idx.slice() : null;
+  var ws = 0.055;
   for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
     var i = y * W + x;
     if (!mask[i]) continue;
@@ -1187,8 +1266,23 @@ function fillAt(sx, sy) {
                 (y === 0 || !mask[i-W]) || (y === H-1 || !mask[i+W]);
       if (rim && bay(x, y) > 0.55) continue;
     }
-    if (!inkIsRamp()) { idx[i] = still; continue; }
-    var k = -(dist[i] * ramp.len / lam);
+    if (flat) { idx[i] = still; continue; }
+    if (twist) {
+      // Take what is already here and push it about, rather than replacing it.
+      var tw = 0.03, amp = swirl * lam * 0.5;
+      var ox = (fbm(x * tw, y * tw) - 0.5) * 2 * amp;
+      var oy = (fbm(x * tw + 31, y * tw + 17) - 0.5) * 2 * amp;
+      if (reverse) { ox = -ox; oy = -oy; }
+      var qx = Math.round(x + ox), qy = Math.round(y + oy);
+      if (qx >= 0 && qx < W && qy >= 0 && qy < H && mask[qy * W + qx]) idx[i] = src[qy * W + qx];
+      continue;
+    }
+    // Contour or radiate, then folded by the same warp Liquid uses so the
+    // bands contort the way a real surface does instead of sitting in rings.
+    var d = field[i], wl = 0.03;
+    d += swirl * lam * 0.35 * ((fbm(x * wl, y * wl) - 0.5) * 2 +
+                               (fbm(x * wl * 2.3 + 19, y * wl * 2.3 + 7) - 0.5) * 0.55);
+    var k = -(d * ramp.len / lam);
     if (reverse) k = -k;
     k += turb * (fbm(x * 0.9, y * 0.9) - 0.5) * 2;
     idx[i] = phase(k, ramp);
@@ -1295,7 +1389,7 @@ var TOOLS = [
     help: { ramp: 'Scatters random positions in the ramp so the area twinkles instead of flowing. Embers, stars, magic dust.',
             still: 'Sparkle needs a flow ramp. Switch the ink to one.' } },
   { id: 'fill', name: 'Fill',
-    help: { ramp: 'Fills the region you click and measures distance through it, so the bands run square across a channel and close around a pool. Sensitivity is how unlike the colour under the cursor a pixel may be and still be swallowed.',
+    help: { ramp: 'Fills the region you click. Shore lays bands parallel to its edges, the way a lake sits in its basin; Spread runs them out from where you clicked; Twist leaves what is there and pushes it about. Sensitivity is how unlike the colour under the cursor a pixel may be and still be swallowed.',
             still: 'Floods the region you click with flat colour. Sensitivity is how far it will spread across near-enough colours.' } },
   { id: 'erase', name: 'Erase', help: { ramp: 'Back to transparent.', still: 'Back to transparent.' } },
   { id: 'pick', name: 'Pick',
@@ -1305,9 +1399,9 @@ var TOOLS = [
 var USES = {
   paint:   { ramp: ['brush', 'lam', 'turb'], still: ['brush'] },
   liquid:  { ramp: ['brush', 'lam', 'turb', 'spin'], still: ['brush'] },
-  vortex:  { ramp: ['lam', 'turb', 'spin'], still: [] },
+  vortex:  { ramp: ['lam', 'turb', 'spin', 'shape'], still: [] },
   sparkle: { ramp: ['brush', 'turb'], still: ['brush'] },
-  fill:    { ramp: ['brush', 'lam', 'turb'], still: ['brush'] },
+  fill:    { ramp: ['brush', 'fillstyle', 'lam', 'turb', 'spin'], still: ['brush'] },
   erase:   { ramp: ['brush'], still: ['brush'] },
   pick:    { ramp: [], still: [] }
 };
@@ -1336,14 +1430,15 @@ function refreshTool() {
   if (!def) return;
   document.getElementById('toolhelp').textContent = def.help[inkMode];
   var use = USES[tool][inkMode];
-  [].forEach.call(document.querySelectorAll('label.fld[data-for]'), function (l) {
+  [].forEach.call(document.querySelectorAll('.fld[data-for]'), function (l) {
     l.classList.toggle('off', use.indexOf(l.dataset.for) < 0);
   });
   document.getElementById('brushName').textContent = tool === 'fill' ? 'Sensitivity' : 'Size';
   document.getElementById('vSize').textContent = tool === 'fill' ? String(Math.round((brush - 1) * 9)) : String(brush);
   document.getElementById('turbName').textContent = tool === 'sparkle' ? 'Density' : 'Turbulence';
   document.getElementById('vTurb').textContent = tool === 'sparkle' ? (turb / 6).toFixed(2) : turb.toFixed(1);
-  document.getElementById('spinName').textContent = tool === 'liquid' ? 'Swirl' : 'Spiral arms';
+  document.getElementById('spinName').textContent =
+    (tool === 'liquid' || tool === 'fill') ? 'Swirl' : 'Spiral arms';
 }
 function bindRange(id, out, fn, fmt) {
   var el = document.getElementById(id);
@@ -1359,6 +1454,17 @@ bindRange('turb', 'vTurb', function (v) { turb = v / 10; },
   function (v) { return tool === 'sparkle' ? (v / 60).toFixed(2) : (v / 10).toFixed(1); });
 bindRange('spin', 'vSpin', function (v) { spin = v / 10; swirl = Math.abs(v) / 10; },
   function (v) { return (tool === 'liquid' ? Math.abs(v / 10) : v / 10).toFixed(1); });
+function shapeWord(p) { return p <= 1.2 ? 'diamond' : p < 1.8 ? 'soft diamond'
+  : p < 2.4 ? 'circle' : p < 3.6 ? 'rounded square' : 'square'; }
+bindRange('shape', 'vShape', function (v) { shape = v / 10; }, function (v) { return shapeWord(v / 10); });
+document.getElementById('fillSeg').addEventListener('click', function (e) {
+  var b = e.target.closest('button[data-fs]'); if (!b) return;
+  fillStyle = b.dataset.fs;
+  [].forEach.call(this.querySelectorAll('button'), function (x) {
+    x.setAttribute('aria-pressed', String(x.dataset.fs === fillStyle));
+  });
+  refreshTool();
+});
 document.getElementById('rev').addEventListener('change', function (e) { reverse = e.target.checked; });
 document.getElementById('ragged').addEventListener('change', function (e) { ragged = e.target.checked; });
 
@@ -1368,6 +1474,9 @@ document.getElementById('inkSeg').addEventListener('click', function (e) {
   setInk(b.dataset.ink);
 });
 function setInk(m) {
+  // With every register switched off there is no flow to paint with, so the
+  // ink falls back to flat colour rather than offering an empty picker.
+  if (m === 'ramp' && !ramps().length) { m = 'still'; say('No cycling registers are on.'); }
   inkMode = m;
   [].forEach.call(document.querySelectorAll('#inkSeg button'), function (b) {
     b.setAttribute('aria-pressed', String(b.dataset.ink === m));
@@ -1378,10 +1487,11 @@ function setInk(m) {
 }
 var rampSel = document.getElementById('rampSel');
 rampSel.addEventListener('change', function () {
-  var rs = ramps(); ramp = rs[+rampSel.value] || rs[0]; paintRamps(); sync();
+  var rs = ramps(); ramp = rs[+rampSel.value] || rs[0] || null; paintRamps(); sync();
 });
 document.getElementById('dirSeg').addEventListener('click', function (e) {
   var b = e.target.closest('button[data-dir]'); if (!b) return;
+  if (!ramp) return;
   ramp.dir = +b.dataset.dir;
   relut(); invalidateMap(); paintRamps(); draw();
   say(ramp.name + ': ' + (ramp.dir > 0 ? 'dark end leads' : ramp.dir < 0 ? 'light end leads' : 'held still'));
@@ -1658,8 +1768,19 @@ function snapStill(rgb, useRegs) {
   return best;
 }
 document.getElementById('bImport').addEventListener('click', function () { document.getElementById('fileIn').click(); });
-document.getElementById('fileIn').addEventListener('change', function (e) {
+document.getElementById('fileIn').addEventListener('change', async function (e) {
   var f = e.target.files[0]; if (!f) return;
+  // If it is one of ours, the whole project is inside it.
+  try {
+    var head = new Uint8Array(await f.arrayBuffer());
+    var cfg = gifFindConfig(head);
+    if (cfg) {
+      snapshot();
+      await decodeCanvas(cfg);
+      say('opened — palette, registers and all');
+      e.target.value = ''; return;
+    }
+  } catch (err) { /* not a GIF of ours; fall through to importing the picture */ }
   var url = URL.createObjectURL(f), im = new Image();
   var useRegs = document.getElementById('impCycle').checked;
   im.onload = function () {
@@ -1698,34 +1819,6 @@ function unb64u(s) {
   for (var i = 0; i < t.length; i++) o[i] = t.charCodeAt(i);
   return o;
 }
-// Base64 is 6 bits a character. A URL cannot do better, because anything
-// outside ASCII gets percent-encoded and ends up longer on the wire. Pasted
-// as plain text, though, characters are what you pay for -- so the compact
-// code packs 14 bits into each CJK ideograph, roughly 2.3x fewer characters.
-var UNI0 = 0x4E00;
-function packUni(b) {
-  var out = String.fromCharCode(UNI0 + ((b.length >> 14) & 0x3FFF), UNI0 + (b.length & 0x3FFF));
-  var acc = 0, nb = 0;
-  for (var i = 0; i < b.length; i++) {
-    acc = ((acc << 8) | b[i]) >>> 0; nb += 8;
-    while (nb >= 14) { nb -= 14; out += String.fromCharCode(UNI0 + ((acc >>> nb) & 0x3FFF)); acc &= (1 << nb) - 1; }
-  }
-  if (nb > 0) out += String.fromCharCode(UNI0 + ((acc << (14 - nb)) & 0x3FFF));
-  return out;
-}
-function unpackUni(s) {
-  var len = ((s.charCodeAt(0) - UNI0) << 14) | (s.charCodeAt(1) - UNI0);
-  if (!(len >= 0 && len < (1 << 28))) throw new Error('bad code');
-  var out = new Uint8Array(len), acc = 0, nb = 0, p = 0;
-  for (var i = 2; i < s.length && p < len; i++) {
-    var c = s.charCodeAt(i) - UNI0;
-    if (c < 0 || c > 0x3FFF) throw new Error('bad code');
-    acc = ((acc << 14) | c) >>> 0; nb += 14;
-    while (nb >= 8 && p < len) { nb -= 8; out[p++] = (acc >>> nb) & 255; acc &= (1 << nb) - 1; }
-  }
-  if (p !== len) throw new Error('truncated code');
-  return out;
-}
 function b64bytes(s) {
   var t = atob(s), o = new Uint8Array(t.length);
   for (var i = 0; i < t.length; i++) o[i] = t.charCodeAt(i);
@@ -1741,16 +1834,19 @@ async function encodeCanvas() {
   var out = [];
   function u8(v) { out.push(v & 255); }
   function u16(v) { out.push(v & 255, (v >> 8) & 255); }
-  u8(4); u16(W); u16(H);
+  u8(5); u16(W); u16(H);
   var all = ENGINE.concat(PRESET);
-  var onMask = 0, dirMask = 0;
-  all.forEach(function (r, i) { if (r.on) onMask |= 1 << i; if (r.dir < 0) dirMask |= 1 << i; });
-  u16(onMask); u16(dirMask);
+  var onMask = 0;
+  all.forEach(function (r, i) { if (r.on) onMask |= 1 << i; });
+  u16(onMask);
+  // dir is three-state now (reverse / held still / forward), so it needs a
+  // byte each rather than the single bit the old mask gave it.
+  all.forEach(function (r) { u8(r.dir + 1); });
   u16(PAL.length - CLUT_N);
   for (var i = CLUT_N; i < PAL.length; i++) { u8(PAL[i][0]); u8(PAL[i][1]); u8(PAL[i][2]); }
   u8(CUSTOM.length);
   CUSTOM.forEach(function (r) {
-    u16(r.base); u16(r.len); u8(r.dir < 0 ? 1 : 0);
+    u16(r.base); u16(r.len); u8(r.dir + 1); u8(r.on ? 1 : 0);
     var nm = r.name.slice(0, 18); u8(nm.length);
     for (var k = 0; k < nm.length; k++) u8(nm.charCodeAt(k));
   });
@@ -1771,63 +1867,47 @@ async function decodeBytes(b) {
   var p = 0;
   function u8() { return raw[p++]; }
   function u16() { var v = raw[p] | (raw[p + 1] << 8); p += 2; return v; }
-  if (u8() !== 4) throw new Error('unknown version');
+  var ver = u8();
+  if (ver !== 4 && ver !== 5) throw new Error('unknown version');
   var w = u16(), h = u16();
   if (w < 8 || h < 8 || w > 640 || h > 640) throw new Error('bad size');
-  var onMask = u16(), dirMask = u16();
+  var onMask = u16();
   var all = ENGINE.concat(PRESET);
-  all.forEach(function (r, i) { r.on = i < ENGINE.length ? 1 : !!(onMask & (1 << i)); r.dir = (dirMask & (1 << i)) ? -1 : 1; });
+  if (ver === 4) {
+    var dirMask = u16();
+    all.forEach(function (r, i) { r.dir = (dirMask & (1 << i)) ? -1 : 1; });
+  } else {
+    all.forEach(function (r) { r.dir = u8() - 1; });
+  }
+  // Registers come back exactly as they were saved -- including Cythera's
+  // own five switched off, which is a legitimate thing to have painted with.
+  all.forEach(function (r, i) { r.on = (onMask >> i) & 1; });
   PAL.length = CLUT_N;
   var extra = u16();
   for (var i = 0; i < extra; i++) PAL.push([u8(), u8(), u8()]);
   CUSTOM.length = 0;
   var nc = u8();
   for (var c = 0; c < nc; c++) {
-    var base = u16(), len = u16(), dir = u8() ? -1 : 1, nl = u8(), nm = '';
+    var base = u16(), len = u16();
+    var dir = ver === 4 ? (u8() ? -1 : 1) : u8() - 1;
+    var on = ver === 4 ? 1 : u8();
+    var nl = u8(), nm = '';
     for (var k = 0; k < nl; k++) nm += String.fromCharCode(u8());
-    CUSTOM.push({ id: 'c' + base, name: nm, base: base, len: len, dir: dir, eng: 0, on: 1, hint: 'shared ramp' });
+    CUSTOM.push({ id: 'c' + base, name: nm, base: base, len: len, dir: dir, eng: 0, on: on, hint: 'shared ramp' });
   }
   var bpp = u8();
   relut(); invalidateMap();
   resize(w, h, false);
   for (var q = 0; q < w * h; q++) idx[q] = bpp === 2 ? (raw[p + q * 2] | (raw[p + q * 2 + 1] << 8)) : raw[p + q];
-  if (!ramps().some(function (r) { return r === ramp; })) ramp = ENGINE[1];
-  paintRamps(); paintPal(); sync(); draw();
+  // The ramp in hand may be one the saved file had switched off; fall back
+  // to whatever is live, or to flat colour if nothing is.
+  if (!ramps().some(function (r) { return r === ramp; })) {
+    var live = ramps();
+    ramp = live.length ? live[0] : null;
+  }
+  paintRamps(); setInk(ramp ? inkMode : 'still'); paintPal(); sync(); draw();
 }
-document.getElementById('bShare').addEventListener('click', async function () {
-  document.getElementById('dShare').showModal();
-  var code = await encodeCanvas();
-  var url = location.href.split('#')[0] + '#c=' + code;
-  document.getElementById('shareUrl').value = url;
-  document.getElementById('shareLen').textContent = url.length.toLocaleString() + ' characters' +
-    (url.length > 8000 ? ' — long; many apps truncate a link this size' : '');
-  var uni = packUni(unb64u(code));
-  document.getElementById('shareUni').value = uni;
-  document.getElementById('shareUniLen').textContent = uni.length.toLocaleString() +
-    ' characters — paste as text, not as a link';
-});
-document.getElementById('bCopyUni').addEventListener('click', async function () {
-  var t = document.getElementById('shareUni');
-  try { await navigator.clipboard.writeText(t.value); document.getElementById('shareUniLen').textContent = 'copied'; }
-  catch (e) { t.select(); document.getElementById('shareUniLen').textContent = 'select and copy'; }
-});
-document.getElementById('bCopy').addEventListener('click', async function () {
-  var t = document.getElementById('shareUrl');
-  try { await navigator.clipboard.writeText(t.value); document.getElementById('shareLen').textContent = 'copied'; }
-  catch (e) { t.select(); document.getElementById('shareLen').textContent = 'select and copy'; }
-});
-document.getElementById('bLoadCode').addEventListener('click', async function () {
-  var v = document.getElementById('loadCode').value.trim();
-  try {
-    snapshot();
-    if (v.charCodeAt(0) >= UNI0) await decodeBytes(unpackUni(v));
-    else {
-      var m = v.match(/[#?&]c=([A-Za-z0-9\-_]+)/);
-      await decodeCanvas(m ? m[1] : v);
-    }
-    document.getElementById('dShare').close(); say('loaded');
-  } catch (e) { document.getElementById('loadNote').textContent = 'could not read that (' + e.message + ')'; }
-});
+
 
 /* ================= export =============================================== */
 // Both writers need at most 256 slots, so the artwork is compacted down to
@@ -1937,8 +2017,51 @@ function lzw(pix, minCode) {
   if (nb > 0) bytes.push(acc & 255);
   return bytes;
 }
+// A GIF comment block is ignored by every viewer, so the project rides along
+// inside the picture: palette, registers, custom ramps, canvas. Open the GIF
+// with Import and it all comes back.
+var CFG_TAG = 'CCC1';
+function gifComment(text) {
+  var out = [0x21, 0xFE], s = CFG_TAG + text;
+  for (var i = 0; i < s.length; i += 255) {
+    var n = Math.min(255, s.length - i);
+    out.push(n);
+    for (var k = 0; k < n; k++) out.push(s.charCodeAt(i + k) & 255);
+  }
+  out.push(0);
+  return out;
+}
+// Walk the blocks properly rather than searching for the marker: image data
+// can contain any byte pair, including the one that starts an extension.
+function gifFindConfig(b) {
+  if (b.length < 14 || b[0] !== 0x47 || b[1] !== 0x49 || b[2] !== 0x46) return null;
+  var p = 6, packed = b[p + 4];
+  p += 7;
+  if (packed & 0x80) p += 3 * (1 << ((packed & 7) + 1));
+  while (p < b.length) {
+    if (b[p] === 0x3B) return null;
+    if (b[p] === 0x21) {
+      var label = b[p + 1]; p += 2;
+      var text = '';
+      while (p < b.length && b[p]) {
+        var n = b[p++];
+        for (var k = 0; k < n; k++) text += String.fromCharCode(b[p + k]);
+        p += n;
+      }
+      p++;
+      if (label === 0xFE && text.slice(0, 4) === CFG_TAG) return text.slice(4);
+    } else if (b[p] === 0x2C) {
+      var ip = b[p + 9]; p += 10;
+      if (ip & 0x80) p += 3 * (1 << ((ip & 7) + 1));
+      p++;                                            // min code size
+      while (p < b.length && b[p]) p += b[p] + 1;
+      p++;
+    } else return null;
+  }
+  return null;
+}
 var gifWhy = '';
-function gifOut(delayCs) {
+async function gifOut(delayCs) {
   gifWhy = '';
   var c = compact();
   if (!c) { gifWhy = 'over 256 distinct indices on the canvas — GIF cannot hold that'; return null; }
@@ -1964,6 +2087,7 @@ function gifOut(delayCs) {
   str('GIF89a'); w(W); w(H); b(0xF7); b(0); b(0);
   table(0);
   str('!'); b(0xFF); b(11); str('NETSCAPE2.0'); b(3); b(1); w(0); b(0);
+  gifComment(await encodeCanvas()).forEach(b);
   for (var fr = 0; fr < LOOP; fr++) {
     b(0x21); b(0xF9); b(4); b(0x09); w(delayCs); b(0); b(0);
     b(0x2C); w(0); w(0); w(W); w(H); b(0x87);
@@ -1977,6 +2101,52 @@ function gifOut(delayCs) {
   b(0x3B);
   return new Uint8Array(out);
 }
+// Video: paint each frame into an off-screen canvas and hand it to
+// MediaRecorder a frame at a time, so the timing is the studio's and not the
+// display's. No config rides along -- WebM has nowhere sensible to put it.
+function videoSupported() {
+  return typeof MediaRecorder === 'function' &&
+    !!document.createElement('canvas').captureStream &&
+    ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+      .some(function (m) { return MediaRecorder.isTypeSupported(m); });
+}
+async function videoOut(onProgress) {
+  var scale = Math.max(1, Math.min(8, Math.floor(720 / Math.max(W, H))));
+  var cv = document.createElement('canvas');
+  cv.width = W * scale; cv.height = H * scale;
+  var g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+  var tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+  var tg = tmp.getContext('2d');
+  var stream = cv.captureStream(0), track = stream.getVideoTracks()[0];
+  var mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+    .filter(function (m) { return MediaRecorder.isTypeSupported(m); })[0];
+  var rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+  var chunks = [];
+  rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+  var stopped = new Promise(function (r) { rec.onstop = r; });
+  rec.start();
+  var loops = Math.max(1, Math.min(4, Math.ceil(4000 / (LOOP * rateMs))));
+  var total = Math.min(240, LOOP * loops);
+  for (var f = 0; f < total; f++) {
+    var m = frameMap(f % LOOP), im = tg.createImageData(W, H), d = im.data;
+    for (var i = 0; i < W * H; i++) {
+      var v = idx[i];
+      if (!v) { d[i*4+3] = 0; continue; }
+      var c = PAL[m[v]] || [0, 0, 0];
+      d[i*4] = c[0]; d[i*4+1] = c[1]; d[i*4+2] = c[2]; d[i*4+3] = 255;
+    }
+    tg.putImageData(im, 0, 0);
+    g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
+    g.drawImage(tmp, 0, 0, cv.width, cv.height);
+    track.requestFrame();
+    if (onProgress) onProgress(f + 1, total);
+    await new Promise(function (r) { setTimeout(r, rateMs); });
+  }
+  rec.stop();
+  await stopped;
+  return new Uint8Array(await new Blob(chunks).arrayBuffer());
+}
+
 var downloads = null, saveNote = document.getElementById('saveNote');
 var inArtifact = !!(window.claude && window.claude.use);
 (async function () {
@@ -2002,8 +2172,23 @@ async function offer(name, bytes) {
   setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
   saveNote.textContent = 'downloaded ' + name + ' (' + Math.round(bytes.length / 1024) + ' KB)';
 }
-document.getElementById('bGif').addEventListener('click', function () { offer('flowbrush.gif', gifOut(Math.round(rateMs / 10))); });
-document.getElementById('bPng').addEventListener('click', async function () { offer('flowbrush.png', await pngOut()); });
+document.getElementById('bGif').addEventListener('click', async function () {
+  saveNote.textContent = 'building the GIF…';
+  offer('colorcyclecanvas.gif', await gifOut(Math.round(rateMs / 10)));
+});
+document.getElementById('bPng').addEventListener('click', async function () { offer('colorcyclecanvas.png', await pngOut()); });
+(function () {
+  var btn = document.getElementById('bVideo');
+  if (!videoSupported()) { btn.disabled = true; btn.title = 'This browser cannot record video'; return; }
+  btn.addEventListener('click', async function () {
+    btn.disabled = true;
+    try {
+      var bytes = await videoOut(function (i, n) { saveNote.textContent = 'recording ' + i + '/' + n; });
+      await offer('colorcyclecanvas.webm', bytes);
+    } catch (e) { saveNote.textContent = 'could not record: ' + (e.message || e); }
+    btn.disabled = false;
+  });
+})();
 
 /* ================= scene helpers ======================================== */
 var quiet = false, _snap = snapshot;
@@ -2065,6 +2250,7 @@ function restoreDefaults() {
   };
   set('size', 7, 'vSize', '7'); set('lam', 8, 'vLam', '8 px');
   set('turb', 14, 'vTurb', '1.4'); set('spin', 0, 'vSpin', '0.0');
+  set('shape', 20, 'vShape', 'circle'); shape = 2.0; fillStyle = 'contour';
   document.getElementById('rev').checked = false;
   document.getElementById('ragged').checked = true;
   setInk('ramp'); setTool('paint'); paintRamps(); sync();
