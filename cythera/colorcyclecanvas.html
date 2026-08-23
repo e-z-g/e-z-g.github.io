@@ -40,11 +40,17 @@
   --shadow:0 1px 0 rgba(255,255,255,.03), 0 12px 30px -20px #000;
 }
 *{box-sizing:border-box}
-/* no double-tap-to-zoom: it fights every tap on a drawing tool */
-html,body{height:100%; touch-action:manipulation}
+/* No double-tap-to-zoom: it fights every tap on a drawing tool. And nothing
+   here scrolls, so no swipe in any direction may be handed to the browser --
+   a stray drag up or down was reloading the page and taking the picture with
+   it. `overscroll-behavior:none` on both elements stops the pull gesture; a
+   touchmove guard further down catches what that misses. */
+html,body{height:100%; touch-action:manipulation; overscroll-behavior:none}
+html{overflow:hidden}
 body{margin:0; background:var(--ground); color:var(--ink);
   font-family:Archivo,system-ui,sans-serif; font-size:13.5px; line-height:1.45;
   -webkit-font-smoothing:antialiased; overscroll-behavior:none}
+.rail,.pal,dialog .db,.sheetScroll{overscroll-behavior:contain}
 .mono{font-family:"DM Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
 .eyebrow{font-size:9.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted); font-weight:600}
 svg{display:block}
@@ -105,30 +111,88 @@ button{font:inherit; color:inherit}
 .btn:hover{border-color:var(--muted)}
 .btn.pri{background:var(--aqua); border-color:var(--aqua); color:var(--aqua-ink); font-weight:600}
 .btn.on{background:var(--aqua); border-color:var(--aqua); color:var(--aqua-ink)}
-.btn:focus-visible,.tool:focus-visible,.rampBtn:focus-visible,.pal button:focus-visible,.fdot:focus-visible{
+.btn:focus-visible,.fx:focus-visible,.toolNow:focus-visible,.pickCell:focus-visible,
+.rampBtn:focus-visible,.pal button:focus-visible,.fdot:focus-visible{
   outline:2px solid var(--aqua); outline-offset:2px}
 .btn[disabled]{opacity:.4; cursor:not-allowed}
 .icobtn{display:inline-flex; align-items:center; gap:6px}
 
-/* ---------- tools ---------- */
+/* ---------- tools -------------------------------------------------------
+ * Seven buttons competing for attention told you nothing about which one was
+ * live. There are two now: the tool you are holding, and the way to a
+ * different one. Everything else about a tool -- its name, its icon, the ink
+ * it will lay -- is on the one button.
+ */
 .grp{margin-bottom:12px}
 .grp > .hd{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px}
-.tools{display:grid; grid-template-columns:repeat(4,1fr); gap:4px}
-.tool{position:relative; display:flex; flex-direction:column; align-items:center; gap:3px;
-  padding:6px 2px 10px; cursor:pointer; background:var(--raise); border:1px solid var(--line);
-  border-radius:3px; color:var(--ink-2); font-size:10px}
+.toolRow{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; align-items:stretch}
+.toolNow{position:relative; display:flex; align-items:center; gap:8px; text-align:left; min-width:0;
+  padding:7px 9px 11px; cursor:pointer; background:var(--raise); border:1px solid var(--aqua);
+  border-radius:3px; color:var(--ink)}
+.toolNow svg{width:21px; height:21px; flex:0 0 auto; stroke:var(--aqua); fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.toolNow .tn{display:block; font-size:13px; font-weight:600; line-height:1.15}
+.toolNow .tc{display:block; font-size:9.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--muted); font-weight:600}
+.toolPick{padding:5px 10px; font-size:12px}
 /* The live tool wears the ink: a turning strip of the ramp, or a bar of the
    flat colour, so what is loaded is visible without reading a word. */
-#toolInk{position:absolute; left:4px; right:4px; bottom:3px; width:auto !important; height:4px;
+#toolInk{position:absolute; left:5px; right:5px; bottom:4px; width:auto !important; height:4px;
   image-rendering:pixelated; border-radius:1px; box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 #toolInk.clear{background-image:
   linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%),
   linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%);
   background-size:6px 6px; background-position:0 0,3px 3px; background-color:var(--chk-a)}
-.tool[aria-pressed="true"]{background:var(--aqua); border-color:var(--aqua); color:var(--aqua-ink)}
-.tool svg{width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.6;
-  stroke-linecap:round; stroke-linejoin:round}
 .toolhelp{margin-top:7px; font-size:11.5px; color:var(--muted); min-height:2.6em; line-height:1.3}
+
+/* ---------- the tool picker ---------- */
+.pickGrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:6px}
+.pickCell{display:flex; gap:8px; align-items:flex-start; text-align:left; padding:8px; cursor:pointer;
+  background:var(--raise); border:1px solid var(--line); border-radius:3px; color:var(--ink-2)}
+.pickCell:hover{border-color:var(--muted)}
+.pickCell[aria-pressed="true"]{border-color:var(--aqua); color:var(--ink); box-shadow:inset 0 0 0 1px var(--aqua)}
+.pickCell svg{width:19px; height:19px; flex:0 0 auto; stroke:currentColor; fill:none; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round; margin-top:1px}
+.pickCell b{display:block; font-size:12.5px; font-weight:600; color:var(--ink)}
+.pickCell em{display:block; font-style:normal; font-size:10.5px; color:var(--muted); line-height:1.3}
+
+/* ---------- effects -----------------------------------------------------
+ * Creatures, not sliders. Each is a toggle that stays on and changes how the
+ * whole studio behaves. Off they are line drawings in the muted ink, idling;
+ * on they take the accent and quicken.
+ */
+.fxRow{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px}
+.fx{display:flex; align-items:center; justify-content:center; padding:7px 0; cursor:pointer;
+  background:var(--raise); border:1px solid var(--line); border-radius:3px; color:var(--muted)}
+.fx:hover{border-color:var(--muted); color:var(--ink-2)}
+.fx svg{width:26px; height:26px; stroke:currentColor; fill:none; stroke-width:1.5;
+  stroke-linecap:round; stroke-linejoin:round; overflow:visible}
+.fx[aria-pressed="true"]{background:var(--aqua); border-color:var(--aqua); color:var(--aqua-ink)}
+.fx svg *{transform-box:fill-box; transform-origin:center}
+@media (prefers-reduced-motion:no-preference){
+  .fx svg .bob{animation:fxBob 3.4s ease-in-out infinite}
+  .fx svg .wag{animation:fxWag 3.0s ease-in-out infinite}
+  .fx svg .pul{animation:fxPul 3.6s ease-in-out infinite}
+  .fx svg .sld{animation:fxSld 3.2s ease-in-out infinite}
+  .fx svg .pek{animation:fxPek 3.0s ease-in-out infinite}
+  .fx svg .rat{animation:fxRat 2.8s ease-in-out infinite}
+  .fx[aria-pressed="true"] svg .bob{animation-duration:.62s}
+  .fx[aria-pressed="true"] svg .wag{animation-duration:.5s}
+  .fx[aria-pressed="true"] svg .pul{animation-duration:.85s}
+  .fx[aria-pressed="true"] svg .sld{animation-duration:.7s}
+  .fx[aria-pressed="true"] svg .pek{animation-duration:.55s}
+  .fx[aria-pressed="true"] svg .rat{animation-duration:.16s}
+}
+@keyframes fxBob{0%,100%{transform:translateY(.9px)} 50%{transform:translateY(-1.3px)}}
+@keyframes fxWag{0%,100%{transform:rotate(-13deg)} 50%{transform:rotate(13deg)}}
+@keyframes fxPul{0%,100%{opacity:.3; transform:scale(.75)} 50%{opacity:1; transform:scale(1.15)}}
+@keyframes fxSld{0%,100%{transform:translateX(-1.6px)} 50%{transform:translateX(1.6px)}}
+@keyframes fxPek{0%,55%,100%{transform:translateY(0) rotate(0)} 75%{transform:translateY(2.2px) rotate(13deg)}}
+@keyframes fxRat{0%,100%{transform:translate(-.5px,0) rotate(-3deg)} 50%{transform:translate(.5px,-.4px) rotate(3deg)}}
+
+/* ---------- selection ---------- */
+.selActs{display:flex; gap:4px; flex-wrap:wrap; margin-top:4px}
+.selActs .btn{padding:4px 8px; font-size:11.5px}
 
 label.fld{display:block; margin-top:9px}
 label.fld > span{display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-bottom:2px}
@@ -173,9 +237,14 @@ input[type=range]{width:100%; accent-color:var(--aqua); margin:0; height:18px}
   border:1px solid var(--line); background:var(--raise)}
 .fdot.on{background:var(--aqua); border-color:var(--aqua)}
 .paperWrap{flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
-  padding:2px; overflow:hidden}
-.paper{border:1px solid var(--line); border-radius:2px; line-height:0; box-shadow:var(--shadow);
-  will-change:transform}
+  padding:2px; overflow:hidden; touch-action:none; cursor:grab}
+.paperWrap.panning{cursor:grabbing}
+.paper{position:relative; border:1px solid var(--line); border-radius:2px; line-height:0;
+  box-shadow:var(--shadow); will-change:transform}
+/* Marching ants ride above the picture rather than in it, so a selection is
+   never mistaken for paint and never ends up in an export. */
+#selOv{position:absolute; left:0; top:0; width:100%; height:100%;
+  image-rendering:pixelated; pointer-events:none}
 #art{display:block; image-rendering:pixelated; touch-action:none; cursor:crosshair;
   background-image:
     linear-gradient(45deg,var(--chk-b) 25%,transparent 25%,transparent 75%,var(--chk-b) 75%),
@@ -243,10 +312,12 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
   .zoomBox{display:none}
   body.sheet .rateBox{display:none !important}
   body.sheet .status{display:none}
-  /* every tool on one row, none of it scrolled out of reach */
-  .tools{display:grid; grid-template-columns:repeat(7,1fr); gap:4px}
-  .tool{width:auto; padding:5px 0; font-size:9.5px; gap:2px}
-  .tool svg{width:16px; height:16px}
+  /* the live tool, the way to another, and the creatures: all reachable */
+  .toolNow{padding:6px 8px 10px}
+  /* sideways there is no height to spare, so the creatures go on one line */
+  .fxRow{grid-template-columns:repeat(8,minmax(0,1fr))}
+  .fx{padding:5px 0}
+  .fx svg{width:21px; height:21px}
   .toolhelp{display:none; margin-top:6px}
   body.sheet .toolhelp{display:block}
   .mobOnly{display:inline-flex}
@@ -297,6 +368,9 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
 .menu button:hover:not([disabled]){background:var(--raise)}
 .menu button[disabled]{opacity:.4; cursor:not-allowed}
 .menu hr{border:0; border-top:1px solid var(--line-soft); margin:4px 2px}
+.menu .mrow{display:flex; align-items:center; gap:8px; padding:5px 9px; font-size:12.5px}
+.menu .mrow select{width:auto; flex:1}
+.menu button .tick{float:right; color:var(--aqua); font-weight:700}
 
 /* ---------- zoom ---------- */
 .zoomBox{display:inline-flex; align-items:center; gap:4px}
@@ -336,12 +410,14 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
 [data-theme="classic"] .btn,[data-theme="classic"] .eyebrow{font-weight:600}
 [data-theme="classic"] .mono,[data-theme="classic"] .status,[data-theme="classic"] code,
 [data-theme="classic"] input,[data-theme="classic"] textarea{font-family:Monaco,"DM Mono",monospace}
-[data-theme="classic"] .btn,[data-theme="classic"] .tool,[data-theme="classic"] .seg,
+[data-theme="classic"] .btn,[data-theme="classic"] .fx,[data-theme="classic"] .seg,
+[data-theme="classic"] .toolNow,[data-theme="classic"] .pickCell,
 [data-theme="classic"] select,[data-theme="classic"] dialog,[data-theme="classic"] .menu,
 [data-theme="classic"] .paper,[data-theme="classic"] .rampBtn,[data-theme="classic"] input{
   border-radius:0; box-shadow:none}
-[data-theme="classic"] .btn,[data-theme="classic"] .tool{border-width:1px; box-shadow:1px 1px 0 #000}
-[data-theme="classic"] .btn:active,[data-theme="classic"] .tool:active{transform:translate(1px,1px); box-shadow:none}
+[data-theme="classic"] .btn,[data-theme="classic"] .fx,[data-theme="classic"] .toolNow{
+  border-width:1px; box-shadow:1px 1px 0 #000}
+[data-theme="classic"] .btn:active,[data-theme="classic"] .fx:active{transform:translate(1px,1px); box-shadow:none}
 /* the striped title bar, with the chrome punched out of it in white */
 [data-theme="classic"] .bar{border-bottom:2px solid #000;
   background:repeating-linear-gradient(180deg,#000 0 1px,#fff 1px 3px)}
@@ -370,11 +446,12 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
   #0f0720; background-attachment:fixed}
 [data-theme="slop"] .bar,[data-theme="slop"] .rail,[data-theme="slop"] dialog,[data-theme="slop"] .menu{
   backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px)}
-[data-theme="slop"] .btn,[data-theme="slop"] .tool,[data-theme="slop"] select,
+[data-theme="slop"] .btn,[data-theme="slop"] .fx,[data-theme="slop"] .toolNow,
+[data-theme="slop"] .pickCell,[data-theme="slop"] select,
 [data-theme="slop"] .menu,[data-theme="slop"] .swatchBtn{border-radius:12px}
 [data-theme="slop"] .seg{border-radius:999px}
 [data-theme="slop"] dialog{border-radius:22px}
-[data-theme="slop"] .btn.pri,[data-theme="slop"] .tool[aria-pressed="true"],
+[data-theme="slop"] .btn.pri,[data-theme="slop"] .fx[aria-pressed="true"],
 [data-theme="slop"] .seg button[aria-pressed="true"]{
   background-image:linear-gradient(135deg,#a855f7,#ec4899 52%,#f59e0b);
   border-color:transparent; color:#fff; box-shadow:0 10px 26px -10px rgba(236,72,153,.95)}
@@ -397,7 +474,8 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
   --markgrad:linear-gradient(90deg,#4a4a4a,#ededed,#4a4a4a,#ededed);
   --shadow:none;
 }
-[data-theme="void"] .btn,[data-theme="void"] .tool,[data-theme="void"] .seg,
+[data-theme="void"] .btn,[data-theme="void"] .fx,[data-theme="void"] .toolNow,
+[data-theme="void"] .pickCell,[data-theme="void"] .seg,
 [data-theme="void"] select,[data-theme="void"] dialog,[data-theme="void"] .menu,
 [data-theme="void"] .paper{border-radius:1px}
 [data-theme="void"] .bar,[data-theme="void"] .rail{border-color:#1e1e1e}
@@ -431,18 +509,36 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       <button type="button" data-file="png" role="menuitem">Save PNG<em>this one frame, indexed</em></button>
     </div>
   </span>
-  <label class="pick"><span class="eyebrow">Look</span>
-    <select id="themeSel" aria-label="Theme"></select></label>
-  <button type="button" class="btn" id="bAdv" aria-pressed="false">Advanced</button>
-  <button type="button" class="btn" id="bAbout" aria-label="How this works">?</button>
+  <span class="menuWrap">
+    <button type="button" class="btn" id="bSetup" aria-haspopup="true" aria-expanded="false">Setup</button>
+    <div class="menu" id="setupMenu" hidden role="menu">
+      <button type="button" data-more="regs" role="menuitem">Registers &amp; ramps&hellip;<em>what turns, which way, and ramps of your own</em></button>
+      <button type="button" data-more="pal" role="menuitem">Colours &amp; depth&hellip;<em>the flat palette, and the grid everything snaps to</em></button>
+      <button type="button" data-more="size" role="menuitem">Canvas size&hellip;<em id="mSizeNote">192&times;120</em></button>
+      <hr>
+      <label class="mrow">Look <select id="themeSel" aria-label="Theme"></select></label>
+      <button type="button" data-more="adv" id="mAdv" role="menuitemcheckbox" aria-checked="false">Advanced controls<em>frame steps, frame rate, mixing colours</em></button>
+      <hr>
+      <button type="button" data-more="about" role="menuitem">How this works&hellip;<em>and what every creature does</em></button>
+    </div>
+  </span>
 </div>
 
 <div class="main">
   <aside class="rail" id="rail">
     <div class="grp">
       <div class="hd"><span class="eyebrow">Tool</span><button type="button" class="btn mobOnly" id="bSheet" aria-pressed="false" aria-controls="rail">Settings</button></div>
-      <div class="tools" id="tools"></div>
+      <div class="toolRow">
+        <button type="button" class="toolNow" id="toolNow" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24"></svg><span><span class="tn"></span><span class="tc"></span></span></button>
+        <button type="button" class="btn toolPick" id="bTools">Tools&hellip;</button>
+      </div>
       <p class="toolhelp" id="toolhelp"></p>
+    </div>
+
+    <div class="grp">
+      <div class="hd"><span class="eyebrow">Effects</span><span class="tag" id="fxCount"></span></div>
+      <div class="fxRow" id="fxRow"></div>
     </div>
 
     <div class="grp">
@@ -465,7 +561,6 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
             <button type="button" data-dir="1" aria-pressed="true" title="Dark end leads">&#9654;</button>
           </div>
         </div>
-        <button type="button" class="btn advOnly" id="bRegisters" style="width:100%; margin-top:8px">Registers &amp; custom ramps&hellip;</button>
       </div>
 
       <div id="inkStillBox" hidden>
@@ -507,6 +602,21 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       </div>
       <label class="fld" data-for="meltsteps"><span>Ramp steps <b id="vMelt">32</b></span>
         <input type="range" id="meltN" min="2" max="256" value="32"></label>
+      <div class="fld" data-for="selmode"><span class="eyebrow lbl">Select by</span>
+        <div class="seg" id="selSeg">
+          <button type="button" data-sm="box" aria-pressed="true" title="Drag out a rectangle">Box</button>
+          <button type="button" data-sm="region" aria-pressed="false" title="Click and it takes the joined-up area of that colour">Region</button>
+        </div>
+        <div class="selActs">
+          <button type="button" class="btn" id="selCut">Cut</button>
+          <button type="button" class="btn" id="selCopy">Copy</button>
+          <button type="button" class="btn" id="selPaste">Paste</button>
+          <button type="button" class="btn" id="selAll">All</button>
+          <button type="button" class="btn" id="selNone">None</button>
+        </div>
+        <p class="rh" style="margin:6px 0 0">Drag inside a selection to move what is in it.
+          While anything is selected, every tool and every creature works inside it and nowhere else.</p>
+      </div>
       <div class="fld" data-for="radial"><label class="chk"><input type="checkbox" id="radial"> Rings from the touch point</label></div>
       <div class="fld" data-for="global"><label class="chk"><input type="checkbox" id="fillAll"> Everywhere, joined up or not</label></div>
       <div>
@@ -517,7 +627,6 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
 
     <div class="grp advOnly">
       <div class="hd"><span class="eyebrow">Advanced</span></div>
-      <div class="fl"><button type="button" class="btn" id="bSize">Canvas 192&times;120</button></div>
       <label class="chk"><input type="checkbox" id="impCycle" checked> Pictures arrive on the live registers</label>
       <p class="mono" id="saveNote" style="font-size:11px; color:var(--muted); margin:8px 0 0"></p>
       <input type="file" id="fileIn" accept="image/*,.gif" hidden>
@@ -550,7 +659,7 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       <button type="button" class="btn" id="clear">Clear</button>
     </div>
 
-    <div class="paperWrap"><div class="paper"><canvas id="art" width="192" height="120"></canvas></div></div>
+    <div class="paperWrap"><div class="paper"><canvas id="art" width="192" height="120"></canvas><canvas id="selOv" width="192" height="120"></canvas></div></div>
 
     <div class="status">
       <span>stroke <b id="rDir">&mdash;</b></span>
@@ -609,6 +718,19 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       <button type="button" class="btn pri" id="rbAdd">Add ramp</button></div>
   </div></dialog>
 
+<dialog id="dTools" aria-label="Tools"><div class="dh"><span class="eyebrow">Tools</span>
+  <button type="button" class="btn pri" data-close>Done</button></div>
+  <div class="db">
+    <p>Every tool means one thing with a flow ramp loaded and another with a flat colour,
+      so what you see here is whichever half of it the ink is currently asking for.</p>
+    <p class="eyebrow lbl">Create &mdash; puts new ink down</p>
+    <div class="pickGrid" id="pickCreate"></div>
+    <p class="eyebrow lbl" style="margin-top:13px">Modify &mdash; works on what is already there</p>
+    <div class="pickGrid" id="pickModify"></div>
+    <p class="rh" style="margin-top:12px">Effects are the third kind, and they are toggles rather than
+      tools: they stay on while you work with everything else. They are the row of creatures in the rail.</p>
+  </div></dialog>
+
 <dialog id="dSize" aria-label="Canvas size"><div class="dh"><span class="eyebrow">Canvas size</span>
   <button type="button" class="btn" data-close>Close</button></div>
   <div class="db">
@@ -629,10 +751,32 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       and each frame rotates the ramp by one. So a stroke that writes a falling phase reads as colour
       travelling that way &mdash; drag down and it falls. Nothing is ever redrawn.</p>
     <p><strong>The ink decides what the tools are.</strong> Load a flow ramp and you get Flow, Vortex,
-      Sparkle, Divert, Pool. Load a flat colour and the same six become Paint, Shape, Spray, Smudge,
-      Puddle &mdash; the same machinery, laying down one colour instead of a moving gradient.
-      <strong>Melt</strong> works the other way round: drag it across the picture and the colours it
-      crosses become the stops of a new ramp.</p>
+      Sparkle, Pool, Divert, Select, Melt. Load a flat colour and the same seven become Paint, Shape,
+      Spray, Fill, Smudge, Select, Pick &mdash; the same machinery, laying down one colour instead of a
+      moving gradient. Nothing crosses over: a tool holding a ramp never reaches for the flat colour,
+      and a tool holding a colour never reaches for a ramp. <strong>Melt</strong> is what picking means
+      when the ink is a ramp &mdash; one pixel cannot describe a gradient, so it collects a run of them
+      and strings them into one.</p>
+    <p><strong>Tools come in three kinds</strong>, and the rail shows one button for each thing you
+      might actually want. <em>Create</em> puts new ink down; <em>modify</em> works on what is already
+      there; <em>effects</em> are not tools at all but toggles that stay on and bend the whole studio
+      while you go on working. Everything that is not painting &mdash; registers, the palette, the
+      canvas size, the theme &mdash; is behind <strong>Setup</strong>.</p>
+    <p><strong>Select confines everything.</strong> Drag out a box, or take a whole joined-up area with
+      Region, and from then on every tool, every fill and every creature works inside it and nowhere
+      else &mdash; because a selection is a mask, and the one place paint is written checks it. Cut,
+      copy and paste keep the shape you selected rather than a rectangle around it, and dragging from
+      inside a selection carries its contents with it.</p>
+    <h4>The creatures</h4>
+    <p><strong>Giant Slug</strong> chains every turning register into one long body, so colour leaving
+      the end of Fire arrives at the start of Water; switch it off and they come apart again.
+      <strong>Hydra Polyp</strong> takes a tool at random once a second and uses it at random.
+      <strong>Ratlizard</strong> gnaws every edge in the picture a pixel at a time.
+      <strong>Chicken</strong> pecks your strokes into scattered grain. <strong>Crab</strong> walks
+      sideways, measuring bands across your drag instead of along it. <strong>Crystal Ball</strong>
+      mirrors what you paint into all four quarters. <strong>Ghost</strong> refuses to let anything be
+      fully covered. <strong>Skeleton</strong> runs every ramp up and back down rather than round, so
+      the colour rattles in place.</p>
     <p><strong>Travel and colour order are two knobs.</strong> The stroke sets which way the wave
       moves; the register's own direction sets which end of the gradient leads it, and can also hold
       it still. You need both to get all four combinations, which is why Deluxe Paint gave every
@@ -650,10 +794,18 @@ code{font-family:"DM Mono",monospace; font-size:.92em; color:var(--ink-2)}
       to that grid. Colours you mix are appended past the base and indices are 16-bit, so the palette
       can run to tens of thousands. What the exports care about is how many <em>distinct</em> colours
       the canvas uses, since GIF and indexed PNG hold 256; the status bar counts them.</p>
-    <p><strong>The GIF is the save file.</strong> Your palette, your depth, your registers, your
-      custom ramps and every pixel ride inside it in a comment block that viewers ignore.
-      <strong>Open</strong> one you made and the whole thing comes back. Video is for sending to
-      people; it carries the picture only.</p>
+    <p><strong>The GIF is the save file</strong> &mdash; but it does not have to be ours.
+      Your palette, depth, registers, custom ramps and every pixel ride inside our own exports in a
+      comment block that viewers ignore, so opening one you made brings the whole project back. Any
+      other cycling GIF is <em>read off its own motion instead</em>. A cycling animation is one set of
+      pixels under a colour table that turns, so between two frames every moving colour steps from one
+      slot to another &mdash; and that is a permutation whose cycles are the registers. Following each
+      ring round hands back the ramp in order, however the file numbered it, and every remaining frame
+      has to agree before we believe it. Nothing needs to have been written down. Files that only
+      repaint their palette come in as still pictures and are told so.</p>
+    <p><strong>Direct</strong> is the colour depth an imported picture lands in: no grid at all, every
+      colour kept exactly as it arrived, because snapping a scene built for one palette onto another
+      flattens its ramps into each other. Video is for sending to people; it carries the picture only.</p>
     <p>Cythera and Delver are trademarks of Glenn Andreas and/or Ambrosia Software. Unofficial fan tool.</p>
   </div></dialog>
 
@@ -1162,6 +1314,9 @@ function clut8(h) {
 var PAL = PALETTE.map(clut8);
 var CLUT = PAL.slice();                           // Cythera's own, kept for reference
 var CLUT_N = PAL.length;                          // where the base palette ends
+// The scene builder has one of these inside its own closure; the studio needs
+// its own, and both are the same three lines.
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function css(i) { var c = PAL[i] || [0, 0, 0]; return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'; }
 function hex2rgb(h) { return [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)]; }
 function rgb2hex(c) { return '#' + c.map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join(''); }
@@ -1179,6 +1334,11 @@ function bitSplit(b) {                            // bits per channel, green fav
   return [r, g, bl];
 }
 function quant(rgb) {
+  // 'direct' is the mode an imported picture lands in: no grid at all, so the
+  // colours that came out of the file are the colours that stay.
+  if (depth === 'direct') return [clamp(Math.round(rgb[0]), 0, 255),
+                                  clamp(Math.round(rgb[1]), 0, 255),
+                                  clamp(Math.round(rgb[2]), 0, 255)];
   if (depth === 'cythera') { var i = nearestIn(CLUT, rgb, 1); return CLUT[i].slice(); }
   var s = bitSplit(depth);
   if (!s[1]) {                                    // 1 or 2 bits: pure greys
@@ -1191,6 +1351,7 @@ function quant(rgb) {
   });
 }
 function basePalette(d) {
+  if (d === 'direct') return [[0, 0, 0]];         // only transparent; the rest is whatever arrives
   if (d === 'cythera') return CLUT.slice();
   var out = [[0, 0, 0]], seen = { '0,0,0': 1 }, s = bitSplit(d), i;
   function add(c) { var k = c.join(','); if (!seen[k]) { seen[k] = 1; out.push(c); } }
@@ -1270,12 +1431,45 @@ function makeRamp(cols, name, hint) {
   CUSTOM.push(r); relut(); invalidateMap();
   return r;
 }
+/* ================= effects ==============================================
+ * Toggles, not tools. Each one stays on and bends some part of the studio
+ * while you go on working with everything else. Two of them -- Giant Slug and
+ * Skeleton -- reach into the cycling itself, which is why they live up here
+ * next to the loop.
+ */
+var FX = { slug: 0, hydra: 0, rat: 0, chicken: 0, crab: 0, ball: 0, ghost: 0, bones: 0 };
+
 var LOOP = 8;
 function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+// Skeleton runs a ramp up and back down rather than round, so a register of
+// n colours takes 2n-2 frames to come home.
+function tri(f, n) {
+  if (n < 2) return 0;
+  var p = 2 * n - 2, t = ((f % p) + p) % p;
+  return t < n ? t : p - t;
+}
+// Giant Slug strings every turning register end to end into one long body.
+function chainList() {
+  var out = [];
+  ramps().forEach(function (r) {
+    if (!r.dir) return;
+    for (var i = 0; i < r.len; i++) if (r.base + i < PAL.length) out.push(r.base + i);
+  });
+  return out;
+}
 function rebuildLoop() {
   var L = 1;
-  ramps().forEach(function (r) { if (r.dir) L = L * r.len / gcd(L, r.len); });
-  LOOP = Math.max(1, Math.min(L, 360));
+  if (FX.slug) {
+    var n = Math.max(1, chainList().length);
+    L = FX.bones ? Math.max(1, 2 * n - 2) : n;
+  } else {
+    ramps().forEach(function (r) {
+      if (!r.dir) return;
+      var n = FX.bones ? Math.max(1, 2 * r.len - 2) : r.len;
+      L = L * n / gcd(L, n);
+    });
+  }
+  LOOP = Math.max(1, Math.min(L, 720));
   if (frame >= LOOP) frame = 0;
   buildFrameDots();
 }
@@ -1283,16 +1477,26 @@ function rebuildLoop() {
 var _mapF = -1, _map = null;
 function frameMap(f) {
   if (_mapF === f && _map && _map.length === PAL.length) return _map;
-  var m = new Int32Array(PAL.length), rs = ramps();
-  for (var i = 0; i < PAL.length; i++) m[i] = i;
-  rs.forEach(function (r) {
-    if (!r.dir) return;                          // held still: reads as itself
-    for (var i = 0; i < r.len; i++) {
-      var to = r.base + i;
-      if (to >= PAL.length) continue;
-      m[to] = r.base + (((i + f * r.dir) % r.len) + r.len) % r.len;
+  var m = new Int32Array(PAL.length), i;
+  for (i = 0; i < PAL.length; i++) m[i] = i;
+  if (FX.slug) {
+    // One body: colour leaving the end of Fire arrives at the start of Water.
+    var ch = chainList(), T = ch.length;
+    if (T > 1) {
+      var o = FX.bones ? tri(f, T) : ((f % T) + T) % T;
+      for (i = 0; i < T; i++) m[ch[i]] = ch[(i + o) % T];
     }
-  });
+  } else {
+    ramps().forEach(function (r) {
+      if (!r.dir) return;                        // held still: reads as itself
+      var o = FX.bones ? tri(f, r.len) : (((f * r.dir) % r.len) + r.len) % r.len;
+      for (var k = 0; k < r.len; k++) {
+        var to = r.base + k;
+        if (to >= PAL.length) continue;
+        m[to] = r.base + ((k + o) % r.len);
+      }
+    });
+  }
   _mapF = f; _map = m; return m;
 }
 function invalidateMap() { _mapF = -1; }
@@ -1360,23 +1564,32 @@ var BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 function bay(x, y) { return (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16; }
 
 /* ================= canvas state =========================================
- * There are six tools and a dropper. Each one means something different
- * depending on what the ink is loaded with, so the ids are the behaviour and
- * the names come from the ink:
+ * Seven tools in two families, and every one of them is a single behaviour
+ * wearing two names -- which one you get depends on what the ink is loaded
+ * with, so the ids are the behaviour and the names come from the ink:
  *
- *   flow    Flow     / Paint    drag to lay ink
- *   burst   Vortex   / Shape    press at a centre and drag out
- *   spray   Sparkle  / Spray    scatter
- *   divert  Divert   / Smudge   push what is already there about
- *   pool    Pool     / Puddle   flood a region
- *   melt    Melt                build a ramp out of colours you drag across
- *   pick    Pick     / Pick     load the ink from a pixel
+ *   create
+ *     flow    Flow     / Paint    drag to lay ink
+ *     burst   Vortex   / Shape    press at a centre and drag out
+ *     spray   Sparkle  / Spray    scatter
+ *     pool    Pool     / Fill     flood a region
+ *   modify
+ *     divert  Divert   / Smudge   push what is already there about
+ *     select  Select   / Select   marquee for cut, copy, paste and confining
+ *     pick    Melt     / Pick     take ink off the picture: a ramp, or a colour
+ *
+ * Melt is Pick's ramp half. Picking a single colour is what you want when the
+ * ink is one colour; a ramp needs more than one pixel to be worth anything,
+ * so its half of the tool collects a run of them.
  */
 var W = 192, H = 120;
 var art = document.getElementById('art'), ctx = art.getContext('2d');
 var idx = new Uint16Array(W * H), imgData = ctx.createImageData(W, H);
 var undoStack = [], redoStack = [];
 var tool = 'flow', ramp = ENGINE[1], still = 222;
+// Nothing is selected to begin with, and while nothing is, everything works
+// on the whole canvas -- which is the behaviour there has always been.
+var sel = null, clip = null, selMode = 'box';
 var inkMode = 'ramp';      // 'ramp' | 'still'
 function inkIsRamp() { return inkMode === 'ramp' && !!ramp; }
 var brush = 7, lam = 8, turb = 1.4, spin = 0, reverse = false, ragged = true;
@@ -1388,10 +1601,11 @@ var flowRadial = false;    // waves ring out from where you touched
 var frame = 0, playing = true, rateMs = 140;
 // The one polysemous slider remembers a value per tool, because Fold at 0 and
 // Force at 0 mean very different things.
-var SPIN_BY = { flow: 0, burst: 0, pool: 0, divert: 2.6, spray: 0, melt: 0, pick: 0 };
+var SPIN_BY = { flow: 0, burst: 0, pool: 0, divert: 2.6, spray: 0, select: 0, pick: 0 };
 function amt() { return Math.abs(spin); }
 
 function snapshot() {
+  dirty = true;
   undoStack.push({ w: W, h: H, px: idx.slice() });
   if (undoStack.length > 24) undoStack.shift();
   redoStack.length = 0;
@@ -1411,6 +1625,7 @@ function draw() {
     d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
   }
   ctx.putImageData(imgData, 0, 0);
+  drawSel();
   stats();
 }
 function stats() {
@@ -1428,8 +1643,10 @@ function resize(nw, nh, keep) {
   idx = new Uint16Array(W * H);
   if (keep) for (var y = 0; y < Math.min(oh, H); y++)
     for (var x = 0; x < Math.min(ow, W); x++) idx[y * W + x] = old[y * ow + x];
+  if (sel) sel = null;                            // a mask is the old canvas's shape, not this one
   document.getElementById('rSize').textContent = W + '×' + H;
-  document.getElementById('bSize').textContent = 'Canvas ' + W + '×' + H;
+  var sn = document.getElementById('mSizeNote');
+  if (sn) sn.innerHTML = W + '&times;' + H;
   document.getElementById('inW').value = W; document.getElementById('inH').value = H;
   fitCanvas(); draw();
 }
@@ -1477,9 +1694,30 @@ addEventListener('resize', fitCanvas);
  * flat colour can be Transparent, which is how you rub something out.
  */
 function put(x, y, v) { if (x >= 0 && x < W && y >= 0 && y < H) idx[y * W + x] = v; }
+/* place() is the one door every tool's paint goes through, which makes it the
+ * only place a selection or a stroke-bending creature has to be honoured.
+ *   selection  nothing lands outside it
+ *   Ghost      a fixed pattern of pixels refuses to be covered, so whatever
+ *              was underneath keeps showing through
+ */
+function place(x, y, v) {
+  if (x < 0 || x >= W || y < 0 || y >= H) return;
+  var i = y * W + x;
+  if (sel && !sel[i]) return;
+  if (FX.ghost && idx[i] && bay(x + 2, y + 1) > 0.66) return;
+  idx[i] = v;
+}
 function lay(x, y, v) {
   if (opacity < 100 && bay(x, y) >= opacity / 100) return;
-  put(x, y, v);
+  if (FX.chicken) {                              // pecked into grains, and scattered
+    if (hash2(x * 13 + 5, y * 7 + 3) > 0.6) return;
+    var jx = x + (hash2(x * 3 + 11, y * 5 + 2) * 3 | 0) - 1;
+    y = y + (hash2(x * 5 + 7, y * 3 + 13) * 3 | 0) - 1;
+    x = jx;
+  }
+  place(x, y, v);
+  // The crystal ball shows the other three quarters of whatever it is shown.
+  if (FX.ball) { place(W - 1 - x, y, v); place(x, H - 1 - y, v); place(W - 1 - x, H - 1 - y, v); }
 }
 function phase(k, r) { return r.base + ((Math.round(k) % r.len) + r.len) % r.len; }
 function pnorm(ex, ey) {
@@ -1490,6 +1728,9 @@ function pnorm(ex, ey) {
 
 function dab(cx, cy, dx, dy, arc) {
   var r = brush / 2, r2 = r * r, hasDir = (dx || dy), flat = !inkIsRamp();
+  // The crab goes sideways: the bands are measured across the drag instead of
+  // along it, so a stroke lays a ladder rather than a current.
+  if (FX.crab) { var t0 = dx; dx = -dy; dy = t0; }
   for (var y = Math.floor(cy - r - 1); y <= cy + r + 1; y++)
     for (var x = Math.floor(cx - r - 1); x <= cx + r + 1; x++) {
       if (x < 0 || x >= W || y < 0 || y >= H) continue;
@@ -1549,6 +1790,17 @@ function burst(cx, cy, rad) {
  */
 function divert(cx, cy, dx, dy, src) {
   var rad = brush / 2 + 1, str = (amt() * 1.4 + 0.4) * (brush / 14 + 0.6);
+  if (FX.crab) { var t0 = dx; dx = -dy; dy = t0; }
+  // Part opens a gap and something has to go in it. With a flat colour that is
+  // the flat colour; with a ramp loaded it is the ramp, ringing out from the
+  // centre of the split -- a tool in the ramp family never reaches for the
+  // flat colour behind your back.
+  var gap = function (x, y, ex, ey) {
+    if (!inkIsRamp()) return still;
+    var k = -(Math.hypot(ex, ey) * ramp.len / lam);
+    if (reverse) k = -k;
+    return phase(k, ramp);
+  };
   for (var y = Math.floor(cy - rad); y <= cy + rad; y++)
     for (var x = Math.floor(cx - rad); x <= cx + rad; x++) {
       if (x < 0 || x >= W || y < 0 || y >= H) continue;
@@ -1560,7 +1812,7 @@ function divert(cx, cy, dx, dy, src) {
       else {
         var ux = dist < 0.001 ? 0 : ex / dist, uy = dist < 0.001 ? 0 : ey / dist;
         var sr = divertMode === 'gather' ? dist + f * 3 : dist - f * 3;
-        if (sr < 0) { lay(x, y, still); continue; }   // the gap Part opens
+        if (sr < 0) { lay(x, y, gap(x, y, ex, ey)); continue; }   // the gap Part opens
         qx = cx + ux * sr; qy = cy + uy * sr;
       }
       qx = Math.round(qx); qy = Math.round(qy);
@@ -1741,19 +1993,144 @@ function fillAt(sx, sy) {
   }
 }
 
+/* ================= selection ============================================
+ * A selection is a mask the same shape as the canvas, and place() is the only
+ * thing that reads it -- so once one exists, every tool, every fill and every
+ * creature is confined to it without any of them knowing it happened.
+ */
+function selEmpty() { sel = null; drawSel(); refreshTool(); }
+function selBounds(m) {
+  m = m || sel;
+  if (!m) return { x0: 0, y0: 0, x1: W - 1, y1: H - 1 };
+  var x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (m[y * W + x]) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x;
+    if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  return x1 < 0 ? null : { x0: x0, y0: y0, x1: x1, y1: y1 };
+}
+function selRect(ax, ay, bx, by) {
+  var m = new Uint8Array(W * H);
+  var x0 = clamp(Math.min(ax, bx), 0, W - 1), x1 = clamp(Math.max(ax, bx), 0, W - 1);
+  var y0 = clamp(Math.min(ay, by), 0, H - 1), y1 = clamp(Math.max(ay, by), 0, H - 1);
+  for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) m[y * W + x] = 1;
+  return m;
+}
+function selAll() { sel = new Uint8Array(W * H).fill(1); drawSel(); refreshTool(); say('everything selected'); }
+// Cut and copy keep the mask, not just the box, so a region lifted out of a
+// picture pastes back with its own outline rather than a rectangle of it.
+function selCopy(quietly) {
+  var b = selBounds();
+  if (!b) { say('nothing selected'); return false; }
+  var w = b.x1 - b.x0 + 1, h = b.y1 - b.y0 + 1;
+  var px = new Uint16Array(w * h), mk = new Uint8Array(w * h);
+  for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+    var i = (y + b.y0) * W + (x + b.x0);
+    if (sel && !sel[i]) continue;
+    mk[y * w + x] = 1; px[y * w + x] = idx[i];
+  }
+  clip = { w: w, h: h, px: px, mask: mk };
+  if (!quietly) say('copied ' + w + '×' + h);
+  refreshTool();
+  return true;
+}
+function selClearPixels() {
+  snapshot();
+  for (var i = 0; i < W * H; i++) if (!sel || sel[i]) idx[i] = 0;
+  draw();
+}
+function selCut() { if (selCopy(true)) { selClearPixels(); say('cut ' + clip.w + '×' + clip.h); } }
+function selPaste() {
+  if (!clip) { say('nothing to paste'); return; }
+  snapshot();
+  var b = sel ? selBounds() : null;
+  var ox = b ? b.x0 : Math.max(0, (W - clip.w) >> 1), oy = b ? b.y0 : Math.max(0, (H - clip.h) >> 1);
+  var m = new Uint8Array(W * H);
+  sel = null;                                     // the paste writes its own area, not the old one
+  for (var y = 0; y < clip.h; y++) for (var x = 0; x < clip.w; x++) {
+    if (!clip.mask[y * clip.w + x]) continue;
+    var X = x + ox, Y = y + oy;
+    if (X < 0 || X >= W || Y < 0 || Y >= H) continue;
+    idx[Y * W + X] = clip.px[y * clip.w + x]; m[Y * W + X] = 1;
+  }
+  sel = m;
+  setTool('select'); drawSel(); draw();
+  say('pasted ' + clip.w + '×' + clip.h + ' — drag it to place it');
+}
+// Dragging inside a selection carries its contents with it.
+var selDrag = null;
+function selMoveTo(dx, dy) {
+  var src = selDrag.px, mask = selDrag.mask, i, x, y;
+  idx.set(src);
+  for (i = 0; i < W * H; i++) if (mask[i]) idx[i] = 0;
+  var ns = new Uint8Array(W * H);
+  for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+    i = y * W + x;
+    if (!mask[i]) continue;
+    var nx = x + dx, ny = y + dy;
+    if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+    idx[ny * W + nx] = src[i]; ns[ny * W + nx] = 1;
+  }
+  sel = ns;
+}
+/* The ants live on their own canvas above the picture, so the selection is
+ * never paint and never turns up in a GIF. */
+var ants = 0;
+function drawSel() {
+  var ov = document.getElementById('selOv');
+  if (!ov) return;
+  if (ov.width !== W || ov.height !== H) { ov.width = W; ov.height = H; }
+  var g = ov.getContext('2d');
+  g.clearRect(0, 0, W, H);
+  if (!sel) return;
+  var im = g.createImageData(W, H), d = im.data;
+  for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+    var i = y * W + x;
+    if (!sel[i]) continue;
+    var edge = (x === 0 || !sel[i - 1]) || (x === W - 1 || !sel[i + 1]) ||
+               (y === 0 || !sel[i - W]) || (y === H - 1 || !sel[i + W]);
+    if (!edge) continue;
+    var on = ((x + y + ants) >> 2) & 1;
+    d[i * 4] = on ? 255 : 0; d[i * 4 + 1] = on ? 255 : 0; d[i * 4 + 2] = on ? 255 : 0; d[i * 4 + 3] = 255;
+  }
+  g.putImageData(im, 0, 0);
+}
+
 /* ================= strokes ============================================== */
 var stroking = false, lastX = 0, lastY = 0, arc = 0, startX = 0, startY = 0, baseCopy = null;
 function begin(x, y) {
+  // Pick and Melt are one tool: one colour off the picture when the ink is one
+  // colour, a run of them strung into a ramp when the ink is a ramp.
   if (tool === 'pick') {
+    if (inkIsRamp()) {
+      stroking = true; meltMoved = false; startX = x; startY = y; lastX = x; lastY = y;
+      meltSample(x, y); return;
+    }
     var v = idx[y * W + x];
-    var r = v && rampOf(v);
-    if (r) { ramp = r; setInk('ramp'); paintRamps(); say('picked ' + r.name + ', step ' + (v - r.base)); }
-    else { still = v; setInk('still'); syncStill(); paintPal(); say(v ? 'picked colour ' + v : 'picked transparent'); }
-    sync(); return;
+    if (v && rampOf(v)) {
+      // That index belongs to a turning register, so it cannot hold flat paint.
+      // Take the colour it is showing this frame and give it a still slot.
+      still = addColour((PAL[frameMap(frame % LOOP)[v]] || [0, 0, 0]).slice());
+      say('that colour is turning — copied it flat as ' + still);
+    } else {
+      still = v; say(v ? 'picked colour ' + v : 'picked transparent');
+    }
+    setInk('still'); syncStill(); paintPal(); sync(); return;
   }
-  if (tool === 'melt') {
-    stroking = true; meltMoved = false; startX = x; startY = y; lastX = x; lastY = y;
-    meltSample(x, y); return;
+  if (tool === 'select') {
+    if (selMode === 'region') {                   // choosing an area changes no pixels
+      sel = region(x, y, Math.round((brush - 1) * 9)).mask;
+      stroking = false; drawSel(); refreshTool();
+      say('selected the region under the cursor'); return;
+    }
+    if (sel && sel[y * W + x]) {                  // inside: carry it about
+      snapshot();
+      selDrag = { move: 1, x0: x, y0: y, px: idx.slice(), mask: sel.slice() };
+    } else {
+      selDrag = { move: 0, x0: x, y0: y };
+      sel = null; drawSel();
+    }
+    stroking = true; startX = x; startY = y; return;
   }
   snapshot();
   stroking = true; lastX = x; lastY = y; arc = 0; startX = x; startY = y;
@@ -1764,7 +2141,12 @@ function begin(x, y) {
 }
 function extend(x, y) {
   if (!stroking) return;
-  if (tool === 'melt') {
+  if (tool === 'select') {
+    if (selDrag && selDrag.move) selMoveTo(x - selDrag.x0, y - selDrag.y0);
+    else sel = selRect(selDrag.x0, selDrag.y0, x, y);
+    drawSel(); draw(); return;
+  }
+  if (tool === 'pick') {
     if (Math.hypot(x - startX, y - startY) > 1.5) meltMoved = true;
     var mdx = x - lastX, mdy = y - lastY, ml = Math.hypot(mdx, mdy);
     for (var s = 1; s <= Math.max(1, Math.round(ml)); s++)
@@ -1798,9 +2180,17 @@ function extend(x, y) {
   arc += len; lastX = x; lastY = y; setDir(ux, uy, false); draw();
 }
 function end() {
-  if (tool === 'melt' && stroking) {
+  if (tool === 'pick' && inkIsRamp() && stroking) {
     if (meltMoved || meltStops.length >= 2) meltFinish();
-    else say('melt: ' + meltStops.length + ' stop — tap another colour');
+    else say('melt: ' + meltStops.length + ' stop — drag across more colour');
+  }
+  if (tool === 'select' && stroking) {
+    var b = sel && selBounds();
+    // A tap rather than a drag means "select nothing", which is how you get
+    // the whole canvas back without hunting for a button.
+    if (selDrag && !selDrag.move && b && b.x0 === b.x1 && b.y0 === b.y1) { sel = null; b = null; say('selection cleared'); }
+    selDrag = null; drawSel(); refreshTool();
+    if (b) say('selected ' + (b.x1 - b.x0 + 1) + '×' + (b.y1 - b.y0 + 1));
   }
   stroking = false; baseCopy = null;
 }
@@ -1885,6 +2275,85 @@ document.querySelector('.paperWrap').addEventListener('touchmove', function (e) 
   e.preventDefault();
 }, { passive: false });
 
+/* ---- dragging the mat -------------------------------------------------
+ * The canvas itself is for painting, so panning had nowhere to live but a
+ * two-finger gesture and a mouse wheel. The grey around it is doing nothing:
+ * drag there -- with a finger, a pen or a mouse -- and the picture moves.
+ */
+(function () {
+  var wrap = document.querySelector('.paperWrap'), pan = null;
+  wrap.addEventListener('pointerdown', function (e) {
+    if (e.target === art) return;                 // the picture takes its own strokes
+    e.preventDefault();
+    wrap.setPointerCapture(e.pointerId);
+    pan = { id: e.pointerId, x: e.clientX, y: e.clientY, px: panX, py: panY };
+    wrap.classList.add('panning');
+  });
+  wrap.addEventListener('pointermove', function (e) {
+    if (!pan || e.pointerId !== pan.id) return;
+    e.preventDefault();
+    panX = pan.px + (e.clientX - pan.x);
+    panY = pan.py + (e.clientY - pan.y);
+    applyView();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (n) {
+    wrap.addEventListener(n, function (e) {
+      if (!pan || e.pointerId !== pan.id) return;
+      pan = null; wrap.classList.remove('panning');
+    });
+  });
+  // Wheeling over the mat zooms the same way wheeling over the picture does.
+  wrap.addEventListener('wheel', function (e) {
+    if (e.target === art) return;
+    e.preventDefault();
+    zoomAbout(Math.pow(0.9987, e.deltaY * (e.ctrlKey ? 2.4 : 1)), e.clientX, e.clientY);
+  }, { passive: false });
+})();
+
+/* ---- no accidental swipe-to-reload -------------------------------------
+ * A drag that starts anywhere but a genuinely scrollable list is not a page
+ * gesture: on a phone an upward or downward flick was handing the browser a
+ * pull-to-refresh and taking an unsaved picture with it. Walk up from
+ * whatever was touched, and only let the gesture through if something on the
+ * way can actually scroll the way the finger is going.
+ */
+(function () {
+  var sx = 0, sy = 0;
+  function scrolls(v) { return v === 'auto' || v === 'scroll' || v === 'overlay'; }
+  addEventListener('touchstart', function (e) {
+    if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }
+  }, { passive: true });
+  addEventListener('touchmove', function (e) {
+    if (e.touches.length !== 1 || !e.cancelable) return;
+    var dy = e.touches[0].clientY - sy, dx = e.touches[0].clientX - sx, n = e.target;
+    while (n && n.nodeType === 1 && n !== document.documentElement) {
+      var st = getComputedStyle(n);
+      if (scrolls(st.overflowY) && n.scrollHeight > n.clientHeight + 1) {
+        var atTop = n.scrollTop <= 0;
+        var atBottom = n.scrollTop + n.clientHeight >= n.scrollHeight - 1;
+        if (!((dy > 0 && atTop) || (dy < 0 && atBottom))) return;
+      }
+      if (scrolls(st.overflowX) && n.scrollWidth > n.clientWidth + 1) {
+        var atLeft = n.scrollLeft <= 0;
+        var atRight = n.scrollLeft + n.clientWidth >= n.scrollWidth - 1;
+        if (!((dx > 0 && atLeft) || (dx < 0 && atRight))) return;
+      }
+      n = n.parentNode;
+    }
+    e.preventDefault();
+  }, { passive: false });
+})();
+
+/* And if the browser is asked to leave anyway -- a gesture we did not catch,
+ * a stray reload -- it says so first, once there is anything to lose. */
+var dirty = false;
+addEventListener('beforeunload', function (e) {
+  if (!dirty) return;
+  e.preventDefault();
+  e.returnValue = '';
+  return '';
+});
+
 /* ================= tool icons ===========================================
  * Two sets. Which one you see depends on what the ink is loaded with, since
  * the same tool does a visibly different thing with a ramp than with a
@@ -1924,45 +2393,111 @@ var I = {
           '<path d="M14 7.6v9.4a1.7 1.7 0 1 0 3.4 0V7.6"/>' +
           '<path d="M11.4 20.8a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z"/>',
   pick:   '<path d="M15.7 2.9a2.3 2.3 0 0 1 3.2 0l2.2 2.2a2.3 2.3 0 0 1 0 3.2l-1.5 1.5-5.4-5.4z"/>' +
-          '<path d="m12.9 5.7 5.4 5.4-8.4 8.4a2 2 0 0 1-1 .5l-3.6.8.8-3.6a2 2 0 0 1 .5-1z"/>'
+          '<path d="m12.9 5.7 5.4 5.4-8.4 8.4a2 2 0 0 1-1 .5l-3.6.8.8-3.6a2 2 0 0 1 .5-1z"/>',
+  select: '<path d="M3.2 7.4V4.8a1.6 1.6 0 0 1 1.6-1.6h2.6M16.6 3.2h2.6a1.6 1.6 0 0 1 1.6 1.6v2.6"/>' +
+          '<path d="M20.8 16.6v2.6a1.6 1.6 0 0 1-1.6 1.6h-2.6M7.4 20.8H4.8a1.6 1.6 0 0 1-1.6-1.6v-2.6"/>' +
+          '<path d="M10 3.2h4M3.2 10v4M20.8 10v4M10 20.8h4"/>'
 };
-/* Each slot is one behaviour wearing two names. */
+/* ---- the creatures ------------------------------------------------------
+ * Line drawings with one or two moving parts. The class on a part picks the
+ * keyframes; the stylesheet slows them right down when the effect is off and
+ * quickens them when it is on, so the row reads as a state at a glance.
+ */
+var FXI = {
+  slug:   '<path d="M2.4 16.8c0-3.4 2.8-5.6 6.8-5.6 3.6 0 6 1.7 8 1.7 1.8 0 3-1 3-2.6"/>' +
+          '<path class="sld" d="M2.4 16.8h17.2"/>' +
+          '<path class="wag" d="M18.4 10.3 17 6.9M21.2 10.3l2-3.2"/>' +
+          '<circle class="wag" cx="16.8" cy="6.2" r=".9"/><circle class="wag" cx="23.4" cy="6.2" r=".9"/>',
+  hydra:  '<path d="M8.2 21.2h7.6l-1-8.4H9.2z"/>' +
+          '<path class="wag" d="M9 12.4C7.4 9.6 5.2 8.6 3 8.8"/>' +
+          '<path class="wag" d="M11 12.4C10.6 9.2 9.6 6.6 8 4.8"/>' +
+          '<path class="wag" d="M13 12.4c.4-3.2 1.4-5.8 3-7.6"/>' +
+          '<path class="wag" d="M15 12.4c1.6-2.8 3.8-3.8 6-3.6"/>',
+  rat:    '<path d="M3 15.6c1.6-3.4 4.6-5 8.4-5 3.2 0 5.4 1.2 6.6 2.6"/>' +
+          '<path d="M18 13.2c1.4.2 2.6 1.2 2.6 2.4 0 1.4-1.4 2.4-3.2 2.4H6.4C4.4 18 3 17 3 15.6z"/>' +
+          '<circle cx="18.6" cy="15" r=".9"/>' +
+          '<path class="wag" d="M3 15.8C1.4 15.4.8 13.6 1.8 12.2"/>' +
+          '<path class="pek" d="M20 17.4c.6.8 1.4 1 2.2.6"/>',
+  chicken:'<path d="M6.4 20.6c-1.8-1-2.8-2.8-2.8-5 0-3.4 2.6-6 6-6 3.2 0 5.6 2 6 5"/>' +
+          '<path d="M9.6 20.6h6.2M7.6 20.6l1-2.6M13.8 20.6l1-2.6"/>' +
+          '<g class="pek"><path d="M15.6 12.6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>' +
+          '<path d="m18.6 9.6 3 .8-3 1.2"/><circle cx="15" cy="8.8" r=".7"/>' +
+          '<path d="M14 6.2c.4-1 1.2-1.4 2-1.2M16.4 6c.6-.9 1.5-1.1 2.3-.6"/></g>',
+  crab:   '<g class="sld"><path d="M6.4 13.6c0-2.4 2.5-4.2 5.6-4.2s5.6 1.8 5.6 4.2-2.5 4-5.6 4-5.6-1.6-5.6-4z"/>' +
+          '<circle cx="10" cy="12.4" r=".8"/><circle cx="14" cy="12.4" r=".8"/>' +
+          '<path d="M6.6 11.4 3.8 8.6a2 2 0 1 1 1.6-1.8M17.4 11.4l2.8-2.8a2 2 0 1 0-1.6-1.8"/>' +
+          '<path d="M7 16.6 4.6 19M9.6 17.6 8.6 20.4M14.4 17.6l1 2.8M17 16.6 19.4 19"/></g>',
+  ball:   '<circle cx="12" cy="10.6" r="6.4"/>' +
+          '<path d="M6.6 17.6h10.8l1.6 3.4H5z"/>' +
+          '<path class="pul" d="M9.6 6.8 10.3 9l2.2.7-2.2.7-.7 2.2-.7-2.2L6.7 9.7 8.9 9z"/>' +
+          '<path class="pul" d="m15 11.4.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5z"/>',
+  ghost:  '<g class="bob"><path d="M4.6 20.6V10.4a7.4 7.4 0 0 1 14.8 0v10.2l-2.5-2-2.4 2-2.5-2-2.5 2-2.4-2z"/>' +
+          '<circle cx="9.4" cy="10.2" r="1.1"/><circle cx="14.6" cy="10.2" r="1.1"/>' +
+          '<path d="M10.6 14.2c.9.8 1.9.8 2.8 0"/></g>',
+  bones:  '<g class="rat"><path d="M12 2.8c4 0 6.8 2.8 6.8 6.6 0 2.4-1 4-2.4 5.2v2.2H7.6v-2.2C6.2 13.4 5.2 11.8 5.2 9.4 5.2 5.6 8 2.8 12 2.8z"/>' +
+          '<circle cx="9.4" cy="9.4" r="1.5"/><circle cx="14.6" cy="9.4" r="1.5"/>' +
+          '<path d="M12 12.4v1.8M8.6 18.8h6.8M8.6 21h6.8"/></g>'
+};
+/* Each creature: what it is called, what it does, and how. Some bend the
+ * cycling, some bend your hand, and two of them are simply alive and get on
+ * with it while you work.
+ */
+var EFFECTS = [
+  { id: 'slug',    name: 'Giant Slug',
+    help: 'Chains every turning register into one long body: colour leaving the end of Fire arrives at the start of Water. Switch it off and they come apart into their own cycles again.' },
+  { id: 'hydra',   name: 'Hydra Polyp',
+    help: 'Once a second it grabs a tool at random, sets it at random and uses it somewhere at random. Leave it running and it will paint over everything you own.' },
+  { id: 'rat',     name: 'Ratlizard',
+    help: 'Gnaws. Every edge in the picture is chewed at, a pixel at a time, so clean boundaries go ragged and shapes slowly lose their outline.' },
+  { id: 'chicken', name: 'Chicken',
+    help: 'Pecks your strokes into grain: everything you lay down arrives scattered and a pixel out of place, like seed thrown at the ground.' },
+  { id: 'crab',    name: 'Crab',
+    help: 'Walks sideways. Bands are measured across the drag instead of along it, so a stroke lays a ladder rather than a current — and Divert pushes at right angles to your hand.' },
+  { id: 'ball',    name: 'Crystal Ball',
+    help: 'Scrying glass: whatever you paint appears in all four quarters of the canvas at once, mirrored. One stroke draws a whole symmetrical creature.' },
+  { id: 'ghost',   name: 'Ghost',
+    help: 'Nothing is ever fully covered. A fixed scatter of pixels refuses new paint, so whatever was underneath goes on showing through everything you put over it.' },
+  { id: 'bones',   name: 'Skeleton',
+    help: 'Rattles rather than flows: every register runs up its ramp and back down again instead of round, so the colour shivers in place. It makes the loop longer, too.' }
+];
+/* Each slot is one behaviour wearing two names, and belongs to one of the two
+   families the picker is split by. */
 var TOOLS = [
-  { id: 'flow',
+  { id: 'flow', cat: 'create',
     ramp:  { name: 'Flow', icon: 'flow',
       help: 'Drag, and the direction you drag is the direction the colour travels — down for a fall, across for a current. Fold marbles the bands; Radial rings them out from where you touched instead.' },
     still: { name: 'Paint', icon: 'paint',
       help: 'An ordinary brush. Drag to lay the colour down. Opacity dithers it, so part-strength works even in an indexed palette.' } },
-  { id: 'burst',
+  { id: 'burst', cat: 'create',
     ramp:  { name: 'Vortex', icon: 'vortex',
       help: 'Press at the centre and drag out — how far you drag is the radius. Arms at zero gives rings; turn it up and they wind into a spiral. Ring shape runs from diamond through circle to square.' },
     still: { name: 'Shape', icon: 'shape',
       help: 'Press at the centre and drag out to draw a filled shape. Ring shape runs from diamond through circle to square, continuously.' } },
-  { id: 'spray',
+  { id: 'spray', cat: 'create',
     ramp:  { name: 'Sparkle', icon: 'sparkle',
       help: 'Scatters random positions in the ramp, so the area twinkles instead of flowing. Embers, stars, magic dust. Density is how thickly it falls.' },
     still: { name: 'Spray', icon: 'spray',
       help: 'An airbrush: scattered pixels of the one colour. Density is how thickly it falls.' } },
-  { id: 'divert',
+  { id: 'divert', cat: 'modify',
     ramp:  { name: 'Divert', icon: 'divert',
       help: 'Pushes a flow that is already there. Push smears it along the drag; Gather draws the bands together; Part forces them open and fills the gap that appears with the flat colour — that is how you split a current for something solid to come through.' },
     still: { name: 'Smudge', icon: 'smudge',
       help: 'Drags the pixels that are already there. Push smears along the drag, Gather pulls them inward, Part pushes them out and fills the gap with the flat colour.' } },
-  { id: 'pool',
+  { id: 'pool', cat: 'create',
     ramp:  { name: 'Pool', icon: 'pool',
       help: 'Floods the region you click with a flow that takes its shape. Shore lays bands parallel to the edges, the way a lake sits in its basin; Spread runs them out from where you clicked; Twist leaves what is there and pushes it about. Sensitivity is how unlike the colour under the cursor a pixel may be and still be swallowed.' },
-    still: { name: 'Puddle', icon: 'puddle',
+    still: { name: 'Fill', icon: 'puddle',
       help: 'Floods the region you click with the one colour. Sensitivity is how far it will spread across near-enough colours; Everywhere ignores whether the pixels are joined up.' } },
-  { id: 'melt',
+  { id: 'select', cat: 'modify',
+    ramp:  { name: 'Select', icon: 'select',
+      help: 'Drag out a box, or switch to Region and click to take a whole joined-up area. While anything is selected, every tool and every creature works inside it and nowhere else. Drag from inside a selection to carry its contents about.' },
+    still: { name: 'Select', icon: 'select',
+      help: 'Drag out a box, or switch to Region and click to take a whole joined-up area. While anything is selected, every tool and every creature works inside it and nowhere else. Drag from inside a selection to carry its contents about.' } },
+  { id: 'pick', cat: 'modify',
     ramp:  { name: 'Melt', icon: 'melt',
-      help: 'Drag a line across the picture and every new colour it crosses becomes a stop. Let go and those stops are strung into a ramp and loaded into the ink. Tapping colours one at a time works too.' },
-    still: { name: 'Melt', icon: 'melt',
-      help: 'Drag a line across the picture and every new colour it crosses becomes a stop. Let go and those stops are strung into a ramp, which becomes the ink.' } },
-  { id: 'pick',
-    ramp:  { name: 'Pick', icon: 'pick',
-      help: 'Click any pixel to load the ink with what it is — a ramp with its position, or a flat colour.' },
+      help: 'Taking a ramp off the picture, which is what picking means when the ink is a ramp. Drag a line and every new colour it crosses becomes a stop; let go and they are strung into a ramp and loaded into the ink.' },
     still: { name: 'Pick', icon: 'pick',
-      help: 'Click any pixel to load the ink with what it is — a ramp with its position, or a flat colour.' } }
+      help: 'Click any pixel to load the flat colour with what is there. A colour belonging to a turning register cannot hold flat paint, so picking one copies it into a still slot of its own.' } }
 ];
 function toolDef(id) {
   for (var i = 0; i < TOOLS.length; i++) if (TOOLS[i].id === id) return TOOLS[i];
@@ -1977,39 +2512,74 @@ var USES = {
   divert: { ramp: ['brush', 'spin', 'divmode'], still: ['brush', 'spin', 'divmode'] },
   pool:   { ramp: ['brush', 'opacity', 'fillstyle', 'lam', 'turb', 'spin', 'global'],
             still: ['brush', 'opacity', 'global'] },
-  melt:   { ramp: ['meltsteps'], still: ['meltsteps'] },
-  pick:   { ramp: [], still: [] }
+  select: { ramp: ['selmode', 'brush', 'global'], still: ['selmode', 'brush', 'global'] },
+  pick:   { ramp: ['meltsteps'], still: [] }
 };
+/* The picker is the only place all seven live, split by family. */
 (function () {
-  var host = document.getElementById('tools');
-  TOOLS.forEach(function (t) {
+  [['create', 'pickCreate'], ['modify', 'pickModify']].forEach(function (g) {
+    var host = document.getElementById(g[1]);
+    TOOLS.filter(function (t) { return t.cat === g[0]; }).forEach(function (t) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'pickCell'; b.dataset.tool = t.id;
+      b.setAttribute('aria-pressed', 'false');
+      b.innerHTML = '<svg viewBox="0 0 24 24"></svg><span><b></b><em></em></span>';
+      b.addEventListener('click', function () {
+        setTool(t.id); document.getElementById('dTools').close();
+      });
+      host.appendChild(b);
+    });
+  });
+})();
+/* The creatures. */
+(function () {
+  var host = document.getElementById('fxRow');
+  EFFECTS.forEach(function (fx) {
     var b = document.createElement('button');
-    b.type = 'button'; b.className = 'tool'; b.dataset.tool = t.id;
+    b.type = 'button'; b.className = 'fx'; b.dataset.fx = fx.id;
     b.setAttribute('aria-pressed', 'false');
-    b.innerHTML = '<svg viewBox="0 0 24 24"></svg><span></span>';
-    b.addEventListener('click', function () { setTool(t.id); });
+    b.setAttribute('aria-label', fx.name);
+    b.title = fx.name + ' — ' + fx.help;
+    b.innerHTML = '<svg viewBox="0 0 24 24">' + FXI[fx.id] + '</svg>';
+    b.addEventListener('click', function () { toggleFX(fx.id); });
     host.appendChild(b);
   });
 })();
+function toggleFX(id) {
+  FX[id] = FX[id] ? 0 : 1;
+  var fx = EFFECTS.filter(function (e) { return e.id === id; })[0];
+  var b = document.querySelector('.fx[data-fx="' + id + '"]');
+  if (b) b.setAttribute('aria-pressed', String(!!FX[id]));
+  // The two that reach into the cycling change the length of the loop.
+  if (id === 'slug' || id === 'bones') { invalidateMap(); rebuildLoop(); gotoFrame(frame); }
+  // The two that are alive get one mark in the history, not one a second.
+  if ((id === 'hydra' || id === 'rat') && FX[id]) snapshot();
+  var n = 0, k;
+  for (k in FX) if (FX[k]) n++;
+  document.getElementById('fxCount').textContent = n ? n + ' on' : '';
+  say(fx.name + (FX[id] ? ' — on' : ' — off'));
+  draw();
+}
 function setTool(t) {
   if (t !== tool) SPIN_BY[tool] = spin;
   tool = t;
   if (SPIN_BY[t] !== undefined) setSpin(SPIN_BY[t]);
-  if (t !== 'melt') { meltStops = []; }
-  [].forEach.call(document.querySelectorAll('.tool'), function (b) {
+  if (t !== 'pick') { meltStops = []; }
+  [].forEach.call(document.querySelectorAll('.pickCell'), function (b) {
     b.setAttribute('aria-pressed', String(b.dataset.tool === t));
   });
   refreshTool();
-  art.style.cursor = t === 'pick' ? 'copy' : 'crosshair';
+  art.style.cursor = t === 'pick' && !inkIsRamp() ? 'copy'
+                   : t === 'select' ? 'cell' : 'crosshair';
 }
-// The tool row wears the ink: the live tool carries a strip of the ramp it
-// will lay down -- turning, as it will on the canvas -- or a bar of the flat
-// colour, so you can see what is loaded without reading anything.
+// The live tool wears the ink: a strip of the ramp it will lay down --
+// turning, as it will on the canvas -- or a bar of the flat colour, so you can
+// see what is loaded without reading anything.
 function paintToolInk() {
-  var host = document.querySelector('.tool[aria-pressed="true"]');
+  var host = document.getElementById('toolNow');
   var cv = document.getElementById('toolInk');
   if (!cv) { cv = document.createElement('canvas'); cv.id = 'toolInk'; cv.height = 1; }
-  if (!host || tool === 'pick' || tool === 'melt') { if (cv.parentNode) cv.parentNode.removeChild(cv); return; }
+  if (!host || tool === 'pick' || tool === 'select') { if (cv.parentNode) cv.parentNode.removeChild(cv); return; }
   if (cv.parentNode !== host) host.appendChild(cv);
   if (inkIsRamp()) { cv.width = Math.min(48, Math.max(4, ramp.len)); rampStrip(cv, ramp, frame); }
   else {
@@ -2020,20 +2590,34 @@ function paintToolInk() {
   }
 }
 function refreshTool() {
-  var f = face(tool);
+  var f = face(tool), cat = toolDef(tool).cat;
   document.getElementById('toolhelp').textContent = f.help;
-  [].forEach.call(document.querySelectorAll('.tool'), function (b) {
+  var now = document.getElementById('toolNow');
+  now.querySelector('svg').innerHTML = I[f.icon];
+  now.querySelector('.tn').textContent = f.name;
+  now.querySelector('.tc').textContent = cat + (sel ? ' · in selection' : '');
+  now.title = f.name + ' — tap for the others';
+  [].forEach.call(document.querySelectorAll('.pickCell'), function (b) {
     var d = toolDef(b.dataset.tool), ff = inkIsRamp() ? d.ramp : d.still;
     b.querySelector('svg').innerHTML = I[ff.icon];
-    b.querySelector('span').textContent = ff.name;
-    b.title = ff.name;
+    b.querySelector('b').textContent = ff.name;
+    b.querySelector('em').textContent = ff.help.split(/[.—]/)[0].trim();
+    b.title = ff.help;
+    b.setAttribute('aria-pressed', String(b.dataset.tool === tool));
   });
   var use = USES[tool][inkIsRamp() ? 'ramp' : 'still'];
+  // A box does not care how alike two colours are; only Region does.
+  if (tool === 'select' && selMode === 'box')
+    use = use.filter(function (k) { return k !== 'brush' && k !== 'global'; });
   [].forEach.call(document.querySelectorAll('.fld[data-for]'), function (l) {
     l.classList.toggle('off', use.indexOf(l.dataset.for) < 0);
   });
-  document.getElementById('brushName').textContent = tool === 'pool' ? 'Sensitivity' : 'Size';
-  document.getElementById('vSize').textContent = tool === 'pool' ? String(Math.round((brush - 1) * 9)) : String(brush);
+  var paste = document.getElementById('selPaste');
+  if (paste) paste.disabled = !clip;
+  document.getElementById('brushName').textContent =
+    tool === 'pool' ? 'Sensitivity' : tool === 'select' ? 'Region sensitivity' : 'Size';
+  document.getElementById('vSize').textContent =
+    (tool === 'pool' || tool === 'select') ? String(Math.round((brush - 1) * 9)) : String(brush);
   document.getElementById('turbName').textContent = tool === 'spray' ? 'Density' : 'Turbulence';
   document.getElementById('vTurb').textContent = tool === 'spray' ? (turb / 6).toFixed(2) : turb.toFixed(1);
   document.getElementById('spinName').textContent = spinWord();
@@ -2044,6 +2628,71 @@ function refreshTool() {
 function spinWord() {
   return tool === 'burst' ? 'Spiral arms' : tool === 'divert' ? 'Force'
        : tool === 'pool' ? 'Swirl' : 'Fold';
+}
+
+/* ---- the two that are alive --------------------------------------------
+ * Ratlizard and Hydra Polyp do not wait to be asked. They run off the same
+ * animation clock the cycling does, they honour a selection like everything
+ * else, and they take a single undo mark when switched on rather than one for
+ * every bite -- otherwise a minute of gnawing would eat the whole history.
+ */
+var ratT = 0, hydraT = 0;
+function gnaw() {
+  // A bite copies a neighbouring colour over this one, so an edge is eaten
+  // from both sides at once and comes out chewed rather than merely thinner.
+  var tries = Math.max(80, Math.round(W * H / 12)), bites = Math.max(3, Math.round(W * H / 900)), got = 0;
+  for (var k = 0; k < tries && got < bites; k++) {
+    var x = (Math.random() * W) | 0, y = (Math.random() * H) | 0, i = y * W + x;
+    if (sel && !sel[i]) continue;
+    var d = (Math.random() * 4) | 0;
+    var nx = x + (d === 0 ? -1 : d === 1 ? 1 : 0), ny = y + (d === 2 ? -1 : d === 3 ? 1 : 0);
+    if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+    var n = idx[ny * W + nx];
+    if (n === idx[i]) continue;                   // not an edge; nothing to gnaw
+    if (sel && !sel[ny * W + nx]) continue;
+    idx[i] = n; got++;
+  }
+}
+function hydraAct() {
+  var was = { tool: tool, ink: inkMode, ramp: ramp, still: still, brush: brush, lam: lam, turb: turb,
+              spin: spin, rev: reverse, fs: fillStyle, dm: divertMode, op: opacity, rad: flowRadial };
+  var kit = ['flow', 'burst', 'spray', 'pool', 'divert'];
+  tool = kit[(Math.random() * kit.length) | 0];
+  var rs = ramps();
+  if (rs.length && Math.random() < 0.72) { inkMode = 'ramp'; ramp = rs[(Math.random() * rs.length) | 0]; }
+  else {
+    var pick = 1 + ((Math.random() * (Math.min(PAL.length, 512) - 1)) | 0);
+    inkMode = 'still'; still = rampOf(pick) ? was.still : pick;
+  }
+  brush = 2 + ((Math.random() * 18) | 0);
+  lam = 3 + ((Math.random() * 20) | 0);
+  turb = Math.random() * 3;
+  spin = Math.random() * 6 - 3;
+  reverse = Math.random() < 0.5;
+  opacity = 35 + ((Math.random() * 65) | 0);
+  fillStyle = ['contour', 'radiate', 'twist'][(Math.random() * 3) | 0];
+  divertMode = ['push', 'gather', 'part'][(Math.random() * 3) | 0];
+  flowRadial = Math.random() < 0.3;
+  var b = sel && selBounds();
+  var x = b ? b.x0 + ((Math.random() * (b.x1 - b.x0 + 1)) | 0) : (Math.random() * W) | 0;
+  var y = b ? b.y0 + ((Math.random() * (b.y1 - b.y0 + 1)) | 0) : (Math.random() * H) | 0;
+  var wasQuiet = quiet;
+  quiet = true;                                   // no undo mark per tentacle
+  try {
+    begin(x, y);
+    var n = 2 + ((Math.random() * 7) | 0);
+    for (var i = 0; i < n; i++) {
+      x = clamp(x + Math.random() * 44 - 22, 0, W - 1) | 0;
+      y = clamp(y + Math.random() * 44 - 22, 0, H - 1) | 0;
+      extend(x, y);
+    }
+    end();
+  } catch (e) { /* a tentacle that missed is not worth stopping the world for */ }
+  quiet = wasQuiet;
+  stroking = false; baseCopy = null;
+  tool = was.tool; inkMode = was.ink; ramp = was.ramp; still = was.still; brush = was.brush;
+  lam = was.lam; turb = was.turb; spin = was.spin; reverse = was.rev; fillStyle = was.fs;
+  divertMode = was.dm; opacity = was.op; flowRadial = was.rad;
 }
 function spinValue() {
   return (tool === 'burst' ? spin : Math.abs(spin)).toFixed(1);
@@ -2058,7 +2707,7 @@ function bindRange(id, out, fn, fmt) {
   });
 }
 bindRange('size', 'vSize', function (v) { brush = v; },
-  function (v) { return tool === 'pool' ? String(Math.round((v - 1) * 9)) : String(v); });
+  function (v) { return (tool === 'pool' || tool === 'select') ? String(Math.round((v - 1) * 9)) : String(v); });
 bindRange('opacity', 'vOpacity', function (v) { opacity = v; }, function (v) { return v + '%'; });
 bindRange('meltN', 'vMelt', function (v) { meltSteps = v; }, function (v) { return String(v); });
 bindRange('lam', 'vLam', function (v) { lam = v; }, function (v) { return v + ' px'; });
@@ -2097,6 +2746,12 @@ function segBind(id, attr, get, set) {
   });
 }
 segBind('fillSeg', 'fs', function () { return fillStyle; }, function (v) { fillStyle = v; });
+segBind('selSeg', 'sm', function () { return selMode; }, function (v) { selMode = v; });
+document.getElementById('selCut').addEventListener('click', selCut);
+document.getElementById('selCopy').addEventListener('click', function () { selCopy(); });
+document.getElementById('selPaste').addEventListener('click', selPaste);
+document.getElementById('selAll').addEventListener('click', selAll);
+document.getElementById('selNone').addEventListener('click', function () { selEmpty(); say('selection cleared'); });
 segBind('divSeg', 'dm', function () { return divertMode; }, function (v) { divertMode = v; });
 document.getElementById('rev').addEventListener('change', function (e) { reverse = e.target.checked; });
 document.getElementById('ragged').addEventListener('change', function (e) { ragged = e.target.checked; });
@@ -2345,6 +3000,8 @@ function paintPal() {
   var n = document.getElementById('depthNote');
   if (n) n.textContent = depth === 'cythera'
     ? "Cythera's own CLUT: a 6-bit Mac palette of 256, with 28 of them turning."
+    : depth === 'direct'
+    ? 'No grid: every colour is kept exactly as it arrived. This is what a picture read in from a file lands in, so nothing it brought with it is lost.'
     : (1 << depth) + ' colours at ' + depth + '-bit' +
       (depth > 12 ? ' — the grid below is a sample; anything you mix snaps to the full one.' : '.');
 }
@@ -2357,6 +3014,9 @@ document.getElementById('mixAdd').addEventListener('click', function () {
   var sel = document.getElementById('depthSel');
   var o = document.createElement('option'); o.value = 'cythera'; o.textContent = "Cythera CLUT · 256";
   sel.appendChild(o);
+  var dz = document.createElement('option');
+  dz.value = 'direct'; dz.textContent = 'Direct · no grid at all';
+  sel.appendChild(dz);
   for (var b = 1; b <= 16; b++) {
     var x = document.createElement('option');
     x.value = String(b);
@@ -2364,10 +3024,11 @@ document.getElementById('mixAdd').addEventListener('click', function () {
     sel.appendChild(x);
   }
   sel.addEventListener('change', function () {
-    var v = sel.value === 'cythera' ? 'cythera' : +sel.value;
+    var v = (sel.value === 'cythera' || sel.value === 'direct') ? sel.value : +sel.value;
     setDepth(v);
     paintRegs(); paintRamps(); paintPal(); previewBuilder(); sync(); draw();
-    say('palette is now ' + (v === 'cythera' ? "Cythera's CLUT" : v + '-bit'));
+    say('palette is now ' + (v === 'cythera' ? "Cythera's CLUT"
+      : v === 'direct' ? 'direct — colours kept exactly as they are' : v + '-bit'));
   });
 })();
 
@@ -2417,13 +3078,30 @@ function redoOnce() {
 }
 document.getElementById('undo').addEventListener('click', function () { if (!undoOnce()) say('nothing to undo'); });
 document.getElementById('redo').addEventListener('click', function () { redoOnce(); });
-document.getElementById('clear').addEventListener('click', function () { snapshot(); idx.fill(0); draw(); });
+document.getElementById('clear').addEventListener('click', function () {
+  snapshot();
+  if (sel) { for (var i = 0; i < W * H; i++) if (sel[i]) idx[i] = 0; say('cleared the selection'); }
+  else idx.fill(0);
+  draw();
+});
 addEventListener('keydown', function (e) {
-  if (!(e.metaKey || e.ctrlKey) || e.target.matches('input,textarea,select')) return;
+  if (e.target.matches && e.target.matches('input,textarea,select')) return;
+  // Escape and Delete want no modifier; everything else is the usual chord.
+  if (!(e.metaKey || e.ctrlKey)) {
+    if (e.key === 'Escape' && sel) { e.preventDefault(); selEmpty(); say('selection cleared'); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); selClearPixels(); }
+    return;
+  }
   var k = e.key.toLowerCase();
   if (k === 'z' && !e.shiftKey) { e.preventDefault(); undoOnce(); }
   else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redoOnce(); }
-  else if (k === 'c') { e.preventDefault(); copyCanvas(); }
+  // With something selected, the clipboard verbs mean the selection; with
+  // nothing selected, Copy still means "this frame, as a picture".
+  else if (k === 'c') { e.preventDefault(); if (sel) selCopy(); else copyCanvas(); }
+  else if (k === 'x') { e.preventDefault(); if (sel) selCut(); }
+  else if (k === 'v' && clip) { e.preventDefault(); selPaste(); }
+  else if (k === 'a') { e.preventDefault(); selAll(); }
+  else if (k === 'd') { e.preventDefault(); selEmpty(); say('selection cleared'); }
   else if (k === '0') { e.preventDefault(); resetView(); }
 });
 document.getElementById('bFit').addEventListener('click', resetView);
@@ -2445,17 +3123,34 @@ document.getElementById('bZoomOut').addEventListener('click', function () {
   sl.addEventListener('input', function () { setRate(+sl.value, 'slider'); });
   nb.addEventListener('input', function () { setRate(+nb.value, 'box'); });
 })();
-var lastTick = 0;
+var lastTick = 0, antT = 0;
 function loop(t) {
   if (playing && t - lastTick > rateMs) { lastTick = t; gotoFrame(frame + 1); }
+  if (sel && t - antT > 110) { antT = t; ants++; drawSel(); }
+  // Neither creature interrupts a stroke of your own.
+  if (!stroking) {
+    if (FX.rat && t - ratT > 150) { ratT = t; gnaw(); draw(); }
+    if (FX.hydra && t - hydraT > 1000) { hydraT = t; hydraAct(); draw(); }
+  }
   if (sayT && Date.now() - sayT > 3600) { sayEl.textContent = ''; sayT = 0; }
   requestAnimationFrame(loop);
 }
 
 /* ================= the File menu ======================================== */
+// Both bar menus go through this, so opening one shuts the other.
+function shutMenus(except) {
+  ['fileMenu', 'setupMenu'].forEach(function (id) {
+    if (id === except) return;
+    var m = document.getElementById(id);
+    if (!m || m.hidden) return;
+    m.hidden = true;
+    m.previousElementSibling.setAttribute('aria-expanded', 'false');
+  });
+}
 (function () {
   var btn = document.getElementById('bFile'), menu = document.getElementById('fileMenu');
   function open(on) {
+    if (on) shutMenus('fileMenu');
     menu.hidden = !on;
     btn.setAttribute('aria-expanded', String(on));
   }
@@ -2495,27 +3190,62 @@ var THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark'],
   sel.addEventListener('change', function () { apply(sel.value); });
 })();
 
-/* ================= modals + advanced ==================================== */
+/* ================= modals + advanced ====================================
+ * Everything that is not painting lives behind Setup now. The bar used to
+ * carry a theme picker, an Advanced switch and a question mark next to the
+ * File menu, and none of them were things you touch twice in an hour.
+ */
 [].forEach.call(document.querySelectorAll('dialog [data-close]'), function (b) {
   b.addEventListener('click', function () { b.closest('dialog').close(); });
 });
-document.getElementById('bPal').addEventListener('click', function () { paintPal(); document.getElementById('dPal').showModal(); });
-document.getElementById('bRegisters').addEventListener('click', function () {
+function openRegisters() {
   stopTarget = 0;
-  paintRegs(); paintStops(); paintCanvasColours(); previewBuilder(); document.getElementById('dReg').showModal();
+  paintRegs(); paintStops(); paintCanvasColours(); previewBuilder();
+  document.getElementById('dReg').showModal();
+}
+function openPalette() { paintPal(); document.getElementById('dPal').showModal(); }
+document.getElementById('bPal').addEventListener('click', openPalette);
+document.getElementById('bTools').addEventListener('click', function () {
+  refreshTool(); document.getElementById('dTools').showModal();
 });
-document.getElementById('bAbout').addEventListener('click', function () { document.getElementById('dAbout').showModal(); });
-document.getElementById('bSize').addEventListener('click', function () { document.getElementById('dSize').showModal(); });
+document.getElementById('toolNow').addEventListener('click', function () {
+  refreshTool(); document.getElementById('dTools').showModal();
+});
 document.getElementById('bApplySize').addEventListener('click', function () {
   snapshot(); resize(+document.getElementById('inW').value, +document.getElementById('inH').value, true);
   document.getElementById('dSize').close();
 });
-document.getElementById('bAdv').addEventListener('click', function () {
-  var on = !document.body.classList.contains('adv');
+function setAdvanced(on) {
   document.body.classList.toggle('adv', on);
-  this.setAttribute('aria-pressed', String(on));
+  var m = document.getElementById('mAdv');
+  m.setAttribute('aria-checked', String(on));
+  m.innerHTML = 'Advanced controls' + (on ? '<span class="tick">&#10003;</span>' : '') +
+    '<em>frame steps, frame rate, mixing colours</em>';
   fitCanvas();
-});
+}
+(function () {
+  var btn = document.getElementById('bSetup'), menu = document.getElementById('setupMenu');
+  function open(on) {
+    if (on) shutMenus('setupMenu');
+    menu.hidden = !on;
+    btn.setAttribute('aria-expanded', String(on));
+  }
+  btn.addEventListener('click', function (e) { e.stopPropagation(); open(menu.hidden); });
+  menu.addEventListener('click', function (e) {
+    if (e.target.closest('label')) { e.stopPropagation(); return; }   // the theme picker
+    var b = e.target.closest('button[data-more]');
+    if (!b) return;
+    var w = b.dataset.more;
+    if (w !== 'adv') open(false);
+    if (w === 'regs') openRegisters();
+    else if (w === 'pal') openPalette();
+    else if (w === 'size') document.getElementById('dSize').showModal();
+    else if (w === 'about') document.getElementById('dAbout').showModal();
+    else if (w === 'adv') setAdvanced(!document.body.classList.contains('adv'));
+  });
+  addEventListener('click', function () { open(false); });
+  addEventListener('keydown', function (e) { if (e.key === 'Escape') open(false); });
+})();
 (function () {
   var host = document.getElementById('presets');
   [[32, 32, 'tile'], [64, 64, 'portrait'], [192, 120, 'scene'], [320, 200, 'MCGA'], [512, 176, 'banner']].forEach(function (p) {
@@ -2578,15 +3308,18 @@ document.getElementById('fileIn').addEventListener('change', async function (e) 
 });
 async function takeFile(f, how) {
   if (how === 'open') {
-    try {
-      var cfg = gifFindConfig(new Uint8Array(await f.arrayBuffer()));
-      if (cfg) {
-        snapshot();
-        await decodeCanvas(cfg);
-        say('opened — palette, registers and all');
-        return;
-      }
-    } catch (err) { /* not a GIF of ours; it is just a picture */ }
+    var bytes = null;
+    try { bytes = new Uint8Array(await f.arrayBuffer()); } catch (err) { /* unreadable */ }
+    if (bytes) {
+      // One of ours still says so, and its note carries names and depth that
+      // no amount of watching the colours could tell us.
+      try {
+        var cfg = gifFindConfig(bytes);
+        if (cfg) { snapshot(); await decodeCanvas(cfg); say('opened — palette, registers and all'); return; }
+      } catch (err2) { /* not a GIF of ours */ }
+      // Anyone else's: work the cycling out from what moves.
+      try { if (importByMotion(bytes)) return; } catch (err3) { /* fall through to a still picture */ }
+    }
   }
   var url = URL.createObjectURL(f);
   try { await takeImageURL(url, how); } finally { URL.revokeObjectURL(url); }
@@ -2659,6 +3392,246 @@ async function copyCanvas() {
   } catch (e) { say('could not copy — the browser refused'); }
 }
 
+/* ================= reading the motion ===================================
+ * A colour-cycling GIF is a strange animation: every frame holds the same
+ * pixels and a different colour table. That is the whole trick, and it means
+ * the cycling is not something you have to be *told* about -- it is sitting
+ * there in the file, in what moved. So rather than trusting a note we left
+ * ourselves inside our own exports, this reads any GIF, watches which palette
+ * entries change from frame to frame, and works out the registers from the
+ * shape of the movement: a run of slots whose colours are the same list,
+ * rotated by one more step each frame, IS a cycling register.
+ *
+ * It gets DPaint files, Living Worlds mosaics, Mark Ferrari's scenes and our
+ * own exports alike, none of which agreed on a way to write it down.
+ */
+function lzwUnpack(data, minCode, total) {
+  var out = new Uint8Array(total), oi = 0;
+  var clear = 1 << minCode, eoi = clear + 1;
+  var size = minCode + 1, next = eoi + 1;
+  var prefix = new Int32Array(4096), suffix = new Uint8Array(4096), stack = new Uint8Array(4096);
+  for (var i = 0; i < clear; i++) { prefix[i] = -1; suffix[i] = i; }
+  var bit = 0, bp = 0, old = -1, first = 0, sp = 0;
+  function read() {
+    var code = 0;
+    for (var n = 0; n < size; n++) {
+      if (bp >= data.length) return eoi;
+      code |= ((data[bp] >> bit) & 1) << n;
+      if (++bit === 8) { bit = 0; bp++; }
+    }
+    return code;
+  }
+  while (oi < total) {
+    var code = read();
+    if (code === eoi) break;
+    if (code === clear) { size = minCode + 1; next = eoi + 1; old = -1; continue; }
+    var inCode = code;
+    if (code >= next) { if (old < 0) break; stack[sp++] = first; code = old; }
+    var guard = 0;
+    while (code >= clear) {
+      if (++guard > 4096) return out;             // a corrupt chain, not a picture
+      stack[sp++] = suffix[code]; code = prefix[code];
+      if (code < 0) return out;
+    }
+    first = suffix[code]; stack[sp++] = first;
+    while (sp > 0 && oi < total) out[oi++] = stack[--sp];
+    sp = 0;
+    if (old >= 0 && next < 4096) {
+      prefix[next] = old; suffix[next] = first; next++;
+      if (next === (1 << size) && size < 12) size++;
+    }
+    old = inCode;
+  }
+  return out;
+}
+// GIF stores interlaced frames in four passes; put the rows back in order.
+function deinterlace(px, w, h) {
+  var out = new Uint8Array(w * h), row = 0;
+  var starts = [0, 4, 2, 1], steps = [8, 8, 4, 2];
+  for (var p = 0; p < 4; p++)
+    for (var y = starts[p]; y < h; y += steps[p]) {
+      out.set(px.subarray(row * w, row * w + w), y * w);
+      row++;
+    }
+  return out;
+}
+function gifParse(b) {
+  if (b.length < 14 || b[0] !== 0x47 || b[1] !== 0x49 || b[2] !== 0x46) return null;
+  var p = 6;
+  var w = b[p] | (b[p + 1] << 8), h = b[p + 2] | (b[p + 3] << 8), packed = b[p + 4];
+  p += 7;
+  var gct = null, i;
+  if (packed & 0x80) {
+    var gn = 1 << ((packed & 7) + 1); gct = [];
+    for (i = 0; i < gn; i++) { gct.push([b[p], b[p + 1], b[p + 2]]); p += 3; }
+  }
+  var frames = [], tIdx = -1, delay = 10;
+  while (p < b.length) {
+    var sep = b[p];
+    if (sep === 0x3B) break;
+    if (sep === 0x21) {                            // extension
+      var label = b[p + 1]; p += 2;
+      if (label === 0xF9 && b[p] >= 4) {
+        var fl = b[p + 1];
+        delay = b[p + 2] | (b[p + 3] << 8);
+        tIdx = (fl & 1) ? b[p + 4] : -1;
+      }
+      while (p < b.length && b[p]) p += b[p] + 1;  // sub-blocks
+      p++;
+    } else if (sep === 0x2C) {                     // image
+      p++;
+      var fx = b[p] | (b[p + 1] << 8), fy = b[p + 2] | (b[p + 3] << 8);
+      var fw = b[p + 4] | (b[p + 5] << 8), fh = b[p + 6] | (b[p + 7] << 8), ip = b[p + 8];
+      p += 9;
+      var ct = gct;
+      if (ip & 0x80) {
+        var ln = 1 << ((ip & 7) + 1); ct = [];
+        for (i = 0; i < ln; i++) { ct.push([b[p], b[p + 1], b[p + 2]]); p += 3; }
+      }
+      if (!ct || !fw || !fh) return null;
+      var minCode = b[p++], data = [];
+      while (p < b.length && b[p]) {
+        var n = b[p++];
+        for (var k = 0; k < n; k++) data.push(b[p + k]);
+        p += n;
+      }
+      p++;
+      var px = lzwUnpack(Uint8Array.from(data), minCode, fw * fh);
+      if (ip & 0x40) px = deinterlace(px, fw, fh);
+      frames.push({ x: fx, y: fy, w: fw, h: fh, px: px, ct: ct, t: tIdx, delay: delay });
+      tIdx = -1;
+      if (frames.length > 512) break;              // enough to see the motion by
+    } else return null;
+  }
+  return frames.length ? { w: w, h: h, frames: frames } : null;
+}
+/* The detector -------------------------------------------------------------
+ * Naively you would look for a run of neighbouring slots that shift along by
+ * one each frame, and for a picture straight out of Deluxe Paint that works.
+ * It falls over the moment anything has renumbered the palette -- our own
+ * exports do, because they pack the canvas down to the colours it actually
+ * uses -- and then a register is five slots scattered across the table in no
+ * order at all.
+ *
+ * So look at it as movement instead of as layout. Between frame 0 and frame 1
+ * every moving colour goes from one slot to another, and that is a
+ * permutation. Its cycles ARE the registers: not a guess about them, the thing
+ * itself. Follow each ring round and it hands you the ramp in order, however
+ * the file happened to number it. Then every remaining frame has to agree --
+ * frame f must show each slot the colour f places back round its own ring --
+ * or it is an ordinary animation that merely repaints its palette, and we say
+ * so rather than inventing registers for it.
+ */
+function detectCycles(frames) {
+  if (frames.length < 2) return [];
+  var tabs = frames.map(function (f) { return f.ct; });
+  var n = Math.min.apply(null, tabs.map(function (t) { return t.length; }));
+  function same(a, b) { return a[0] === b[0] && a[1] === b[1] && a[2] === b[2]; }
+  function key(c) { return c[0] + ',' + c[1] + ',' + c[2]; }
+  var moving = [], i, f;
+  for (i = 0; i < n; i++)
+    for (f = 1; f < tabs.length; f++)
+      if (!same(tabs[f][i], tabs[0][i])) { moving.push(i); break; }
+  if (moving.length < 2) return [];
+  // Where was the colour this slot is showing in frame 1 sitting in frame 0?
+  var home = {};
+  moving.forEach(function (k) { var q = key(tabs[0][k]); (home[q] || (home[q] = [])).push(k); });
+  var taken = {}, next = {};
+  // Not every moving slot need find a source: a register that is only partly
+  // present rotates colours in from slots the file never wrote down. Those
+  // slots simply never close a ring, which is the honest answer for them.
+  moving.forEach(function (k) {
+    var list = home[key(tabs[1][k])];
+    if (!list) return;
+    for (var q = 0; q < list.length; q++)
+      if (!taken[list[q]]) { taken[list[q]] = 1; next[k] = list[q]; return; }
+  });
+  var seen = {}, rings = [];
+  moving.forEach(function (start) {
+    if (seen[start]) return;
+    var ring = [], at = start, broke = false;
+    while (!seen[at]) {
+      seen[at] = 1; ring.push(at); at = next[at];
+      if (at === undefined) { broke = true; break; }
+    }
+    if (!broke && at === start && ring.length >= 2) rings.push(ring);
+  });
+  return rings.filter(function (ring) {
+    var L = ring.length, varied = false, k;
+    // A ring of one repeated colour turns without anything appearing to move.
+    for (k = 1; k < L && !varied; k++) if (!same(tabs[0][ring[0]], tabs[0][ring[k]])) varied = true;
+    if (!varied) return false;
+    for (f = 0; f < tabs.length; f++)
+      for (k = 0; k < L; k++)
+        if (!same(tabs[f][ring[k]], tabs[0][ring[(k + f) % L]])) return false;
+    return true;
+  });
+}
+/* Bringing one in. The file's own colours become the palette exactly as they
+ * are -- no snapping, or a scene built for a 6-bit CLUT would arrive with its
+ * ramps flattened into each other -- and each ring is laid out in the order it
+ * turns, which is what makes it a register here rather than a note about one.
+ * The pixels are renumbered into that layout on the way through.
+ */
+function importByMotion(bytes) {
+  var g = gifParse(bytes);
+  if (!g || g.frames.length < 2) return false;
+  var rings = detectCycles(g.frames);
+  var f0 = g.frames[0], tab = f0.ct, i;
+  // Frames that differ in their pixels as well are an ordinary animation with
+  // cycling over the top; only one still picture fits here, so that is frame one.
+  var moved = g.frames.some(function (f) {
+    if (f.w !== f0.w || f.h !== f0.h || f.x !== f0.x || f.y !== f0.y) return true;
+    for (var k = 0; k < f.px.length; k += 7) if (f.px[k] !== f0.px[k]) return true;
+    return false;
+  });
+  var inRing = {}, pal = [[0, 0, 0]], map = new Int32Array(tab.length).fill(0), regs = [];
+  rings.forEach(function (r) { r.forEach(function (k) { inRing[k] = 1; }); });
+  for (i = 0; i < tab.length; i++) {
+    if (inRing[i]) continue;
+    map[i] = pal.length; pal.push(tab[i].slice());
+  }
+  rings.forEach(function (ring) {
+    var base = pal.length;
+    ring.forEach(function (k) { map[k] = pal.length; pal.push(tab[k].slice()); });
+    regs.push({ base: base, len: ring.length });
+  });
+  snapshot();
+  depth = 'direct';
+  PAL = pal;                                      // index 0 is transparent here, always
+  CLUT_N = PAL.length;
+  ENGINE.forEach(function (r) { r.on = 0; });
+  PRESET.forEach(function (r) { r.on = 0; });
+  CUSTOM.length = 0;
+  regs.forEach(function (r, k) {
+    CUSTOM.push({ id: 'gif' + k, name: 'Cycle ' + (k + 1), base: r.base, len: r.len,
+                  dir: 1, eng: 0, on: 1, hint: 'read off the motion' });
+  });
+  relut(); invalidateMap();
+  resize(g.w, g.h, false);
+  idx.fill(0);
+  for (var y = 0; y < f0.h; y++) for (var x = 0; x < f0.w; x++) {
+    var X = x + f0.x, Y = y + f0.y;
+    if (X < 0 || X >= W || Y < 0 || Y >= H) continue;
+    var v = f0.px[y * f0.w + x];
+    idx[Y * W + X] = (v === f0.t || v >= tab.length) ? 0 : map[v];
+  }
+  if (f0.delay) rateMs = clamp(f0.delay * 10, 16, 600000);
+  var rl = document.getElementById('rate'), rn = document.getElementById('rateN');
+  if (rl) rl.value = clamp(rateMs, +rl.min, +rl.max);
+  if (rn) rn.value = rateMs;
+  ramp = ramps()[0] || null;
+  setInk(ramp ? 'ramp' : 'still');
+  paintRegs(); paintRamps(); paintPal(); previewBuilder(); sync(); draw();
+  var steps = regs.reduce(function (a, r) { return a + r.len; }, 0);
+  say(regs.length
+    ? 'read ' + regs.length + ' cycling register' + (regs.length === 1 ? '' : 's') +
+      ' — ' + steps + ' colours in motion, off ' + g.frames.length + ' frames' +
+      (moved ? ' (the pixels move too; this is frame one)' : '')
+    : 'nothing was cycling in that one — ' + tab.length + ' colours, all held still');
+  return true;
+}
+
 /* ================= zip helpers ========================================== */
 async function zipRaw(bytes) {
   var s = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
@@ -2692,8 +3665,12 @@ async function encodeCanvas() {
   function u8(v) { out.push(v & 255); }
   function u16(v) { out.push(v & 255, (v >> 8) & 255); }
   u8(6); u16(W); u16(H);
-  u8(depth === 'cythera' ? 0 : depth);            // 0 means Cythera's own CLUT
-  u16(CLUT_N);
+  // 0 is Cythera's own CLUT, 31 is 'direct'; 1..16 are bit depths.
+  u8(depth === 'cythera' ? 0 : depth === 'direct' ? 31 : depth);
+  // A direct palette cannot be regenerated from its name, so every colour in
+  // it travels as an extra rather than being assumed.
+  var baseN = depth === 'direct' ? 1 : CLUT_N;
+  u16(baseN);
   var all = ENGINE.concat(PRESET);
   var onMask = 0;
   all.forEach(function (r, i) { if (r.on) onMask |= 1 << i; });
@@ -2701,8 +3678,8 @@ async function encodeCanvas() {
   // dir is three-state now (reverse / held still / forward), so it needs a
   // byte each rather than the single bit the old mask gave it.
   all.forEach(function (r) { u8(r.dir + 1); });
-  u16(PAL.length - CLUT_N);
-  for (var i = CLUT_N; i < PAL.length; i++) { u8(PAL[i][0]); u8(PAL[i][1]); u8(PAL[i][2]); }
+  u16(PAL.length - baseN);
+  for (var i = baseN; i < PAL.length; i++) { u8(PAL[i][0]); u8(PAL[i][1]); u8(PAL[i][2]); }
   u8(CUSTOM.length);
   CUSTOM.forEach(function (r) {
     u16(r.base); u16(r.len); u8(r.dir + 1); u8(r.on ? 1 : 0);
@@ -2732,7 +3709,7 @@ async function decodeBytes(b) {
   if (w < 8 || h < 8 || w > 1024 || h > 1024) throw new Error('bad size');
   if (ver >= 6) {
     var db = u8(), baseN = u16();
-    depth = db ? db : 'cythera';
+    depth = db === 0 ? 'cythera' : db === 31 ? 'direct' : db;
     PAL = basePalette(depth);
     while (PAL.length < baseN) PAL.push([0, 0, 0]);
     PAL.length = baseN;
@@ -2781,8 +3758,27 @@ async function decodeBytes(b) {
 // the indices it actually uses. Nothing stops a palette of thousands; it is
 // how many DISTINCT indices are on the canvas that decides.
 function compact() {
-  var slot = new Map([[0, 0]]), list = [0];
-  for (var i = 0; i < idx.length; i++) if (!slot.has(idx[i])) { slot.set(idx[i], list.length); list.push(idx[i]); }
+  var slot = new Map([[0, 0]]), list = [0], i;
+  for (i = 0; i < idx.length; i++) if (!slot.has(idx[i])) { slot.set(idx[i], list.length); list.push(idx[i]); }
+  /* A register that is only partly used would go into the file as a ring with
+   * a gap in it, and a gapped ring cannot be read back off the motion -- the
+   * colours turning through the missing steps have nowhere to have come from.
+   * So carry the whole of any register the picture touches, while there is
+   * room. That is what lets one of these GIFs explain itself to anything that
+   * watches it move, instead of only to us reading our own note inside it.
+   */
+  ramps().forEach(function (r) {
+    var touched = false, k;
+    for (k = 0; k < r.len; k++) if (slot.has(r.base + k)) { touched = true; break; }
+    if (!touched) return;
+    var need = [];
+    for (k = 0; k < r.len; k++) {
+      var v = r.base + k;
+      if (v < PAL.length && !slot.has(v)) need.push(v);
+    }
+    if (!need.length || list.length + need.length > 256) return;
+    need.forEach(function (v) { slot.set(v, list.length); list.push(v); });
+  });
   if (list.length > 256) return null;
   var px = new Uint8Array(idx.length);
   for (var j = 0; j < idx.length; j++) px[j] = slot.get(idx[j]);
@@ -3189,7 +4185,7 @@ async function loadScene(s) {
 
 /* ================= boot ================================================= */
 relut(); setInk('ramp'); paintRamps(); paintPal(); sync(); setTool('flow'); refreshHistory();
-paintStops(); previewBuilder();
+paintStops(); previewBuilder(); setAdvanced(false); drawSel();
 document.getElementById('rSize').textContent = W + '×' + H;
 if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
   playing = false; playBtn.textContent = 'Play';
@@ -3197,6 +4193,7 @@ if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)
 (async function () {
   await loadScene(SCENES[0]);
   undoStack.length = 0; redoStack.length = 0; refreshHistory();
+  dirty = false;                                  // the example is not your work
   fitCanvas(); requestAnimationFrame(loop);
 })();
 
