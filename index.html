@@ -5,165 +5,119 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>e-z-g tools</title>
   <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d0d0d;
+      --text: #e0e0e0;
+      --muted: #777;
+      --link: #7eb8f7;
+      --line: #222;
+    }
+    * { box-sizing: border-box; }
     body {
       font-family: sans-serif;
-      max-width: 640px;
-      margin: 60px auto;
-      padding: 0 1.5rem;
-      background: #0d0d0d;
-      color: #e0e0e0;
+      max-width: 760px;
+      margin: 48px auto;
+      padding: 0 1.25rem;
+      background: var(--bg);
+      color: var(--text);
     }
     h1 {
       font-size: 1.4rem;
       font-weight: 600;
-      margin-bottom: 0.25rem;
+      margin: 0 0 0.3rem;
       color: #fff;
     }
-    p.subtitle {
+    .subtitle {
+      margin: 0 0 2rem;
       font-size: 0.9rem;
-      color: #777;
-      margin-bottom: 2.5rem;
+      color: var(--muted);
     }
+    section { margin-top: 1.8rem; }
     h2 {
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: #666;
-      margin: 2.5rem 0 1rem;
-      padding-bottom: 0.4rem;
-      border-bottom: 1px solid #222;
+      margin: 0 0 0.7rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--line);
     }
-    ul {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    li {
-      margin-bottom: 1.1rem;
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.45rem 1rem;
     }
     a {
-      color: #7eb8f7;
-      text-decoration: none;
-      font-weight: 500;
-      font-size: 1rem;
-    }
-    a:hover {
-      text-decoration: underline;
-    }
-    .desc {
       display: block;
-      font-size: 0.82rem;
-      color: #888;
-      margin-top: 0.15rem;
+      color: var(--link);
+      text-decoration: none;
+      font-size: 0.95rem;
+      line-height: 1.35;
+      padding: 0.25rem 0;
     }
+    a:hover { text-decoration: underline; }
     footer {
-      margin-top: 3rem;
-      padding-top: 1rem;
-      border-top: 1px solid #222;
-      font-size: 0.78rem;
+      margin-top: 2.2rem;
+      padding-top: 0.9rem;
+      border-top: 1px solid var(--line);
+      font-size: 0.75rem;
       color: #666;
     }
-    footer a {
-      font-size: inherit;
+    footer a { display: inline; font-size: inherit; padding: 0; }
+    @media (max-width: 560px) {
+      .grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <h1>e-z-g tools</h1>
-  <p class="subtitle">A collection of web-based tools and interactive viewers. Everything runs client-side in the browser.</p>
+  <p class="subtitle">Web tools and interactive experiments.</p>
 
-  <h2>360° &amp; VR</h2>
-  <ul>
-    <li>
+  <section>
+    <h2>360° / VR</h2>
+    <div class="grid">
       <a href="cube/">Cubemap VR Viewer</a>
-      <span class="desc">Interactive 360° parallax cubemap viewer for four Myst III ages, with a depth-displaced mesh you can steer by mouse, keyboard or gyroscope, depth-driven square transitions, and custom LDI upload.</span>
-    </li>
-    <li>
       <a href="cube/stitcher.html">Cubemap Face Stitcher</a>
-      <span class="desc">Assemble six cube faces into the atlas the viewer's custom LDI mode loads, with per-face rotation and flip.</span>
-    </li>
-    <li>
       <a href="vrvid.html">Video Sphere Viewer</a>
-      <span class="desc">Play any equirectangular 360° video on a sphere — pass one in with <code>?video=</code>, with gyroscope and fullscreen.</span>
-    </li>
-  </ul>
+    </div>
+  </section>
 
-  <h2>Image &amp; video</h2>
-  <ul>
-    <li>
+  <section>
+    <h2>Image / video</h2>
+    <div class="grid">
       <a href="pixelator.html">Pixelator</a>
-      <span class="desc">Nearest-neighbour image downscaler for clean pixel art.</span>
-    </li>
-    <li>
       <a href="unpremultiply.html">PNG Alpha Tools</a>
-      <span class="desc">Remove premultiplied alpha from PNG images, from a file or a URL, entirely in the browser.</span>
-    </li>
-    <li>
       <a href="gif2sheet.html">GIF Sprite Extractor</a>
-      <span class="desc">Split an animated GIF into its frames and export them as a sprite sheet.</span>
-    </li>
-    <li>
       <a href="vidscale.html">Custom Video Scaler</a>
-      <span class="desc">Rescale a video to arbitrary dimensions with smooth or pixelated sampling, and re-export it.</span>
-    </li>
-    <li>
       <a href="scanimation.html">3D Print Scanimation Generator</a>
-      <span class="desc">Interlace up to six frames into a printable base plate and sliding barrier grid, with SVG and multi-colour 3MF export.</span>
-    </li>
-    <li>
       <a href="ev/">Star/Planet Viewer</a>
-      <span class="desc">Generative space scene with star field and planet image, with PNG export.</span>
-    </li>
-    <li>
       <a href="anachronism.html">Anachronism Machine</a>
-      <span class="desc">Reimagine a modern object as a period advertisement from any of 13 eras, with era-matched typography and palette, optional Claude-written copy and AI illustration, and PNG export.</span>
-    </li>
-  </ul>
+    </div>
+  </section>
 
-  <h2>Codes &amp; utilities</h2>
-  <ul>
-    <li>
+  <section>
+    <h2>Utilities</h2>
+    <div class="grid">
       <a href="fpqr/">Fancy-Pants QR Encoder</a>
-      <span class="desc">QR generator with custom module geometry, halftone and emoji fills, gradients, and an anatomy view of the finder, alignment, and data blocks.</span>
-    </li>
-    <li>
       <a href="ez-pw.html">Input-Optimized Passwords</a>
-      <span class="desc">Generate strong passwords that are quick to type on an on-screen keyboard, tuned to the keyboard layout and starting focus position.</span>
-    </li>
-    <li>
       <a href="check.html">Instant Mobile Tester</a>
-      <span class="desc">Paste, drop, or upload an HTML file on your phone and run it immediately in a preview.</span>
-    </li>
-    <li>
       <a href="wine/">VinoVision</a>
-      <span class="desc">Photograph a wine shelf to extract every visible bottle into a filterable database, with an AR finder for locating a pick back on the shelf.</span>
-    </li>
-  </ul>
+      <a href="frame.html">Desktop View</a>
+    </div>
+  </section>
 
-  <h2>Retro Mac</h2>
-  <ul>
-    <li>
-      <a href="cythera/databrowser.html">Cythera Graphics Browser</a>
-      <span class="desc">Browse the sprites, portraits, skill icons, and tile sheets inside a Cythera Data archive.</span>
-    </li>
-    <li>
+  <section>
+    <h2>Retro Mac / Cythera</h2>
+    <div class="grid">
       <a href="cythera/cythera_data_viewer.html">Cythera Data Viewer</a>
-      <span class="desc">Expanded Cythera browser with decoded scripts, character and creature records, and full-text search across the archive.</span>
-    </li>
-    <li>
-      <a href="cythera/infinite.html">Cythera Mobile</a>
-      <span class="desc">Cythera running on an emulated Mac OS 7.6 with touch-friendly display and speed controls.</span>
-    </li>
-    <li>
+      <a href="cythera/mobile.html">Cythera Mobile</a>
+      <a href="cythera/colorcyclecanvas.html">ColorCycleCanvas</a>
       <a href="cythera/resource_fork_browser.html">Mac Resource Fork Browser</a>
-      <span class="desc">Decode raw resource forks, MacBinary (.bin), and BinHex (.hqx) locally, with text, summary, and ZIP export.</span>
-    </li>
-    <li>
       <a href="infj4.html">JumpStart 4th Grade Player</a>
-      <span class="desc">JumpStart 4th Grade: Haunted Island, booted in an emulated Power Macintosh G3.</span>
-    </li>
-  </ul>
+    </div>
+  </section>
 
   <footer>
     Source on <a href="https://github.com/e-z-g/e-z-g.github.io">GitHub</a>.
