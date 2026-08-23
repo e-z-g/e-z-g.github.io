@@ -1,47 +1,44 @@
 # e-z-g.github.io
 
-A collection of web-based tools and interactive viewers, live at
-<https://e-z-g.github.io/>. Everything is static and runs client-side in the
-browser — no build step, no server, no uploads.
+Web tools and interactive experiments: <https://e-z-g.github.io/>
 
-## 360° & VR
+## 360° / VR
 
-- **[Cubemap VR Viewer](https://e-z-g.github.io/cube/)** — Interactive 360° parallax cubemap viewer for four Myst III ages, with a depth-displaced mesh you can steer by mouse, keyboard or gyroscope, depth-driven square transitions, and custom LDI upload.
-- **[Cubemap Face Stitcher](https://e-z-g.github.io/cube/stitcher.html)** — Assemble six cube faces into the atlas the viewer's custom LDI mode loads, with per-face rotation and flip.
-- **[Video Sphere Viewer](https://e-z-g.github.io/vrvid.html)** — Play any equirectangular 360° video on a sphere; pass one in with `?video=`, with gyroscope and fullscreen.
+| | |
+|---|---|
+| [Cubemap VR Viewer](https://e-z-g.github.io/cube/) | [Cubemap Face Stitcher](https://e-z-g.github.io/cube/stitcher.html) |
+| [Video Sphere Viewer](https://e-z-g.github.io/vrvid.html) | |
 
-## Image & video
+## Image / video
 
-- **[Pixelator](https://e-z-g.github.io/pixelator.html)** — Nearest-neighbour image downscaler for clean pixel art.
-- **[PNG Alpha Tools](https://e-z-g.github.io/unpremultiply.html)** — Remove premultiplied alpha from PNG images, from a file or a URL.
-- **[GIF Sprite Extractor](https://e-z-g.github.io/gif2sheet.html)** — Split an animated GIF into its frames and export them as a sprite sheet.
-- **[Custom Video Scaler](https://e-z-g.github.io/vidscale.html)** — Rescale a video to arbitrary dimensions with smooth or pixelated sampling, and re-export it.
-- **[3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html)** — Interlace up to six frames into a printable base plate and sliding barrier grid, with SVG and multi-colour 3MF export.
-- **[Star/Planet Viewer](https://e-z-g.github.io/ev/)** — Generative space scene with star field and planet image, with PNG export.
-- **[Anachronism Machine](https://e-z-g.github.io/anachronism.html)** — Reimagine a modern object as a period advertisement from any of 13 eras, with era-matched typography and palette, optional Claude-written copy and AI illustration, and PNG export.
+| | |
+|---|---|
+| [Pixelator](https://e-z-g.github.io/pixelator.html) | [PNG Alpha Tools](https://e-z-g.github.io/unpremultiply.html) |
+| [GIF Sprite Extractor](https://e-z-g.github.io/gif2sheet.html) | [Custom Video Scaler](https://e-z-g.github.io/vidscale.html) |
+| [3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html) | [Star/Planet Viewer](https://e-z-g.github.io/ev/) |
+| [Anachronism Machine](https://e-z-g.github.io/anachronism.html) | |
 
-## Codes & utilities
+## Utilities
 
-- **[Fancy-Pants QR Encoder](https://e-z-g.github.io/fpqr/)** — QR generator with custom module geometry, halftone and emoji fills, gradients, and an anatomy view of the finder, alignment, and data blocks.
-- **[Input-Optimized Passwords](https://e-z-g.github.io/ez-pw.html)** — Generate strong passwords that are quick to type on an on-screen keyboard, tuned to the keyboard layout and starting focus position.
-- **[Instant Mobile Tester](https://e-z-g.github.io/check.html)** — Paste, drop, or upload an HTML file on your phone and run it immediately in a preview.
-- **[VinoVision](https://e-z-g.github.io/wine/)** — Photograph a wine shelf to extract every visible bottle into a filterable database, with an AR finder for locating a pick back on the shelf.
+| | |
+|---|---|
+| [Fancy-Pants QR Encoder](https://e-z-g.github.io/fpqr/) | [Input-Optimized Passwords](https://e-z-g.github.io/ez-pw.html) |
+| [Instant Mobile Tester](https://e-z-g.github.io/check.html) | [VinoVision](https://e-z-g.github.io/wine/) |
+| [Desktop View](https://e-z-g.github.io/frame.html) | |
 
-## Retro Mac
+## Retro Mac / Cythera
 
-- **[Cythera Graphics Browser](https://e-z-g.github.io/cythera/databrowser.html)** — Browse the sprites, portraits, skill icons, and tile sheets inside a Cythera Data archive.
-- **[Cythera Data Viewer](https://e-z-g.github.io/cythera/cythera_data_viewer.html)** — Expanded Cythera browser with decoded scripts, character and creature records, and full-text search across the archive.
-- **[Cythera Mobile](https://e-z-g.github.io/cythera/infinite.html)** — Cythera running on an emulated Mac OS 7.6 with touch-friendly display and speed controls.
-- **[Mac Resource Fork Browser](https://e-z-g.github.io/cythera/resource_fork_browser.html)** — Decode raw resource forks, MacBinary (`.bin`), and BinHex (`.hqx`) locally, with text, summary, and ZIP export.
-- **[JumpStart 4th Grade Player](https://e-z-g.github.io/infj4.html)** — JumpStart 4th Grade: Haunted Island, booted in an emulated Power Macintosh G3.
+| | |
+|---|---|
+| [Cythera Data Viewer](https://e-z-g.github.io/cythera/cythera_data_viewer.html) | [Cythera Mobile](https://e-z-g.github.io/cythera/mobile.html) |
+| [ColorCycleCanvas](https://e-z-g.github.io/cythera/colorcyclecanvas.html) | [Mac Resource Fork Browser](https://e-z-g.github.io/cythera/resource_fork_browser.html) |
+| [JumpStart 4th Grade Player](https://e-z-g.github.io/infj4.html) | |
 
 ## Local preview
 
-Most pages are single self-contained HTML files you can open straight from
-disk. The two cubemap pages load their assets relatively and share an ES
-module (`cube/atlas-layout.js`), so they need to be served:
+Most tools are static HTML. The cubemap viewer and stitcher share relative ES-module assets, so serve the repository locally:
 
-```
+```sh
 python3 -m http.server 8000
 ```
 
@@ -49,40 +46,11 @@ Then open <http://localhost:8000/>.
 
 ## Repository layout
 
-| Path | Contents |
-| --- | --- |
-| `index.html` | Landing page linking every tool — update it alongside this README when adding one. |
-| `cube/` | Cubemap viewer, stitcher, `atlas-layout.js`, and the scene image sets. |
-| `cythera/` | Cythera browsers, the emulator page, and the `res/` data archive. |
-| `ev/` | Star/planet scene and its planet image. |
-| `fpqr/` | QR encoder with its own `css/` and `js/`. |
-| `wine/` | VinoVision and its sample photo. |
-| `*.html` | Standalone single-file tools. |
+- `cube/` — cubemap viewer, stitcher, atlas layout, and scene assets
+- `cythera/` — Cythera viewers, emulator, resource browser, and data
+- `ev/` — star/planet viewer assets
+- `fpqr/` — QR encoder assets
+- `wine/` — VinoVision assets
+- `*.html` — standalone tools
 
-## Depth in the cubemap viewer
-
-The depth slider displaces a sphereified cube radially, so the picture gains
-real parallax as the camera drifts. Three things keep that from looking ragged,
-and all three are worth knowing before changing any of them:
-
-- **Mesh density.** The mesh is what bends, so a depth edge can only turn where
-  there is a vertex. 128 segments per cube face puts a quad about 17 screen
-  pixels apart at the default field of view, which is exactly the staircase you
-  see along an object edge with depth up. Desktops get 256; phones stay at 128,
-  where the device pixel ratio hides the difference anyway.
-- **The vertex-shader depth filter.** A step in the depth map lands wherever
-  the grid happens to fall, so the mesh renders it as a staircase along the
-  grid rather than as the edge in the picture. Depth is low-passed over roughly
-  one quad before it displaces, which is what actually removes the stepping —
-  a finer mesh on its own only makes the steps smaller and sharper.
-- **Adaptive resolution.** The viewer measures the display's frame interval,
-  then raises the drawing buffer above the display grid while frames stay on
-  cadence and lowers it when they slip, between 0.75x and 2x device pixels.
-  Supersampling is the only thing that antialiases these edges: they are
-  texture discontinuities stretched over continuous geometry, so MSAA does not
-  see them.
-
-`cube/atlas-layout.js` is the single definition of the atlas format the
-stitcher writes and the viewer reads. Both layouts (5×3 and the compact 3×2)
-are described there; changing one side without the other will misalign the
-pole faces.
+Source: <https://github.com/e-z-g/e-z-g.github.io>
