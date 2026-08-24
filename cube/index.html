@@ -621,6 +621,11 @@
                     || (navigator.hardwareConcurrency || 4) < 4
                     || maxTextureSize < 8192;
 
+    // Radius of the undisplaced shell. Depth only ever pulls a vertex inward
+    // from here, so this is also the distance the farthest thing in the picture
+    // sits at, and every camera excursion below is measured against it.
+    const SPHERE_RADIUS = 50;
+
     // --- SPHEREIFIED CUBE GEOMETRY ---
     // The mesh is what bends, so a depth edge can only turn where there is a
     // vertex. At 128 segments a quad spans 0.7 degrees — about 17 screen pixels
@@ -686,6 +691,19 @@
       }
     `;
 
+    // Which face a direction belongs to, by major axis. This is the inverse of
+    // the face slots above and the exact mirror of dirToFaceUv() in
+    // atlas-layout.js; the >= tie-breaks matter, because a vertex sitting on a
+    // cube edge hits them and both of its copies have to land on the same side.
+    const faceOfDirGlsl = `
+      int faceOfDir(vec3 d) {
+        vec3 a = abs(d);
+        if (a.x >= a.y && a.x >= a.z) return d.x < 0.0 ? 0 : 1;
+        if (a.y >= a.z)               return d.y > 0.0 ? 2 : 3;
+        return d.z > 0.0 ? 4 : 5;
+      }
+    `;
+
     // --- UNIFIED MATERIAL ENGINE ---
     // Atlas sampling GLSL lives in atlas-layout.js, shared with the stitcher.
 
@@ -701,8 +719,19 @@
           // One depth reader for both stages, so the vertex filter, the fg mask
           // and the tear gradient can never drift apart.
           const depthAtGlsl = `
-              float depthAt(vec2 uv) {
-                return clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, uFace, uv)' : 'texture2D(tDepth, uv)'}.r, 0.0, 1.0);
+              uniform float uDepthMin;
+              uniform float uDepthInvRange;
+              float depthAt(vec2 uv, int face) {
+                return clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, face, uv)' : 'texture2D(tDepth, uv)'}.r, 0.0, 1.0);
+              }
+              // The mesh is driven by the map's own range, not by the range it
+              // happens to be stored in. Voltaic's faces only span 0.04-0.58 of
+              // the byte range, so without this the slider spent most of its
+              // travel doing nothing and the whole scene stayed on one shell.
+              // The raw value is still what the fragment stage masks and tears
+              // on, where a literal zero means "nothing here".
+              float depthNorm(vec2 uv, int face) {
+                return clamp((depthAt(uv, face) - uDepthMin) * uDepthInvRange, 0.0, 1.0);
               }`;
 
           const extraUniforms = seamFill ? { tBgColor: { value: null } } : {};
@@ -711,7 +740,10 @@
             uniforms: {
               tColor: { value: null },
               tDepth: { value: dummyDepthTex },
-              uDisplacementScale: { value: 0.0 },
+              // Far/near radius ratio minus one. Zero is a flat sphere.
+              uDepthK: { value: 0.0 },
+              uDepthMin: { value: 0.0 },
+              uDepthInvRange: { value: 1.0 },
               uFace: { value: i },
               uIsForeground: { value: 0 },
               uTearThreshold: { value: 0.0 },
@@ -722,11 +754,12 @@
             transparent: true,
             vertexShader: `
               uniform sampler2D tDepth;
-              uniform float uDisplacementScale;
+              uniform float uDepthK;
               uniform float uDepthSmooth;
               uniform int uFace;
               varying vec2 vUv;
               ${gnomonicUvGlsl}
+              ${faceOfDirGlsl}
               ${atlasLogic}
               ${depthAtGlsl}
 
@@ -736,26 +769,45 @@
               // Low-passing the depth over roughly one quad turns each step
               // into a short ramp: the edge keeps its position and its contrast
               // but stops snapping to the grid, which is what reads as jagged.
-              float smoothedDepth(vec2 uv) {
-                if (uDepthSmooth <= 0.0) return depthAt(uv);
+              float smoothedDepth(vec2 uv, int face) {
+                if (uDepthSmooth <= 0.0) return depthNorm(uv, face);
                 vec2 dx = vec2(uDepthSmooth, 0.0);
                 vec2 dy = vec2(0.0, uDepthSmooth);
-                return depthAt(uv) * 0.4 + 0.15 * (
-                    depthAt(clamp(uv + dx, 0.001, 0.999))
-                  + depthAt(clamp(uv - dx, 0.001, 0.999))
-                  + depthAt(clamp(uv + dy, 0.001, 0.999))
-                  + depthAt(clamp(uv - dy, 0.001, 0.999)));
+                return depthNorm(uv, face) * 0.4 + 0.15 * (
+                    depthNorm(clamp(uv + dx, 0.001, 0.999), face)
+                  + depthNorm(clamp(uv - dx, 0.001, 0.999), face)
+                  + depthNorm(clamp(uv + dy, 0.001, 0.999), face)
+                  + depthNorm(clamp(uv - dy, 0.001, 0.999), face));
               }
 
               void main() {
                 vec3 dir = normalize(position);
-                vec2 rawUv = gnomonicUV(dir, uFace);
-                vUv = clamp(rawUv, 0.001, 0.999);
+                vUv = clamp(gnomonicUV(dir, uFace), 0.001, 0.999);
+
+                // Depth is read on the face the *direction* lands in, not on
+                // the face being drawn. A cube edge carries two copies of every
+                // vertex, one in each adjoining face's material group; each
+                // copy used to read its own face's depth map, so the two
+                // disagreed by however much the maps disagree at that seam and
+                // the mesh pulled apart along the edge. That gap is the black
+                // tear. Both copies share a position to the bit, so both now
+                // choose the same face, the same UV and the same depth, and the
+                // seam closes exactly rather than approximately.
+                int dFace = ${depthMode === 'atlas' ? 'faceOfDir(dir)' : 'uFace'};
+                vec2 dUv = ${depthMode === 'atlas' ? 'clamp(gnomonicUV(dir, dFace), 0.001, 0.999)' : 'vUv'};
+
                 // Ages without a depth map, and depth turned down to zero, skip
                 // the filter taps entirely rather than paying for five fetches
                 // per vertex to multiply the result by nothing.
-                float vDepth = uDisplacementScale > 0.0 ? smoothedDepth(vUv) : 0.0;
-                vec3 newPos = position * (1.0 - (vDepth * uDisplacementScale));
+                float vDepth = uDepthK > 0.0 ? smoothedDepth(dUv, dFace) : 0.0;
+
+                // Reciprocal, not linear. A monocular depth map stores
+                // disparity — roughly 1/z — so distance has to be reciprocal in
+                // it. Scaling the radius by (1 - d) instead put the far field
+                // and the near field a few units apart, which is what made a
+                // landscape read as the inside of a box. uDepthK is the ratio
+                // between the far shell and the closest surface, minus one.
+                vec3 newPos = position / (1.0 + vDepth * uDepthK);
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
               }
             `,
@@ -770,7 +822,7 @@
               ${atlasLogic}
               ${depthAtGlsl}
               void main() {
-                float texDepth = depthAt(vUv);
+                float texDepth = depthAt(vUv, uFace);
                 float alpha = 1.0;
                 
                 if (uIsForeground == 1) {
@@ -785,10 +837,10 @@
                         vec2 uvU = clamp(vUv + stepY, 0.001, 0.999);
                         vec2 uvD = clamp(vUv - stepY, 0.001, 0.999);
                         
-                        float dR = depthAt(uvR);
-                        float dL = depthAt(uvL);
-                        float dU = depthAt(uvU);
-                        float dD = depthAt(uvD);
+                        float dR = depthAt(uvR, uFace);
+                        float dL = depthAt(uvL, uFace);
+                        float dU = depthAt(uvU, uFace);
+                        float dD = depthAt(uvD, uFace);
 
                         float texGrad = length(vec2(dR - dL, dU - dD));
                         float thresh = mix(0.20, 0.01, uTearThreshold);
@@ -835,6 +887,11 @@
         // Same shaders as atlasBg, but not flagged isBg, so it displaces at the
         // full slider rate instead of the half rate the backdrop sphere uses.
         atlasSolo:     ['atlas',    'atlas',    false],
+        // Six separate colour faces — which keep their own mipmaps and
+        // anisotropy — over a depth atlas stitched at load time. The atlas is
+        // what lets the vertex stage read a neighbouring face's depth, which is
+        // what welds the seams.
+        standardDepth: ['standard', 'atlas',    false],
     };
     const matSetCache = new Map();
 
@@ -852,12 +909,34 @@
 
     const eachMaterial = (fn) => { for (const set of matSetCache.values()) set.forEach(fn); };
 
+    // Slider position -> far/near radius ratio.
+    //
+    // The old response was radius = R * (1 - 0.95 * s * depth): linear in the
+    // depth value, and at the default slider setting worth a spread of about
+    // 1.6:1 on a real depth map. Everything in the picture therefore sat on one
+    // thin shell a few units thick, and the camera's own drift (below) swung
+    // through a sixth of it — so the backdrop swam as much as the foreground,
+    // which is exactly the cue the eye reads as "these walls are close".
+    //
+    // Now the slider names a ratio instead. The exponent keeps the low end of
+    // the travel gentle while still reaching the same 20:1 spread the old
+    // formula topped out at, so the far end of the slider is no stronger than
+    // it ever was — the middle is simply no longer wasted.
+    const DEPTH_RATIO_MAX = 20;
+    const depthRatioFor = (s01) =>
+        (DEPTH_RATIO_MAX - 1) * Math.pow(THREE.MathUtils.clamp(s01, 0, 1), 1.6);
+
+    // Radius the closest displaced surface currently reaches. The render loop
+    // sizes the camera's drift against it.
+    let nearRadius = SPHERE_RADIUS;
+
     // The bg sphere displaces at half the fg rate so it stays behind the fg.
     function setDisplacement(val) {
-        const fgScale = val * 0.95;
+        const fgK = depthRatioFor(val);
         eachMaterial(m => {
-            m.uniforms.uDisplacementScale.value = m.userData.isBg ? fgScale * 0.5 : fgScale;
+            m.uniforms.uDepthK.value = m.userData.isBg ? depthRatioFor(val * 0.5) : fgK;
         });
+        nearRadius = SPHERE_RADIUS / (1 + fgK);
     }
 
     // Atlases written in a gutter layout reserve a border of GUTTER_PX per cell;
@@ -1352,6 +1431,117 @@
         return fitted;
     }
 
+    // --- Depth atlasing and range measurement ---
+    //
+    // The vertex stage has to be able to read *any* face's depth, not just the
+    // one it is drawing, or the two copies of each cube-edge vertex can never
+    // be made to agree. Paths that load six separate depth images therefore
+    // stitch them into one 3x2 atlas here. Colour is left alone: separate face
+    // images keep their mipmaps and anisotropy, which an atlas cannot have.
+    //
+    // Cell order in the 3x2 layout is left, front, right / back, top, bottom,
+    // so face index -> cell index is this table. It has to match sampleAtlas()
+    // in atlas-layout.js exactly.
+    const DEPTH_CELL_OF_FACE = [0, 2, 4, 5, 3, 1];
+
+    const isDrawable = (img) => !!img && !!img.width && (
+         (typeof HTMLImageElement  !== 'undefined' && img instanceof HTMLImageElement)
+      || (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement)
+      || (typeof ImageBitmap       !== 'undefined' && img instanceof ImageBitmap));
+
+    // Cells are sized at 512 minimum even when the source faces are smaller
+    // (Voltaic's are 295px). The shader clamps its UVs a thousandth of a cell
+    // in from the border, and at 512 that is over half a texel — far enough
+    // that bilinear filtering never reaches across into the next cell, so the
+    // atlas needs no gutter.
+    //
+    // 1024 is the ceiling. The mesh has 257 vertices along a face edge, so four
+    // depth texels per quad is already more than the geometry can express, and
+    // a bigger atlas only costs memory.
+    const DEPTH_CELL_MIN = 512, DEPTH_CELL_MAX = 1024;
+
+    function buildDepthAtlas(images) {
+        if (!images.some(isDrawable)) return null;
+        const largest = Math.max(...images.filter(isDrawable).map(i => Math.max(i.width, i.height)));
+        const cell = Math.min(
+            Math.max(DEPTH_CELL_MIN, Math.min(largest, DEPTH_CELL_MAX)),
+            Math.floor(maxTextureSize / 3));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = cell * 3; canvas.height = cell * 2;
+        const ctx = canvas.getContext('2d');
+        // Black reads as "infinitely far", which is the right thing for a face
+        // whose depth map failed to load: it simply stays on the shell.
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        images.forEach((img, face) => {
+            if (!isDrawable(img)) return;
+            const c = DEPTH_CELL_OF_FACE[face];
+            ctx.drawImage(img, (c % 3) * cell, Math.floor(c / 3) * cell, cell, cell);
+        });
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.NoColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        tex.generateMipmaps = false;
+        tex.needsUpdate = true;
+        return tex;
+    }
+
+    // What range does this depth map actually occupy? Almost none of them use
+    // the whole byte: Voltaic's six faces run 0.04 to 0.58, Edanna's atlas 0.08
+    // to 0.99. Feeding the raw value to the mesh means the slider's effect
+    // depends on how the map happened to be exported. Percentiles rather than
+    // min/max, so one stray pixel can't set the scale; point sampling rather
+    // than smooth downscaling, so averaging can't clip the extremes away.
+    function measureDepthRange(images) {
+        const S = 96;
+        const canvas = document.createElement('canvas');
+        canvas.width = S; canvas.height = S;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = false;
+        const hist = new Uint32Array(256);
+        let total = 0;
+        for (const img of images) {
+            if (!isDrawable(img)) continue;
+            try {
+                ctx.clearRect(0, 0, S, S);
+                ctx.drawImage(img, 0, 0, S, S);
+                const d = ctx.getImageData(0, 0, S, S).data;
+                for (let i = 0; i < d.length; i += 4) { hist[d[i]]++; total++; }
+            } catch (e) {
+                // A tainted canvas: leave the map at its stored range.
+                console.warn('Could not measure depth range:', e);
+                return null;
+            }
+        }
+        if (!total) return null;
+        const at = (frac) => {
+            const want = total * frac;
+            let acc = 0;
+            for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= want) return i / 255; }
+            return 1;
+        };
+        const min = at(0.005), max = at(0.995);
+        // A map with no spread at all is more likely broken than flat; stretching
+        // it would turn its noise into terrain.
+        return (max - min) > 0.08 ? { min, max } : null;
+    }
+
+    function setDepthRange(mats, range) {
+        const min = range ? range.min : 0;
+        const inv = range ? 1 / (range.max - range.min) : 1;
+        mats.forEach(m => {
+            m.uniforms.uDepthMin.value = min;
+            m.uniforms.uDepthInvRange.value = inv;
+        });
+    }
+
     // Depth is sampled with normalised UVs, so its resolution never had to match
     // the colour map. This used to resample every depth map onto a canvas at the
     // colour map's size — a full-size canvas plus a CanvasTexture per face, for
@@ -1382,16 +1572,14 @@
       return [p.left, p.right, p.top, p.bottom, p.back, p.front]; 
     }
 
-    function buildTransitionDepthTex(depthTextures) {
-      if (!depthTextures) return dummyDepthTex;
-      const frontTex = depthTextures[4] || depthTextures[0];
-      if (!frontTex || frontTex === dummyDepthTex || !frontTex.image) return dummyDepthTex;
+    function buildTransitionDepthTex(sourceImage) {
+      if (!isDrawable(sourceImage)) return dummyDepthTex;
       const SIZE = 64;
       const canvas = document.createElement('canvas');
       canvas.width = SIZE; canvas.height = SIZE;
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(frontTex.image, 0, 0, SIZE, SIZE);
+      ctx.drawImage(sourceImage, 0, 0, SIZE, SIZE);
       const tex = new THREE.CanvasTexture(canvas);
       tex.colorSpace = THREE.NoColorSpace;
       tex.minFilter = THREE.LinearFilter;
@@ -1470,19 +1658,26 @@
             }
             
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
-            
-            // Video atlases are 5x3 by definition of the version's type.
+            const depthImgs = depthTextures ? depthTextures.map(t => t && t.image) : [];
+
+            // Video atlases are 5x3 by definition of the version's type, and a
+            // material bakes one atlas layout for both its samplers — so this
+            // path cannot borrow the 3x2 depth stitch the separate-image path
+            // uses, and keeps its six per-face depth textures. It therefore
+            // also keeps the old seam behaviour: the vertex stage can only see
+            // the face it is drawing. Auto-ranging still applies.
             fgCubeMesh.material = getMatSet(hasActiveDepth ? 'atlasStandard' : 'atlasFg', '5x3');
             bgCubeMesh.visible = false;
-            
+
+            setDepthRange(fgCubeMesh.material, hasActiveDepth ? measureDepthRange(depthImgs) : null);
             fgCubeMesh.material.forEach((mat, i) => {
               mat.uniforms.tColor.value = videoTexture;
               mat.uniforms.tDepth.value = depthTextures ? depthTextures[i] : dummyDepthTex;
-              mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
               mat.uniforms.uIsForeground.value = 0;
             });
+            setDisplacement(currentSliderVal);
 
-            pendingTransitionDepth = buildTransitionDepthTex(depthTextures);
+            pendingTransitionDepth = buildTransitionDepthTex(depthImgs[4] || depthImgs[0]);
             
           } else if (isAtlas) {
             // A built-in age that ships as one pre-stitched atlas (plus an
@@ -1532,19 +1727,19 @@
             bgCubeMesh.visible = false;
             setGutterFrac(fgCubeMesh.material, colorTex.image.width, layoutId);
 
+            setDepthRange(fgCubeMesh.material,
+                          hasActiveDepth ? measureDepthRange([depthTex.image]) : null);
             fgCubeMesh.material.forEach((mat) => {
               mat.uniforms.tColor.value = colorTex;
               mat.uniforms.tDepth.value = depthTex;
-              mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
               mat.uniforms.uIsForeground.value = 0;
               mat.uniforms.uTearThreshold.value = 0.0;
             });
+            setDisplacement(currentSliderVal);
 
             [colorTex, depthTex].forEach(t => oldTextures.delete(t));
 
-            const fakeDepthArr = depthTex !== dummyDepthTex
-              ? [depthTex, depthTex, depthTex, depthTex, depthTex, depthTex] : null;
-            pendingTransitionDepth = buildTransitionDepthTex(fakeDepthArr);
+            pendingTransitionDepth = buildTransitionDepthTex(hasActiveDepth ? depthTex.image : null);
 
           } else if (isCustom) {
             videoToggleBtn.style.display = 'none';
@@ -1605,38 +1800,40 @@
             
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
             const currentTearVal = isDualLayer ? (parseFloat(document.getElementById('tear-slider').value) / 100.0) : 0.0;
-            const fgScale = currentSliderVal * 0.95;
-            const bgScale = currentSliderVal * 0.95 * 0.5;
-            
+
             fgCubeMesh.material = getMatSet('atlasFg', layoutId);
             bgCubeMesh.material = getMatSet('atlasBg', layoutId);
             bgCubeMesh.visible = isDualLayer;
             setGutterFrac(fgCubeMesh.material, atlasW, layoutId);
             setGutterFrac(bgCubeMesh.material, atlasW, layoutId);
-            
+
+            // Both layers share one range, so the backdrop keeps sitting behind
+            // the foreground instead of being stretched onto a different scale.
+            const ldiRange = measureDepthRange([fgD.image, isDualLayer ? bgD.image : null]);
+            setDepthRange(fgCubeMesh.material, ldiRange);
+            setDepthRange(bgCubeMesh.material, ldiRange);
+
             fgCubeMesh.material.forEach((mat) => {
               mat.uniforms.tColor.value = fgC;
               mat.uniforms.tDepth.value = fgD;
-              mat.uniforms.uDisplacementScale.value = fgScale;
               mat.uniforms.uIsForeground.value = isDualLayer ? 1 : 0;
               mat.uniforms.uTearThreshold.value = currentTearVal;
               // Wire bg colour into the seam-fill sampler
               if (isDualLayer && mat.uniforms.tBgColor) mat.uniforms.tBgColor.value = bgC;
             });
-            
+
             if (isDualLayer) {
                 bgCubeMesh.material.forEach((mat) => {
                   mat.uniforms.tColor.value = bgC;
                   mat.uniforms.tDepth.value = bgD;
-                  mat.uniforms.uDisplacementScale.value = bgScale;
                   mat.uniforms.uIsForeground.value = 0;
                 });
             }
-            
+            setDisplacement(currentSliderVal);
+
             [fgC, fgD, bgC, bgD].forEach(t => oldTextures.delete(t));
 
-            const fakeDepthArr = fgD !== dummyDepthTex ? [fgD, fgD, fgD, fgD, fgD, fgD] : null;
-            pendingTransitionDepth = buildTransitionDepthTex(fakeDepthArr);
+            pendingTransitionDepth = buildTransitionDepthTex(fgD !== dummyDepthTex ? fgD.image : null);
             
           } else {
             videoToggleBtn.style.display = 'none';
@@ -1648,27 +1845,36 @@
 
             if (loadId !== currentLoadId) return;
 
-            let depthTextures = null;
+            // The six depth faces are stitched into one atlas and the originals
+            // released: the vertex stage needs to reach a neighbouring face's
+            // depth to weld the seams, and one texture is cheaper than six.
+            let depthAtlasTex = null, depthRange = null, depthPreviewImg = null;
             if (currentLocation.hasDepth) {
-                depthControlsContainer.style.display = 'flex';
                 tearControls.style.display = 'none';
                 const dUrls = getCubemapUrls(currentLocation, targetVersion, true);
                 const loadedDepths = await Promise.all(dUrls.map(async (url) => {
                     try { return await trackedLoad(url); }
                     catch(e) { console.warn("Missing depth map:", url); return dummyDepthTex; }
                 }));
+                if (loadId !== currentLoadId) return;
 
-                depthTextures = loadedDepths.map(prepareDepthTex);
-            } else {
-                depthControlsContainer.style.display = 'none';
+                const depthImgs = loadedDepths.map(t => t && t.image);
+                depthRange = measureDepthRange(depthImgs);
+                depthAtlasTex = buildDepthAtlas(depthImgs);
+                depthPreviewImg = depthImgs[4] || depthImgs[0];
+                loadedDepths.forEach(t => { if (t !== dummyDepthTex) t.dispose(); });
             }
 
-            hasActiveDepth = currentLocation.hasDepth;
+            // A location can claim depth and still have every map 404; the
+            // slider used to stay on screen doing nothing in that case.
+            hasActiveDepth = !!depthAtlasTex;
+            depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
             const currentSliderVal = hasActiveDepth ? (parseFloat(document.getElementById('displacement-slider').value) / 100.0) : 0.0;
-            
-            fgCubeMesh.material = getMatSet('standard');
+
+            fgCubeMesh.material = getMatSet(hasActiveDepth ? 'standardDepth' : 'standard', '3x2');
             bgCubeMesh.visible = false;
-            
+
+            setDepthRange(fgCubeMesh.material, depthRange);
             fgCubeMesh.material.forEach((mat, i) => {
               loadedColors[i].colorSpace = THREE.SRGBColorSpace;
               const tex = loadedColors[i] = fitToGpu(loadedColors[i]);
@@ -1679,21 +1885,15 @@
               tex.anisotropy = maxAnisotropy;
               tex.generateMipmaps = true;
               mat.uniforms.tColor.value = tex;
-              
-              if (depthTextures && depthTextures[i] && depthTextures[i] !== dummyDepthTex) {
-                  mat.uniforms.tDepth.value = depthTextures[i];
-              } else {
-                  mat.uniforms.tDepth.value = dummyDepthTex; 
-              }
-              
-              mat.uniforms.uDisplacementScale.value = currentSliderVal * 0.95;
+              mat.uniforms.tDepth.value = depthAtlasTex || dummyDepthTex;
               mat.uniforms.uIsForeground.value = 0;
             });
-            
-            loadedColors.forEach(t => oldTextures.delete(t));
-            if(depthTextures) depthTextures.forEach(t => oldTextures.delete(t));
+            setDisplacement(currentSliderVal);
 
-            pendingTransitionDepth = buildTransitionDepthTex(depthTextures);
+            loadedColors.forEach(t => oldTextures.delete(t));
+            if (depthAtlasTex) oldTextures.delete(depthAtlasTex);
+
+            pendingTransitionDepth = buildTransitionDepthTex(depthPreviewImg);
           }
           
           oldTextures.forEach(t => t.dispose());
@@ -1859,13 +2059,33 @@
       let parallaxStrength = 0.0;
 
       if (hasActiveDepth) {
-          orbitRadius = -3.5; 
-          
+          // How far the camera is allowed to leave the centre of the panorama.
+          //
+          // This is the other half of the "small box" problem, and the larger
+          // half. The drift used to be a fixed 3.5 units of dolly plus about 4
+          // of sway and pointer parallax, inside a shell 50 units across — so
+          // the backdrop moved through a sixth of its own radius, roughly as
+          // much as the foreground did. Parallax that lands on everything
+          // equally doesn't read as distance; it reads as a room being carried
+          // around you.
+          //
+          // Two ceilings, whichever is tighter. The first keeps the backdrop
+          // under about two and a half percent of parallax, which is where it
+          // stops registering as motion and starts registering as "far". The
+          // second keeps the camera from travelling more than a tenth of the
+          // way to the nearest surface, so winding the depth slider up can
+          // never fly the viewer through the geometry in front of them — which
+          // the old fixed 3.5-unit dolly could, once the near end came inside
+          // that radius.
+          const excursion = Math.min(SPHERE_RADIUS * 0.025, nearRadius * 0.10);
+
+          orbitRadius = -0.35 * excursion;
+
           const floatTime = performance.now() * 0.0006;
-          swayX = Math.sin(floatTime) * 1.5 + Math.cos(floatTime * 0.7) * 0.5;
-          swayY = Math.cos(floatTime * 1.1) * 1.0 + Math.sin(floatTime * 0.8) * 0.5;
-          
-          parallaxStrength = gyroActive ? 1.0 : 2.5;
+          swayX = (Math.sin(floatTime) * 0.35 + Math.cos(floatTime * 0.7) * 0.15) * excursion;
+          swayY = (Math.cos(floatTime * 1.1) * 0.25 + Math.sin(floatTime * 0.8) * 0.10) * excursion;
+
+          parallaxStrength = (gyroActive ? 0.2 : 0.5) * excursion;
       } 
 
       camera.translateZ(orbitRadius); 
