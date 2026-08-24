@@ -1,27 +1,69 @@
 # Splitting `cythera/` into its own repository
 
-This is a runbook, not a description of something already done. Delete it once
-the split has happened.
+A runbook. Everything that could be prepared in advance has been; what is left
+is the part that needs a repository to exist. **Delete this file once the split
+has happened.**
+
+The procedure below has been rehearsed end to end against this tree: the split
+was performed, the URLs rewritten, the submodule initialised and the full suite
+run from the result — **14 ok, 0 failed, 1 skipped**, with decoder snapshots
+identical to the ones produced here.
 
 ## Why the new repo must be called `cythera`
 
-GitHub Pages serves a project repo at `<user>.github.io/<repo>/`. The pages
-currently live at `e-z-g.github.io/cythera/…` because they sit in a `cythera/`
+GitHub Pages serves a project repo at `<user>.github.io/<repo>/`. These pages
+already live at `e-z-g.github.io/cythera/…` because they sit in a `cythera/`
 folder of the user site. Name the new repo **`cythera`** and every public URL
 stays byte-identical — the four links in the site's `index.html` are relative
-(`cythera/cythera_data_viewer.html`), and the absolute ones in `README.md`
-already point at `e-z-g.github.io/cythera/…`. Nobody's bookmark breaks.
+(`cythera/cythera_data_viewer.html`) and the ones in `README.md` are absolute to
+that same path. Neither file needs editing. Nobody's bookmark breaks.
 
 Any other name means editing both files and breaking every existing link.
 
-Remove the `cythera/` folder from the user site in the same change that brings
-the new repo up, so there is never a period where a folder and a project repo
-both claim that path.
+## Already done
 
-## What actually has to change
+Staged inside `cythera/`, inert where they sit, correct the moment they are a
+repository root:
 
-Exactly four URLs, all in `cythera_data_viewer.html`. They are pinned to the
-user site's `main` branch, so they move with the repo:
+- `.nojekyll` — without it Pages runs Jekyll and mangles anything with an
+  underscore or braces in it. The site's own `.nojekyll` is at its root and
+  does not come along.
+- `.gitignore` — the same exclusions, said relatively.
+- `.gitmodules` — pointing at `reference/delvmod`. Git reads this file only at
+  a repository root, so it does nothing until it is one. A subtree split keeps
+  the submodule's gitlink but not the root file that names it, which is the
+  thing most likely to be missed.
+- `CLAUDE.md` — the cythera half of the site's, made standalone. It overlaps
+  with the root one until the split.
+
+## What is left
+
+### 1. Split, with history
+
+`git subtree split` rewrites the cythera commits as a standalone history, so
+`git log` still explains why things are the way they are — which matters more
+here than usual, given how much of this codebase's reasoning lives in its
+commit messages. It carried 40 commits in rehearsal.
+
+```sh
+# in a clone of e-z-g.github.io, on an up-to-date main
+git subtree split -P cythera -b cythera-only
+```
+
+### 2. Create `e-z-g/cythera` on GitHub
+
+Empty — no README, no .gitignore, no licence. Anything it adds is a commit the
+split history has to be merged around.
+
+```sh
+git push git@github.com:e-z-g/cythera.git cythera-only:main
+```
+
+### 3. Rewrite the four pinned URLs
+
+In a fresh clone of the new repo. These are the only cross-references the move
+breaks: all four are in `cythera_data_viewer.html`, all four pinned to the user
+site's `main`, so they move with the repo.
 
 | Line | What it fetches |
 |---|---|
@@ -30,56 +72,43 @@ user site's `main` branch, so they move with the repo:
 | 156 | `res/Dialogue_Background.png` — the frame's border-image |
 | 3598 | `res/Cythera%20Data` — `DEFAULT_ARCHIVE_URL` |
 
-Rewrite each from
-
-    raw.githubusercontent.com/e-z-g/e-z-g.github.io/main/cythera/res/…
-
-to
-
-    raw.githubusercontent.com/e-z-g/cythera/main/res/…
-
-Note the `cythera/` path segment disappears as the repo prefix gains it.
-
-These are pinned to `main`, so **the live page keeps loading the old URLs until
-the new repo's `main` exists and has `res/` in it.** Bring the new repo up
-first, verify the four assets resolve, and only then delete the folder here.
-
-## Doing it with history
-
-`git subtree split` rewrites the cythera commits as a standalone history, so
-`git log` on the new repo still explains why things are the way they are —
-which matters more here than usual, given how much of this codebase's reasoning
-lives in commit messages and comments.
+One command does all four. The `cythera/` path segment disappears as the repo
+prefix gains it:
 
 ```sh
-# in a clone of e-z-g.github.io, on an up-to-date main
-git subtree split -P cythera -b cythera-only
-
-# create an empty e-z-g/cythera on GitHub first (no README, no .gitignore)
-git push git@github.com:e-z-g/cythera.git cythera-only:main
+sed -i '' 's#raw\.githubusercontent\.com/e-z-g/e-z-g\.github\.io/main/cythera/#raw.githubusercontent.com/e-z-g/cythera/main/#g' cythera_data_viewer.html
 ```
 
-Then, in a fresh clone of the new repo:
+(Drop the `''` after `-i` on GNU sed.) Then confirm nothing was missed:
 
-1. Re-add the delvmod submodule — `git subtree split` does not carry
-   `.gitmodules`, which lives at the old repo's root:
-   ```sh
-   git submodule add https://github.com/e-z-g/delvmod reference/delvmod
-   ```
-2. Copy across the `.gitignore` lines that were about cythera
-   (`infinite-mac`, `sources`), plus `.DS_Store`.
-3. Add a `.nojekyll` at the new root. The old one was at the user site's root
-   and does not come along; without it Pages runs Jekyll and anything with an
-   underscore or braces in it can be mangled.
-4. Move the cythera part of the root `CLAUDE.md` into a `CLAUDE.md` here. The
-   three-code-regimes section matters: this repo is entirely regime 3, classic
-   scripts that must keep working from `file://`.
-5. Rewrite the four URLs above.
-6. Enable Pages (Settings → Pages → deploy from `main`), then check that
-   `e-z-g.github.io/cythera/cythera_data_viewer.html` loads with its font,
-   its frame and its default archive.
-7. `node utilities/check_all.mjs` — expect **14 ok, 0 failed, 1 skipped**.
+```sh
+grep -c 'e-z-g.github.io/main/cythera' cythera_data_viewer.html   # expect 0
+grep -c 'e-z-g/cythera/main/res' cythera_data_viewer.html         # expect 4
+```
 
-Only once that is all green: delete `cythera/` from `e-z-g.github.io`, and
-leave `index.html` and `README.md` alone, because their links already point at
-the right place.
+### 4. Bring up the submodule and check
+
+```sh
+git submodule update --init reference/delvmod
+node utilities/check_all.mjs          # expect 14 ok, 0 failed, 1 skipped
+```
+
+The one skip is infinite-mac, which is gitignored on purpose.
+
+### 5. Enable Pages, then verify against the live site
+
+Settings → Pages → deploy from `main`. Then load
+`e-z-g.github.io/cythera/cythera_data_viewer.html` and confirm three things
+that only the live page can show: the Argos font renders, the dialogue frame
+has its border image, and the default archive loads on its own.
+
+Those URLs are pinned to `main`, so **the live page keeps loading the old ones
+until the new repo's `main` exists with `res/` in it.** This step is the gate.
+
+### 6. Only then, remove the folder here
+
+Delete `cythera/` from `e-z-g.github.io` and push. Leave `index.html` and
+`README.md` alone — their links already point where they need to.
+
+Do not leave both in place: a folder and a project repo claiming the same path
+is ambiguous, and which one wins is not worth discovering in production.
