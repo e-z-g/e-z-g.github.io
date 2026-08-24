@@ -29,9 +29,33 @@ const only = args.find(a => !a.startsWith('--'));
 const DATA = `${TMP}/Cythera Data.data`;
 const DATA_RSRC = `${TMP}/Cythera Data.rsrc`;
 const APP_RSRC = `${TMP}/Cythera.rsrc`;
-const HQX = 'sources/Cythera Data.hqx';
-const APP_HQX = 'sources/Cythera.hqx';
-const DELV = 'sources/github_delvmod/code';
+
+// ---- finding the inputs ----------------------------------------------------
+// These used to be fixed paths under sources/, a scratch directory that is not
+// in the repository, so every fresh checkout had to be told to symlink res/
+// into it before anything could run -- and a run that skipped that step
+// reported most of its checks as "skip", which reads like a clean result. The
+// committed copies in res/ are the same files under slightly different names,
+// so look there first and keep sources/ working for anyone who already has it.
+function firstExisting(...paths) {
+  for (const p of paths) if (p && existsSync(p)) return p;
+  return paths[paths.length - 1];   // report the conventional name when nothing is there
+}
+
+const HQX = firstExisting('res/Cythera Data.Hqx', 'sources/Cythera Data.hqx');
+const APP_HQX = firstExisting('res/Cythera.hqx', 'sources/Cythera.hqx');
+
+// delvmod is the reference implementation this project's knowledge of the
+// archive came from, and two checks read its Python to catch the copies here
+// drifting from it. It is a submodule at reference/delvmod, so a checkout that
+// ran `git submodule update --init` has it; $DELVMOD overrides for a working
+// copy kept elsewhere, and the old sources/ location still works.
+const DELV = firstExisting(process.env.DELVMOD, 'reference/delvmod',
+  'sources/github_delvmod/code', '../delvmod');
+// mihaip/infinite-mac, which mobile.html embeds. It is a large checkout and is
+// gitignored on purpose, so this check skips more often than not; $INFINITE_MAC
+// lets a copy kept outside the repository be used without moving it in.
+const INFMAC = firstExisting(process.env.INFINITE_MAC, 'infinite-mac', '../infinite-mac');
 const GFX_REF = `${TMP}/gfx_ref.json`;
 const EXPORTS = `${TMP}/check_all_exports`;
 
@@ -96,8 +120,8 @@ const CHECKS = [
   {page: 'mobile', name: 'static', cmd: ['utilities/verify_viewer.mjs', 'mobile.html']},
   {page: 'mobile', name: 'input', cmd: ['utilities/mobile_input_check.mjs', 'mobile.html']},
   {page: 'mobile', name: 'undither', cmd: ['utilities/mobile_undither_check.mjs', 'mobile.html', 'cythera_data_viewer.html']},
-  {page: 'mobile', name: 'infinite-mac api', want: ['infinite-mac'],
-   cmd: ['utilities/mobile_api_check.mjs', 'mobile.html', 'infinite-mac']},
+  {page: 'mobile', name: 'infinite-mac api', want: [INFMAC],
+   cmd: ['utilities/mobile_api_check.mjs', 'mobile.html', INFMAC]},
 ];
 
 // ---- run -------------------------------------------------------------------

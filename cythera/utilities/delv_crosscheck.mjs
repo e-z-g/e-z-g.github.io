@@ -25,6 +25,7 @@
 import {readFileSync, existsSync} from 'node:fs';
 import vm from 'node:vm';
 import {pageSource} from './page_scripts.mjs';
+import {makeSandbox} from './dom_stub.mjs';
 
 const [htmlPath = 'cythera_data_viewer.html',
        delvPath = 'sources/github_delvmod/code',
@@ -118,40 +119,8 @@ console.log(`  delvmod: ${REF_ENCRYPTED.size} encrypted + ${REF_CLEAR.size} clea
             `${REF_CHARACTER.size} characters`);
 
 // ---- load the viewer -------------------------------------------------------
-const noop = () => {};
-function stubEl() {
-  const el = {
-    style: {}, classList: {add: noop, remove: noop, toggle: noop, contains: () => false},
-    children: [], options: [], dataset: {}, innerHTML: '', textContent: '', value: '',
-    width: 0, height: 0, appendChild: c => c, removeChild: noop, addEventListener: noop,
-    removeEventListener: noop, setAttribute: noop, getAttribute: () => null,
-    querySelector: () => null, querySelectorAll: () => [], focus: noop, click: noop,
-    getContext: () => null, remove: noop, insertBefore: noop, cloneNode: () => stubEl(),
-    getBoundingClientRect: () => ({left: 0, top: 0, width: 100, height: 100}),
-  };
-  return el;
-}
-const sandbox = {
-  document: {
-    getElementById: stubEl, createElement: stubEl, createElementNS: stubEl,
-    querySelector: () => null, querySelectorAll: () => [], addEventListener: noop,
-    removeEventListener: noop, body: stubEl(), head: stubEl(), documentElement: stubEl(),
-  },
-  console, TextDecoder, TextEncoder, Uint8Array, Int16Array, Uint32Array, Float32Array,
-  Uint8ClampedArray, ArrayBuffer, DataView, Math, JSON, Map, Set, Date, Object, Array,
-  String, Number, Boolean, Error, RegExp, Promise, isNaN, parseInt, parseFloat,
-  Infinity, NaN, undefined, URLSearchParams, setTimeout, clearTimeout, setInterval,
-  clearInterval, requestAnimationFrame: noop, cancelAnimationFrame: noop,
-  fetch: () => Promise.reject(new Error('offline')),
-  Blob: globalThis.Blob, URL: globalThis.URL,
-  CompressionStream: globalThis.CompressionStream, Response: globalThis.Response,
-  matchMedia: () => ({matches: false, addEventListener: noop}),
-  localStorage: {getItem: () => null, setItem: noop, removeItem: noop},
-  location: {hash: '', href: 'file:///x', search: ''},
-  history: {replaceState: noop, pushState: noop},
-  navigator: {userAgent: 'node'}, performance: {now: () => 0},
-};
-sandbox.window = sandbox; sandbox.globalThis = sandbox; sandbox.self = sandbox;
+// The stub lives in dom_stub.mjs; see the header there for why it has a canvas.
+const {sandbox} = makeSandbox();
 const ctx = vm.createContext(sandbox);
 try {
   new vm.Script(pageSource(htmlPath) + '\n;window.__peek = n => eval(n);', {filename: htmlPath})
