@@ -39,6 +39,7 @@ cythera/              retro-Mac / Cythera subsystem — the largest area
   js/                         shared classic scripts (see "Cythera" below)
   utilities/                  Node + Python check harnesses and converters
   res/                        game data, fonts, PDFs, extracted assets
+  reference/delvmod           submodule: the delvmod reference implementation
   deprecated/                 retired experiments; do not extend
 
 ev/                   star/planet viewer
@@ -142,26 +143,35 @@ from the `.hqx` files into `$TMPDIR`), runs the fifteen individual harnesses,
 validates exported ZIPs with `unzip -t`, and prints a single pass/skip/fail
 table. A check whose inputs are missing is reported as **skip**, not fail.
 
-### Data setup: `sources/` vs `res/`
+### Data setup
 
-The harnesses expect a `cythera/sources/` directory that **is not in the
-repository** — the committed data lives in `cythera/res/` instead, under
-slightly different names. Before a full run, bridge the two:
+Nothing to do: `check_all.mjs` finds its inputs itself. It reads the committed
+archives straight out of `cythera/res/`, and the resource forks it extracts from
+them go to `$TMPDIR`. The old `cythera/sources/` symlink dance is gone — that
+directory is still honoured if you have one, but it is no longer needed and
+should not be created.
 
-```sh
-cd cythera
-mkdir -p sources
-ln -sf "../res/Cythera Data.Hqx" "sources/Cythera Data.hqx"
-ln -sf "../res/Cythera.hqx"      "sources/Cythera.hqx"
-```
+Two further inputs come from outside the repository:
 
-`sources/` is scratch — do not commit it. Two further inputs are optional and
-absent by default, so their checks always skip:
+- **delvmod** — the reference implementation, used by `delv_crosscheck.mjs` and
+  `delv_graphics_check.mjs` to catch the tables copied into the viewer drifting
+  from the original. It is a **submodule** at `cythera/reference/delvmod`, so a
+  fresh checkout needs one command before those two checks can run:
 
-- `sources/github_delvmod/code` — a checkout of the delvmod source, used to
-  cross-check the viewer's tables and graphics against the original engine.
-- `cythera/infinite-mac` — a checkout of `mihaip/infinite-mac`, used by
-  `mobile_api_check.mjs`. It is **gitignored** on purpose.
+  ```sh
+  git submodule update --init cythera/reference/delvmod
+  ```
+
+  Set `$DELVMOD` instead to point at a working copy kept elsewhere.
+
+- **infinite-mac** — a checkout of `mihaip/infinite-mac`, used by
+  `mobile_api_check.mjs`. Large, and **gitignored** on purpose, so this check
+  skips by default. Put it at `cythera/infinite-mac`, beside the repo as
+  `../infinite-mac`, or point `$INFINITE_MAC` at it.
+
+A check whose inputs are genuinely missing is reported as **skip**, not fail.
+A clean run today is **14 ok, 0 failed, 1 skipped** — the skip being
+infinite-mac. Anything else is a regression.
 
 ### How the harnesses work
 
@@ -181,32 +191,21 @@ inside a `node:vm` against a hand-written DOM stub.
   click time.
 - `*_snapshot.mjs` — hash the decoder output so a refactor that changes bytes is
   visible.
+- `dom_stub.mjs` — the minimal DOM the non-UI harnesses evaluate a page in, and
+  the one 2D canvas implementation. Five harnesses each carried their own copy
+  of this; when the viewer gained its animated footer, which asks for a context
+  while the script body is still loading, three of them broke at once and two
+  more were skipping and so did not show it. Import `makeSandbox()` rather than
+  pasting a sixth copy.
 - `viewer_smoke.mjs` / `preview_smoke.mjs` — drive the actual UI (open every
   category, render every gallery, open every resource) through a fuller DOM
-  stub that includes a working 2D canvas.
+  stub, which shares its canvas with `dom_stub.mjs`.
 - `mobile_input_check.mjs`, `mobile_undither_check.mjs`, `mobile_api_check.mjs`
   — cover `mobile.html`'s touch handling, its dedither path, and its use of
   infinite-mac's documented embed API.
 - Python converters: `binhex_decode.py`, `resource_fork_parser.py`,
   `quickdraw_pict_decoder.py`, `pictscan.py`, `qtma2midi.py`, `midi2wav.py`,
   `delv_graphics_ref.py`.
-
-### Known failing checks
-
-Three viewer harnesses currently fail with
-`script body threw while loading: Cannot read properties of null (reading 'createImageData')`:
-
-- `decoder_snapshot.mjs`
-- `loader_test.mjs`
-- `export_test.mjs`
-
-Cause: these share a minimal DOM stub whose `getContext()` returns `null`, but
-`cythera_data_viewer.html` gained an animated colour-cycling footer scene that
-asks for a 2D context while the script body is loading. `viewer_smoke.mjs`
-passes because its stub implements a real 2D context. The fix is to give the
-minimal stub a canvas (as `rsrc_sandbox.mjs` and `viewer_smoke.mjs` do), not to
-change the page. Treat this as pre-existing — do not report it as a regression
-you caused, and if you touch those harnesses, fixing it is welcome.
 
 ## Conventions
 

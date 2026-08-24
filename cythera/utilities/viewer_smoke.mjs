@@ -21,6 +21,7 @@
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import {pageSource, describeScripts} from './page_scripts.mjs';
+import {makeCanvasContext} from './dom_stub.mjs';
 
 const [htmlPath, dataPath, onlyCat] = process.argv.slice(2);
 if (!htmlPath || !dataPath) {
@@ -41,23 +42,8 @@ try { rsrcFork = new Uint8Array(readFileSync(rsrcPath)); } catch (e) { rsrcFork 
 const missingIds = new Set();
 let nodeCount = 0;
 
-function makeCtx(cv) {
-  const im = (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(Math.max(0, w * h * 4)) });
-  return {
-    canvas: cv, fillStyle: '#000', strokeStyle: '#000', lineWidth: 1, font: '', textAlign: 'left',
-    globalAlpha: 1, globalCompositeOperation: 'source-over', imageSmoothingEnabled: true,
-    createImageData: (w, h) => im(w, h),
-    putImageData(d) { cv._px = d; },
-    getImageData(x, y, w, h) { return cv._px || im(w, h); },
-    drawImage() {}, fillRect() {}, clearRect() {}, strokeRect() {},
-    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, stroke() {}, fill() {},
-    save() {}, restore() {}, translate() {}, scale() {}, setTransform() {}, setLineDash() {},
-    fillText() {}, strokeText() {}, measureText: t => ({ width: String(t).length * 6 }),
-    createRadialGradient: () => ({ addColorStop() {} }),
-    createLinearGradient: () => ({ addColorStop() {} }),
-    createPattern: () => null, clip() {}, rect() {}, quadraticCurveTo() {}, ellipse() {},
-  };
-}
+// The 2D context is shared with dom_stub.mjs so the two stubs cannot drift.
+const makeCtx = makeCanvasContext;
 
 class El {
   constructor(tag) {

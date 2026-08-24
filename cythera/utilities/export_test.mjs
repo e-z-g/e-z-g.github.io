@@ -14,6 +14,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import vm from 'node:vm';
 import {pageSource} from './page_scripts.mjs';
+import {makeSandbox} from './dom_stub.mjs';
 
 const [htmlPath, dataPath, outDir] = process.argv.slice(2);
 if (!htmlPath || !dataPath || !outDir) {
@@ -26,46 +27,11 @@ const html = readFileSync(htmlPath, 'utf8');
 const js = pageSource(htmlPath);
 const archive = new Uint8Array(readFileSync(dataPath));
 
-const noop = () => {};
-function stubEl() {
-  const el = {
-    style: {}, classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
-    children: [], options: [], dataset: {}, disabled: false,
-    innerHTML: '', textContent: '', value: '', width: 0, height: 0,
-    appendChild: c => c, removeChild: noop, addEventListener: noop,
-    removeEventListener: noop, setAttribute: noop, getAttribute: () => null,
-    querySelector: () => null, querySelectorAll: () => [], focus: noop, click: noop,
-    getContext: () => null, remove: noop, insertBefore: noop, cloneNode: () => stubEl(),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
-  };
-  return el;
-}
-const document = {
-  getElementById: () => stubEl(), createElement: () => stubEl(),
-  createElementNS: () => stubEl(), querySelector: () => null, querySelectorAll: () => [],
-  addEventListener: noop, removeEventListener: noop,
-  body: stubEl(), head: stubEl(), documentElement: stubEl(),
-};
-const sandbox = {
-  document, console, TextDecoder, TextEncoder, Uint8Array, Int16Array, Uint32Array,
-  Float32Array, Uint8ClampedArray, ArrayBuffer, DataView, Math, JSON, Map, Set, Date,
-  Object, Array, String, Number, Boolean, Error, RegExp, Promise, isNaN, parseInt,
-  parseFloat, Infinity, NaN, undefined, URLSearchParams,
-  setTimeout, clearTimeout, setInterval, clearInterval,
-  requestAnimationFrame: noop, cancelAnimationFrame: noop,
-  fetch: () => Promise.reject(new Error('offline')),
-  Blob: globalThis.Blob, URL: { createObjectURL: () => 'blob:stub', revokeObjectURL: noop },
-  CompressionStream: globalThis.CompressionStream, Response: globalThis.Response,
-  matchMedia: () => ({ matches: false, addEventListener: noop }),
-  localStorage: { getItem: () => null, setItem: noop, removeItem: noop },
-  location: { hash: '', href: 'file:///x', search: '' },
-  history: { replaceState: noop, pushState: noop },
-  navigator: { userAgent: 'node' },
-  performance: { now: () => 0 },
-};
-sandbox.window = sandbox;
-sandbox.globalThis = sandbox;
-sandbox.self = sandbox;
+// ---- minimal DOM so the top-level script body can be evaluated -------------
+// The stub lives in dom_stub.mjs; see the header there for why it has a canvas.
+// objectUrls: this check catches saves instead of performing them, so it wants
+// a stubbed URL.createObjectURL rather than Node's real one.
+const {sandbox} = makeSandbox({objectUrls: true});
 const ctx = vm.createContext(sandbox);
 try {
   new vm.Script(js + '\n;window.__peek = function(n){ return eval(n); };\n', { filename: htmlPath })

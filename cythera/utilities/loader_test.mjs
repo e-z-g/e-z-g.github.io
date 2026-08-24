@@ -14,6 +14,7 @@
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import {pageSource} from './page_scripts.mjs';
+import {makeSandbox} from './dom_stub.mjs';
 import { createHash } from 'node:crypto';
 
 const [htmlPath, hqxPath, dataPath, rsrcPath, appHqxPath] = process.argv.slice(2);
@@ -25,48 +26,11 @@ if (!htmlPath || !hqxPath || !dataPath) {
 const html = readFileSync(htmlPath, 'utf8');
 const js = pageSource(htmlPath);
 
-const noop = () => {};
-function stubEl() {
-  const el = {
-    style: {}, classList: { add: noop, remove: noop, toggle: noop, contains: () => false },
-    children: [], options: [], dataset: {},
-    innerHTML: '', textContent: '', value: '', width: 0, height: 0,
-    appendChild: c => c, removeChild: noop, addEventListener: noop,
-    removeEventListener: noop, setAttribute: noop, getAttribute: () => null,
-    querySelector: () => null, querySelectorAll: () => [], focus: noop, click: noop,
-    getContext: () => null, remove: noop, insertBefore: noop, cloneNode: () => stubEl(),
-    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
-  };
-  return el;
-}
-const els = new Map();
-const document = {
-  getElementById: id => (els.has(id) ? els.get(id) : els.set(id, stubEl()).get(id)),
-  createElement: () => stubEl(),
-  createElementNS: () => stubEl(), querySelector: () => null, querySelectorAll: () => [],
-  addEventListener: noop, removeEventListener: noop,
-  body: stubEl(), head: stubEl(), documentElement: stubEl(),
-};
-const sandbox = {
-  document, console, TextDecoder, TextEncoder, Uint8Array, Int16Array, Uint32Array,
-  Float32Array, Uint8ClampedArray, ArrayBuffer, DataView, Math, JSON, Map, Set, Date,
-  Object, Array, String, Number, Boolean, Error, RegExp, Promise, isNaN, parseInt,
-  parseFloat, Infinity, NaN, undefined, URLSearchParams,
-  setTimeout, clearTimeout, setInterval, clearInterval,
-  requestAnimationFrame: noop, cancelAnimationFrame: noop,
-  fetch: () => Promise.reject(new Error('offline')),
-  Blob: globalThis.Blob, URL: globalThis.URL,
-  CompressionStream: globalThis.CompressionStream, Response: globalThis.Response,
-  matchMedia: () => ({ matches: false, addEventListener: noop }),
-  localStorage: { getItem: () => null, setItem: noop, removeItem: noop },
-  location: { hash: '', href: 'file:///x', search: '' },
-  history: { replaceState: noop, pushState: noop },
-  navigator: { userAgent: 'node' },
-  performance: { now: () => 0 },
-};
-sandbox.window = sandbox;
-sandbox.globalThis = sandbox;
-sandbox.self = sandbox;
+// ---- minimal DOM so the top-level script body can be evaluated -------------
+// The stub lives in dom_stub.mjs; see the header there for why it has a canvas.
+// Ids are memoised here: this check sets a value on an element and expects the
+// page to read the same element back.
+const {sandbox} = makeSandbox();
 const ctx = vm.createContext(sandbox);
 // Top-level const/let are not properties of the vm global; reach them through
 // an eval defined inside that scope.
