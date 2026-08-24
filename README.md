@@ -47,6 +47,7 @@ Then open <http://localhost:8000/>.
 ## Repository layout
 
 - `cube/` — cubemap viewer, stitcher, atlas layout, and scene assets
+  ([`cube/README.md`](cube/README.md) covers the rendering pipeline)
 - `cythera/` — Cythera viewers, emulator, resource browser, and data
 - `ev/` — star/planet viewer assets
 - `fpqr/` — QR encoder assets
