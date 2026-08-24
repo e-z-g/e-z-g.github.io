@@ -47,10 +47,13 @@ Then open <http://localhost:8000/>.
 ## Repository layout
 
 - `cube/` — cubemap viewer, stitcher, atlas layout, and scene assets
-- `cythera/` — Cythera viewers, emulator, resource browser, and data
 - `ev/` — star/planet viewer assets
 - `fpqr/` — QR encoder assets
 - `wine/` — VinoVision assets
 - `*.html` — standalone tools
+
+The Cythera and retro-Mac tools are their own repository —
+<https://github.com/e-z-g/cythera> — served at the same
+`e-z-g.github.io/cythera/…` addresses, so the links above are unchanged.
 
 Source: <https://github.com/e-z-g/e-z-g.github.io>
