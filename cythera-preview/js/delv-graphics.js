@@ -919,3 +919,103 @@ function reshapeTileSheet(W, H, image, mode) {
   if (mode === 'tiles') return reshapeTileSheetTiles(W, H, image);
   return reshapeTileSheetGrid(W, H, image);
 }
+
+/* ------------------------------------------------------------
+   The other direction: full colour IN, Cythera OUT.
+
+   ditherToCytheraPalette is the deliberate inverse of the undither above.
+   The undither's own analysis (see the checkerboard-notch comment) found
+   that this artwork's dither is a checkerboard in WHICH RAMP each pixel is
+   taken from -- greys interleaved with warm browns for skin, close in
+   lightness, far in hue -- the single frequency (pi,pi). So the way to make
+   an arbitrary image look like this artwork is to produce exactly that
+   pattern: for each pixel, either the one palette entry nearest the target
+   colour, or the better of a PAIR of entries laid out on the global
+   checkerboard phase, whichever approximates it best. Pairs are ordered by
+   luminance before the phase is applied, so a region that chooses the same
+   pair renders as one coherent checker rather than pixel noise.
+
+   Palette slots 0 (the transparent cut-out slot -- portraits sit on it) and
+   0xE0-0xFB (the palette-cycling ramps the engine animates for lava, water
+   and magic) are never chosen for opaque pixels unless asked; a portrait
+   that borrowed an animated slot would shimmer with the sea.
+
+   checker (0..1, default 0.6) sets how eagerly a pair beats a flat pixel:
+   at 0 the result is plain nearest-colour quantisation; at 1 any pair that
+   is at all better wins and everything shimmers with pattern.
+   ------------------------------------------------------------ */
+function ditherToCytheraPalette(rgba, W, H, opts) {
+  const o = opts || {};
+  const checker = o.checker === undefined ? 0.6 : Math.max(0, Math.min(1, o.checker));
+  const allowAnimated = !!o.allowAnimated;
+  // Pair must beat flat by this factor: checker 0 -> impossible, 1 -> any win.
+  const pairFactor = checker <= 0 ? 0 : 0.4 + 0.6 * checker;
+  const usable = [];
+  for (let i = 1; i < 256; i++) {
+    if (!allowAnimated && i >= 0xE0 && i <= 0xFB) continue;
+    usable.push(i);
+  }
+  const dist = (r, g, b, c) =>
+    2 * (r - c[0]) * (r - c[0]) + 4 * (g - c[1]) * (g - c[1]) + 3 * (b - c[2]) * (b - c[2]);
+  const luma = i => PAL_RGB[i][0] * 3 + PAL_RGB[i][1] * 6 + PAL_RGB[i][2];
+  const K = 12;
+  const out = new Uint8Array(W * H);
+  // Memoise per quantised colour: photographs repeat colours constantly, and
+  // the pair search over the shortlist is the expensive part.
+  const memo = new Map();
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const p = (y * W + x) * 4;
+      if (rgba[p + 3] < 128) { out[y * W + x] = 0; continue; }
+      const r = rgba[p], g = rgba[p + 1], b = rgba[p + 2];
+      const key = ((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2);
+      let sol = memo.get(key);
+      if (!sol) {
+        const short = usable.map(i => [dist(r, g, b, PAL_RGB[i]), i])
+          .sort((a, c) => a[0] - c[0]).slice(0, K);
+        const flatErr = short[0][0], flat = short[0][1];
+        let best = null, bestErr = Infinity;
+        for (let a = 0; a < short.length; a++)
+          for (let c = a + 1; c < short.length; c++) {
+            const A = PAL_RGB[short[a][1]], B = PAL_RGB[short[c][1]];
+            const e = dist(r, g, b, [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2]);
+            if (e < bestErr) { bestErr = e; best = [short[a][1], short[c][1]]; }
+          }
+        if (best && bestErr < flatErr * pairFactor) {
+          if (luma(best[0]) > luma(best[1])) best = [best[1], best[0]];
+          sol = { pair: best };
+        } else sol = { flat };
+        memo.set(key, sol);
+      }
+      out[y * W + x] = sol.pair ? sol.pair[(x + y) & 1] : sol.flat;
+    }
+  }
+  return out;
+}
+
+/* Indexed pixels -> Delver Compressed Graphics, using only the literal-data
+ * opcodes: 0xC0-0xCF chunks of 4..64 pixels, a 0xD0-0xDF nibble chunk for a
+ * sub-4 remainder, 0xFF to terminate. The same store-only trade the ZIP
+ * writer makes: bigger than DelvEd's output and byte-for-byte decodable by
+ * every decompressor in sight -- delvmod's own literal emitter (the 0xC0
+ * chunker at the end of graphics.py compress) is the model.
+ * delv_write_check.mjs proves decompressDCG AND delvmod's DelvImage both
+ * decode this encoding back to the exact input. */
+function encodeDCGLiterals(indexed) {
+  const out = new Uint8Array(indexed.length + Math.ceil(indexed.length / 64) + 2);
+  let p = 0, i = 0;
+  while (indexed.length - i >= 4) {
+    const chunk = Math.min(64, (indexed.length - i) & ~3);
+    out[p++] = 0xC0 + (chunk >> 2) - 1;
+    out.set(indexed.subarray(i, i + chunk), p);
+    p += chunk; i += chunk;
+  }
+  const rem = indexed.length - i;
+  if (rem) {
+    out[p++] = 0xD0 | rem;
+    out.set(indexed.subarray(i), p);
+    p += rem;
+  }
+  out[p++] = 0xFF;
+  return out.subarray(0, p);
+}

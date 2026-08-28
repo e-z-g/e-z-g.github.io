@@ -406,6 +406,16 @@ pre.pane { background:#090806; color:#f9f86f; padding:12px; overflow:auto; max-h
  * this tool or the wiki supplies stay in the text face. A reader can tell at
  * a glance which words the archive itself said. */
 .dataname { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.95em; }
+#ditherTool { position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,.75);
+  display:flex; align-items:center; justify-content:center; overflow:auto; }
+#ditherTool .dtPanel { background:#1d1a14; border:1px solid #5a5142; border-radius:8px;
+  padding:14px 16px; width:min(92vw, 620px); max-height:92vh; overflow:auto; }
+#ditherTool .dtHead { font-size:16px; color:var(--gold); margin-bottom:10px;
+  display:flex; justify-content:space-between; align-items:center; }
+#ditherTool .dtRow { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:10px 0; }
+#ditherTool canvas { background:repeating-conic-gradient(#2a2a2a 0% 25%, #1c1c1c 0% 50%) 0 0/16px 16px;
+  image-rendering:pixelated; }
+#ditherTool select, #ditherTool input[type=range] { max-width:200px; }
 .ridLink { color: var(--gold, #d9b64a); text-decoration: underline dotted; cursor: pointer; }
 .dswitch { display:flex; align-items:center; gap:6px; padding:7px 10px; font-size:11px;
   color:#8a7f5f; background:#141210; border:1px solid var(--edge); border-top:0; }
@@ -998,6 +1008,7 @@ this tool from the delvmod wiki and is not in the archive. Turn tool-supplied na
       <label><input type="checkbox" id="chkSheetGrid" onchange="setSheetGridlines(this.checked)"> grid lines</label>
     </span>
   </span>
+  <button class="secondary" id="ditherBtn" style="display:none" onclick="openDitherTool()">Ditherize an image…</button>
   <button class="secondary" id="exportBtn" onclick="exportGallery()">Save this gallery as .zip</button>
   <span id="exportNote"></span>
 </div>
@@ -9103,6 +9114,118 @@ function showSpriteZoom(tileId, label) {
   document.body.appendChild(ov);
 }
 
+// --- The ditherizer ----------------------------------------------------
+// The undither run backwards, as a tool: any image in, Cythera-palette
+// checkerboard art out (ditherToCytheraPalette in js/delv-graphics.js does
+// the pixels; this is only the panel around it). In portrait mode the result
+// is exactly a portrait resource -- 64x64, palette-indexed, cut out on slot
+// 0 -- and one button DCG-encodes it and hands it to applyResourceEdit, so
+// your own face lands in the archive through the same rebuild every other
+// edit uses, ready for "Download edited archive".
+let _ditherSrc = null;      // the loaded Image, kept so sliders re-render
+function openDitherTool() {
+  let ov = document.getElementById('ditherTool');
+  if (ov) ov.remove();
+  ov = document.createElement('div');
+  ov.id = 'ditherTool';
+  const portraits = [];
+  for (let n = 0; n < 256; n++) {
+    const rid = 0x8800 + n;
+    try { if (getResourceBytes(rid)) portraits.push(rid); } catch (e) {}
+  }
+  ov.innerHTML =
+    '<div class="dtPanel">' +
+    '<div class="dtHead">Ditherize an image' +
+      '<button class="linkbtn" onclick="document.getElementById(\'ditherTool\').remove()">close</button></div>' +
+    '<input type="file" id="dtFile" accept="image/*">' +
+    '<div class="dtRow"><label>Mode <select id="dtMode">' +
+      '<option value="portrait">64×64 portrait (cover crop)</option>' +
+      '<option value="free">original size (up to 512px)</option></select></label>' +
+    '<label>Checker <input type="range" id="dtChecker" min="0" max="100" value="60"></label>' +
+    '<label><input type="checkbox" id="dtAnim"> allow animated ramps</label></div>' +
+    '<div class="dtRow"><canvas id="dtSrc" width="64" height="64"></canvas>' +
+    '<canvas id="dtOut" width="64" height="64"></canvas></div>' +
+    '<div class="dtRow">' +
+    '<button class="secondary" onclick="ditherDownloadPNG()">Download indexed PNG</button>' +
+    '<label>into <select id="dtTarget">' +
+      portraits.map(r => '<option value="' + r + '">0x' + r.toString(16).toUpperCase() +
+        (labelFor(r) ? ' — ' + svEsc(labelFor(r)) : '') + '</option>').join('') +
+    '</select></label>' +
+    '<button class="secondary" onclick="ditherReplacePortrait()">Replace portrait in archive</button>' +
+    '</div>' +
+    '<div class="inspDim">Portrait mode writes a real 64×64 resource: transparent pixels stay ' +
+    'the cut-out slot, animated palette ramps are avoided so nothing shimmers, and Replace rebuilds ' +
+    'the archive in memory — use the Data file menu’s downloads to keep it.</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+  document.getElementById('dtFile').onchange = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const img = new Image();
+    img.onload = () => { _ditherSrc = img; renderDither(); };
+    img.src = URL.createObjectURL(f);
+  };
+  document.getElementById('dtMode').onchange = renderDither;
+  document.getElementById('dtChecker').oninput = renderDither;
+  document.getElementById('dtAnim').onchange = renderDither;
+}
+
+function renderDither() {
+  if (!_ditherSrc) return;
+  const portrait = document.getElementById('dtMode').value === 'portrait';
+  const img = _ditherSrc;
+  let W, H, sx = 0, sy = 0, sw = img.width, sh = img.height;
+  if (portrait) {
+    W = H = 64;
+    // Cover crop: take the largest centred square.
+    const side = Math.min(img.width, img.height);
+    sx = (img.width - side) / 2; sy = (img.height - side) / 2;
+    sw = sh = side;
+  } else {
+    const scale = Math.min(1, 512 / Math.max(img.width, img.height));
+    W = Math.max(1, Math.round(img.width * scale));
+    H = Math.max(1, Math.round(img.height * scale));
+  }
+  const work = document.createElement('canvas');
+  work.width = W; work.height = H;
+  const wc = work.getContext('2d', { willReadFrequently: true });
+  wc.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+  const rgba = wc.getImageData(0, 0, W, H).data;
+  const indexed = ditherToCytheraPalette(rgba, W, H, {
+    checker: (+document.getElementById('dtChecker').value) / 100,
+    allowAnimated: document.getElementById('dtAnim').checked
+  });
+  window.DITHER_RESULT = { indexed, W, H, portrait };
+  const srcC = document.getElementById('dtSrc'), outC = document.getElementById('dtOut');
+  srcC.width = W; srcC.height = H;
+  srcC.getContext('2d').drawImage(work, 0, 0);
+  drawToCanvas(outC, W, H, indexed, 0);
+  const disp = Math.min(256, W * Math.max(1, Math.floor(256 / W)));
+  for (const c of [srcC, outC]) {
+    c.style.width = disp + 'px';
+    c.style.imageRendering = 'pixelated';
+  }
+}
+
+async function ditherDownloadPNG() {
+  const d = window.DITHER_RESULT;
+  if (!d) return;
+  const png = await encodeIndexedPNG(d.W, d.H, d.indexed, PAL_RGB, 0);
+  dlBlob(new Blob([png], { type: 'image/png' }), 'cythera_dithered.png');
+}
+
+function ditherReplacePortrait() {
+  const d = window.DITHER_RESULT;
+  if (!d) { setStatus('Load an image first.', true); return; }
+  if (!d.portrait) { setStatus('Switch to 64×64 portrait mode to write a portrait resource.', true); return; }
+  const resid = +document.getElementById('dtTarget').value;
+  if (!resid) return;
+  if (applyResourceEdit(resid, encodeDCGLiterals(d.indexed))) {
+    const t = document.getElementById('ditherTool');
+    if (t) t.remove();
+  }
+}
+
 // --- Locks and the keys that fit them ---------------------------------
 // A door, gate, portcullis, chest or trunk with a nonzero first data byte is
 // locked, and that byte is the LOCK ID; a key item (proptype 66) carries the
@@ -9227,6 +9350,8 @@ function updateGalleryTools() {
   if (vb) vb.textContent = window.GALLERY_VIEW === 'list' ? '\u25a6 Gallery' : '\u2261 List';
   const sw = document.getElementById('sheetShapeWrap');
   if (sw) sw.style.display = (window.CUR_SUBN === 141 && inGallery) ? 'inline-flex' : 'none';
+  const db = document.getElementById('ditherBtn');
+  if (db) db.style.display = (window.CUR_SUBN === 135 && inGallery) ? '' : 'none';
   const ss = document.getElementById('gallerySortSel');
   if (ss && ss.value !== window.GALLERY_SORT) ss.value = window.GALLERY_SORT;
   const note = document.getElementById('exportNote');
