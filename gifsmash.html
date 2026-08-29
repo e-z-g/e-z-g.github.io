@@ -127,6 +127,31 @@
     display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
   }
   .panel > h2 .note { text-transform: none; letter-spacing: 0; color: #5c5c5c; font-weight: 400; font-size: .72rem; }
+  .panel > h2 .ttl { display: inline-flex; align-items: center; gap: 7px; }
+
+  /* Info toggles: the long explanation lives one click away from the
+     control it explains, so the panel stays scannable for someone who
+     already knows what a palette is. */
+  button.i {
+    width: 15px; height: 15px; padding: 0; border-radius: 50%;
+    border: 1px solid #3a4652; background: transparent; color: #6f8296;
+    font-size: 10px; font-weight: 700; line-height: 1; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: Georgia, serif; font-style: italic;
+  }
+  button.i:hover { border-color: var(--accent); color: var(--accent); background: #16222e; }
+  button.i[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: #0d0d0d; }
+  .info {
+    border-left: 2px solid #2f4356; background: #111820; border-radius: 0 6px 6px 0;
+    padding: 11px 13px; margin: 0 0 13px; font-size: .79rem; line-height: 1.55; color: #94a2b0;
+    text-transform: none; letter-spacing: 0; font-weight: 400;
+  }
+  .info p { margin: 0 0 .65em; }
+  .info p:last-child { margin: 0; }
+  .info b, .info strong { color: #cdd8e2; font-weight: 600; }
+  .info code { color: #a8c0d4; }
+  .info ul { margin: 0 0 .65em; padding-left: 1.1em; }
+  .info li { margin-bottom: .25em; }
 
   /* ---- drop zone ---- */
   #drop {
@@ -220,6 +245,22 @@
   #status { font-size: .78rem; color: var(--muted); flex: 1 1 100%; min-height: 1.2em; }
   #status.err { color: var(--bad); }
 
+  /* ---- cropper ---- */
+  #cropStage {
+    position: relative; line-height: 0; border: 1px solid var(--line); border-radius: 8px;
+    overflow: hidden; background: #0a0a0a; display: flex; justify-content: center;
+  }
+  /* A portrait source would otherwise make this panel taller than the
+     screen; pointer coordinates come from getBoundingClientRect, so the
+     canvas can be laid out at any size without the maths caring. */
+  #cropCanvas { display: block; touch-action: none; cursor: crosshair; }
+  #cropEmpty { color: #4d4d4d; font-size: .82rem; padding: 34px 12px; text-align: center; line-height: 1.5; }
+  .cropbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 11px; }
+  .cropbar label { color: var(--muted); font-size: .76rem; }
+  .cropbar input[type=number] { width: 62px; padding: 4px 6px; font-size: .8rem; }
+  .cropbar .spacer { flex: 1; }
+  #cropSize { color: var(--dim); font-size: .78rem; font-variant-numeric: tabular-nums; }
+
   /* ---- preview ---- */
   #stage {
     background:
@@ -287,7 +328,21 @@
   <!-- ============ LEFT: controls ============ -->
   <div>
     <div class="panel">
-      <h2>Source</h2>
+      <h2><span class="ttl">Source <button type="button" class="i" data-info="i-source" aria-expanded="false" aria-label="About source">i</button></span></h2>
+      <div class="info" id="i-source" hidden>
+        <p>The file is read in this tab and never leaves it. A GIF is decoded frame by frame;
+           a video is decoded by seeking to each frame in turn and grabbing the picture, which
+           is why a long clip takes a moment to load and why the progress bar moves during it.</p>
+        <p>Everything after this works on the frames held in memory, not on the file. That is
+           what <b>decoding limits</b> govern: a frame costs four bytes per pixel while it is
+           held, so 300 frames of 720p is roughly 800 MB and a tab that falls over. The limits
+           trade fidelity you probably cannot use — a GIF this large is not going anywhere —
+           for a session that survives.</p>
+        <p>The <b>framerate</b> shown is the source's own. For a video it is measured from a
+           short burst of real playback where the browser will report it, and assumed to be 25
+           where it will not; set <b>decode at</b> to pin it. Nothing downstream can raise the
+           framerate above what was decoded here.</p>
+      </div>
       <div id="drop" tabindex="0" role="button" aria-label="Choose a video or GIF">
         <div class="big">Drop a video or GIF here</div>
         <div class="small">or click to choose &middot; mp4, mov, webm, gif</div>
@@ -326,7 +381,89 @@
     </div>
 
     <div class="panel">
-      <h2>Target <span class="note">what the file has to fit into</span></h2>
+      <h2><span class="ttl">Framing <button type="button" class="i" data-info="i-crop" aria-expanded="false" aria-label="About cropping">i</button></span><span class="note" id="cropNote">drag on the picture</span></h2>
+      <div class="info" id="i-crop" hidden>
+        <p>Drag a rectangle on the first frame to keep only part of the picture. Drag inside it
+           to move it, drag an edge or a corner to resize, double-click to go back to the whole
+           frame.</p>
+        <p>Cropping is the cheapest thing in this tool. Every other control trades quality for
+           size; a crop removes pixels that were never carrying anything — the desktop around
+           the window, the bars above and below a widescreen shot, the half of the frame where
+           nothing happens. Those pixels do not just cost their own bytes: they push colours
+           into the palette that the part you care about then has to share with, and any noise
+           in them defeats the frame-to-frame optimiser.</p>
+        <p>The <b>aspect</b> lock is there because most places a GIF ends up have a shape in
+           mind. An emoji slot is square and will letterbox anything that is not; a chat client
+           previewing a 3:1 strip will show it small. Locking the ratio before you drag is
+           easier than nudging four numbers afterwards.</p>
+        <p>The crop is in source pixels and is applied before scaling, so the output size is
+           the crop times whatever the scale knob settles on.</p>
+      </div>
+      <div id="cropStage"><div id="cropEmpty">Load something and its first frame appears here to crop.</div></div>
+      <div class="cropbar">
+        <label for="cropAspect">Aspect</label>
+        <select id="cropAspect">
+          <option value="0" selected>free</option>
+          <option value="1">1:1 square</option>
+          <option value="1.3333">4:3</option>
+          <option value="0.75">3:4 portrait</option>
+          <option value="1.7778">16:9</option>
+          <option value="0.5625">9:16 vertical</option>
+          <option value="2.3900">2.39:1 scope</option>
+        </select>
+        <span class="spacer"></span>
+        <span id="cropSize">—</span>
+        <button type="button" id="cropReset" disabled>Whole frame</button>
+      </div>
+      <div class="cropbar">
+        <label for="cropX">x</label><input type="number" id="cropX" value="0" min="0" step="1" disabled />
+        <label for="cropY">y</label><input type="number" id="cropY" value="0" min="0" step="1" disabled />
+        <label for="cropW">w</label><input type="number" id="cropW" value="0" min="1" step="1" disabled />
+        <label for="cropH">h</label><input type="number" id="cropH" value="0" min="1" step="1" disabled />
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="ttl">Target <button type="button" class="i" data-info="i-target" aria-expanded="false" aria-label="About targets">i</button></span><span class="note">what the file has to fit into</span></h2>
+      <div class="info" id="i-target" hidden>
+        <p>The whole tool exists to hit one number, so the number is the first thing to get
+           right. <b>Profiles</b> fill it in for somewhere a GIF commonly has to fit, along with
+           a sensible pixel ceiling for that place. They aim a little under the stated limit
+           because the limit is usually enforced on the upload and there is no second chance —
+           a file that comes out at 100.4% of a hard cap is a wasted run.</p>
+        <p><b>These numbers were right when this was written and platforms move them.</b> They
+           are starting points, not authorities; every one of them is editable, and the profile
+           switches to Custom the moment you change anything.</p>
+        <p><b>Max output edge</b> caps the long side of the finished GIF in pixels. It is not a
+           thing the loop trades away — it moves where the scale knob starts, so a 128-pixel
+           emoji is never encoded at 400 and then thrown away. Set it to 0 for no cap.</p>
+        <p><b>Approximate</b> feeds each result back as the ratio of target to actual and moves
+           every knob by its own function of that one number: framerate in proportion, colours
+           by the square root, resolution by the square, lossiness by a step. It closes in from
+           either side and is what you want almost always.</p>
+        <p><b>Threshold</b> ignores results until they fit: each knob walks steadily from its
+           starting value towards its limit across the iterations, and the run stops at the
+           first encode under the target. It is predictable, it never overshoots into
+           ugliness, and it usually lands well under the target — which means giving away
+           quality you were entitled to keep.</p>
+        <p><b>Iterations</b> is a ceiling on encodes, not a goal. Approximate mode normally
+           needs three or four.</p>
+      </div>
+      <div class="row">
+        <label class="name" for="profile">Profile</label>
+        <select id="profile" class="grow">
+          <option value="custom" selected>Custom</option>
+          <option value="discord">Discord — attachment (10 MB cap)</option>
+          <option value="discord-emoji">Discord — custom emoji (256 KB cap)</option>
+          <option value="slack">Slack — post inline</option>
+          <option value="slack-emoji">Slack — custom emoji (128 KB cap)</option>
+          <option value="github">GitHub — issue or PR (10 MB cap)</option>
+          <option value="x">X / Twitter (15 MB cap)</option>
+          <option value="email">Email attachment</option>
+          <option value="web">Web page — inline</option>
+        </select>
+      </div>
+      <p class="hint" id="profileHint">Nothing preset — the controls below are yours.</p>
       <div class="row">
         <label class="name" for="targetVal">Size</label>
         <input type="number" id="targetVal" value="2" min="0.001" step="0.1" />
@@ -335,6 +472,11 @@
           <option value="1000">KB</option>
         </select>
         <span class="hint full" style="margin:0" id="targetBytesTxt">= 2,000,000 bytes</span>
+      </div>
+      <div class="row">
+        <label class="name" for="maxOutEdge">Max output</label>
+        <input type="number" id="maxOutEdge" value="0" min="0" max="4096" step="16" />
+        <span class="hint full" style="margin:0">px on the long edge — 0 for no cap</span>
       </div>
       <div class="row">
         <label class="name">Mode</label>
@@ -353,7 +495,30 @@
     </div>
 
     <div class="panel">
-      <h2>What to give up <span class="note">weight 0 = never touch this</span></h2>
+      <h2><span class="ttl">What to give up <button type="button" class="i" data-info="i-knobs" aria-expanded="false" aria-label="About the knobs">i</button></span><span class="note">weight 0 = never touch this</span></h2>
+      <div class="info" id="i-knobs" hidden>
+        <p>Four things can be spent to make a GIF smaller, and the weights decide the mix. A
+           weight of 0 pins that knob where it started and the loop will never touch it — the
+           way to say "I will accept anything except a smaller picture".</p>
+        <p><b>Framerate</b> is the bluntest and usually the cheapest to give: halve it and you
+           halve the frames. Motion goes stuttery long before it goes unwatchable, and below
+           about 8 fps most footage reads as a flip-book rather than as bad video. GIF stores
+           delays in hundredths of a second, so the rate you ask for is quantised on the way
+           out.</p>
+        <p><b>Lossiness</b> is the strangest. It does not touch the picture directly: it lets
+           the compressor swap a pixel for a near-identical palette entry when that lets a
+           run of pixels compress as one. Low values are nearly invisible and can take a third
+           off the file. High values smear detail into blotches that crawl between frames.</p>
+        <p><b>Scale</b> costs the most per unit and buys the most: size goes roughly as the
+           square of it, so 70% resolution is about half the bytes. It is also the only one
+           that degrades gracefully — a smaller GIF just looks like a smaller GIF, where
+           the others look like a damaged one.</p>
+        <p><b>Colours</b> is a fixed palette shared by every frame. Photographic footage falls
+           apart into banding below about 64; flat graphics, screen recordings and line art
+           often survive down to 16 or fewer and shrink enormously doing it.</p>
+        <p>The current value of each knob is shown at the top right of its card as the run
+           progresses.</p>
+      </div>
       <div class="knobs">
         <div class="knob" id="knobF">
           <h3>Framerate <em id="fCur">—</em></h3>
@@ -393,9 +558,37 @@
         </div>
       </div>
 
+      <div class="row wide" style="margin-top:12px">
+        <label class="name" for="motionThreshold">Motion threshold</label>
+        <input type="range" id="motionThreshold" min="0" max="40" step="1" value="0" class="grow" />
+        <output id="motionOut" style="width:2.2em;text-align:right;color:var(--dim);font-size:.8rem">off</output>
+        <button type="button" class="i" data-info="i-motion" aria-expanded="false" aria-label="About the motion threshold">i</button>
+      </div>
+      <div class="info" id="i-motion" hidden>
+        <p>Hold anything that is barely moving perfectly still. A pixel whose colour has
+           shifted by less than this since the last frame keeps the colour it had; anything
+           that moves more than this is drawn as normal.</p>
+        <p>On real footage this is often the single largest win available, larger than every
+           other control put together. A GIF only stores what changed between frames, so a shot
+           of a still wall should cost almost nothing after the first frame — but camera grain,
+           the source video's own compression, and a gradient wobbling by one step mean that in
+           practice <i>every</i> pixel changes slightly, every frame, and the whole picture is
+           re-sent each time. A threshold of 6 to 10 usually removes all of that and leaves
+           genuine movement untouched. On a noisy but nearly static test clip it takes the file
+           from 509 KB to 36 KB.</p>
+        <p>Push it too far and you get the failure it is named for: slow movement — a pan, a
+           fade, a face turning — falls below the threshold and freezes, then jumps when it
+           finally crosses. Faces and skies go first. If motion starts sticking, come down.</p>
+        <p>It costs nothing on the way in and is not one of the knobs the loop trades away, so
+           set it once and let the loop work below it.</p>
+      </div>
+
       <details>
-        <summary>Encoder</summary>
+        <summary>Encoder <button type="button" class="i" data-info="i-dither" aria-expanded="false" aria-label="About the encoder settings">i</button></summary>
         <div class="body">
+          <p class="hint full">How the picture is turned into 256-or-fewer colours, resized, and
+             packed. The defaults are the ones the original script used; each is a real
+             trade rather than a quality slider.</p>
           <div class="row wide"><label class="name" for="dither">Dither</label>
             <select id="dither" class="grow">
               <option value="bayer" selected>Bayer (ordered)</option>
@@ -411,6 +604,39 @@
           </div>
           <p class="hint">Ordered dithering compresses far better than error diffusion — the pattern
              repeats, so LZW eats it. Higher scale means a weaker, coarser pattern.</p>
+          <div class="info" id="i-dither" hidden>
+            <p><b>Dither</b> decides how a colour the palette does not have gets faked. The
+               choice matters more for file size than for looks: <b>Floyd–Steinberg</b> and the
+               two <b>Sierra</b> kernels scatter their error into neighbouring pixels, which
+               looks smooth and gives the compressor a field of unique values to chew on — on
+               a test clip they came out 45% <i>larger</i> than no dithering at all.
+               <b>Bayer</b> lays down a fixed 8×8 pattern instead, so the same values repeat
+               and compress almost for free. It is the default for that reason, and its
+               crosshatch is the texture people recognise as "a GIF".</p>
+            <p><b>Palette from</b> chooses which pixels get a vote. <i>full</i> counts every
+               pixel of every frame. <i>diff</i> counts only pixels that changed, which spends
+               the palette on whatever is moving and lets a static background make do — good
+               for a talking head over a fixed backdrop, bad for a slow pan where nothing is
+               static and everything is.</p>
+            <p><b>Colour method</b> picks the palette entries. <i>diversity</i> takes colours
+               that are far apart, so rare but distinct things survive; <i>blend-diversity</i>
+               then pulls each entry towards the average of what maps to it, which is gentler
+               on gradients; <i>median-cut</i> splits the colour cube by population and favours
+               whatever there is most of.</p>
+            <p><b>Resize method</b> is the filter used when scaling down. <i>lanczos3</i> is
+               sharpest, <i>mitchell</i> and <i>catrom</i> are softer and ring less,
+               <i>mix</i> is a plain area average, and <i>sample</i> is nearest-neighbour —
+               which is what you want for pixel art and nothing else.</p>
+            <p><b>Optimisation</b> is how much work goes into not re-sending pixels that did
+               not change. <i>-O1</i> crops each frame to the rectangle that moved. <i>-O2</i>
+               also marks unchanged pixels transparent so the decoder leaves them alone.
+               <i>-O3</i> encodes both ways and keeps whichever came out smaller, which is
+               worth the extra pass surprisingly often: on noisy footage the map of what
+               changed costs more than the pixels it replaces.</p>
+            <p><b>Transparency</b> reserves one palette slot for "leave this alone". Sources
+               with alpha need it, and without it -O2 and -O3 have no way to skip a pixel and
+               fall back to -O1.</p>
+          </div>
           <div class="row wide"><label class="name" for="statsMode">Palette from</label>
             <select id="statsMode" class="grow">
               <option value="full" selected>full — every pixel of every frame</option>
@@ -451,7 +677,7 @@
       </details>
 
       <details>
-        <summary>Loop behaviour</summary>
+        <summary>Loop behaviour <button type="button" class="i" data-info="i-loop" aria-expanded="false" aria-label="About loop behaviour">i</button></summary>
         <div class="body">
           <div class="row wide"><label class="name">Keep</label>
             <label class="check"><input type="checkbox" id="keepBest" checked /> best iteration, not the last</label>
@@ -467,6 +693,19 @@
               <option value="none">used as given</option>
             </select>
           </div>
+          <div class="info" id="i-loop" hidden>
+            <p><b>Keep best</b> holds on to whichever pass landed closest under the target
+               rather than whichever happened to run last. The original script always shipped
+               the last one, which meant an iteration that overshot after a good one threw the
+               good one away. Turn it off to reproduce that.</p>
+            <p><b>Stop within</b> ends the run once a result is under the target and within
+               this much of it. Set it to 0 and the run always spends every iteration, which
+               is what the script did — and, with keep-best on, occasionally finds something
+               better on the last pass.</p>
+            <p>A run also stops early when a result fits and every knob is still at its
+               starting value: there is nothing left to hand back, so further passes would
+               encode the same file again.</p>
+          </div>
           <p class="hint">The script divided every weight by 2 no matter what the others were, so
              weight 1 means "close half the gap". Sharing divides by the sum of the four instead,
              which is what the line it overwrote was computing. As-given divides by nothing: in
@@ -479,7 +718,16 @@
     </div>
 
     <div class="panel">
-      <h2>Run</h2>
+      <h2><span class="ttl">Run <button type="button" class="i" data-info="i-run" aria-expanded="false" aria-label="About run">i</button></span></h2>
+      <div class="info" id="i-run" hidden>
+        <p>Each pass is a full encode: palette, dither, resize, compress. Nothing is cached
+           between passes except the scaled frames when they fit in memory, so a run of six
+           iterations does six times the work of one.</p>
+        <p>Encoding happens in a worker where the browser allows one, which is why the page
+           stays responsive and <b>Stop</b> takes effect immediately. Opening this file
+           directly from disk sometimes refuses workers; it then encodes on the main thread
+           instead, and the status line says so.</p>
+      </div>
       <div id="runbar">
         <button id="go" class="primary" disabled>Smash</button>
         <button id="stop" class="danger" disabled>Stop</button>
@@ -492,7 +740,21 @@
   <!-- ============ RIGHT: output ============ -->
   <div>
     <div class="panel">
-      <h2>Result <span class="note" id="viewLabel"></span></h2>
+      <h2><span class="ttl">Result <button type="button" class="i" data-info="i-result" aria-expanded="false" aria-label="About the result">i</button></span><span class="note" id="viewLabel"></span></h2>
+      <div class="info" id="i-result" hidden>
+        <p><b>Of target</b> is what matters: green means it fits. <b>Vs source file</b> compares
+           against the file you loaded, and it will often say <i>bigger</i> — a GIF is an
+           animation format from 1989 with no motion compensation, and asking one to hold what
+           a modern video codec held is asking a lot. The comparison is honest, not
+           encouraging.</p>
+        <p><b>Framerate</b> is what was asked for; the delays actually written are whole
+           hundredths of a second, so the played rate can differ slightly. <b>Colours</b>
+           includes the reserved transparent slot when there is one, and can come out below
+           what the loop asked for when the source simply has fewer.</p>
+        <p><b>Pixelated</b> turns off smoothing in the preview so you can see the real pixels
+           and judge the dither pattern. Small results are scaled up by whole numbers so this
+           stays honest.</p>
+      </div>
       <div id="stage"><div class="placeholder">Nothing encoded yet.</div></div>
       <div class="viewbar">
         <div class="seg" id="viewSeg">
@@ -518,7 +780,17 @@
     </div>
 
     <div class="panel">
-      <h2>Iterations <span class="note" id="iterNote"></span></h2>
+      <h2><span class="ttl">Iterations <button type="button" class="i" data-info="i-iters" aria-expanded="false" aria-label="About the iteration log">i</button></span><span class="note" id="iterNote"></span></h2>
+      <div class="info" id="i-iters" hidden>
+        <p>One row per encode, showing the settings that pass used and what they weighed. The
+           marked row is the one that was kept.</p>
+        <p>Rows numbered <code>n pre</code> only appear in threshold mode: before damaging
+           anything, that mode checks whether the current framerate alone is already enough at
+           full quality, and takes it if so.</p>
+        <p>Approximate mode overshooting and then coming back is normal and is the algorithm
+           working — it corrects from wherever it currently stands, so a pass that lands well
+           under the target is answered by a pass that gives some quality back.</p>
+      </div>
       <div id="logWrap">
         <div class="empty" id="logEmpty">Each pass prints the settings it tried and what they weighed.</div>
         <table class="log" id="logTable" style="display:none">
@@ -1198,6 +1470,20 @@ function crop(data, w, h, x0, y0, cw, ch) {
   return out;
 }
 
+/* Crop in the RGBA plane. Everything downstream — histogram, dither,
+ * frame differencing — sees only what survives this, so cropping is
+ * free compression as well as framing: the pixels outside the rectangle
+ * never cost a byte and never pull a colour out of the palette. */
+function cropRgba(src, sw, sh, x, y, w, h) {
+  if (x === 0 && y === 0 && w === sw && h === sh) return src;
+  var out = new Uint8ClampedArray(w * h * 4);
+  for (var r = 0; r < h; r++) {
+    var so = ((y + r) * sw + x) * 4;
+    out.set(src.subarray(so, so + w * 4), r * w * 4);
+  }
+  return out;
+}
+
 /* ================================================================== *
  * 6. GIF ASSEMBLY
  * ================================================================== */
@@ -1327,17 +1613,22 @@ GS.encodeOnce = async function (job, s, report, isCancelled) {
   var count = tl.idx.length;
   if (count === 0) throw new Error('nothing to encode');
 
-  var dw = Math.max(1, Math.round(job.width * s.scale));
-  var dh = Math.max(1, Math.round(job.height * s.scale));
-  var scaling = dw !== job.width || dh !== job.height;
+  var cr = s.crop || { x: 0, y: 0, w: job.width, h: job.height };
+  var cw0 = Math.max(1, cr.w), ch0 = Math.max(1, cr.h);
+  var cropping = cr.x !== 0 || cr.y !== 0 || cw0 !== job.width || ch0 !== job.height;
+
+  var dw = Math.max(1, Math.round(cw0 * s.scale));
+  var dh = Math.max(1, Math.round(ch0 * s.scale));
+  var scaling = dw !== cw0 || dh !== ch0;
 
   var cache = null;
-  if (!scaling || dw * dh * 4 * count <= SCALE_CACHE_BUDGET) cache = new Array(count);
+  if ((!scaling && !cropping) || dw * dh * 4 * count <= SCALE_CACHE_BUDGET) cache = new Array(count);
 
   function frameAt(i) {
     if (cache && cache[i]) return cache[i];
     var src = job.frames[tl.idx[i]];
-    var out = scaling ? resampleImage(src, job.width, job.height, dw, dh, s.resizeMethod) : src;
+    if (cropping) src = cropRgba(src, job.width, job.height, cr.x, cr.y, cw0, ch0);
+    var out = scaling ? resampleImage(src, cw0, ch0, dw, dh, s.resizeMethod) : src;
     if (cache) cache[i] = out;
     return out;
   }
@@ -1367,10 +1658,55 @@ GS.encodeOnce = async function (job, s, report, isCancelled) {
   if (trans >= 0) canvas.fill(trans);
   var havePrev = false;
 
+  /* The motion hold. A pixel whose colour has barely moved since the
+   * last frame is not new information — it is sensor noise, or the tail
+   * of a compression artefact in the source, or a gradient wobbling by
+   * one step. Left alone it is ruinously expensive: it breaks the run of
+   * "unchanged" pixels that -O2 turns into transparency, so a shot of a
+   * still wall costs as much as a shot of a waterfall.
+   *
+   * Holding is done on colours rather than on palette indices, and the
+   * held frame is what the dither sees, so the decision survives the
+   * palette changing underneath it between iterations. The index-level
+   * snap afterwards is belt and braces for the error-diffusion dithers,
+   * where a change three pixels away can still walk its error into a
+   * pixel we just decided was standing still. */
+  var held = null, heldMask = null;
+  var motion2 = s.motionThreshold > 0 ? s.motionThreshold * s.motionThreshold : 0;
+
   for (i = 0; i < count; i++) {
     if (isCancelled()) throw new Error('cancelled');
-    var cur = ditherFrame(frameAt(i), dw, dh, pal, lut, s.dither, s.bayerScale);
+
+    var rgbaIn = frameAt(i);
+    if (motion2) {
+      if (!held) {
+        held = new Uint8ClampedArray(rgbaIn);
+        heldMask = new Uint8Array(dw * dh);
+      } else {
+        for (var q = 0; q < heldMask.length; q++) {
+          var qo = q * 4;
+          var sameAlpha = (rgbaIn[qo + 3] < 128) === (held[qo + 3] < 128);
+          if (sameAlpha && dist2(rgbaIn[qo], rgbaIn[qo + 1], rgbaIn[qo + 2],
+                                 held[qo], held[qo + 1], held[qo + 2]) <= motion2) {
+            heldMask[q] = 1;
+          } else {
+            heldMask[q] = 0;
+            held[qo] = rgbaIn[qo]; held[qo + 1] = rgbaIn[qo + 1];
+            held[qo + 2] = rgbaIn[qo + 2]; held[qo + 3] = rgbaIn[qo + 3];
+          }
+        }
+      }
+      rgbaIn = held;
+    }
+
+    var cur = ditherFrame(rgbaIn, dw, dh, pal, lut, s.dither, s.bayerScale);
     if (cache) cache[i] = null;      // scaled RGBA is dead once dithered
+
+    if (motion2 && havePrev) {
+      for (var q2 = 0; q2 < heldMask.length; q2++) {
+        if (heldMask[q2] && cur[q2] !== trans && canvas[q2] !== trans) cur[q2] = canvas[q2];
+      }
+    }
 
     var x0 = 0, y0 = 0, cw = dw, ch = dh, disposal = 1, useTrans = trans;
     var full = !havePrev || s.optLevel === 0;
@@ -1486,7 +1822,22 @@ GS.smash = async function (job, cfg, report, isCancelled) {
   var cW = relativise(cfg.cWeight, wsum, cfg.normMode);
 
   var initFramerate = t2(job.initFps);
-  var initLossy = 0, initScale = 1, initColors = 256;
+  var initLossy = 0, initColors = 256;
+
+  /* A hard ceiling on the output's long edge is not one of the script's
+   * knobs — the script had no idea where its GIF was going. It belongs
+   * with the profiles: an emoji slot that will only ever show 128 pixels
+   * gains nothing from being handed 400, and every one of those pixels
+   * is paid for. Rather than add a fifth thing for the loop to trade
+   * away, the cap simply moves where the scale knob starts, so the loop
+   * below still sees a scale of "all of it" and works unchanged. */
+  var cropW = cfg.crop ? cfg.crop.w : job.width;
+  var cropH = cfg.crop ? cfg.crop.h : job.height;
+  var initScale = 1;
+  if (cfg.maxOutEdge > 0 && Math.max(cropW, cropH) > cfg.maxOutEdge) {
+    initScale = Math.max(0.01, t2(cfg.maxOutEdge / Math.max(cropW, cropH)));
+  }
+  var minScale = Math.min(cfg.minScale, initScale);
 
   var framerate = initFramerate;
   var lossy = Math.min(cfg.maxLossy, initLossy);
@@ -1514,7 +1865,7 @@ GS.smash = async function (job, cfg, report, isCancelled) {
       dither: cfg.dither, bayerScale: cfg.bayerScale,
       statsMode: cfg.statsMode, reserveTransparent: cfg.reserveTransparent,
       colorMethod: cfg.colorMethod, resizeMethod: cfg.resizeMethod,
-      optLevel: cfg.optLevel
+      optLevel: cfg.optLevel, crop: cfg.crop, motionThreshold: cfg.motionThreshold
     };
   }
 
@@ -1541,6 +1892,12 @@ GS.smash = async function (job, cfg, report, isCancelled) {
       if (iteration >= cfg.maxIterations || ti(gw * 100) === 100) break;
       if (cfg.tolPct > 0 && res.bytes.length <= target &&
           res.bytes.length >= target * (1 - cfg.tolPct / 100)) break;
+      // Under target with every knob still at its starting value: the
+      // loop's only remaining move is to hand quality back, and there is
+      // none left to hand back. Further iterations would encode the same
+      // file again. (The script had no way to notice this and would.)
+      if (res.bytes.length <= target && framerate === initFramerate &&
+          lossy === initLossy && scale === initScale && colors === initColors) break;
 
       // FPS is proportional to size, so it moves with the raw ratio.
       framerate = t2(framerate - framerate * fW * (1 - gw));
@@ -1558,7 +1915,7 @@ GS.smash = async function (job, cfg, report, isCancelled) {
       // Scale is area, so size goes as its square: correct by the root.
       if (ti(sW * 100) > 0) {
         scale = t2(scale - scale * sW * (1 - Math.sqrt(gw)));
-        if (ti(scale * 100) <= ti(cfg.minScale * 100)) scale = cfg.minScale;
+        if (ti(scale * 100) <= ti(minScale * 100)) scale = minScale;
         else if (ti(scale * 100) >= ti(initScale * 100)) scale = initScale;
       }
 
@@ -1580,7 +1937,7 @@ GS.smash = async function (job, cfg, report, isCancelled) {
   if (cfg.mode === 'threshold') {
     var fBreadth = t2(initFramerate - cfg.minFramerate);
     var lBreadth = t2(cfg.maxLossy - initLossy);
-    var sBreadth = t2(initScale - cfg.minScale);
+    var sBreadth = t2(initScale - minScale);
     var cBreadth = t2(initColors - cfg.minColors);
     var iter = 0, reached = false;
 
@@ -1619,7 +1976,7 @@ GS.smash = async function (job, cfg, report, isCancelled) {
       }
       if (ti(sW * 100) > 0) {
         var ws = t2(initScale - sW * sBreadth * iterMult);
-        scale = ti(ws * 100) < ti(cfg.minScale * 100) ? cfg.minScale : ws;
+        scale = ti(ws * 100) < ti(minScale * 100) ? minScale : ws;
       }
       if (ti(cW * 100) > 0) {
         var wc = ceilAwk(t2(initColors - cW * cBreadth * iterMult));
@@ -2025,6 +2382,88 @@ function syncTargetText() { $('targetBytesTxt').textContent = '= ' + fmtNum(targ
   slider.addEventListener('input', sync);
   sync();
 });
+/* ---- info toggles ---- *
+ * A button inside a <summary> would otherwise toggle the <details> as
+ * well as the panel, and an info block that lives inside a closed
+ * <details> would open invisibly, so do both explicitly. */
+Array.prototype.forEach.call(document.querySelectorAll('button.i'), function (b) {
+  b.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var panel = $(b.dataset.info);
+    if (!panel) return;
+    var opening = panel.hidden;
+    panel.hidden = !opening;
+    b.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    if (opening) {
+      var d = panel.closest('details');
+      if (d) d.open = true;
+    }
+  });
+});
+
+$('motionThreshold').addEventListener('input', function () {
+  $('motionOut').textContent = this.value === '0' ? 'off' : this.value;
+});
+
+/* ---- profiles ----
+ * Sizes aim under the stated cap: these limits are enforced at upload
+ * time with no second chance, and a file that lands at 100.4% of one is
+ * a whole run thrown away. The pixel ceilings are what the destination
+ * actually displays — an emoji slot renders 128 pixels no matter what
+ * you hand it, so anything larger is bytes spent on nothing.
+ *
+ * They were right when this was written and they will drift. They are
+ * starting points; touching any of them drops back to Custom. */
+var PROFILES = {
+  custom:          { hint: 'Nothing preset — the controls below are yours.' },
+  discord:         { size: 9.5, unit: 1000000, edge: 0,
+                     hint: 'Under the 10 MB free upload cap. Discord plays GIFs inline and only animates them on hover in some clients.' },
+  'discord-emoji': { size: 240, unit: 1000, edge: 128, aspect: '1', colors: 64,
+                     hint: 'Under the 256 KB custom-emoji cap, at the 128 px it is displayed at. Square, or it gets letterboxed.' },
+  slack:           { size: 2,   unit: 1000000, edge: 800,
+                     hint: 'Slack will take far larger, but an inline GIF is shown a few hundred pixels wide and everyone in the channel downloads it.' },
+  'slack-emoji':   { size: 120, unit: 1000, edge: 128, aspect: '1', colors: 64,
+                     hint: 'Under the 128 KB custom-emoji cap, at 128 px square — the tightest budget here, and worth cropping hard for.' },
+  github:          { size: 9.5, unit: 1000000, edge: 1000,
+                     hint: 'Under the 10 MB cap on images in issues and pull requests. Wider than about 1000 px is scaled down in the page anyway.' },
+  x:               { size: 14,  unit: 1000000, edge: 1000,
+                     hint: 'Under the 15 MB cap. X converts uploaded GIFs to video on its side, so treat this as a ceiling rather than a look.' },
+  email:           { size: 4.5, unit: 1000000, edge: 800,
+                     hint: 'Comfortably inside the 10 MB most mail servers accept, with room for the base64 overhead an attachment adds.' },
+  web:             { size: 1,   unit: 1000000, edge: 800,
+                     hint: 'A megabyte is already a lot to spend on decoration in a page. Under 500 KB is kinder.' }
+};
+var applyingProfile = false;
+
+$('profile').addEventListener('change', function () {
+  var pr = PROFILES[this.value] || PROFILES.custom;
+  $('profileHint').textContent = pr.hint;
+  if (this.value === 'custom') return;
+  applyingProfile = true;
+  $('targetVal').value = pr.size;
+  $('targetUnit').value = String(pr.unit);
+  $('maxOutEdge').value = pr.edge || 0;
+  if (pr.colors) $('minColors').value = Math.min(parseInt($('minColors').value, 10) || 4, pr.colors);
+  syncTargetText();
+  if (pr.aspect) {
+    $('cropAspect').value = pr.aspect;
+    applyAspect();
+  }
+  applyingProfile = false;
+});
+function markCustom() {
+  if (applyingProfile) return;
+  if ($('profile').value !== 'custom') {
+    $('profile').value = 'custom';
+    $('profileHint').textContent = PROFILES.custom.hint;
+  }
+}
+['targetVal', 'targetUnit', 'maxOutEdge'].forEach(function (id) {
+  $(id).addEventListener('input', markCustom);
+  $(id).addEventListener('change', markCustom);
+});
+
 $('bayerScale').addEventListener('input', function () { $('bayerScaleOut').textContent = this.value; });
 $('dither').addEventListener('change', function () {
   $('bayerRow').style.display = this.value === 'bayer' ? '' : 'none';
@@ -2096,6 +2535,285 @@ function showView(which) {
   $('viewLabel').textContent = '';
 }
 
+/* ================================================================== *
+ * THE CROPPER
+ *
+ * One canvas holds the first frame and everything drawn on top of it.
+ * The rectangle is kept in *source* pixels — not display pixels, not
+ * fractions — because it is handed to the encoder as an offset into the
+ * frames it already has, and because the numeric fields have to mean
+ * something. The canvas is drawn at whatever size fits the panel and
+ * pointer coordinates are converted on the way in.
+ * ================================================================== */
+
+var cropImg = null;          // canvas: first frame at source resolution
+var crop = null;             // {x,y,w,h} in source pixels, or null for the whole frame
+var cvW = 0, cvH = 0, kDraw = 1;
+var dragMode = null, dragStart = null, dragOrigin = null;
+
+var cropCv = document.createElement('canvas');
+cropCv.id = 'cropCanvas';
+
+function cropRect() {
+  if (crop) return crop;
+  return { x: 0, y: 0, w: job ? job.width : 0, h: job ? job.height : 0 };
+}
+function isFullFrame(r) {
+  return !job || (r.x === 0 && r.y === 0 && r.w === job.width && r.h === job.height);
+}
+
+function setupCropper() {
+  var stage = $('cropStage');
+  stage.innerHTML = '';
+  if (!cropImg) {
+    var e = document.createElement('div');
+    e.id = 'cropEmpty';
+    e.textContent = 'Load something and its first frame appears here to crop.';
+    stage.appendChild(e);
+    ['cropX', 'cropY', 'cropW', 'cropH', 'cropReset'].forEach(function (id) { $(id).disabled = true; });
+    $('cropSize').textContent = '—';
+    return;
+  }
+  stage.appendChild(cropCv);
+  ['cropX', 'cropY', 'cropW', 'cropH', 'cropReset'].forEach(function (id) { $(id).disabled = false; });
+  sizeCropper();
+}
+
+/* The canvas is laid out at an explicit size rather than left to CSS: a
+ * 120-pixel-wide GIF would otherwise sit at its natural size in the
+ * middle of a 340-pixel panel, which is unusable for dragging a
+ * rectangle on, and `width:100%` with `max-height` set squashes the
+ * aspect instead of limiting both. The backing store is sized to the
+ * display size so a magnified source is not also a blurry one, and
+ * kDraw carries whatever ratio that works out to — every coordinate in
+ * here goes through it, so it is free to be greater than 1. */
+function sizeCropper() {
+  if (!cropImg) return;
+  var stage = $('cropStage');
+  var availW = Math.max(120, stage.clientWidth - 2);
+  var maxH = Math.min(window.innerHeight * 0.46, 480);
+  var dispW = availW, dispH = dispW * (cropImg.height / cropImg.width);
+  if (dispH > maxH) { dispH = maxH; dispW = dispH * (cropImg.width / cropImg.height); }
+
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  cvW = Math.max(1, Math.min(1600, Math.round(dispW * dpr)));
+  cvH = Math.max(1, Math.round(cvW * (cropImg.height / cropImg.width)));
+  kDraw = cvW / cropImg.width;
+  cropCv.width = cvW; cropCv.height = cvH;
+  cropCv.style.width = Math.round(dispW) + 'px';
+  cropCv.style.height = Math.round(dispH) + 'px';
+  drawCropper();
+}
+
+function drawCropper() {
+  if (!cropImg) return;
+  var ctx = cropCv.getContext('2d');
+  ctx.clearRect(0, 0, cvW, cvH);
+  // Blown up more than 2x, show the real pixels rather than a guess at
+  // what is between them — this is the view people judge a crop on.
+  ctx.imageSmoothingEnabled = kDraw < 2;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(cropImg, 0, 0, cvW, cvH);
+
+  var r = cropRect();
+  syncCropFields(r);
+  if (isFullFrame(r)) { $('cropReset').disabled = true; return; }
+  $('cropReset').disabled = false;
+
+  var x = r.x * kDraw, y = r.y * kDraw, w = r.w * kDraw, h = r.h * kDraw;
+  ctx.fillStyle = 'rgba(6,8,10,0.68)';
+  ctx.fillRect(0, 0, cvW, y);
+  ctx.fillRect(0, y + h, cvW, cvH - (y + h));
+  ctx.fillRect(0, y, x, h);
+  ctx.fillRect(x + w, y, cvW - (x + w), h);
+
+  ctx.strokeStyle = 'rgba(126,184,247,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (var i = 1; i < 3; i++) {
+    ctx.moveTo(x + (w * i) / 3, y); ctx.lineTo(x + (w * i) / 3, y + h);
+    ctx.moveTo(x, y + (h * i) / 3); ctx.lineTo(x + w, y + (h * i) / 3);
+  }
+  ctx.stroke();
+
+  ctx.strokeStyle = '#7eb8f7';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.75, y + 0.75, Math.max(0, w - 1.5), Math.max(0, h - 1.5));
+
+  ctx.fillStyle = '#7eb8f7';
+  [[x, y], [x + w / 2, y], [x + w, y], [x + w, y + h / 2],
+   [x + w, y + h], [x + w / 2, y + h], [x, y + h], [x, y + h / 2]].forEach(function (p) {
+    ctx.fillRect(p[0] - 3, p[1] - 3, 6, 6);
+  });
+}
+
+function syncCropFields(r) {
+  $('cropNote').textContent = !job ? 'drag on the picture'
+    : isFullFrame(r) ? 'whole frame'
+    : Math.round((r.w * r.h * 100) / (job.width * job.height)) + '% of the pixels kept';
+  $('cropX').value = r.x; $('cropY').value = r.y;
+  $('cropW').value = r.w; $('cropH').value = r.h;
+  $('cropSize').textContent = r.w + '×' + r.h + (isFullFrame(r) ? ' (whole frame)' : ' of ' + job.width + '×' + job.height);
+}
+
+function pointerToSource(e) {
+  var b = cropCv.getBoundingClientRect();
+  return {
+    x: ((e.clientX - b.left) * (cvW / b.width)) / kDraw,
+    y: ((e.clientY - b.top) * (cvH / b.height)) / kDraw
+  };
+}
+
+/* Which of the eight handles, if any, is under the pointer. Tolerance is
+ * in display pixels converted back to source pixels, so a 4000-wide
+ * source is no harder to grab than a 400-wide one. */
+function hitTest(p, r) {
+  var b = cropCv.getBoundingClientRect();
+  var tol = (12 * (cvW / b.width)) / kDraw;
+  var nearL = Math.abs(p.x - r.x) < tol, nearR = Math.abs(p.x - (r.x + r.w)) < tol;
+  var nearT = Math.abs(p.y - r.y) < tol, nearB = Math.abs(p.y - (r.y + r.h)) < tol;
+  var inX = p.x > r.x - tol && p.x < r.x + r.w + tol;
+  var inY = p.y > r.y - tol && p.y < r.y + r.h + tol;
+  if (nearL && nearT) return 'nw';
+  if (nearR && nearT) return 'ne';
+  if (nearL && nearB) return 'sw';
+  if (nearR && nearB) return 'se';
+  if (nearL && inY) return 'w';
+  if (nearR && inY) return 'e';
+  if (nearT && inX) return 'n';
+  if (nearB && inX) return 's';
+  if (p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h) return 'move';
+  return null;
+}
+var CURSORS = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize',
+                n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', move: 'move' };
+
+function aspectValue() { return parseFloat($('cropAspect').value) || 0; }
+
+/* Snap a rectangle to the locked ratio and back inside the frame. The
+ * order matters: fix the ratio first and then push it in bounds, or a
+ * rectangle dragged off the edge comes back the wrong shape. */
+function constrain(r, anchor) {
+  var a = aspectValue();
+  r.w = Math.max(2, Math.round(r.w));
+  r.h = Math.max(2, Math.round(r.h));
+  if (a > 0) {
+    if (anchor === 'h') r.w = Math.round(r.h * a);
+    else r.h = Math.round(r.w / a);
+    if (r.w > job.width) { r.w = job.width; r.h = Math.round(r.w / a); }
+    if (r.h > job.height) { r.h = job.height; r.w = Math.round(r.h * a); }
+  }
+  r.w = Math.min(r.w, job.width);
+  r.h = Math.min(r.h, job.height);
+  r.x = Math.max(0, Math.min(Math.round(r.x), job.width - r.w));
+  r.y = Math.max(0, Math.min(Math.round(r.y), job.height - r.h));
+  return r;
+}
+
+function applyAspect() {
+  if (!job) return;
+  var a = aspectValue();
+  if (!a) { drawCropper(); return; }
+  var r = cropRect();
+  var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+  // Keep as much of the current selection as the ratio allows, centred
+  // where it already is — the alternative, growing to fit, walks the
+  // rectangle off whichever edge it was near.
+  var w = Math.min(r.w, Math.round(r.h * a));
+  var h = Math.round(w / a);
+  if (h > job.height) { h = job.height; w = Math.round(h * a); }
+  if (w > job.width) { w = job.width; h = Math.round(w / a); }
+  crop = constrain({ x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w: w, h: h }, 'w');
+  drawCropper();
+}
+
+cropCv.addEventListener('pointermove', function (e) {
+  if (dragMode || !job) return;
+  var m = crop ? hitTest(pointerToSource(e), cropRect()) : null;
+  cropCv.style.cursor = m ? CURSORS[m] : 'crosshair';
+});
+
+cropCv.addEventListener('pointerdown', function (e) {
+  if (!job) return;
+  e.preventDefault();
+  cropCv.setPointerCapture(e.pointerId);
+  var p = pointerToSource(e);
+  var r = cropRect();
+  // With no crop set, cropRect() is the whole frame and every press
+  // lands "inside" it — which would start a move that has nowhere to go.
+  // Nothing is selected yet, so a press means "begin one".
+  var m = crop ? hitTest(p, r) : null;
+  if (m) {
+    dragMode = m;
+    dragOrigin = { x: r.x, y: r.y, w: r.w, h: r.h };
+  } else {
+    dragMode = 'new';
+    dragOrigin = { x: p.x, y: p.y };
+  }
+  dragStart = p;
+});
+
+cropCv.addEventListener('pointermove', function (e) {
+  if (!dragMode || !job) return;
+  var p = pointerToSource(e);
+  var dx = p.x - dragStart.x, dy = p.y - dragStart.y;
+  var o = dragOrigin, r;
+
+  if (dragMode === 'new') {
+    r = { x: Math.min(o.x, p.x), y: Math.min(o.y, p.y),
+          w: Math.abs(p.x - o.x), h: Math.abs(p.y - o.y) };
+    // Dragging up or left has to keep the far corner pinned once the
+    // ratio rewrites the width and height.
+    var pinRight = p.x < o.x, pinBottom = p.y < o.y;
+    var far = { x: r.x + r.w, y: r.y + r.h };
+    r = constrain(r, 'w');
+    if (pinRight) r.x = Math.max(0, Math.min(Math.round(far.x) - r.w, job.width - r.w));
+    if (pinBottom) r.y = Math.max(0, Math.min(Math.round(far.y) - r.h, job.height - r.h));
+  } else if (dragMode === 'move') {
+    r = constrain({ x: o.x + dx, y: o.y + dy, w: o.w, h: o.h }, 'w');
+  } else {
+    r = { x: o.x, y: o.y, w: o.w, h: o.h };
+    if (dragMode.indexOf('w') >= 0) { r.x = o.x + dx; r.w = o.w - dx; }
+    if (dragMode.indexOf('e') >= 0) { r.w = o.w + dx; }
+    if (dragMode.indexOf('n') >= 0) { r.y = o.y + dy; r.h = o.h - dy; }
+    if (dragMode.indexOf('s') >= 0) { r.h = o.h + dy; }
+    if (r.w < 2) { r.w = 2; }
+    if (r.h < 2) { r.h = 2; }
+    var anchor = (dragMode === 'n' || dragMode === 's') ? 'h' : 'w';
+    var rightEdge = r.x + r.w, bottomEdge = r.y + r.h;
+    r = constrain(r, anchor);
+    if (dragMode.indexOf('w') >= 0) r.x = Math.max(0, Math.min(Math.round(rightEdge) - r.w, job.width - r.w));
+    if (dragMode.indexOf('n') >= 0) r.y = Math.max(0, Math.min(Math.round(bottomEdge) - r.h, job.height - r.h));
+  }
+  crop = r;
+  drawCropper();
+});
+
+function endDrag(e) {
+  if (!dragMode) return;
+  if (dragMode === 'new' && crop && (crop.w < 8 || crop.h < 8)) crop = null;   // a click, not a drag
+  dragMode = null;
+  try { cropCv.releasePointerCapture(e.pointerId); } catch (err) {}
+  drawCropper();
+}
+cropCv.addEventListener('pointerup', endDrag);
+cropCv.addEventListener('pointercancel', endDrag);
+cropCv.addEventListener('dblclick', function () { crop = null; drawCropper(); });
+
+$('cropReset').addEventListener('click', function () { crop = null; drawCropper(); });
+$('cropAspect').addEventListener('change', applyAspect);
+['cropX', 'cropY', 'cropW', 'cropH'].forEach(function (id) {
+  $(id).addEventListener('change', function () {
+    if (!job) return;
+    crop = constrain({
+      x: parseInt($('cropX').value, 10) || 0, y: parseInt($('cropY').value, 10) || 0,
+      w: parseInt($('cropW').value, 10) || 1, h: parseInt($('cropH').value, 10) || 1
+    }, id === 'cropH' ? 'h' : 'w');
+    drawCropper();
+  });
+});
+window.addEventListener('resize', function () { sizeCropper(); });
+
 /* ---- file intake ---- */
 var drop = $('drop');
 drop.addEventListener('click', function () { $('file').click(); });
@@ -2122,6 +2840,9 @@ async function load(file) {
   if (outUrl) { URL.revokeObjectURL(outUrl); outUrl = null; }
   if (srcEl && srcEl.tagName === 'IMG' && srcEl.src.indexOf('blob:') === 0) URL.revokeObjectURL(srcEl.src);
   srcEl = null;
+  crop = null;
+  cropImg = null;
+  setupCropper();
   showView('out');
   $('resultStats').classList.remove('on');
   clearLog();
@@ -2183,6 +2904,14 @@ async function load(file) {
       duration: duration, initFps: Math.max(0.1, Math.round(initFps * 100) / 100)
     };
 
+    // The first frame has to be copied out here: sendJob() transfers the
+    // frame buffers into the worker and this thread loses them, and the
+    // cropper needs pixels to draw on for the rest of the session.
+    cropImg = document.createElement('canvas');
+    cropImg.width = job.width; cropImg.height = job.height;
+    cropImg.getContext('2d').putImageData(
+      new ImageData(new Uint8ClampedArray(job.frames[0]), job.width, job.height), 0, 0);
+
     // A still preview of the first frame stands in for the source; for a
     // GIF the file itself animates, which is more useful for comparison.
     if (isGif) {
@@ -2192,7 +2921,7 @@ async function load(file) {
     } else {
       var cv = document.createElement('canvas');
       cv.width = job.width; cv.height = job.height;
-      cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(job.frames[0]), job.width, job.height), 0, 0);
+      cv.getContext('2d').drawImage(cropImg, 0, 0);
       srcEl = cv;
     }
 
@@ -2203,6 +2932,9 @@ async function load(file) {
     $('sFps').textContent = job.initFps + ' fps';
     $('sDur').textContent = (duration / 1000).toFixed(2) + ' s';
     $('srcInfo').classList.add('on');
+
+    setupCropper();
+    if (aspectValue()) applyAspect();
 
     $('fCur').textContent = job.initFps + ' fps';
     $('lCur').textContent = '0';
@@ -2311,6 +3043,12 @@ function readCfg() {
     resizeMethod: $('resizeMethod').value,
     optLevel: parseInt($('optLevel').value, 10),
     reserveTransparent: $('reserveTransparent').checked,
+    crop: (function () {
+      var r = cropRect();
+      return isFullFrame(r) ? null : { x: r.x, y: r.y, w: r.w, h: r.h };
+    })(),
+    motionThreshold: parseInt($('motionThreshold').value, 10) || 0,
+    maxOutEdge: Math.max(0, parseInt($('maxOutEdge').value, 10) || 0),
     keepBest: $('keepBest').checked,
     tolPct: Math.max(0, parseFloat($('tolPct').value) || 0),
     normMode: $('normMode').value
