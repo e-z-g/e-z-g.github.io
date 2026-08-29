@@ -60,6 +60,27 @@
   zlib stream, CRC32 and Adler32 included — bigger than a real compressor's
   output but dependency-free and bit-exact.
 
+  SPATIAL / STEREO VIDEO (the Facebook & Meta Quest side)
+  ────────────────────────────────────────────────────────
+  Meta's ecosystem takes stereo video two ways: Apple's MV-HEVC "spatial
+  video" (both eyes as HEVC layers in one track, uploaded via the Quest
+  app) and plain full side-by-side video. Panel 2 accepts .MOV/.MP4 too:
+
+    • The QuickTime/MP4 boxes are parsed for the stereo signals — Apple's
+      vexu box (stri eye flags, hero eye, cams/blin baseline in µm,
+      cmfy/dadj disparity adjustment) and the spherical-video st3d box —
+      so you can see at a glance what a file claims to be.
+    • MV-HEVC's second eye rides in NAL layers no browser decoder will
+      touch; hardware decoders play the base (left) eye and drop the rest.
+      Flatten to SBS first (ffmpeg 7.1+ decodes MV-HEVC, or an app like
+      Spatialify) and bring the SBS back here.
+    • For any stereo video the browser can play, a frame can be grabbed,
+      split into eyes, and run through a small SAD block matcher (7×7
+      blocks, ±8% search, percentile-normalized) to compute an actual
+      disparity map — exported through the same 16-bit PNG + JSON path.
+      Research-grade, not Apple-grade: it's honest window matching, no
+      smoothing, no ML. Near objects come out bright.
+
   Everything runs locally; nothing is uploaded anywhere.
 -->
 <style>
@@ -90,14 +111,25 @@
 
     <div class="card">
       <div class="card-title">2 · Pull the depth back out</div>
-      <p class="card-desc">Feed it a Portrait HEIC, a Portrait shared as JPEG, or any HEIC with auxiliary images. Exports 16-bit grayscale PNG + JSON sidecar.</p>
+      <p class="card-desc">Feed it a Portrait HEIC, a Portrait shared as JPEG, any HEIC with auxiliary images — or a spatial / side-by-side video. Exports 16-bit grayscale PNG + JSON sidecar.</p>
       <div class="drop-zone" id="dz-x" onclick="document.getElementById('fi-x').click()">
-        <p><strong>Click or drop a HEIC or JPEG</strong></p>
+        <p><strong>Click or drop a HEIC, JPEG, MOV or MP4</strong></p>
         <p>exported from Photos as “unmodified original”</p>
       </div>
-      <input type="file" id="fi-x" accept=".heic,.heif,.jpg,.jpeg,image/heic,image/heif,image/jpeg" onchange="pickX(this.files[0])">
+      <input type="file" id="fi-x" accept=".heic,.heif,.jpg,.jpeg,.mov,.mp4,image/heic,image/heif,image/jpeg,video/quicktime,video/mp4" onchange="pickX(this.files[0])">
       <div class="file-name" id="fn-x" hidden></div>
       <div class="item-list" id="item-list"></div>
+      <div id="video-ui" hidden>
+        <div class="preview-wrap"><canvas id="vid-frame"></canvas></div>
+        <div class="row"><label for="vid-time">Frame at</label><input type="range" id="vid-time" min="0" max="0" value="0" step="0.05" style="flex:1" oninput="seekVideo(this.value)"><span id="vid-time-label">0.0s</span></div>
+        <div class="row">
+          <label for="layout">Stereo layout</label>
+          <select id="layout"><option value="sbs">side-by-side</option><option value="tb">top-bottom</option></select>
+          <label style="min-width:auto"><input type="checkbox" id="swap-eyes"> swap eyes</label>
+        </div>
+        <button class="process-btn" id="btn-stereo" onclick="computeStereoDepth()">Compute depth from this frame</button>
+        <div class="ok-msg" id="stereo-status" hidden></div>
+      </div>
       <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview"></canvas></div>
       <div class="row" id="interp-row" hidden>
         <label for="interp">Values are</label>
@@ -126,8 +158,10 @@
         <li>Get it into the iPhone photo library <em>as a photo</em>: AirDrop it, or save to Files and share → Save Image. It should land in the main library, not in Screenshots.</li>
         <li>Open it in Photos on iOS 26+ and tap the spatial (hexagon) button top-right. The depth is inferred on-device, on the spot.</li>
       </ol>
+      <strong>Toggle still not showing?</strong> The gate is not only metadata. Known additional requirements, all reported in the wild: the phone must be on <em>Wi-Fi</em> (mobile data silently fails), <em>Reduce Motion</em> must be off (Settings → Accessibility → Motion), the <em>full-resolution original</em> must be on the device (with iCloud-optimized storage, open the photo and start-then-cancel an edit to force the download), and it takes an iPhone 12 or newer on iOS 26. Photos may also need a little time after import before the option appears. Work through that list before blaming the EXIF.<br><br>
       <strong>Getting depth out:</strong> the Spatial Scene depth map itself never leaves the phone — Photos renders it live and exports no file containing it. What <em>is</em> extractable, and what panel 2 reads: Portrait-mode shots (HEIC aux disparity image, or the extra JPEGs appended to a shared Portrait JPEG), HDR gain maps, and segmentation mattes. Export the <em>unmodified original</em> from Photos, or AirDrop to a Mac — “most compatible” conversions usually strip the aux images.<br><br>
       <strong>Output format:</strong> 16-bit grayscale PNG, values scaled ×257 from the 8-bit source, plus a JSON sidecar naming the source urn and whether bright means near (disparity) or far (depth). That pair drops straight into MiDaS-style depth pipelines.<br><br>
+      <strong>Spatial / Facebook & Meta video:</strong> Meta's side takes stereo video as Apple MV-HEVC (uploaded through the Meta Quest app; a Facebook feed post just shows it flat) or as plain full side-by-side video. Drop a .MOV/.MP4 above and the tool reads the stereo boxes — Apple's <code>vexu</code> (eyes, baseline, disparity adjustment) and the <code>st3d</code> SBS/TB tag — even when the browser can't play the codec. MV-HEVC's second eye is beyond every browser decoder, so flatten to SBS first (<code>ffmpeg</code> 7.1+ decodes MV-HEVC, or Spatialify on iOS) and feed the SBS back in: then you can grab a frame, split the eyes, and compute a real disparity map by block matching, exported in the same 16-bit PNG + JSON format. Facebook's old “3D photo” post type (2D + depth pair) was retired, so there is nothing left to inject depth into on the feed side.<br><br>
       HEIC decoding uses WebCodecs HEVC — works in Safari and in Chrome on hardware with an HEVC decoder. Where it can’t decode, the tool still lists the file’s contents and hands you the raw HEVC payload for <code>heif-convert --with-aux</code> or <code>ffmpeg</code>. Everything runs locally; nothing is uploaded.
     </div>
   </div>
@@ -334,14 +368,20 @@ function pickX(f){
   xFile=f; xPayloads=[]; selected=null; grayResult=null;
   $('fn-x').textContent=f.name; show('fn-x',true);
   $('item-list').innerHTML='';
-  ['preview-wrap','interp-row','btn-png','btn-json','btn-raw'].forEach(id=>show(id,false));
+  ['preview-wrap','interp-row','btn-png','btn-json','btn-raw','video-ui','stereo-status'].forEach(id=>show(id,false));
+  if(vidEl){ vidEl.remove(); vidEl=null; }
   setMsg('err-x','');
   f.arrayBuffer().then(buf=>{
     const bytes=new Uint8Array(buf);
     try{
-      if(bytes[0]===0xFF&&bytes[1]===0xD8) scanJpeg(bytes);
-      else if(String.fromCharCode(...bytes.subarray(4,8))==='ftyp') scanHeic(bytes);
-      else throw new Error('Not a JPEG or HEIC/HEIF file.');
+      if(bytes[0]===0xFF&&bytes[1]===0xD8) return scanJpeg(bytes);
+      if(String.fromCharCode(...bytes.subarray(4,8))==='ftyp'){
+        // ftyp major brand tells HEIF stills from movie files
+        const brand=String.fromCharCode(...bytes.subarray(8,12));
+        if(/^(heic|heix|heim|heis|hevc|mif1|msf1|avif)$/.test(brand)) return scanHeic(bytes);
+        return scanVideo(bytes,f);
+      }
+      throw new Error('Not a JPEG, HEIC/HEIF, or MP4/MOV file.');
     }catch(e){ setMsg('err-x',e.message); }
   });
 }
@@ -716,6 +756,220 @@ function renderSelected(){
   ctx.putImageData(img,0,0);
 }
 
+/* ───────────────── spatial / stereo video ─────────────────
+   Two independent things happen for a .MOV/.MP4: the box structure is
+   parsed for stereo signals (works even when the browser can't play the
+   codec at all), and — if the browser CAN play it — a frame can be
+   grabbed, split into eyes, and block-matched into a disparity map. */
+
+let vidEl=null, videoInfo=null;
+
+function scanVideo(bytes,file){
+  const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  const info={codecs:[],vexu:null,st3d:null,sv3d:false,mvhc:false,duration:0};
+
+  const CONTAINERS=new Set(['moov','trak','mdia','minf','stbl','edts','udta','mvex']);
+  function fourcc(p){ return String.fromCharCode(bytes[p],bytes[p+1],bytes[p+2],bytes[p+3]); }
+  function walk(start,end){
+    let p=start;
+    while(p+8<=end){
+      let size=dv.getUint32(p), hdr=8;
+      const type=fourcc(p+4);
+      if(size===1){ size=Number(dv.getBigUint64(p+8)); hdr=16; }
+      else if(size===0) size=end-p;
+      if(size<hdr||p+size>end) break;
+      const body=p+hdr, bodyEnd=p+size;
+      if(CONTAINERS.has(type)) walk(body,bodyEnd);
+      else if(type==='mvhd'){
+        const v=bytes[body];
+        const ts=v===1?dv.getUint32(body+20):dv.getUint32(body+12);
+        const dur=v===1?Number(dv.getBigUint64(body+24)):dv.getUint32(body+16);
+        if(ts) info.duration=dur/ts;
+      }
+      else if(type==='stsd'){
+        const n=dv.getUint32(body+4);
+        let q=body+8;
+        for(let i=0;i<n&&q+16<=bodyEnd;i++){
+          const es=dv.getUint32(q), et=fourcc(q+4);
+          if(/^(hvc1|hev1|avc1|avc3|dvh1|dvhe|ap4h|mp4v|vp09|av01)$/.test(et)){
+            const entry={type:et,w:dv.getUint16(q+8+24),h:dv.getUint16(q+8+26),children:[]};
+            // visual sample entry: 78 bytes of fields after the box header,
+            // then child boxes (hvcC, vexu, st3d, colr, …)
+            walkEntry(q+86,q+es,entry);
+            info.codecs.push(entry);
+          }
+          q+=es||8;
+        }
+      }
+      p+=size;
+    }
+  }
+  function walkEntry(start,end,entry){
+    let p=start;
+    while(p+8<=end){
+      const size=dv.getUint32(p), type=fourcc(p+4);
+      if(size<8||p+size>end) break;
+      entry.children.push(type);
+      if(type==='vexu') info.vexu=parseVexu(p+8,p+size);
+      else if(type==='st3d') info.st3d=bytes[p+8+4]; // fullbox hdr, then stereo_mode
+      else if(type==='sv3d') info.sv3d=true;
+      else if(type==='lhvC') info.mvhc=true; // layered-HEVC config = MV-HEVC second eye
+      p+=size;
+    }
+  }
+  function parseVexu(start,end){
+    const v={boxes:[]};
+    let p=start;
+    while(p+8<=end){
+      const size=dv.getUint32(p), type=fourcc(p+4);
+      if(size<8||p+size>end) break;
+      v.boxes.push(type);
+      if(type==='stri') v.stri=bytes[p+8+4];           // eye-presence flags
+      else if(type==='hero') v.hero=bytes[p+8+4];
+      else if(type==='cams'||type==='cmfy'){           // containers: blin / dadj leaves
+        let q=p+8;
+        while(q+8<=p+size){
+          const s=dv.getUint32(q), t=fourcc(q+4);
+          if(s<8||q+s>p+size) break;
+          if(t==='blin') v.baseline_um=dv.getUint32(q+8+4);
+          if(t==='dadj') v.dadj=dv.getInt32(q+8+4)/10000;
+          q+=s;
+        }
+      }
+      p+=size;
+    }
+    return v;
+  }
+  walk(0,bytes.length);
+  videoInfo=info;
+
+  const list=$('item-list');
+  const add=(strong,small)=>{
+    const d=document.createElement('div');
+    d.className='item-btn'; d.style.cursor='default';
+    d.innerHTML=`<strong>${strong}</strong>${small?`<small>${small}</small>`:''}`;
+    list.appendChild(d);
+  };
+  for(const c of info.codecs)
+    add(`video track: ${c.type} ${c.w}×${c.h}`,`sample-entry boxes: ${c.children.join(', ')||'none'}`);
+  if(info.vexu){
+    const eyes=info.vexu.stri==null?'?':((info.vexu.stri&1?'left':'')+(info.vexu.stri&2?(info.vexu.stri&1?'+right':'right'):''))||'none';
+    add('Apple spatial video (vexu box)',
+      `eyes: ${eyes}${info.vexu.baseline_um?` · baseline ${(info.vexu.baseline_um/1000).toFixed(1)}mm`:''}${info.vexu.dadj!=null?` · disparity adj ${info.vexu.dadj}`:''} · sub-boxes: ${info.vexu.boxes.join(', ')}`);
+  }
+  if(info.mvhc||info.vexu)
+    add('MV-HEVC: second eye not browser-decodable',
+      'browsers decode only the base (left) eye — flatten to side-by-side with ffmpeg 7.1+ or Spatialify, then feed the SBS back here for depth');
+  if(info.st3d!=null)
+    add(`st3d stereo mode: ${['mono','top-bottom','side-by-side'][info.st3d]||info.st3d}`,'spherical-video v2 tag');
+  if(!info.codecs.length) add('no video track found','moov box missing or unrecognized');
+  else if(!info.vexu&&info.st3d==null)
+    add('no stereo metadata','if the picture is visibly doubled it is untagged SBS/TB — pick the layout below');
+
+  // playback side: only works for codecs this browser has
+  vidEl=document.createElement('video');
+  vidEl.muted=true; vidEl.playsInline=true; vidEl.preload='auto';
+  vidEl.src=URL.createObjectURL(file);
+  vidEl.addEventListener('loadeddata',()=>{
+    show('video-ui',true);
+    $('vid-time').max=vidEl.duration.toFixed(2);
+    if(info.st3d===1) $('layout').value='tb';
+    else $('layout').value='sbs';
+    seekVideo(0);
+  });
+  vidEl.addEventListener('error',()=>{
+    setMsg('err-x','This browser cannot decode the video codec ('+(info.codecs[0]?info.codecs[0].type:'?')+'), so no frames can be grabbed — metadata above is all that is extractable here. Safari decodes HEVC; Chrome usually only with hardware support.');
+  });
+}
+
+function drawVideoFrame(){
+  const c=$('vid-frame'), s=Math.min(1,420/vidEl.videoWidth);
+  c.width=Math.round(vidEl.videoWidth*s); c.height=Math.round(vidEl.videoHeight*s);
+  c.getContext('2d').drawImage(vidEl,0,0,c.width,c.height);
+}
+function seekVideo(t){
+  if(!vidEl) return;
+  $('vid-time-label').textContent=(+t).toFixed(1)+'s';
+  vidEl.addEventListener('seeked',drawVideoFrame,{once:true});
+  vidEl.currentTime=+t;
+  // seeking to the time we're already at fires no 'seeked'; draw anyway
+  drawVideoFrame();
+}
+
+/* SAD block matcher. Deliberately simple: 7×7 windows, row-wise search of
+   ±8% of eye width, winner-take-all, then 2–98 percentile normalization.
+   No smoothing, no sub-pixel, no ML — it's a truth-teller, not a beautifier.
+   Sign convention: a near object sits further LEFT in the right eye, so we
+   search R at x−d and positive d (near) comes out bright = disparity. */
+
+async function computeStereoDepth(){
+  if(!vidEl||!vidEl.videoWidth) return;
+  const layout=$('layout').value, swap=$('swap-eyes').checked;
+  const W=vidEl.videoWidth, H=vidEl.videoHeight;
+  const full=document.createElement('canvas');
+  full.width=W; full.height=H;
+  full.getContext('2d').drawImage(vidEl,0,0);
+  let ew,eh,L0,R0;
+  if(layout==='tb'){ ew=W; eh=H>>1; L0=[0,0]; R0=[0,eh]; }
+  else { ew=W>>1; eh=H; L0=[0,0]; R0=[ew,0]; }
+  if(swap){ const t=L0; L0=R0; R0=t; }
+  const scale=Math.min(1,420/ew);
+  const w=Math.round(ew*scale), h=Math.round(eh*scale);
+  const gc=document.createElement('canvas'); gc.width=w; gc.height=h;
+  const gctx=gc.getContext('2d',{willReadFrequently:true});
+  const grayOf=o=>{
+    gctx.drawImage(full,o[0],o[1],ew,eh,0,0,w,h);
+    const d=gctx.getImageData(0,0,w,h).data, g=new Uint8Array(w*h);
+    for(let i=0;i<g.length;i++) g[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
+    return g;
+  };
+  const L=grayOf(L0), R=grayOf(R0);
+  const range=Math.max(8,Math.round(w*0.08)), B=3;
+  const disp=new Float32Array(w*h).fill(-range-1);
+  const status=t=>{ const el=$('stereo-status'); el.textContent=t; el.hidden=false; };
+  const tick=()=>new Promise(r=>setTimeout(r));
+  for(let y=B;y<h-B;y++){
+    for(let x=B;x<w-B;x++){
+      let best=Infinity,bd=0;
+      for(let d=-range;d<=range;d++){
+        const xr=x-d;
+        if(xr-B<0||xr+B>=w) continue;
+        let sad=0;
+        for(let dy=-B;dy<=B&&sad<best;dy++){
+          const lo=(y+dy)*w+x, ro=(y+dy)*w+xr;
+          for(let dx=-B;dx<=B;dx++) sad+=Math.abs(L[lo+dx]-R[ro+dx]);
+        }
+        if(sad<best){ best=sad; bd=d; }
+      }
+      disp[y*w+x]=bd;
+    }
+    if((y&15)===0){ status(`matching… ${Math.round(100*y/h)}%`); await tick(); }
+  }
+  // percentile normalization so a few bad matches don't crush the range
+  const valid=[];
+  for(let i=0;i<disp.length;i++) if(disp[i]>=-range) valid.push(disp[i]);
+  valid.sort((a,b)=>a-b);
+  const p2=valid[Math.floor(valid.length*0.02)]||-range;
+  const p98=valid[Math.floor(valid.length*0.98)]||range;
+  const span=Math.max(1e-6,p98-p2);
+  const gray=new Uint8Array(w*h);
+  for(let i=0;i<disp.length;i++){
+    const v=disp[i]<-range?p2:disp[i];
+    gray[i]=Math.max(0,Math.min(255,Math.round((v-p2)/span*255)));
+  }
+  status(`done — disparity range ${p2.toFixed(1)}…${p98.toFixed(1)} px at ${w}×${h}`);
+  grayResult={gray,w,h};
+  selected={kind:'stereo-frame',label:'computed stereo disparity',
+    urn:'(SAD block matching of stereo pair)',
+    extra:{video_time_s:+vidEl.currentTime.toFixed(3),layout,swap_eyes:swap,
+      search_range_px:range,block:'7x7',working_width:w,
+      normalization:`2-98 percentile, ${p2.toFixed(1)}..${p98.toFixed(1)} px`}};
+  $('interp').value='disparity'; $('invert').checked=false;
+  renderSelected();
+  ['preview-wrap','interp-row','btn-png','btn-json'].forEach(id=>show(id,true));
+  show('btn-raw',false);
+}
+
 /* ── hand-written 16-bit grayscale PNG ── */
 
 const CRC_TABLE=(()=>{
@@ -789,7 +1043,9 @@ function exportJson(){
   const meta={
     tool:'https://e-z-g.github.io/spatialize.html',
     source_file:xFile.name,
-    source:selected.kind==='jpeg-sub'?'JPEG appended sub-image':'HEIC auxiliary item',
+    source:{ 'jpeg-sub':'JPEG appended sub-image',
+             'heic-aux':'HEIC auxiliary item',
+             'stereo-frame':'disparity computed from a stereo video frame' }[selected.kind],
     aux_type_urn:selected.urn||null,
     width:grayResult.w, height:grayResult.h,
     interpretation:interp,
@@ -797,7 +1053,10 @@ function exportJson(){
     inverted:inv,
     source_bit_depth:8,
     png_mapping:'png16 = source8 * 257'+(inv?' (after inversion)':''),
-    note:'8-bit source passed through the browser YUV-to-RGB path; treat values as relative, not metric.'
+    ...(selected.extra||{}),
+    note:selected.kind==='stereo-frame'
+      ?'Winner-take-all block matching, no smoothing; treat values as relative, not metric.'
+      :'8-bit source passed through the browser YUV-to-RGB path; treat values as relative, not metric.'
   };
   dlBlob(baseName(xFile.name)+'-depth.json',
     new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}));
