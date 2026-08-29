@@ -242,6 +242,69 @@ function dvmSym(table, code) {
   return n ? n + ' (0x' + code.toString(16).toUpperCase() + ')' : '0x' + code.toString(16).padStart(2,'0').toUpperCase();
 }
 
+// Character status-flag numbers. These are NOT in delvmod and NOT read from
+// the archive: they were worked out on the Ambrosia board by cross-referencing
+// SetFlag / TestFlag / StatusEffect call sites against item and spell
+// behaviour (Wizard, forum t2432 -- see reference/cythera_forums/
+// CYTHERA-COMPENDIUM.md, "CHARACTER STATUS FLAGS"). Rings set their flag from
+// the ring's data2 field. Flag 23 is why Eioneus can cross lava: his own
+// dialogue script sets it, which these labels make visible in the decoder.
+// Kept separate from DVM_SYM, whose tables delv_crosscheck.mjs proves against
+// delvmod line by line -- this one has no delvmod counterpart to prove
+// against, so it must not sit inside the oracle-checked object.
+const DVM_FLAG_NAMES = {0:'embrightenment',9:'poison',13:'fear',14:'paralysis',
+  17:'charm',18:'vision of night',20:'resist blows',21:'confusion',22:'sleep',
+  23:'fire/lava protection',27:'fear protection',28:'second stronghold visible',
+  29:'ascertainment',31:'swamp-poison protection'};
+
+// What an integer operand MEANS, by enclosing syscall and argument position.
+// The signatures come from the board (Pallas Athene, forum t2409: Create is
+// (recipient, aspect<<10|proptype, data1, data2); New is (flags, x, y,
+// aspect, proptype, data1, data2)) and every position was confirmed against
+// real call sites in the shipped archive before being annotated here -- the
+// archive reproduces the board's own examples exactly: Emesa's flour is
+// New(16,0,0,0,167,0,0) at 0x1805 (her dialogue), Ennomus's tomb key is
+// Create(you, 3<<10|66, 5, 0) at 0x1811 (his). ChangeZone's integer operand
+// indexes the 0xF00C zoneport table: the portal object scripts (ladder,
+// hole, stairs, mineshaft, cave) pass get_field data3 straight into it.
+// StatusEffect takes a third operand, a duration, left unannotated because
+// its unit is not established.
+function dvmAnnotateInt(encl, argIdx, v) {
+  if ((encl === 0xC1 || encl === 0xC2 || encl === 0xC3 || encl === 0xC4) && argIdx === 1)
+    return DVM_FLAG_NAMES[v] ? 'flag: ' + DVM_FLAG_NAMES[v] : null;
+  if (encl === 0xBF && argIdx === 1) {
+    try {
+      if (typeof zoneportInfo === 'function') {
+        const z = zoneportInfo(v);
+        if (z) return 'zoneport ' + v + ' → ' + z.name;
+      }
+    } catch (e) {}
+    return 'zoneport ' + v;
+  }
+  if (encl === 0xA8 && argIdx === 1 && v > 0 && v <= 0xFFFF) {
+    const pt = v & 0x3FF, asp = v >> 10;
+    const n = (typeof PROP_TYPE_NAMES !== 'undefined' && PROP_TYPE_NAMES[pt]) || null;
+    return 'aspect ' + asp + ', proptype ' + pt + (n ? ' — ' + n : '');
+  }
+  if (encl === 0xAD && argIdx === 4 && v > 0 && v <= 0x3FF) {
+    const n = (typeof PROP_TYPE_NAMES !== 'undefined' && PROP_TYPE_NAMES[v]) || null;
+    return n ? 'proptype — ' + n : null;
+  }
+  if (encl === 0xAD && argIdx === 0 && v > 0) {
+    // Pallas's flag reading (t2409): 16 = in an inventory, 8 = wielded
+    // (torches light only when made at 24), 4 seen only on learned spells
+    // and skills, 1 = loose on the ground (Shake Down sets it; falling
+    // money is made with it).
+    const bits = [];
+    if (v & 16) bits.push('carried'); if (v & 8) bits.push('equipped');
+    if (v & 4) bits.push('learned'); if (v & 1) bits.push('loose');
+    const rest = v & ~29;
+    if (rest) bits.push('+0x' + rest.toString(16).toUpperCase());
+    return bits.length ? 'flags: ' + bits.join('+') : null;
+  }
+  return null;
+}
+
 function dvmOpEntry(op) {
   const e = DVM_OPS[op];
   if (e) return e;
@@ -284,6 +347,13 @@ function dvmImplicitString(b, p) {
 
 function dvmDisassemble(b, start) {
   const out = []; let p = start || 0, bad = 0; const stack = [];
+  // argn runs parallel to stack: how many direct children the open frame has
+  // seen so far. A nested expression counts once for its parent (it opens its
+  // own frame for its innards), so argn's top is the 0-based position of the
+  // operand being decoded -- which is what lets dvmAnnotateInt say that the
+  // byte in SetFlag's second slot is a status flag and the word in Create's
+  // is an aspect<<10|proptype pair.
+  const argn = [];
   let opened = false;
   let lastDrain = null;
   {
@@ -293,10 +363,11 @@ function dvmDisassemble(b, start) {
   const hex = (o,n) => { let s=''; for (let i=0;i<n;i++) s += b[o+i].toString(16).padStart(2,'0').toUpperCase(); return s; };
   while (p < b.length) {
     const op = b[p], at = p; p++;
+    if (op !== 0x40 && argn.length) argn[argn.length - 1]++;
     if (op < 0x30) { out.push([at, 0, 'local', 'Var' + op.toString(16).padStart(2,'0').toUpperCase()]); continue; }
     if (op < 0x40) { out.push([at, 0, 'arg', 'Arg' + (op - 0x30).toString(16).padStart(2,'0').toUpperCase()]); continue; }
     if (op === 0x40) {
-      const owner = stack.pop();
+      const owner = stack.pop(); argn.pop();
       if (DVM_TARGETED.has(owner) && p + 2 <= b.length) {
         out.push([at, -1, 'then', '-> 0x' + u16be(b, p).toString(16).padStart(4,'0').toUpperCase()]); p += 2;
       } else out.push([at, -1, 'end', '']);
@@ -323,6 +394,8 @@ function dvmDisassemble(b, start) {
       bad++; out.push([at, 0, '??', '0x' + op.toString(16).padStart(2,'0')]); continue;
     }
     const mn = e[0], spec = e[1], expect = e[2];
+    const encl = stack.length ? stack[stack.length - 1] : -1;
+    const argIdx = argn.length ? argn[argn.length - 1] - 1 : -1;
     let arg = '';
     if (spec === 'c' || spec === 'C') {
       let z = p;
@@ -348,11 +421,24 @@ function dvmDisassemble(b, start) {
       const nm = resourceSymbol(rid);
       arg = nm ? nm + ' (0x' + rid.toString(16).toUpperCase() + ')' : dvmSym('resource', rid);
     } else if (spec === 4 && mn === 'word') {
-      arg = dvmWord(u32be(b, p));
+      const wv = u32be(b, p);
+      arg = dvmWord(wv);
       p += 4;
-    } else if (spec) { arg = '0x' + hex(p, spec); p += spec; }
+      if (wv <= 0x07FFFFFF) {
+        const note = dvmAnnotateInt(encl, argIdx, wv);
+        if (note) arg += '  // ' + note;
+      }
+    } else if (spec) {
+      let v = null;
+      if (mn === 'byte') v = b[p]; else if (mn === 'short') v = u16be(b, p);
+      arg = '0x' + hex(p, spec); p += spec;
+      if (v !== null) {
+        const note = dvmAnnotateInt(encl, argIdx, v);
+        if (note) arg += '  // ' + note;
+      }
+    }
     out.push([at, expect ? 1 : 0, mn, arg]);
-    for (let k = 0; k < expect; k++) { stack.push(op); opened = true; }
+    for (let k = 0; k < expect; k++) { stack.push(op); argn.push(0); opened = true; }
     // An empty stack is the VM's own cue that what follows need not be code
     // (Strings Problem page), so probe for an implicit string here too.
     if (!expect && !stack.length) {
