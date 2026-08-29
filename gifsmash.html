@@ -751,9 +751,16 @@
            hundredths of a second, so the played rate can differ slightly. <b>Colours</b>
            includes the reserved transparent slot when there is one, and can come out below
            what the loop asked for when the source simply has fewer.</p>
-        <p><b>Pixelated</b> turns off smoothing in the preview so you can see the real pixels
-           and judge the dither pattern. Small results are scaled up by whole numbers so this
-           stays honest.</p>
+        <p><b>Zoom</b> is 1:1 by default, because that is the only setting that shows you what
+           the file will actually look like. Magnifying a GIF makes its ordered-dither
+           crosshatch enormous — enough that it can be mistaken for a transparency
+           checkerboard showing through the picture — so anything above 1:1 also switches to
+           pixelated rendering, where at least the pattern is honestly drawn rather than
+           smeared. Anything larger than the panel is shrunk to fit regardless.</p>
+        <p><b>Frames</b> turns amber when the result has one or two frames. That is not a fault:
+           it means the framerate knob hit its floor, which for a short clip and a tight target
+           is the loop doing what it was told. It will not animate. Raise the framerate floor,
+           or take the weight off framerate and let something else give.</p>
       </div>
       <div id="stage"><div class="placeholder">Nothing encoded yet.</div></div>
       <div class="viewbar">
@@ -761,6 +768,13 @@
           <button type="button" data-view="out" class="on">Output</button>
           <button type="button" data-view="src">Source</button>
         </div>
+        <label class="check" for="zoom">zoom</label>
+        <select id="zoom" style="padding:5px 6px">
+          <option value="1" selected>1:1</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+          <option value="fit">fit</option>
+        </select>
         <label class="check"><input type="checkbox" id="pixelate" /> pixelated</label>
         <div class="spacer"></div>
         <button id="download" disabled>Download GIF</button>
@@ -1152,7 +1166,30 @@ function buildPalette(hist, maxColors, method, reserveTransparent) {
   }
   var transIndex = -1;
   if (reserveTransparent) { transIndex = count; count++; }  // slot left black; never drawn
-  return { rgb: pal, size: count, transIndex: transIndex };
+  return { rgb: pal, size: count, transIndex: transIndex, step: paletteStep(pal, count - (reserveTransparent ? 1 : 0)) };
+}
+
+/* Mean distance from a palette entry to its nearest neighbour — how far
+ * apart the available colours actually are. The ordered dither needs
+ * this: its whole job is to blend between two adjacent palette entries,
+ * so the amount it should nudge a pixel by is the gap between them, and
+ * nothing else. Four colours means a large gap and a strong pattern;
+ * 256 colours covering a gradient means a gap of a couple of levels and
+ * a pattern nobody can see. n squared over at most 256 entries. */
+function paletteStep(pal, n) {
+  if (n < 2) return 0;
+  var sum = 0;
+  for (var i = 0; i < n; i++) {
+    var best = Infinity;
+    var ri = pal[i * 3], gi = pal[i * 3 + 1], bi = pal[i * 3 + 2];
+    for (var j = 0; j < n; j++) {
+      if (i === j) continue;
+      var d = dist2(ri, gi, bi, pal[j * 3], pal[j * 3 + 1], pal[j * 3 + 2]);
+      if (d < best) best = d;
+    }
+    sum += Math.sqrt(best);
+  }
+  return sum / n;
 }
 
 /* Inverse lookup over the same 6-bit grid the histogram used. Built once
@@ -1227,12 +1264,21 @@ function ditherFrame(rgba, w, h, pal, lut, mode, bayerScale) {
   var i, o;
 
   if (mode === 'none' || mode === 'bayer') {
-    var amp = mode === 'bayer' ? (128 >> bayerScale) : 0;
+    /* This used to be a flat (128 >> bayerScale), which is wrong in both
+     * directions: against a 256-colour palette of a gradient it nudged
+     * pixels by ±16 when the palette entries were two levels apart, so
+     * the dither added more error than the quantisation it was hiding
+     * (measured: 7.0 mean error with no dither, 9.3 with it) and printed
+     * a crosshatch over everything — magnified in a preview it reads as
+     * a transparency checkerboard. Scaling by the palette's own spacing
+     * makes bayer_scale 2 the textbook amount, one quantisation step
+     * peak to peak, at any colour count. */
+    var amp = mode === 'bayer' ? (pal.step || 0) * Math.pow(2, 2 - bayerScale) : 0;
     for (var y = 0; y < h; y++) {
       for (var x = 0; x < w; x++) {
         i = y * w + x; o = i * 4;
         if (trans >= 0 && rgba[o + 3] < 128) { out[i] = trans; continue; }
-        if (amp) {
+        if (amp > 0.5) {
           var t = (BAYER8[(y & 7) * 8 + (x & 7)] / 64 - 0.5) * amp;
           out[i] = lookup(lut, rgba[o] + t, rgba[o + 1] + t, rgba[o + 2] + t);
         } else {
@@ -2492,19 +2538,41 @@ Array.prototype.forEach.call($('viewSeg').children, function (b) {
     showView(b.dataset.view);
   });
 });
-$('pixelate').addEventListener('change', function () { $('stage').classList.toggle('pixel', this.checked); });
+$('pixelate').addEventListener('change', zoomCurrent);
+$('zoom').addEventListener('change', zoomCurrent);
 
-/* A 90-pixel-tall GIF sitting at its natural size in the middle of a big
- * panel tells you nothing. Small pictures are scaled up by whole numbers
- * so the pixelated toggle still shows what is really there. */
-function fitToStage(el, natW, natH) {
-  if (!natW || !natH) return;
+/* Preview scaling.
+ *
+ * This used to magnify anything small enough to fit, on the reasoning
+ * that a 90-pixel GIF is hard to judge in a large panel. That was a
+ * mistake: blowing a GIF up smears its ordered-dither crosshatch across
+ * the picture, and at four or five times it stops reading as dithering
+ * and starts reading as a transparency checkerboard showing through —
+ * the preview inventing a defect the file does not have. 1:1 is the
+ * only scale that answers "what does this look like", so 1:1 is the
+ * default and magnification is something you ask for. When you do ask,
+ * it draws pixels rather than interpolating between them, so the
+ * pattern you see is the pattern that is there. */
+function applyZoom(el, natW, natH) {
+  if (!el || !natW || !natH) return;
+  el.style.width = el.style.height = '';
   var stage = $('stage');
-  var availW = stage.clientWidth - 18;
+  var availW = Math.max(40, stage.clientWidth - 18);
   var availH = Math.min(window.innerHeight * 0.62, 560);
-  if (natW > availW || natH > availH) return;
-  var k = Math.max(1, Math.floor(Math.min(availW / natW, availH / natH)));
-  if (k > 1) { el.style.width = (natW * k) + 'px'; el.style.height = (natH * k) + 'px'; }
+  var mode = $('zoom').value;
+  var k = mode === 'fit' ? Math.min(availW / natW, availH / natH) : (parseFloat(mode) || 1);
+  k = Math.min(k, availW / natW, availH / natH);          // never overflow the panel
+  stage.classList.toggle('pixel', $('pixelate').checked || k >= 1.75);
+  if (Math.abs(k - 1) < 0.002) return;                    // 1:1 wants no styling at all
+  el.style.width = Math.max(1, Math.round(natW * k)) + 'px';
+  el.style.height = Math.max(1, Math.round(natH * k)) + 'px';
+}
+
+function zoomCurrent() {
+  var el = $('stage').firstElementChild;
+  if (!el) return;
+  if (el.tagName === 'CANVAS') applyZoom(el, el.width, el.height);
+  else if (el.tagName === 'IMG' && el.naturalWidth) applyZoom(el, el.naturalWidth, el.naturalHeight);
 }
 
 function showView(which) {
@@ -2513,16 +2581,16 @@ function showView(which) {
   if (which === 'src' && srcEl) {
     srcEl.style.width = srcEl.style.height = '';
     stage.appendChild(srcEl);
-    if (srcEl.tagName === 'CANVAS') fitToStage(srcEl, srcEl.width, srcEl.height);
-    else if (srcEl.naturalWidth) fitToStage(srcEl, srcEl.naturalWidth, srcEl.naturalHeight);
-    else srcEl.addEventListener('load', function () { fitToStage(srcEl, srcEl.naturalWidth, srcEl.naturalHeight); }, { once: true });
+    if (srcEl.tagName === 'CANVAS') applyZoom(srcEl, srcEl.width, srcEl.height);
+    else if (srcEl.naturalWidth) applyZoom(srcEl, srcEl.naturalWidth, srcEl.naturalHeight);
+    else srcEl.addEventListener('load', function () { applyZoom(srcEl, srcEl.naturalWidth, srcEl.naturalHeight); }, { once: true });
     $('viewLabel').textContent = 'source, as decoded';
     return;
   }
   if (which === 'out' && outUrl) {
     var img = document.createElement('img');
     img.alt = 'compressed result';
-    img.addEventListener('load', function () { fitToStage(img, img.naturalWidth, img.naturalHeight); }, { once: true });
+    img.addEventListener('load', function () { applyZoom(img, img.naturalWidth, img.naturalHeight); }, { once: true });
     img.src = outUrl;
     stage.appendChild(img);
     $('viewLabel').textContent = '';
@@ -2812,7 +2880,7 @@ $('cropAspect').addEventListener('change', applyAspect);
     drawCropper();
   });
 });
-window.addEventListener('resize', function () { sizeCropper(); });
+window.addEventListener('resize', function () { sizeCropper(); zoomCurrent(); });
 
 /* ---- file intake ---- */
 var drop = $('drop');
@@ -3124,6 +3192,7 @@ function onMessage(m) {
     else if (size <= srcBytes) $('rRatio').textContent = (srcBytes / size).toFixed(1) + '× smaller';
     else $('rRatio').textContent = (size / srcBytes).toFixed(1) + '× bigger';
     $('rFrames').textContent = fmtNum(m.frames);
+    $('rFrames').className = m.frames <= 2 ? 'warn' : '';
     $('rDims').textContent = m.width + '×' + m.height;
     $('rFps').textContent = (+m.meta.fps).toFixed(2);
     $('rColors').textContent = m.palette;
@@ -3134,10 +3203,15 @@ function onMessage(m) {
     Array.prototype.forEach.call($('viewSeg').children, function (o) { o.classList.toggle('on', o.dataset.view === 'out'); });
     showView('out');
 
-    setStatus(m.fits
+    var still = m.frames <= 2
+      ? ' Only ' + m.frames + ' frame' + (m.frames === 1 ? '' : 's') +
+        ' — the framerate floor was reached, so it will not animate. Raise the floor, or take' +
+        ' the weight off framerate.'
+      : '';
+    setStatus((m.fits
       ? 'Done — ' + fmtBytes(size) + ', under the ' + fmtBytes(tgt) + ' target.'
       : 'Done — ' + fmtBytes(size) + ', still over the ' + fmtBytes(tgt) +
-        ' target. Give it more iterations, or loosen a floor.');
+        ' target. Give it more iterations, or loosen a floor.') + still, m.frames <= 2 && m.fits ? false : undefined);
     return;
   }
 
