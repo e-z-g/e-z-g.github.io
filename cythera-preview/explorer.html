@@ -246,6 +246,23 @@ h2, #sourceStatus, #output, #textLabel, #soundLabel { overflow-wrap:anywhere; }
 .dlgKw { color:#f9f86f; font-weight:700; }
 .dlgSep { color:#9b8850; }
 
+/* The conversation view: topics extracted from the script's own
+   conversation_response chain, not from the string sweep. */
+.convHead { color:#9b8850; font-size:.85em; margin:0 0 10px; }
+.convHead .sv-chip { font-size:.9em; }
+.convCard { border-top:1px solid rgba(155,136,80,.35); padding:8px 0 4px; }
+.convCard.convHit { background:rgba(249,248,111,.08); }
+.convKw { display:inline-block; font-family:ui-monospace,Menlo,Consolas,monospace;
+  color:#f9f86f; border:1px solid rgba(155,136,80,.5); border-radius:10px;
+  padding:0 8px; margin:0 6px 4px 0; font-size:.85em; }
+.convBadge { display:inline-block; color:#9b8850; font-size:.78em;
+  border:1px dashed rgba(155,136,80,.5); border-radius:10px;
+  padding:0 7px; margin:0 6px 4px 0; }
+.convSub { margin-left:18px; border-left:1px solid rgba(155,136,80,.3);
+  padding-left:10px; }
+.convLink { color:#f9f86f; cursor:pointer; font-weight:700; }
+.convLink:hover { text-decoration:underline; }
+
 /* Zoom crops inside a fixed viewport instead of stretching the page, so the
    slider stays put instead of being shoved down the screen as you zoom in. */
 /* Fixed height, not max-height: a growing box still pushes the zoom slider
@@ -3658,6 +3675,7 @@ function resetDerivedCaches() {
   window.STORE_SYMBOLS = null;
   window.XREF_INDEX = null;
   window.SCRIPT_TEXT = null;
+  window.CONV_CACHE = null;
   window.MONSTER_STATS = null;
   window.RESOURCE_SYMBOLS = null;
   window.ZONE_NAMES = null;
@@ -8004,11 +8022,191 @@ function stitchDialogue(strs) {
   return lines;
 }
 
+/* ---------------------------------------------------------------------------
+   The conversation view
+   ---------------------------------------------------------------------------
+   dvmConversation reads the topics straight out of the script's
+   conversation_response chain (see the long note above it in delv-script.js).
+   This renderer turns that structure into what the community spent 2016
+   collecting by hand: keywords, responses, follow-ups, and the inheritance
+   chain -- with the difference that the conditions and side effects come from
+   the code, and every line still carries its in-place edit link.
+
+   The group names below are NOT stored in the archive: subindex 8 resources
+   are anonymous functions. They were identified empirically, by matching each
+   resource's text against the community's verified per-group dialogue files
+   (cytheraguides.com/dialogue, collected in play by BreadWorldMercy453), and
+   utilities/dialogue_check.mjs re-verifies character->group chains against
+   that same collection. 0x813 is the pool of tavern rumors the bartenders
+   draw from. 0x803 is House Atussa: a 14-byte stub with no prompts, because
+   the House is defunct -- but Sardis, Ake and Milcom (all tied to Atussa)
+   still call it, which is how it was identified. 0x814 is an empty stub.
+--------------------------------------------------------------------------- */
+const DIALOGUE_GROUP_NAMES = {
+  0x801:'Human', 0x802:'House Attis', 0x803:'House Atussa',
+  0x804:'House Comana', 0x805:'House Dodona',
+  0x806:'House Nicander', 0x807:'House Strymon', 0x808:'Mage', 0x809:'Land King Hall',
+  0x80A:'Odemia', 0x80B:'Catamarca', 0x80C:'Pnyx', 0x80D:'Kosha', 0x80E:'Cademia',
+  0x80F:'Seldane', 0x810:'Student', 0x811:'Iron Mine', 0x812:'Bartender',
+  0x813:'Tavern rumors', 0x817:'Judge'
+};
+
+function conversationFor(resid) {
+  if (!window.CONV_CACHE) window.CONV_CACHE = new Map();
+  if (window.CONV_CACHE.has(resid)) return window.CONV_CACHE.get(resid);
+  let conv = null;
+  try {
+    const raw = getResourceBytes(resid);
+    if (raw) conv = dvmConversation(smartDecrypt(raw, resid).data, resid);
+  } catch (e) {}
+  window.CONV_CACHE.set(resid, conv);
+  return conv;
+}
+
+// The engine's own rule: the first four letters of the first word typed,
+// prefix-matched against the stored keyword (which may itself be shorter --
+// "bye" -- or carry comma-separated alternatives -- "iron,mine").
+function convKwMatches(kw, word) {
+  const t = String(word || '').toLowerCase();
+  return String(kw || '').toLowerCase().split(',').some(k =>
+    k && (t.startsWith(k) || k.startsWith(t.slice(0, 4))));
+}
+
+function convFindEntry(entries, word) {
+  for (const e of entries) {
+    if (e.kw && e.kw !== '*' && convKwMatches(e.kw, word)) return e;
+    const s = convFindEntry(e.sub, word);
+    if (s) return s;
+  }
+  return null;
+}
+
+// An @word in a response is the game marking a blue keyword. Resolve it the
+// way the engine would: this character first, then the groups in chain order.
+function convJumpWord(resid, word) {
+  const conv = conversationFor(resid);
+  if (conv) {
+    const hit = convFindEntry(conv.entries, word);
+    if (hit) return convScrollTo(resid, hit.at);
+    for (const gid of conv.groups) {
+      const g = conversationFor(gid);
+      if (g && convFindEntry(g.entries, word)) {
+        window.PENDING_CONV_WORD = word;
+        return jumpToResource(gid);
+      }
+    }
+  }
+}
+
+function convScrollTo(resid, at) {
+  const el = document.getElementById('conv-' + resid + '-' + at);
+  if (!el) return;
+  document.querySelectorAll('.convCard.convHit').forEach(c => c.classList.remove('convHit'));
+  el.classList.add('convHit');
+  el.scrollIntoView({ block: 'center' });
+}
+
+function convBadgeFor(a) {
+  if (a.call !== undefined) {
+    if (a.call === 0xF00) return 'learns your name';
+    if (a.call === 0xE86) return 'training';
+    if (a.call === 0x813) return 'a rumor from the pool';
+    if ((a.call >> 8) === 8) return null;              // chain calls render in the header
+    const d = typeof refDescription === 'function' ? refDescription(a.call) : null;
+    return 'calls ' + (d || ('0x' + a.call.toString(16).toUpperCase()));
+  }
+  const M = { JoinParty: 'can join the party', LeaveParty: 'leaves the party',
+    Create: 'gives something', New: 'makes something', AddQuest: 'adds a quest',
+    CompleteQuest: 'completes a quest', ChangeZone: 'travel', Delete: 'removes something',
+    SetFlag: 'sets a status flag', SetStateFlag: 'sets a game flag',
+    AddTask: null, FinishTasks: null, TakeItem: 'takes something',
+    AddConversationKeyword: 'unlocks a keyword', GameOver: 'ends the game' };
+  let label = M[a.sys] !== undefined ? M[a.sys] : a.sys;
+  if (!label) return null;
+  if (a.note && (a.sys === 'Create' || a.sys === 'New'))
+    label = 'gives: ' + a.note.replace(/^.*proptype \d+ (— )?/, '').replace(/^proptype — /, '');
+  return label;
+}
+
+function convTextHtml(resid, e) {
+  let html = '';
+  for (const t of e.text) {
+    const body = escHtml(t.str)
+      .replace(/@([A-Za-z][A-Za-z'-]*)/g,
+        '<span class="convLink" onclick="convJumpWord(' + resid + ',\'$1\')">$1</span>');
+    html += '<p class="dlgLine">' + body +
+      ' <button class="linkbtn dlgEdit" onclick="editStringAt(' + resid + ',' + t.off + ')">edit</button></p>';
+  }
+  return html;
+}
+
+function convCardHtml(resid, e, depth) {
+  const kws = e.kw === '*' ? '<span class="convKw">anything else</span>'
+    : String(e.kw).split(',').map(k => '<span class="convKw">' + svEsc(k) + '</span>').join('');
+  const badges = [];
+  if (e.conds.length) badges.push('depends on: ' + e.conds.join(', '));
+  for (const a of e.actions) { const b = convBadgeFor(a); if (b) badges.push(b); }
+  let html = '<div class="convCard' + (depth ? ' convSub' : '') + '" id="conv-' + resid + '-' + e.at + '">' +
+    kws + badges.map(b => '<span class="convBadge">' + svEsc(b) + '</span>').join('') +
+    convTextHtml(resid, e);
+  for (const s of e.sub) html += convCardHtml(resid, s, depth + 1);
+  return html + '</div>';
+}
+
+function renderConversationPane(data, subn, resid) {
+  let conv = null;
+  try { conv = dvmConversation(data, resid); } catch (e) {}
+  if (!conv || !conv.entries.length) return false;
+  const wrap = document.getElementById('dlgWrap');
+  if (!wrap) return false;
+  let head = '';
+  if (subn === 8) {
+    const nm = DIALOGUE_GROUP_NAMES[resid];
+    head = nm ? 'Generic <b>' + svEsc(nm) + '</b> prompts — shared by everyone who inherits them'
+              : 'Generic prompts';
+  } else {
+    const chain = conv.groups.map(g =>
+      '<button class="sv-chip" onclick="jumpToResource(' + g + ')">' +
+      svEsc(DIALOGUE_GROUP_NAMES[g] || ('0x' + g.toString(16).toUpperCase())) + '</button>').join(' ');
+    head = conv.entries.length + ' topic' + (conv.entries.length === 1 ? '' : 's') +
+      ', read from the code' + (chain ? ' · also answers as: ' + chain : '');
+  }
+  let html = '<div class="convHead">' + head + '</div>';
+  // The catch-all last, whatever order the chain tests it in.
+  const ordered = conv.entries.filter(e => e.kw !== '*').concat(conv.entries.filter(e => e.kw === '*'));
+  for (const e of ordered) html += convCardHtml(resid, e, 0);
+  wrap.innerHTML = html;
+  wrap.style.display = '';
+  if (window.PENDING_CONV_WORD) {
+    const hit = convFindEntry(conv.entries, window.PENDING_CONV_WORD);
+    window.PENDING_CONV_WORD = null;
+    if (hit) setTimeout(() => convScrollTo(resid, hit.at), 0);
+  }
+  return true;
+}
+
 function renderDialoguePane(data, subn, resid) {
   const wrap = document.getElementById('dlgWrap');
   const toggle = document.getElementById('dlgToggle');
   const pre = document.getElementById('textContent');
   if (!wrap) return;
+  // Dialogue scripts (0x18xx) and the generic-prompt archetypes (0x08xx) get
+  // the structured conversation view when the extractor finds topics; the
+  // twelve one-liner characters and anything the disassembler cannot follow
+  // fall through to the flat string list below. Keyed off the resid, not
+  // subn: this function's subn parameter is the master-index slot, which
+  // runs one below the resid's high byte.
+  const convSub = resid !== undefined ? (resid >> 8) : -1;
+  if ((convSub === 0x18 || convSub === 0x08) && renderConversationPane(data, convSub, resid)) {
+    if (toggle) { toggle.style.display = ''; toggle.textContent = 'Show Decoded / Strings / Hex'; }
+    const tabs = document.getElementById('viewTabs');
+    if (tabs) tabs.style.display = 'none';
+    for (const id of ['textContent', 'paneStrings', 'paneHex']) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    }
+    return;
+  }
   if (!DIALOGUE_SUBN.has(subn)) {
     wrap.style.display = 'none';
     if (toggle) toggle.style.display = 'none';
