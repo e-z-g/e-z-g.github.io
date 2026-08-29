@@ -832,3 +832,120 @@ function dvmShapeSummary(b, resid) {
     return bits.length ? bits.join(', ') : 'One block of undecoded data.';
   } catch (e) { return 'Structure could not be determined.'; }
 }
+
+/* ---------------------------------------------------------------------------
+   Conversations, read from the code instead of collected in play
+   ---------------------------------------------------------------------------
+   A dialogue resource is not a string list -- it is a chain of
+   `conversation_response "kw" -> end` guards, each holding its response
+   inline. The opcode's string is the match: the first four letters of
+   whatever the player types (the engine's four-letter prefix rule, which the
+   community established from outside in 2016 -- forum t1569/t2002 -- and
+   which is simply visible here), with commas separating alternative words
+   ("iron,mine"). The branch target is where to resume when the keyword does
+   NOT match, so entries nest: a target inside an open entry is a follow-up
+   prompt, a target past it is the next topic.
+
+   The catch-all entry is "*". Its body is the character's inheritance, as
+   code: call_resource into subindex 8, one call per group, most specific
+   first -- Naxos calls 0x804 (House Comana), 0x80E (Cademia), then 0x801
+   (Human), which is exactly the multiple-inheritance lookup order Pallas
+   Athene worked out by asking Naxos, Darius and a commoner about Attis and
+   Berossus (forum t1654). Any text left in "*" after those calls is the
+   character's own fallback line.
+
+   Offsets: dvmDisassemble works seg-relative (dvmExtents hands it one object
+   at a time) but branch targets are resource-relative, so `target - st`
+   closes an entry and `st + at` addresses a string for the in-place editor.
+
+   The six resources whose nested subroutines defeat the disassembler (the
+   Strange Device and the Tros/Palaestra/Pheres lectures, plus two broken
+   ones -- Bryce's list) come out partial here, never complete. That is
+   expected; the caller should fall back to the flat string view when this
+   returns little.
+--------------------------------------------------------------------------- */
+const DVM_CONV_CONDS = new Set(['sys TestFlag', 'sys GetState', 'sys GetStateFlag',
+  'sys IsInParty', 'sys TalkParticipant', 'sys Random', 'sys WhoHasItem', 'sys GetSkill']);
+const DVM_CONV_ACTS = new Set(['sys JoinParty', 'sys LeaveParty', 'sys Create', 'sys New',
+  'sys AddQuest', 'sys CompleteQuest', 'sys ChangeZone', 'sys Delete', 'sys SetFlag',
+  'sys AddTask', 'sys FinishTasks', 'sys TakeItem', 'sys AddConversationKeyword',
+  'sys GameOver', 'sys SetStateFlag']);
+
+function dvmConversation(b, resid) {
+  let objs;
+  try { objs = dvmExtents(b, resid); } catch (e) { return null; }
+  const entries = [];
+  const preamble = { kw: null, at: 0, text: [], actions: [], conds: [], sub: [] };
+  let sawConv = false;
+  for (const [st, en, kind] of objs) {
+    if (kind !== 'function') continue;
+    const seg = b.subarray(st, Math.min(en, b.length));
+    if (seg.length < 4) continue;
+    let r;
+    try { r = dvmDisassemble(seg, 3); } catch (e) { continue; }
+    if (!r.ops.some(o => o[2] === 'conversation_response')) continue;
+    sawConv = true;
+    const stack = [];   // open entries: { end (seg-relative), entry }
+    let pendingSys = null;
+    for (const op of r.ops) {
+      const at = op[0], mn = op[2], arg = op[3];
+      while (stack.length && stack[stack.length - 1].end <= at) stack.pop();
+      const into = stack.length ? stack[stack.length - 1].entry : null;
+      if (mn === 'conversation_response') {
+        const cut = arg.lastIndexOf(' -> 0x');
+        let kw = arg.slice(0, cut), target = parseInt(arg.slice(cut + 6), 16);
+        try { kw = JSON.parse(kw); } catch (e) {}
+        const entry = { kw, at: st + at, text: [], actions: [], conds: [], sub: [] };
+        (into ? into.sub : entries).push(entry);
+        const segEnd = target - st;
+        if (segEnd > at) stack.push({ end: segEnd, entry });
+        continue;
+      }
+      const e = into || preamble;
+      if (mn === 'string(implicit)') {
+        try { e.text.push({ off: st + at, str: JSON.parse(arg) }); } catch (err) {}
+        pendingSys = null;
+      } else if (mn === 'string') {
+        try { e.text.push({ off: st + at + 1, str: JSON.parse(arg) }); } catch (err) {}
+        pendingSys = null;
+      } else if (mn === 'call_resource') {
+        const m = /0x([0-9A-Fa-f]{1,4})/.exec(arg);
+        if (m) e.actions.push({ call: parseInt(m[1], 16) });
+      } else if (DVM_CONV_CONDS.has(mn)) {
+        const name = mn.slice(4);
+        if (!e.conds.includes(name)) e.conds.push(name);
+      } else if (DVM_CONV_ACTS.has(mn)) {
+        pendingSys = { sys: mn.slice(4) };
+        e.actions.push(pendingSys);
+      } else if (pendingSys && arg && arg.indexOf('  // ') >= 0) {
+        // Create/New leave their meaning on the annotated operand -- carry
+        // "aspect 3, proptype 66 — key" onto the action badge.
+        pendingSys.note = arg.slice(arg.indexOf('  // ') + 5);
+        pendingSys = null;
+      }
+    }
+  }
+  if (!sawConv) return null;
+  // The inheritance chain: subindex-8 calls inside the "*" entries, in
+  // order. Entries, plural -- Halos's script has one catch-all per function,
+  // and only the second carries his House Strymon -> Cademia -> Human chain.
+  // groupsAll additionally sweeps the whole conversation, because a
+  // character can reach a generic set from a topic rather than the
+  // catch-all: a bartender's drink/food/room topics run through the
+  // Bartender group (0x812) directly. (0x803 is a real group too: the
+  // 14-byte stub Sardis, Ake and Milcom call is House Atussa, empty
+  // because the House is defunct.)
+  const groups = [], groupsAll = [];
+  const take = (a, into) => {
+    if (a.call !== undefined && (a.call >> 8) === 8 && !into.includes(a.call)) into.push(a.call);
+  };
+  const collect = (e, into) => {
+    for (const a of e.actions) take(a, into);
+    for (const s of e.sub) collect(s, into);
+  };
+  for (const e of entries) if (e.kw === '*') collect(e, groups);
+  for (const e of entries) collect(e, groupsAll);
+  for (const a of preamble.actions) take(a, groupsAll);
+  const star = entries.find(e => e.kw === '*') || null;
+  return { entries, preamble, groups, groupsAll, star };
+}
