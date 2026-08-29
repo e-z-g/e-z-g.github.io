@@ -7992,8 +7992,8 @@ const MONSTER_FIELDS = [
    empty) -- total immunity, not a reduction. Armor then subtracts
    stochastically. So the lich, with 0x0100 and no fire bit, shrugs off
    bombs AND Fireball (both are pure type 0x08), exactly as in-game
-   testing found (453, dozens of bombs) -- while gandreas's published
-   list stays correct that it has no fire immunity. 0x3040 contains no
+   testing has confirmed -- while gandreas's published list stays
+   correct that it has no fire immunity. 0x3040 contains no
    check for death-immunity 0x0020, so that flag must be tested by each
    spell -- which is where "Death Strike hurts demons despite Immune to
    Death" lives. */
