@@ -5968,7 +5968,17 @@ function walkingPosition(entries, t, m) {
    with exactly one blocking neighbour faces away from it, and one with none is
    left facing the reader and says so.
 --------------------------------------------------------------------------- */
-const CHAIR_FACING = [SPR_S, SPR_W, SPR_N, SPR_E];
+// ...but the throne's single frame turned out to be the exception, not the
+// rule. That record proves aspect 0 of a ONE-frame seat means south -- it
+// cannot say anything about the cycle order of a four-frame chair, and
+// generalising it to [S,W,N,E] sat every four-frame diner with their back to
+// their dinner. The chairs themselves settle it: across the five town maps,
+// 126 chairs sit beside exactly one table, and a diner faces the table.
+// Tallied per aspect (both the wooden pt-12 chair and the red pt-220 one):
+// aspect 0 has its table north 32:1, aspect 1 east 41:2, aspect 2 south 40:0,
+// aspect 3 west 33:1. Four-frame chair aspects are simply the sprite facing
+// order, N/E/S/W -- identity, no table needed.
+const CHAIR_FACING = [SPR_S, SPR_W, SPR_N, SPR_E];    // one-frame seats only
 const SEAT_PROPTYPES = new Set([12, 41, 220, 227]);   // chair, throne, chair, chair
 // How many frames of its own a seat prop has, so an aspect can be told from an
 // index that has run off the end of the chair and into the next thing on the
@@ -6022,7 +6032,7 @@ function seatsOnMap(resid, m) {
         const aspectIsFacing = (own >= 4 || own === 1) && r.aspect < Math.max(own, 1);
         let face = null, why = '';
         if (aspectIsFacing) {
-          face = CHAIR_FACING[r.aspect & 3];
+          face = (own === 1) ? CHAIR_FACING[r.aspect & 3] : (r.aspect & 3);
           why = 'aspect ' + r.aspect;
           // A rotated chair is the transposed image, and transposing swaps
           // north with west and south with east.
@@ -6412,6 +6422,10 @@ function hideDetailLens(free) {
   if (free) { lens.width = 0; lens.height = 0; }
 }
 
+// The pan/zoom state the lens was last painted for, so a drag can slide the
+// painted pixels instead of dropping to the blurry base until the settle.
+let lensView = { x: 0, y: 0, scale: 0 };
+
 function scheduleLensPaint(delay) {
   if (lensTimer) { clearTimeout(lensTimer); lensTimer = null; }
   const lens = document.getElementById('mapDetailLens');
@@ -6422,7 +6436,18 @@ function scheduleLensPaint(delay) {
     if (Date.now() - lensLastPaint > 400) paintDetailLens();
     return;
   }
-  if (lens) lens.style.display = 'none';
+  if (lens && lens.style.display !== 'none' && mapView.scale === lensView.scale) {
+    // A pan at unchanged zoom slides the already-painted lens along with the
+    // map -- full resolution and perfectly registered marks all the way
+    // through the drag, not just at release. The paint covers a margin of a
+    // quarter viewport on every side, so only a long throw exposes the base
+    // underneath before the settle repaints. A zoom change cannot be slid
+    // and still hides until repaint.
+    lens.style.transform = 'translate(' + (mapView.x - lensView.x) + 'px,' +
+                                          (mapView.y - lensView.y) + 'px)';
+  } else if (lens) {
+    lens.style.display = 'none';
+  }
   lensTimer = setTimeout(paintDetailLens, delay == null ? 120 : delay);
 }
 
@@ -6519,24 +6544,29 @@ function paintDetailLens() {
   const dpr = Math.min((typeof devicePixelRatio !== 'undefined' && devicePixelRatio) || 1, 2);
   const vw = vp.clientWidth, vh = vp.clientHeight;
   if (vw < 40 || vh < 40) return;
-  const bw = Math.round(vw * dpr), bh = Math.round(vh * dpr);
+  // A margin of a quarter viewport on each side, painted now so a drag can
+  // slide the lens (see scheduleLensPaint) without exposing the base.
+  const mx = Math.round(vw * 0.25), my = Math.round(vh * 0.25);
+  const bw = Math.round((vw + 2 * mx) * dpr), bh = Math.round((vh + 2 * my) * dpr);
   if (lens.width !== bw || lens.height !== bh) {
     lens.width = bw; lens.height = bh;
-    lens.style.width = vw + 'px'; lens.style.height = vh + 'px';
+    lens.style.width = (vw + 2 * mx) + 'px'; lens.style.height = (vh + 2 * my) + 'px';
+    lens.style.left = (-mx) + 'px'; lens.style.top = (-my) + 'px';
   }
   const ctx = lens.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, bw, bh);
   // Screen position of detail pixel d is mapView + d * (TS*scale/LENS_TS),
   // so one transform lets every painter keep drawing at tile*TS coordinates.
+  // The canvas origin sits a margin up-left of the viewport's.
   const k = (cm.TS * mapView.scale / LENS_TS) * dpr;
-  ctx.setTransform(k, 0, 0, k, mapView.x * dpr, mapView.y * dpr);
+  ctx.setTransform(k, 0, 0, k, (mapView.x + mx) * dpr, (mapView.y + my) * dpr);
   ctx.imageSmoothingEnabled = false;
   const spt = cm.TS * mapView.scale;
-  const x0 = Math.max(0, Math.floor(-mapView.x / spt) - 2);
-  const y0 = Math.max(0, Math.floor(-mapView.y / spt) - 2);
-  const x1 = Math.min(cm.tilesW - 1, Math.ceil((vw - mapView.x) / spt) + 2);
-  const y1 = Math.min(cm.tilesH - 1, Math.ceil((vh - mapView.y) / spt) + 2);
+  const x0 = Math.max(0, Math.floor(-(mapView.x + mx) / spt) - 2);
+  const y0 = Math.max(0, Math.floor(-(mapView.y + my) / spt) - 2);
+  const x1 = Math.min(cm.tilesW - 1, Math.ceil((vw + mx - mapView.x) / spt) + 2);
+  const y1 = Math.min(cm.tilesH - 1, Math.ceil((vh + my - mapView.y) / spt) + 2);
   if (x1 < x0 || y1 < y0) { lens.style.display = 'none'; return; }
   paintMapBaseRegion(ctx, LENS_TS, x0, y0, x1, y1);
   // Same stacking as the layers' z-indices: characters under roofs, then
@@ -6554,13 +6584,15 @@ function paintDetailLens() {
     const sctx = scratch.getContext('2d');
     sctx.setTransform(1, 0, 0, 1, 0, 0);
     sctx.clearRect(0, 0, bw, bh);
-    sctx.setTransform(k, 0, 0, k, mapView.x * dpr, mapView.y * dpr);
+    sctx.setTransform(k, 0, 0, k, (mapView.x + mx) * dpr, (mapView.y + my) * dpr);
     drawLighting(sctx, LENS_TS, { x0, y0, x1, y1 });
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(scratch, 0, 0);
-    ctx.setTransform(k, 0, 0, k, mapView.x * dpr, mapView.y * dpr);
+    ctx.setTransform(k, 0, 0, k, (mapView.x + mx) * dpr, (mapView.y + my) * dpr);
   }
   drawMapMarks(ctx, LENS_TS);
+  lens.style.transform = '';
+  lensView = { x: mapView.x, y: mapView.y, scale: mapView.scale };
   lens.style.display = '';
   lensLastPaint = Date.now();
 }
@@ -6651,7 +6683,7 @@ function restoreMapView(resid) {
   mapView.scale = v.scale; mapView.x = v.x; mapView.y = v.y;
   clampMapPan();
   const slider = document.getElementById('mapZoomSlider');
-  const pct = Math.max(5, Math.min(400, Math.round(mapView.scale * 100)));
+  const pct = Math.max(5, Math.min(+((slider && slider.max)) || 400, Math.round(mapView.scale * 100)));
   if (slider) slider.value = pct;
   const lab = document.getElementById('mapZoomLabel');
   if (lab) lab.textContent = pct + '%';
@@ -6742,7 +6774,10 @@ function setupMapViewportInteraction() {
   function zoomAroundPoint(newScale, vx, vy) {
     // vx,vy are in viewport-local pixel coordinates -- keep that point fixed
     // on screen while scale changes, exactly like native pinch-zoom apps.
-    newScale = Math.max(0.05, Math.min(4, newScale));
+    // Same ceiling as the slider: 4x of native art, however far below
+    // native the base canvas happens to be (16x on the TS=8 world map).
+    const zs = document.getElementById('mapZoomSlider');
+    newScale = Math.max(0.05, Math.min(((+((zs && zs.max)) || 400) / 100), newScale));
     const contentX = (vx - mapView.x) / mapView.scale;
     const contentY = (vy - mapView.y) / mapView.scale;
     mapView.scale = newScale;
@@ -6752,7 +6787,7 @@ function setupMapViewportInteraction() {
     applyMapTransform();
     const slider = document.getElementById('mapZoomSlider');
     const pct = Math.round(mapView.scale * 100);
-    slider.value = Math.max(5, Math.min(400, pct));
+    slider.value = Math.max(5, Math.min(+slider.max || 400, pct));
     document.getElementById('mapZoomLabel').textContent = slider.value + '%';
     rememberMapView();
   }
@@ -7228,6 +7263,12 @@ function renderMapPreview() {
     // Drop the previous map's selection without going through
     // setMapSelection, which would take this map's remembered one with it.
     window.MAP_SEL = null;
+    // The slider's ceiling scales with how far the base tile size is below
+    // native: 400% of a TS=32 map is 128 screen px per tile, so a TS=8 map
+    // deserves 1600% to reach the same place -- and the detail lens renders
+    // that at the real art, not an 8px blur.
+    const zs = document.getElementById('mapZoomSlider');
+    if (zs) zs.max = Math.round(400 * 32 / result.tileSize);
     clearMapInspector();
     startMapAnimation();
     toggleRoofs(window.MAP_ROOFS);   // draws the layer and updates the note
