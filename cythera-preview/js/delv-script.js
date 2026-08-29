@@ -552,6 +552,19 @@ function dvmRender(b, resid) {
   if (sym) lines.unshift('// name: ' + sym);
   lines.unshift('// ' + objs.length + ' objects: ' + clean + ' resolved, ' + failed + ' unresolved');
   if (cls) lines.unshift('// class: ' + cls + ' (resource 0x' + resid.toString(16).toUpperCase() + ')');
+  // The prose the decoder could NOT reach -- recovered by the raw sweep in
+  // dvmStringObjects from regions past a disassembly desync. Listed here so
+  // the Decoded pane shows it and, since the search index is built from this
+  // function's output, so a search for a line of dialogue lands on the
+  // resource that says it.
+  try {
+    const raw = dvmStringObjects(b, resid).filter(e => e.kind === 'raw');
+    if (raw.length) {
+      lines.push('', '// text in regions the decoder could not reach:');
+      for (const e of raw)
+        lines.push('//   +0x' + e.offset.toString(16).toUpperCase() + ': ' + JSON.stringify(e.str));
+    }
+  } catch (e) {}
   return lines.join('\n');
 }
 
@@ -568,6 +581,17 @@ function dvmRender(b, resid) {
 // The logic below deliberately mirrors dvmRender's, so a string shown in the
 // preview is character-for-character the string shown in the disassembly.
 function dvmStringObjects(b, resid) {
+  // Memoised per resource: dvmRender now calls this for its recovered-text
+  // tail, and the search index calls dvmRender over every script resource,
+  // so without the memo each function body would be disassembled twice per
+  // resource per index build. The page's resetDerivedCaches clears it with
+  // everything else keyed to the open archive.
+  const memo = (typeof window !== 'undefined')
+    ? (window._dvmStrMemo || (window._dvmStrMemo = new Map())) : null;
+  if (memo && typeof resid === 'number' && b && memo.has(resid)) {
+    const hit = memo.get(resid);
+    if (hit.len === b.length) return hit.out;
+  }
   const out = [];
   try {
     const objs = dvmExtents(b, resid);
@@ -581,24 +605,63 @@ function dvmStringObjects(b, resid) {
         let z = -1;
         for (let i = 0; i < body.length; i++) if (body[i] === 0) { z = i; break; }
         const head = z > 0 ? body.subarray(0, z) : body;
+        const claimed = [];
+        let sweepFrom = st + 3;
         if (dvmIsProse(head)) {
           const t = decodeMacRoman(head.filter(c => c));
           if (t.trim()) out.push({ offset: st + 3, str: t, kind: 'delver' });
-          continue;
-        }
-        // Most dialogue is not a standalone string object -- it is a `pushc`
-        // operand inside a function, which only the disassembler can find.
-        // Harvesting those is what keeps a character's lines from vanishing
-        // when the naive Pascal scan is switched off.
-        let r;
-        try { r = dvmDisassemble(seg, 3); } catch (e) { continue; }
-        for (const op of r.ops) {
-          if (op[2] !== 'string' && op[2] !== 'string(implicit)') continue;
-          let t;
-          try { t = JSON.parse(op[3].replace(/ -> 0x[0-9A-F]{4}$/, '')); } catch (e) { continue; }
-          if (t && t.trim() && /[A-Za-z]{2}/.test(t)) {
-            out.push({ offset: st + op[0], str: t, kind: 'delver' });
+          // Do NOT stop at the string constant: 0x1802's biggest "function"
+          // is a prose head followed by nine kilobytes of code and dialogue.
+          // The old `continue` here is why Alaric's opening line was
+          // invisible everywhere but a byte search.
+          sweepFrom = st + 3 + (z > 0 ? z + 1 : head.length);
+        } else {
+          // Most dialogue is not a standalone string object -- it is a
+          // `pushc` operand inside a function, which only the disassembler
+          // can find. Harvesting those is what keeps a character's lines
+          // from vanishing when the naive Pascal scan is switched off.
+          let r;
+          try { r = dvmDisassemble(seg, 3); } catch (e) { r = null; }
+          if (r) for (const op of r.ops) {
+            if (op[2] !== 'string' && op[2] !== 'string(implicit)') continue;
+            let t;
+            try { t = JSON.parse(op[3].replace(/ -> 0x[0-9A-F]{4}$/, '')); } catch (e) { continue; }
+            if (t && t.trim() && /[A-Za-z]{2}/.test(t)) {
+              out.push({ offset: st + op[0], str: t, kind: 'delver' });
+              claimed.push([st + op[0], st + op[0] + t.length + 4]);
+            }
           }
+        }
+        // The disassembler desyncs on nested functions and never runs at all
+        // past a prose head, so most of a resource like 0x1802 is invisible
+        // to both paths above. Sweep the rest of the extent the way the
+        // format actually stores text (see dvmImplicitString and the wiki's
+        // Strings Problem page): a string is a maximal run of printable
+        // ASCII ended by a non-printing byte, not a length-prefixed record.
+        // Runs that read as prose are kept as kind 'raw': weaker provenance,
+        // said out loud, better than ten kilobytes of silence. A couple of
+        // printable opcode bytes can glue to a run's front ('@' is the end
+        // opcode), so up to three leading non-textual characters are
+        // trimmed.
+        let i2 = sweepFrom;
+        const end2 = Math.min(en, b.length);
+        while (i2 < end2) {
+          const printable = b[i2] >= 0x20 && b[i2] < 0x7F;
+          const boundary = i2 === sweepFrom || !(b[i2 - 1] >= 0x20 && b[i2 - 1] < 0x7F);
+          if (printable && boundary) {
+            let q = i2;
+            while (q < end2 && b[q] >= 0x20 && b[q] < 0x7F) q++;
+            let s0 = i2, trims = 0;
+            while (trims < 3 && s0 < q &&
+                   !((b[s0] >= 0x41 && b[s0] <= 0x5A) || (b[s0] >= 0x61 && b[s0] <= 0x7A) ||
+                     b[s0] === 0x22 || b[s0] === 0x27 || b[s0] === 0x28 || b[s0] === 0x5B)) { s0++; trims++; }
+            const cand = b.subarray(s0, q);
+            if (cand.length >= 10 && dvmIsProse(cand) && /[A-Za-z]{2}/.test(decodeMacRoman(cand)) &&
+                !claimed.some(([a, zz]) => s0 < zz && q > a)) {
+              out.push({ offset: s0, str: decodeMacRoman(cand), kind: 'raw', cap: q - s0 });
+            }
+            i2 = q + 1;
+          } else i2++;
         }
       } else if (kind !== 'array' && kind !== 'table') {
         if (!(dvmIsProse(seg) || dvmIsIdentifier(seg))) continue;
@@ -607,6 +670,7 @@ function dvmStringObjects(b, resid) {
       }
     }
   } catch (e) {}
+  if (memo && typeof resid === 'number' && b) memo.set(resid, { len: b.length, out });
   return out;
 }
 
