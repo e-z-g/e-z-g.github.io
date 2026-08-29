@@ -3594,6 +3594,7 @@ function stopAllViewActivity() {
   stopSpriteAnimations();
   stopMapAnimation();
   stopPaletteAnimation();
+  if (typeof hideDetailLens === 'function') hideDetailLens(true);
   const audio = document.getElementById('audioPlayer');
   if (audio && !audio.paused) audio.pause();
 }
@@ -4838,16 +4839,31 @@ function deconflictPositions(people) {
   }
 }
 
-function drawCharacterLayer() {
-  const ov = document.getElementById('charLayer');
+function drawCharacterLayer(lensCtx, lensTS) {
   const cm = window.CUR_MAP;
-  if (!ov || !cm) return;
-  const ctx = ov.getContext('2d');
-  ctx.clearRect(0, 0, ov.width, ov.height);
-  const lbl = document.getElementById('charCount');
-  if (!window.SHOW_CHARACTERS) { if (lbl) lbl.textContent = ''; return; }
-
-  const TS = cm.TS;
+  if (!cm) return;
+  let ctx, TS;
+  const lbl = lensCtx ? null : document.getElementById('charCount');
+  if (lensCtx) {
+    if (!window.SHOW_CHARACTERS) return;
+    ctx = lensCtx; TS = lensTS;
+  } else {
+    const ov = document.getElementById('charLayer');
+    if (!ov) return;
+    if (!window.SHOW_CHARACTERS) {
+      ov.width = 0; ov.height = 0;          // deflate, see drawRoofLayer
+      if (lbl) lbl.textContent = '';
+      scheduleLensPaint();
+      return;
+    }
+    if (ov.width !== cm.width || ov.height !== cm.height) {
+      ov.width = cm.width; ov.height = cm.height;
+      ov.style.width = cm.width + 'px'; ov.style.height = cm.height + 'px';
+    }
+    ctx = ov.getContext('2d');
+    ctx.clearRect(0, 0, ov.width, ov.height);
+    TS = cm.TS;
+  }
   const people = charactersOnLevel(cm.level, window.MAP_WALK ? window.MAP_TIME : window.MAP_HOUR);
   deconflictPositions(people);
   drawOpenDoors(ctx, TS, people);
@@ -4906,6 +4922,7 @@ function drawCharacterLayer() {
       back.dataset.idx = window.FOCUS_CHARACTER;
     } else back.style.display = 'none';
   }
+  if (!lensCtx) scheduleLensPaint();
 }
 
 let paletteTimer = null;
@@ -5188,17 +5205,33 @@ function ensureRoofLayer() {
   return rc;
 }
 
-function drawRoofLayer() {
+function drawRoofLayer(lensCtx, lensTS) {
   const cm = window.CUR_MAP;
-  const rc = ensureRoofLayer();
-  if (!rc || !cm) return;
-  rc.width = cm.width; rc.height = cm.height;
-  rc.style.width = cm.width + 'px'; rc.style.height = cm.height + 'px';
-  const ctx = rc.getContext('2d');
-  ctx.clearRect(0, 0, rc.width, rc.height);
-  cm.roofTilesDrawn = 0;
-  if (!window.MAP_ROOFS || !cm.roofSections || !cm.roofSections.length) return;
-  const m = cm.m, TS = cm.TS;
+  if (!cm) return;
+  const active = window.MAP_ROOFS && cm.roofSections && cm.roofSections.length;
+  let ctx, TS;
+  if (lensCtx) {
+    if (!active) return;
+    ctx = lensCtx; TS = lensTS;
+  } else {
+    const rc = ensureRoofLayer();
+    if (!rc) return;
+    cm.roofTilesDrawn = 0;
+    if (!active) {
+      // Deflate rather than clear: a cleared canvas keeps its backing store,
+      // and on iOS every full-map layer counts against the budget that was
+      // crashing the tab. Zero-sized, it costs nothing until toggled back.
+      rc.width = 0; rc.height = 0;
+      scheduleLensPaint();
+      return;
+    }
+    rc.width = cm.width; rc.height = cm.height;
+    rc.style.width = cm.width + 'px'; rc.style.height = cm.height + 'px';
+    ctx = rc.getContext('2d');
+    ctx.clearRect(0, 0, rc.width, rc.height);
+    TS = cm.TS;
+  }
+  const m = cm.m;
   if (!m || !m.raw) return;
   let drawn = 0;
   // In prop-list order, so a later block laid over an earlier one wins -- which
@@ -5218,6 +5251,7 @@ function drawRoofLayer() {
     }
   }
   cm.roofTilesDrawn = drawn;
+  if (!lensCtx) scheduleLensPaint();
 }
 
 function toggleRoofs(on) {
@@ -5356,17 +5390,33 @@ function ropeSquares(resid) {
   return set;
 }
 
-function drawMapMarks() {
+function drawMapMarks(lensCtx, lensTS) {
   const cm = window.CUR_MAP;
-  const mc = ensureMarkLayer();
-  if (!cm || !mc) return;
-  mc.width = cm.width; mc.height = cm.height;
-  mc.style.width = cm.width + 'px'; mc.style.height = cm.height + 'px';
-  const ctx = mc.getContext('2d');
-  ctx.clearRect(0, 0, mc.width, mc.height);
+  if (!cm) return;
   const M = window.MAP_MARKS;
-  const legend = document.getElementById('markLegend');
-  const TS = cm.TS;
+  const spots_ = window.MAP_ITEM_SPOTS;
+  const anything = M.doors || M.secret || M.chest || M.exits || window.MAP_SEL ||
+                   (spots_ && spots_.resid === cm.resid && spots_.cells.length);
+  let ctx, TS;
+  const legend = lensCtx ? null : document.getElementById('markLegend');
+  if (lensCtx) {
+    if (!anything) return;
+    ctx = lensCtx; TS = lensTS;
+  } else {
+    const mc = ensureMarkLayer();
+    if (!mc) return;
+    if (!anything) {
+      mc.width = 0; mc.height = 0;          // deflate, see drawRoofLayer
+      if (legend) legend.innerHTML = '';
+      scheduleLensPaint();
+      return;
+    }
+    mc.width = cm.width; mc.height = cm.height;
+    mc.style.width = cm.width + 'px'; mc.style.height = cm.height + 'px';
+    ctx = mc.getContext('2d');
+    ctx.clearRect(0, 0, mc.width, mc.height);
+    TS = cm.TS;
+  }
   const colours = { doors: '#ffd166', secret: '#8fd4ff', chest: '#a8e06a', exits: '#ff9ad5' };
   // Ring the SQUARES, not the sprites. This used to subtract the prop's draw
   // offset so the ring followed the artwork, which is wrong twice over: the
@@ -5564,6 +5614,7 @@ function drawMapMarks() {
         'hidden ways instead</span>'
       : '';
   }
+  if (!lensCtx) scheduleLensPaint();
 }
 
 /* ---------------------------------------------------------------------------
@@ -5625,21 +5676,36 @@ function ensureLightLayer() {
   }
   return lc;
 }
-function drawLighting() {
+function drawLighting(lensCtx, lensTS, rect) {
   const cm = window.CUR_MAP;
-  const lc = ensureLightLayer();
-  if (!cm || !lc) return;
-  lc.width = cm.width; lc.height = cm.height;
-  lc.style.width = cm.width + 'px'; lc.style.height = cm.height + 'px';
-  const ctx = lc.getContext('2d');
-  ctx.clearRect(0, 0, lc.width, lc.height);
-  if (!window.SHOW_LIGHTING) return;
+  if (!cm) return;
+  let ctx, TS, washX, washY, washW, washH;
+  if (lensCtx) {
+    if (!window.SHOW_LIGHTING) return;
+    ctx = lensCtx; TS = lensTS;
+    washX = (rect.x0 - 1) * TS; washY = (rect.y0 - 1) * TS;
+    washW = (rect.x1 - rect.x0 + 3) * TS; washH = (rect.y1 - rect.y0 + 3) * TS;
+  } else {
+    const lc = ensureLightLayer();
+    if (!lc) return;
+    if (!window.SHOW_LIGHTING) {
+      lc.width = 0; lc.height = 0;          // deflate, see drawRoofLayer
+      scheduleLensPaint();
+      return;
+    }
+    lc.width = cm.width; lc.height = cm.height;
+    lc.style.width = cm.width + 'px'; lc.style.height = cm.height + 'px';
+    ctx = lc.getContext('2d');
+    ctx.clearRect(0, 0, lc.width, lc.height);
+    TS = cm.TS;
+    washX = 0; washY = 0; washW = lc.width; washH = lc.height;
+  }
   const t = window.MAP_WALK ? window.MAP_TIME : window.MAP_HOUR;
   const alpha = nightAlpha(t);
-  if (alpha <= 0.02) return;
-  const TS = cm.TS;
+  if (alpha <= 0.02) { if (!lensCtx) scheduleLensPaint(); return; }
+  ctx.save();
   ctx.fillStyle = 'rgba(4,3,14,' + alpha + ')';
-  ctx.fillRect(0, 0, lc.width, lc.height);
+  ctx.fillRect(washX, washY, washW, washH);
   ctx.globalCompositeOperation = 'destination-out';
   for (const s of buildLightSources(cm.resid, cm.m)) {
     const cx = s.x * TS + TS / 2, cy = s.y * TS + TS / 2;
@@ -5652,6 +5718,8 @@ function drawLighting() {
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+  if (!lensCtx) scheduleLensPaint();
 }
 
 function buildPropBlockers(resid, m) {
@@ -6049,7 +6117,18 @@ function renderMapVisual(resid, mapData) {
   // the backing canvas always stays under the limit.
   // iOS tears the tab down well below its nominal canvas ceiling once a big
   // layer is also being transformed, which is what made panning crash.
-  const MAX_CANVAS_PX = 6e6;
+  //
+  // And 6 MP was still too much there: this base canvas is one of up to five
+  // full-map layers (characters, roofs, marks, lighting stack over it), so
+  // the world map held ~120 MB of backing store and WebKit killed the tab --
+  // every iOS browser is WebKit, which is why "Chrome on iOS" crashed too.
+  // On iOS the budget drops to 2.2 MP per layer and the layers below deflate
+  // to zero when their toggle is off. Detail does not suffer for it: the
+  // detail lens (paintDetailLens) re-renders the visible window at the
+  // native 32px tile size whenever the map is zoomed in, on every platform
+  // -- which is also what finally shows the 256x256 world map at full
+  // detail on desktop, where the budget alone had capped it at TS=8.
+  const MAX_CANVAS_PX = IS_IOS_WEBKIT ? 2.2e6 : 6e6;
   let TS = 32;
   while (TS > 4 && (m.width * TS) * (m.height * TS) > MAX_CANVAS_PX) TS -= 4;
   const canvas = document.createElement('canvas');
@@ -6277,6 +6356,215 @@ function renderMapVisual(resid, mapData) {
           animReplay,
           props: drawnProps, propResid, allProps: allRecs, wallsHidden: suppressed.length};
 }
+/* ---------------------------------------------------------------------------
+   The detail lens
+   ---------------------------------------------------------------------------
+   The base canvas is drawn once per map at whatever tile size fits the
+   platform's canvas budget, and pan/zoom is a CSS transform over it -- cheap,
+   but it means a large map's native art is simply not there to be seen:
+   zooming into the world map scaled TS=8 pixels up, blurry at any budget.
+
+   The lens is one viewport-sized canvas overlaid on the map (pointer-events
+   none, so clicks fall through to the same handler as always). Whenever the
+   map is zoomed in far enough that a screen tile exceeds the base's native
+   size, the visible window -- and only it -- is re-rendered at the native
+   32px tile size: terrain, faux props, the props in their recorded draw
+   order, then the same layer painters the full-size layers use (characters,
+   roofs, marks, lighting), each taking an optional (ctx, TS) so one body
+   serves both its own canvas and the lens. Memory is a constant ~1-2 MP
+   whatever the map size, which is the whole point.
+
+   Repaints are debounced off applyMapTransform, so a drag hides the lens and
+   the settle repaints it; layer toggles, the hour slider and the selection
+   repaint it through their own draw functions' tails. Walk mode throttles
+   instead (the ticks never stop, so a debounce would hide it forever).
+--------------------------------------------------------------------------- */
+const IS_IOS_WEBKIT = typeof navigator !== 'undefined' &&
+  (/iP(hone|ad|od)/.test(navigator.userAgent || '') ||
+   (/Macintosh/.test(navigator.userAgent || '') && (navigator.maxTouchPoints || 0) > 1));
+const LENS_TS = 32;
+let lensTimer = null;
+let lensLastPaint = 0;
+
+function lensActive() {
+  const cm = window.CUR_MAP;
+  return !!(cm && cm.m && cm.TS < LENS_TS && mapView.scale * cm.TS >= 16);
+}
+
+function ensureDetailLens() {
+  const vp = document.getElementById('mapViewport');
+  if (!vp) return null;
+  let lens = document.getElementById('mapDetailLens');
+  if (!lens) {
+    lens = document.createElement('canvas');
+    lens.id = 'mapDetailLens';
+    lens.style.cssText = 'position:absolute; top:0; left:0; pointer-events:none; z-index:5; display:none; image-rendering:pixelated;';
+    vp.appendChild(lens);
+  }
+  return lens;
+}
+
+function hideDetailLens(free) {
+  if (lensTimer) { clearTimeout(lensTimer); lensTimer = null; }
+  const lens = document.getElementById('mapDetailLens');
+  if (!lens) return;
+  lens.style.display = 'none';
+  if (free) { lens.width = 0; lens.height = 0; }
+}
+
+function scheduleLensPaint(delay) {
+  if (lensTimer) { clearTimeout(lensTimer); lensTimer = null; }
+  const lens = document.getElementById('mapDetailLens');
+  if (!lensActive()) { if (lens) hideDetailLens(true); return; }
+  // Walk mode ticks continuously; throttle rather than debounce, or the
+  // lens would stay hidden for as long as anyone is walking.
+  if (window.MAP_WALK && lens && lens.style.display !== 'none') {
+    if (Date.now() - lensLastPaint > 400) paintDetailLens();
+    return;
+  }
+  if (lens) lens.style.display = 'none';
+  lensTimer = setTimeout(paintDetailLens, delay == null ? 120 : delay);
+}
+
+// Terrain, faux props and props for one tile rectangle, at any tile size.
+// The props come from cm.props -- the full render already decided visibility
+// and draw order (delvmod's per-square priority sort), so repainting them in
+// stored order reproduces the exact same stacking.
+function paintMapBaseRegion(ctx, TS, x0, y0, x1, y1) {
+  const cm = window.CUR_MAP;
+  if (!cm || !cm.m || !cm.mapData) return;
+  const m = cm.m, mapData = cm.mapData;
+  const faux = getFauxProps();
+  const fauxTiles = getPropTileList();
+  const memo = new Map();
+  const isTW = t => {
+    let v = memo.get(t);
+    if (v === undefined) {
+      const nm = (terrainNameFor(t) || '').toLowerCase();
+      v = /(^|\s)wall$|(^|\s)window$/.test(nm);
+      memo.set(t, v);
+    }
+    return v;
+  };
+  const suppressed = [];
+  const fauxDrawn = [];
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x0 * TS, y0 * TS, (x1 - x0 + 1) * TS, (y1 - y0 + 1) * TS);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const t = u16be(mapData, m.mapDataOffset + (x + y * m.width) * 2);
+      if (!window.MAP_WALLS && isTW(t)) {
+        ctx.fillStyle = '#151515';
+        ctx.fillRect(x * TS, y * TS, TS, TS);
+        suppressed.push([x, y]);
+        continue;
+      }
+      drawTileAt(ctx, t, x * TS, y * TS, false, TS);
+      const fp = faux.get(t);
+      if (fp) fauxDrawn.push([x, y, fp]);
+    }
+  }
+  for (const [x, y, fp] of fauxDrawn) {
+    const base = fauxTiles[fp.proptype];
+    if (base === undefined) continue;
+    if (!window.MAP_WALLS && isWallLikeProp(fp.proptype)) { suppressed.push([x, y]); continue; }
+    const [ox, oy] = propOffsetFor(fp.proptype, fp.aspect, fp.rotated);
+    drawPropAt(ctx, TS, x, y, base + fp.aspect, fp.rotated, ox, oy, m.width, m.height);
+  }
+  const margin = 4;                       // sprites overhang their square
+  for (const d of (cm.props || [])) {
+    const r = d.rec;
+    if (r.x < x0 - margin || r.x > x1 + margin || r.y < y0 - margin || r.y > y1 + margin) continue;
+    const [ox, oy] = propOffsetFor(r.proptype, r.aspect, r.rotated);
+    drawPropAt(ctx, TS, r.x, r.y, d.tileId, r.rotated, ox, oy, m.width, m.height);
+  }
+  // The full render dropped wall props before recording cm.props, so the
+  // hatching recovers them from the raw records the same way it decided.
+  if (!window.MAP_WALLS) {
+    for (const r of (cm.allProps || [])) {
+      if (r.flags === 0xFF || r.flags === 0x42 || r.flags === 0x44) continue;
+      if ((r.flags & 0x58) && !characterProptypes().has(r.proptype)) continue;
+      if (r.x < x0 || r.x > x1 || r.y < y0 || r.y > y1) continue;
+      if (isWallLikeProp(r.proptype)) suppressed.push([r.x, r.y]);
+    }
+  }
+  if (suppressed.length) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(190,175,130,.42)';
+    ctx.lineWidth = Math.max(1, TS / 20);
+    for (const [x, y] of suppressed) {
+      if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+      const px = x * TS, py = y * TS;
+      ctx.beginPath();
+      for (let k = -TS; k < TS; k += Math.max(3, TS / 4)) {
+        ctx.moveTo(px + Math.max(0, k), py + Math.max(0, -k));
+        ctx.lineTo(px + Math.min(TS, k + TS), py + Math.min(TS, TS - k));
+      }
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(190,175,130,.22)';
+      ctx.strokeRect(px + 0.5, py + 0.5, TS - 1, TS - 1);
+      ctx.strokeStyle = 'rgba(190,175,130,.42)';
+    }
+    ctx.restore();
+  }
+}
+
+function paintDetailLens() {
+  lensTimer = null;
+  const cm = window.CUR_MAP;
+  const vp = document.getElementById('mapViewport');
+  if (!lensActive() || !vp) { hideDetailLens(true); return; }
+  const lens = ensureDetailLens();
+  if (!lens) return;
+  const dpr = Math.min((typeof devicePixelRatio !== 'undefined' && devicePixelRatio) || 1, 2);
+  const vw = vp.clientWidth, vh = vp.clientHeight;
+  if (vw < 40 || vh < 40) return;
+  const bw = Math.round(vw * dpr), bh = Math.round(vh * dpr);
+  if (lens.width !== bw || lens.height !== bh) {
+    lens.width = bw; lens.height = bh;
+    lens.style.width = vw + 'px'; lens.style.height = vh + 'px';
+  }
+  const ctx = lens.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, bw, bh);
+  // Screen position of detail pixel d is mapView + d * (TS*scale/LENS_TS),
+  // so one transform lets every painter keep drawing at tile*TS coordinates.
+  const k = (cm.TS * mapView.scale / LENS_TS) * dpr;
+  ctx.setTransform(k, 0, 0, k, mapView.x * dpr, mapView.y * dpr);
+  ctx.imageSmoothingEnabled = false;
+  const spt = cm.TS * mapView.scale;
+  const x0 = Math.max(0, Math.floor(-mapView.x / spt) - 2);
+  const y0 = Math.max(0, Math.floor(-mapView.y / spt) - 2);
+  const x1 = Math.min(cm.tilesW - 1, Math.ceil((vw - mapView.x) / spt) + 2);
+  const y1 = Math.min(cm.tilesH - 1, Math.ceil((vh - mapView.y) / spt) + 2);
+  if (x1 < x0 || y1 < y0) { lens.style.display = 'none'; return; }
+  paintMapBaseRegion(ctx, LENS_TS, x0, y0, x1, y1);
+  // Same stacking as the layers' z-indices: characters under roofs, then
+  // lighting, marks and the selection on top.
+  drawCharacterLayer(ctx, LENS_TS);
+  drawRoofLayer(ctx, LENS_TS);
+  // Lighting punches its light circles out of its darkness wash with
+  // destination-out, which on the shared lens context would erase the map
+  // itself. It gets a scratch canvas with the same transform, composited
+  // back as a normal alpha layer.
+  if (window.SHOW_LIGHTING) {
+    let scratch = window._lensLightScratch;
+    if (!scratch) scratch = window._lensLightScratch = document.createElement('canvas');
+    if (scratch.width !== bw || scratch.height !== bh) { scratch.width = bw; scratch.height = bh; }
+    const sctx = scratch.getContext('2d');
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.clearRect(0, 0, bw, bh);
+    sctx.setTransform(k, 0, 0, k, mapView.x * dpr, mapView.y * dpr);
+    drawLighting(sctx, LENS_TS, { x0, y0, x1, y1 });
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(scratch, 0, 0);
+    ctx.setTransform(k, 0, 0, k, mapView.x * dpr, mapView.y * dpr);
+  }
+  drawMapMarks(ctx, LENS_TS);
+  lens.style.display = '';
+  lensLastPaint = Date.now();
+}
+
 // --- Map viewport pan & zoom state -----------------------------------
 const mapView = { scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
 
@@ -6299,6 +6587,7 @@ function clampMapPan() {
 function applyMapTransform() {
   const wrap = document.getElementById('mapCanvasWrap');
   wrap.style.transform = 'translate(' + mapView.x + 'px,' + mapView.y + 'px) scale(' + mapView.scale + ')';
+  scheduleLensPaint();
   // Thin 1px detail -- the wavy streaks in the Expanse void tiles are only
   // ~37 pixels per tile -- is destroyed by nearest-neighbour when the map is
   // shown below 100%. Smooth only when downscaling; keep crisp pixels at or
@@ -6915,6 +7204,10 @@ function renderMapPreview() {
     const result = renderMapVisual(resid, mapData);
     const wrap = document.getElementById('mapCanvasWrap');
     wrap.innerHTML = '';
+    // The lens lives in the viewport, not the wrap, so it survives the wipe
+    // above -- and would show the PREVIOUS map's window over this one until
+    // its repaint lands. Hide it now; restoreOrFitMap's transform reschedules.
+    hideDetailLens(true);
     if (!result) {
       document.getElementById('mapLabel').textContent =
         '0x' + resid.toString(16).toUpperCase() + (lbl ? ' - ' + lbl : '') + '  |  (could not parse as a valid map header/size)';
@@ -7646,13 +7939,23 @@ const MONSTER_FIELDS = [
    labels for them here -- an unlabeled bit prints as hex below, which is
    honest.
 
-   Note the divergence this table exposes: the lich has NO fire-immunity
-   bit (0x0080), agreeing with gandreas's own list -- yet in-game testing
-   (453, dozens of bombs) shows bombs do not damage it. Its protection must
-   come through 0x0100/0x0800 (a bomb is a non-magical source) or engine
-   code, not the fire flag. The same list already carries one known
-   engine/label mismatch: Death Strike hurts demons despite Immune to
-   Death. */
+   How the engine consumes these is not a guess: the default ResistDamage
+   is a script in the archive, at 0x3040 -- default methods live at
+   0x3000|method_id (subindex 47; the wiki's Object page pointed there).
+   Its rules, in order: fire flag 0x0080 zeroes type-0x08 damage; electric
+   flag 0x8000 zeroes type-0x20; resist-magic 0x0800 HALVES type-0x40;
+   vulnerable-to-fire 0x0200 DOUBLES type-0x08; character status flag 23
+   (Resist Fire, gator boots) zeroes type-0x08; resist-non-blunt 0x0400
+   halves edged/piercing (type&0x03 without 0x04); and resist-non-magical
+   0x0100 returns ZERO for any damage type with no magic bit (type&0xC0
+   empty) -- total immunity, not a reduction. Armor then subtracts
+   stochastically. So the lich, with 0x0100 and no fire bit, shrugs off
+   bombs AND Fireball (both are pure type 0x08), exactly as in-game
+   testing found (453, dozens of bombs) -- while gandreas's published
+   list stays correct that it has no fire immunity. 0x3040 contains no
+   check for death-immunity 0x0020, so that flag must be tested by each
+   spell -- which is where "Death Strike hurts demons despite Immune to
+   Death" lives. */
 const MONSTER_FLAG_NAMES = [
   [0x0001, 'can swim'],
   [0x0002, 'can fly'],
