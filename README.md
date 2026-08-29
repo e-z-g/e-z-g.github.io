@@ -14,9 +14,9 @@ Web tools and interactive experiments: <https://e-z-g.github.io/>
 | | |
 |---|---|
 | [Pixelator](https://e-z-g.github.io/pixelator.html) | [PNG Alpha Tools](https://e-z-g.github.io/unpremultiply.html) |
-| [GIF Sprite Extractor](https://e-z-g.github.io/gif2sheet.html) | [Custom Video Scaler](https://e-z-g.github.io/vidscale.html) |
-| [3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html) | [Star/Planet Viewer](https://e-z-g.github.io/ev/) |
-| [Anachronism Machine](https://e-z-g.github.io/anachronism.html) | |
+| [GIF Sprite Extractor](https://e-z-g.github.io/gif2sheet.html) | [GIF Smasher](https://e-z-g.github.io/gifsmash.html) |
+| [Custom Video Scaler](https://e-z-g.github.io/vidscale.html) | [3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html) |
+| [Star/Planet Viewer](https://e-z-g.github.io/ev/) | [Anachronism Machine](https://e-z-g.github.io/anachronism.html) |
 
 ## Utilities
 
