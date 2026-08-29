@@ -6582,6 +6582,22 @@ function propInspectRows(p) {
   }
   if (r.proptype === KEY_PROPTYPE && r.d1)
     rows.push(['Opens', 'lock id ' + r.d1 + ' — ' + locksForKey(r.d1).length + ' lock(s)']);
+  // A portal's low data byte is a zoneport index into 0xF00C -- the same
+  // table the map headers' four exit fields use. Established two ways:
+  // archive-wide (every portal-typed prop with a nonzero d2, all 122 of
+  // them, lands on a populated zoneport entry; none dangles) and from the
+  // engine's own code (the ladder, hole, stairs, mineshaft and cave object
+  // scripts each pass get_field data3 straight to sys ChangeZone). Bryce
+  // recorded the same byte as "destination zone" on save-file portal
+  // objects in 2007 (forum t1830); this is that finding, holding in the
+  // scenario file. "steps" (131/250) is not in EXIT_PROPS because it is
+  // usually decorative and would repaint the map marks, but nine steps
+  // props do travel, so it joins here rather than there.
+  const portalish = isExitProp(r.proptype) || /^steps$/.test(propTypeName(r.proptype) || '');
+  if (r.d2 && portalish) {
+    const dest = zoneportInfo(r.d2);
+    if (dest) rows.push(['Leads to', dest.name + ' (' + dest.x + ',' + dest.y + ') — zoneport ' + r.d2]);
+  }
   if (r.d1 || r.d2) rows.push(['Data', r.d1 + ' / ' + r.d2 + '  (0x' + r.d3.toString(16).toUpperCase() + ')']);
   if (r.storeref) {
     const sym = typeof storeSymbol === 'function' ? storeSymbol(r.storeref) : null;
@@ -6811,6 +6827,14 @@ function inspectMapSquare(tx, ty) {
       for (const k of keysForLock(p.rec.d1)) { const c = keyLocationChip(k); if (c) acts.push(c); }
     if (p.rec.proptype === KEY_PROPTYPE && p.rec.d1)
       for (const l of locksForKey(p.rec.d1).slice(0, 8)) acts.push(lockLocationChip(l));
+    // A functional portal offers the trip: jump to the square its zoneport
+    // lands on, the way the lock/key chips jump to the other end of a lock.
+    if (p.rec.d2 && (isExitProp(p.rec.proptype) || /^steps$/.test(propTypeName(p.rec.proptype) || ''))) {
+      const dest = zoneportInfo(p.rec.d2);
+      if (dest && refExists(dest.resid))
+        acts.push('<button class="sv-chip" onclick="showSquareOnMap(' + dest.resid + ',' + dest.x + ',' + dest.y +
+                  ')">&#8594; ' + svEsc(dest.name) + '</button>');
+    }
     const contents = containerContents(p.rec);
     const slot = contents.length ? ('insp-box-' + p.rec.index) : null;
     if (slot) boxes.push([slot, p.rec, contents]);
