@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Spatial Photo Kit</title>
+<!--
+  Spatial Photo Kit — two tools in one page, both ends of the iOS depth pipeline.
+
+  WHY THIS EXISTS
+  ───────────────
+  iOS 26's Photos app can turn a picture into a "Spatial Scene" — a live 3-D
+  parallax effect driven by a depth map the phone infers on the spot. But the
+  toggle only appears on images Photos believes are *photographs*. Screenshots,
+  AI renders, scans, and most downloaded images carry no camera EXIF — no
+  DateTimeOriginal, no Make/Model, no lens — and Photos quietly hides the
+  option for them. The eligibility heuristic is undocumented and has shifted
+  between point releases (early iOS 26 betas allowed screenshots; later builds
+  don't), but camera-shaped EXIF is the observable gate: give a file the
+  metadata of an iPhone shot and the toggle comes back.
+
+  So panel 1 ("Dress as a camera photo") re-encodes any image to JPEG and
+  writes a hand-built EXIF APP1 segment — Make/Model, DateTimeOriginal with
+  timezone offsets, exposure, focal length, lens strings — the fields a real
+  iPhone capture carries. No library: the TIFF structure is ~150 lines and
+  writing it by hand means this page keeps working from file:// forever.
+  (If Apple ever tightens the check further, Apple MakerNotes are the next
+  dial to turn; deliberately not attempted until needed.)
+
+  WHAT YOU CAN AND CANNOT EXTRACT
+  ───────────────────────────────
+  Honesty corner: the depth map a Spatial Scene generates is rendered live
+  inside Photos and is never written to any exportable file. There is no
+  metadata trick that gets it out; only an app using Apple's frameworks sees
+  it. What iOS *does* write depth into:
+
+    • Portrait-mode HEICs — a small HEVC auxiliary image (disparity),
+      typically ~768×576, tagged with an auxC urn.
+    • Portrait photos shared as JPEG — the depth (and mattes) ride along as
+      whole extra JPEGs appended after the main one (MPF-style).
+    • Spatial photos (iPhone 15 Pro+/Vision Pro) and Vision Pro's 2D→spatial
+      conversion — stereo HEIC; the two eye views are extractable, depth is
+      implied by the pair rather than stored as a map.
+    • HDR gain maps and person-segmentation mattes — same aux mechanism.
+
+  Panel 2 ("Pull the depth back out") reads those. For JPEG it walks the
+  entropy-coded stream to find the appended sub-images (the reliable
+  equivalent of `exiftool -b -MPImage2`). For HEIC it parses the ISOBMFF
+  boxes itself — iinf/iloc/iprp/ipma/iref — finds items carrying an auxC
+  property, reassembles their HEVC bitstream from the iloc extents, and
+  decodes via WebCodecs (VideoDecoder with the item's hvcC as description).
+  Safari and Chrome-on-capable-hardware decode HEVC; when WebCodecs can't,
+  the tool still lists everything inside the file and offers the raw .hevc
+  payload plus its hvcC record, which `heif-convert --with-aux` or ffmpeg
+  can finish off. Grid-tiled aux items are composited tile by tile.
+
+  THE "STANDARDIZED FORMAT"
+  ─────────────────────────
+  Exports are a 16-bit grayscale PNG (the de-facto interchange used by
+  MiDaS / Depth Anything pipelines) plus a JSON sidecar recording width,
+  height, the source aux urn, whether values are disparity (near = bright)
+  or depth (near = dark), and the 8→16-bit mapping (v × 257). The PNG is
+  written by hand too: stored (uncompressed) deflate blocks inside a valid
+  zlib stream, CRC32 and Adler32 included — bigger than a real compressor's
+  output but dependency-free and bit-exact.
+
+  Everything runs locally; nothing is uploaded anywhere.
+-->
+<style>
+*{box-sizing:border-box}body{margin:0;padding:2rem 1rem;min-height:100vh;background:#0a0a0a;color:#e5e5e5;font-family:system-ui,-apple-system,sans-serif}.container{max-width:860px;margin:auto}h1{text-align:center;font-size:2rem;font-weight:700;margin:0 0 .5rem}.subtitle{text-align:center;color:#888;margin:0 0 2rem;font-size:1rem}.grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem}@media(max-width:640px){.grid{grid-template-columns:1fr}}.card{background:#141414;border:1px solid #2a2a2a;border-radius:.75rem;padding:1.25rem}.card-title{font-size:1rem;font-weight:600;margin-bottom:.25rem}.card-desc{font-size:.8rem;color:#777;margin-bottom:1rem}.drop-zone{border:2px dashed #2a2a2a;border-radius:.6rem;padding:2rem 1rem;text-align:center;cursor:pointer;transition:border-color .2s;margin-bottom:1rem}.drop-zone:hover,.drop-zone.drag-over{border-color:#555}.drop-zone p{font-size:.8rem;color:#666;margin:.25rem 0}input[type=file]{display:none}.file-name{font-size:.78rem;color:#666;margin-bottom:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row{display:flex;gap:.6rem;align-items:center;margin-bottom:.75rem;font-size:.82rem;color:#aaa;flex-wrap:wrap}.row label{min-width:6.5rem}.row input[type=datetime-local],.row select{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:.4rem;color:#e5e5e5;padding:.35rem .5rem;font-size:.82rem}.process-btn{width:100%;padding:.6rem;background:#e5e5e5;color:#0a0a0a;border:none;border-radius:.4rem;font-size:.88rem;font-weight:600;cursor:pointer;transition:background .15s;margin-bottom:.5rem}.process-btn:disabled{background:#2a2a2a;color:#555;cursor:not-allowed}.process-btn:not(:disabled):hover{background:#ccc}.ghost-btn{width:100%;padding:.5rem;background:transparent;color:#aaa;border:1px solid #333;border-radius:.4rem;font-size:.82rem;cursor:pointer;margin-bottom:.5rem}.ghost-btn:hover{border-color:#555;color:#e5e5e5}.error-msg{font-size:.78rem;color:#f87171;margin-top:.5rem;white-space:pre-wrap}.ok-msg{font-size:.78rem;color:#6ee7a0;margin-top:.5rem;white-space:pre-wrap}.item-list{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem}.item-btn{text-align:left;padding:.5rem .6rem;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:.4rem;color:#ccc;font-size:.78rem;cursor:pointer;line-height:1.4}.item-btn:hover{border-color:#555}.item-btn.active{border-color:#e5e5e5;color:#fff}.item-btn small{color:#777;display:block}.preview-wrap{border:1px solid #2a2a2a;border-radius:.5rem;padding:.6rem;background:#1a1a1a;margin-bottom:.75rem}.preview-wrap canvas{max-width:100%;height:auto;display:block;border-radius:.25rem;image-rendering:auto}.about-card{margin-top:0}.code-block{background:#111;border:1px solid #222;border-radius:.5rem;padding:1rem;font-size:.8rem;color:#aaa;line-height:1.65}.code-block strong{color:#e5e5e5}.code-block code{color:#7eb8f7;font-family:ui-monospace,Menlo,monospace;font-size:.75rem}.code-block ol{margin:.4rem 0;padding-left:1.2rem}.code-block li{margin-bottom:.3rem}
+</style></head>
+<body>
+<div class="container">
+  <h1>Spatial Photo Kit</h1>
+  <p class="subtitle">Make any image eligible for iOS Spatial Scenes, and pull depth maps back out — fully client-side</p>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-title">1 · Dress as a camera photo</div>
+      <p class="card-desc">Any PNG / JPEG / WebP in → JPEG with iPhone-shaped EXIF out. Photos only offers the Spatial Scene toggle on images that look like camera captures.</p>
+      <div class="drop-zone" id="dz-in" onclick="document.getElementById('fi-in').click()">
+        <p><strong>Click or drop an image</strong></p>
+        <p>screenshots, renders, scans — anything</p>
+      </div>
+      <input type="file" id="fi-in" accept="image/*" onchange="pickIn(this.files[0])">
+      <div class="file-name" id="fn-in" hidden></div>
+      <div class="row"><label for="dt-in">Taken at</label><input type="datetime-local" id="dt-in" step="1"></div>
+      <button class="process-btn" id="btn-build" disabled onclick="buildCameraJpeg()">Build camera-clad JPEG</button>
+      <button class="process-btn" id="btn-dl-jpeg" hidden onclick="dlBlob(outJpeg.name, outJpeg.blob)">Download JPEG</button>
+      <div class="ok-msg" id="ok-in" hidden></div>
+      <div class="error-msg" id="err-in" hidden></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">2 · Pull the depth back out</div>
+      <p class="card-desc">Feed it a Portrait HEIC, a Portrait shared as JPEG, or any HEIC with auxiliary images. Exports 16-bit grayscale PNG + JSON sidecar.</p>
+      <div class="drop-zone" id="dz-x" onclick="document.getElementById('fi-x').click()">
+        <p><strong>Click or drop a HEIC or JPEG</strong></p>
+        <p>exported from Photos as “unmodified original”</p>
+      </div>
+      <input type="file" id="fi-x" accept=".heic,.heif,.jpg,.jpeg,image/heic,image/heif,image/jpeg" onchange="pickX(this.files[0])">
+      <div class="file-name" id="fn-x" hidden></div>
+      <div class="item-list" id="item-list"></div>
+      <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview"></canvas></div>
+      <div class="row" id="interp-row" hidden>
+        <label for="interp">Values are</label>
+        <select id="interp">
+          <option value="disparity">disparity (near = bright)</option>
+          <option value="depth">depth (near = dark)</option>
+          <option value="matte">matte / alpha</option>
+          <option value="unknown">unknown</option>
+        </select>
+        <label style="min-width:auto"><input type="checkbox" id="invert" onchange="renderSelected()"> invert</label>
+      </div>
+      <button class="process-btn" id="btn-png" hidden onclick="exportPng16()">Download 16-bit depth PNG</button>
+      <button class="ghost-btn" id="btn-json" hidden onclick="exportJson()">Download metadata JSON</button>
+      <button class="ghost-btn" id="btn-raw" hidden onclick="exportRaw()">Download raw .hevc + hvcC (for heif-convert / ffmpeg)</button>
+      <div class="error-msg" id="err-x" hidden></div>
+    </div>
+  </div>
+
+  <div class="card about-card">
+    <div class="card-title">The pipeline, and what’s honestly possible</div>
+    <p class="card-desc">Read this once before blaming the tool</p>
+    <div class="code-block">
+      <strong>Forcing the Spatial Scene toggle:</strong>
+      <ol>
+        <li>Run the image through panel 1 and download the JPEG.</li>
+        <li>Get it into the iPhone photo library <em>as a photo</em>: AirDrop it, or save to Files and share → Save Image. It should land in the main library, not in Screenshots.</li>
+        <li>Open it in Photos on iOS 26+ and tap the spatial (hexagon) button top-right. The depth is inferred on-device, on the spot.</li>
+      </ol>
+      <strong>Getting depth out:</strong> the Spatial Scene depth map itself never leaves the phone — Photos renders it live and exports no file containing it. What <em>is</em> extractable, and what panel 2 reads: Portrait-mode shots (HEIC aux disparity image, or the extra JPEGs appended to a shared Portrait JPEG), HDR gain maps, and segmentation mattes. Export the <em>unmodified original</em> from Photos, or AirDrop to a Mac — “most compatible” conversions usually strip the aux images.<br><br>
+      <strong>Output format:</strong> 16-bit grayscale PNG, values scaled ×257 from the 8-bit source, plus a JSON sidecar naming the source urn and whether bright means near (disparity) or far (depth). That pair drops straight into MiDaS-style depth pipelines.<br><br>
+      HEIC decoding uses WebCodecs HEVC — works in Safari and in Chrome on hardware with an HEVC decoder. Where it can’t decode, the tool still lists the file’s contents and hands you the raw HEVC payload for <code>heif-convert --with-aux</code> or <code>ffmpeg</code>. Everything runs locally; nothing is uploaded.
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ───────────────────────── shared helpers ───────────────────────── */
+
+function $(id){ return document.getElementById(id); }
+function show(id, on){ $(id).hidden = !on; }
+function setMsg(id, text){ const el=$(id); el.textContent=text||''; el.hidden=!text; }
+function dlBlob(name, blob){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+function concatBytes(parts){
+  let n=0; for(const p of parts) n+=p.length;
+  const out=new Uint8Array(n); let o=0;
+  for(const p of parts){ out.set(p,o); o+=p.length; }
+  return out;
+}
+function baseName(name){ return name.replace(/\.[^.]+$/,''); }
+
+['dz-in','dz-x'].forEach(id=>{
+  const dz=$(id);
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{
+    e.preventDefault(); dz.classList.remove('drag-over');
+    const f=e.dataTransfer.files[0];
+    if(f) (id==='dz-in'?pickIn:pickX)(f);
+  });
+});
+
+/* ───────────────── panel 1: EXIF writer ─────────────────
+   A minimal little-endian TIFF/EXIF serializer. Two IFDs: IFD0 (camera
+   identity) and the Exif sub-IFD (capture parameters). Values wider than
+   4 bytes go to a data area directly after each directory; the layout is
+   built twice so the Exif-IFD pointer in IFD0 can be exact the second
+   time (entry sizes don't change, only that one LONG value does). */
+
+let inFile=null, outJpeg=null;
+
+function pickIn(f){
+  if(!f) return;
+  inFile=f; outJpeg=null;
+  $('fn-in').textContent=f.name; show('fn-in',true);
+  show('btn-dl-jpeg',false); setMsg('ok-in',''); setMsg('err-in','');
+  $('btn-build').disabled=false;
+  const d=new Date(f.lastModified||Date.now());
+  d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+  $('dt-in').value=d.toISOString().slice(0,19);
+}
+
+const T_ASCII=2, T_SHORT=3, T_LONG=4, T_RAT=5, T_UNDEF=7;
+
+function packValue(type, value){
+  if(type===T_ASCII){
+    const b=new TextEncoder().encode(value+'\0');
+    return [b, b.length];
+  }
+  if(type===T_UNDEF) return [value, value.length];
+  const vals=Array.isArray(value)?value:[value];
+  if(type===T_SHORT){
+    const b=new Uint8Array(vals.length*2), dv=new DataView(b.buffer);
+    vals.forEach((v,i)=>dv.setUint16(i*2,v,true));
+    return [b, vals.length];
+  }
+  if(type===T_LONG){
+    const b=new Uint8Array(vals.length*4), dv=new DataView(b.buffer);
+    vals.forEach((v,i)=>dv.setUint32(i*4,v,true));
+    return [b, vals.length];
+  }
+  if(type===T_RAT){ // value: [num, den] or list of pairs
+    const pairs=Array.isArray(vals[0])?vals:[vals];
+    const b=new Uint8Array(pairs.length*8), dv=new DataView(b.buffer);
+    pairs.forEach((p,i)=>{dv.setUint32(i*8,p[0],true);dv.setUint32(i*8+4,p[1],true);});
+    return [b, pairs.length];
+  }
+  throw new Error('type '+type);
+}
+
+function buildIFD(entries, ifdStart){
+  entries=entries.slice().sort((a,b)=>a.tag-b.tag);
+  const dirSize=2+entries.length*12+4;
+  let dataOff=ifdStart+dirSize;
+  const dir=new DataView(new ArrayBuffer(dirSize));
+  const blobs=[];
+  dir.setUint16(0,entries.length,true);
+  let p=2;
+  for(const e of entries){
+    const [bytes,count]=packValue(e.type,e.value);
+    dir.setUint16(p,e.tag,true);
+    dir.setUint16(p+2,e.type,true);
+    dir.setUint32(p+4,count,true);
+    if(bytes.length<=4){
+      for(let i=0;i<bytes.length;i++) dir.setUint8(p+8+i,bytes[i]);
+    }else{
+      if(dataOff&1){ blobs.push(new Uint8Array(1)); dataOff++; }
+      dir.setUint32(p+8,dataOff,true);
+      blobs.push(bytes); dataOff+=bytes.length;
+    }
+    p+=12;
+  }
+  dir.setUint32(p,0,true); // no next IFD
+  return { bytes: concatBytes([new Uint8Array(dir.buffer),...blobs]), end: dataOff };
+}
+
+function exifDateString(d){
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}:${p(d.getMonth()+1)}:${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+function tzOffsetString(d){
+  const m=-d.getTimezoneOffset(), s=m<0?'-':'+', a=Math.abs(m);
+  const p=n=>String(n).padStart(2,'0');
+  return `${s}${p(Math.floor(a/60))}:${p(a%60)}`;
+}
+
+function buildExifApp1(width, height, when){
+  const date=exifDateString(when), off=tzOffsetString(when);
+  // Values mirror a real iPhone 15 Pro main-camera still. The exact camera
+  // doesn't matter to the heuristic as far as anyone can tell; having *a*
+  // coherent one does.
+  const ifd0Entries=exifPtr=>[
+    {tag:0x010F,type:T_ASCII,value:'Apple'},
+    {tag:0x0110,type:T_ASCII,value:'iPhone 15 Pro'},
+    {tag:0x0112,type:T_SHORT,value:1},
+    {tag:0x011A,type:T_RAT,value:[72,1]},
+    {tag:0x011B,type:T_RAT,value:[72,1]},
+    {tag:0x0128,type:T_SHORT,value:2},
+    {tag:0x0131,type:T_ASCII,value:'18.0'},
+    {tag:0x0132,type:T_ASCII,value:date},
+    {tag:0x8769,type:T_LONG,value:exifPtr},
+  ];
+  const exifEntries=[
+    {tag:0x829A,type:T_RAT,value:[1,120]},          // ExposureTime
+    {tag:0x829D,type:T_RAT,value:[89,50]},          // FNumber f/1.78
+    {tag:0x8822,type:T_SHORT,value:2},              // ExposureProgram: normal
+    {tag:0x8827,type:T_SHORT,value:80},             // ISO
+    {tag:0x9000,type:T_UNDEF,value:new TextEncoder().encode('0232')},
+    {tag:0x9003,type:T_ASCII,value:date},           // DateTimeOriginal
+    {tag:0x9004,type:T_ASCII,value:date},
+    {tag:0x9010,type:T_ASCII,value:off},
+    {tag:0x9011,type:T_ASCII,value:off},
+    {tag:0x9012,type:T_ASCII,value:off},
+    {tag:0x9207,type:T_SHORT,value:5},              // MeteringMode: pattern
+    {tag:0x9209,type:T_SHORT,value:16},             // Flash: off, no function? (16 = off)
+    {tag:0x920A,type:T_RAT,value:[1382,200]},       // FocalLength 6.91mm
+    {tag:0xA001,type:T_SHORT,value:1},              // sRGB
+    {tag:0xA002,type:T_LONG,value:width},
+    {tag:0xA003,type:T_LONG,value:height},
+    {tag:0xA405,type:T_SHORT,value:24},             // 35mm equivalent
+    {tag:0xA433,type:T_ASCII,value:'Apple'},
+    {tag:0xA434,type:T_ASCII,value:'iPhone 15 Pro back triple camera 6.765mm f/1.78'},
+  ];
+  let ifd0=buildIFD(ifd0Entries(0),8);
+  const exifOff=ifd0.end;
+  ifd0=buildIFD(ifd0Entries(exifOff),8);
+  const exifIfd=buildIFD(exifEntries,exifOff);
+  const header=new Uint8Array([0x49,0x49,0x2A,0x00,0x08,0x00,0x00,0x00]); // "II", 42, IFD0 @ 8
+  const tiff=concatBytes([header,ifd0.bytes,exifIfd.bytes]);
+  const exifId=new Uint8Array([0x45,0x78,0x69,0x66,0,0]); // "Exif\0\0"
+  const segLen=2+exifId.length+tiff.length;
+  const seg=new Uint8Array(2+segLen);
+  seg[0]=0xFF; seg[1]=0xE1; seg[2]=segLen>>8; seg[3]=segLen&0xFF;
+  seg.set(exifId,4); seg.set(tiff,4+exifId.length);
+  return seg;
+}
+
+async function buildCameraJpeg(){
+  setMsg('err-in',''); setMsg('ok-in','');
+  try{
+    const bmp=await createImageBitmap(inFile).catch(()=>{
+      throw new Error('Browser could not decode this image. HEIC input only decodes in Safari; convert it to PNG/JPEG first.');
+    });
+    const canvas=document.createElement('canvas');
+    canvas.width=bmp.width; canvas.height=bmp.height;
+    canvas.getContext('2d').drawImage(bmp,0,0);
+    const jpegBlob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.95));
+    const jpeg=new Uint8Array(await jpegBlob.arrayBuffer());
+    if(jpeg[0]!==0xFF||jpeg[1]!==0xD8) throw new Error('canvas produced a non-JPEG?');
+    const when=$('dt-in').value?new Date($('dt-in').value):new Date();
+    const app1=buildExifApp1(bmp.width,bmp.height,when);
+    // Exif APP1 goes immediately after SOI; the canvas encoder's JFIF APP0
+    // stays behind it, which real-world files do all the time.
+    const out=concatBytes([jpeg.subarray(0,2),app1,jpeg.subarray(2)]);
+    outJpeg={name:baseName(inFile.name)+'-camera.jpg', blob:new Blob([out],{type:'image/jpeg'})};
+    show('btn-dl-jpeg',true);
+    setMsg('ok-in',`Wrote ${bmp.width}×${bmp.height} JPEG with Apple/iPhone 15 Pro EXIF, DateTimeOriginal ${exifDateString(when)}. AirDrop or save it into Photos, then look for the spatial toggle.`);
+  }catch(e){
+    setMsg('err-in',e.message);
+  }
+}
+
+/* ───────────────── panel 2: depth extraction ───────────────── */
+
+let xFile=null, xPayloads=[], selected=null, grayResult=null;
+
+function pickX(f){
+  if(!f) return;
+  xFile=f; xPayloads=[]; selected=null; grayResult=null;
+  $('fn-x').textContent=f.name; show('fn-x',true);
+  $('item-list').innerHTML='';
+  ['preview-wrap','interp-row','btn-png','btn-json','btn-raw'].forEach(id=>show(id,false));
+  setMsg('err-x','');
+  f.arrayBuffer().then(buf=>{
+    const bytes=new Uint8Array(buf);
+    try{
+      if(bytes[0]===0xFF&&bytes[1]===0xD8) scanJpeg(bytes);
+      else if(String.fromCharCode(...bytes.subarray(4,8))==='ftyp') scanHeic(bytes);
+      else throw new Error('Not a JPEG or HEIC/HEIF file.');
+    }catch(e){ setMsg('err-x',e.message); }
+  });
+}
+
+/* JPEG: walk the primary image's segments (skipping entropy-coded data,
+   where 0xFF is escaped as FF 00 and restart markers FF D0–D7 float free)
+   to its EOI, then everything after it that starts FF D8 is an appended
+   sub-image — depth, matte, thumbnail. This is what MPF points at, without
+   needing to parse MPF itself. */
+
+function jpegSpan(b,start){
+  if(b[start]!==0xFF||b[start+1]!==0xD8) return -1;
+  let i=start+2;
+  while(i<b.length-1){
+    if(b[i]!==0xFF){ i++; continue; }
+    const m=b[i+1];
+    if(m===0xD9) return i+2;
+    if(m===0x01||(m>=0xD0&&m<=0xD7)||m===0xFF){ i+=2-(m===0xFF?1:0); continue; }
+    if(m===0xDA){
+      const len=(b[i+2]<<8)|b[i+3]; i+=2+len;
+      while(i<b.length-1 && !(b[i]===0xFF && b[i+1]!==0x00 && !(b[i+1]>=0xD0&&b[i+1]<=0xD7))) i++;
+      continue;
+    }
+    const len=(b[i+2]<<8)|b[i+3]; i+=2+len;
+  }
+  return b.length;
+}
+
+async function scanJpeg(bytes){
+  let pos=jpegSpan(bytes,0);
+  const subs=[];
+  while(pos>0 && pos<bytes.length-1){
+    while(pos<bytes.length-1 && !(bytes[pos]===0xFF&&bytes[pos+1]===0xD8)) pos++;
+    if(pos>=bytes.length-1) break;
+    const end=jpegSpan(bytes,pos);
+    if(end<=pos) break;
+    subs.push(bytes.subarray(pos,end));
+    pos=end;
+  }
+  if(!subs.length){
+    setMsg('err-x','No appended sub-images found. Portrait JPEGs carry depth only when shared with full metadata (e.g. AirDrop, or Mail at actual size); most exports and messengers strip it.');
+    return;
+  }
+  for(let i=0;i<subs.length;i++){
+    const slice=subs[i];
+    let bmp=null;
+    try{ bmp=await createImageBitmap(new Blob([slice],{type:'image/jpeg'})); }catch(e){}
+    xPayloads.push({
+      kind:'jpeg-sub', label:`sub-image ${i+1}`, bytes:slice, bitmap:bmp,
+      detail: bmp?`${bmp.width}×${bmp.height} · ${(slice.length/1024).toFixed(0)} KB`:'undecodable',
+      urn:'(JPEG MPF-style appended image)'
+    });
+  }
+  renderItemList();
+}
+
+/* HEIC: minimal ISOBMFF reader. We only need the meta box's children. */
+
+function scanHeic(bytes){
+  const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+  const items={}, props=[], assoc={}, refs=[];
+  let iloc=null, idat=null;
+
+  function walk(start,end,depth){
+    let p=start;
+    while(p+8<=end){
+      let size=dv.getUint32(p);
+      const type=String.fromCharCode(bytes[p+4],bytes[p+5],bytes[p+6],bytes[p+7]);
+      let hdr=8;
+      if(size===1){ size=Number(dv.getBigUint64(p+8)); hdr=16; }
+      else if(size===0) size=end-p;
+      if(size<hdr||p+size>end) break;
+      const body=p+hdr, bodyEnd=p+size;
+      if(type==='meta') walk(body+4,bodyEnd,depth+1);           // fullbox
+      else if(type==='iprp') walk(body,bodyEnd,depth+1);
+      else if(type==='ipco'){
+        let q=body;
+        while(q+8<=bodyEnd){
+          let s=dv.getUint32(q), h=8;
+          const t=String.fromCharCode(bytes[q+4],bytes[q+5],bytes[q+6],bytes[q+7]);
+          if(s===1){ s=Number(dv.getBigUint64(q+8)); h=16; }
+          if(s<h||q+s>bodyEnd) break;
+          props.push({type:t, payload:bytes.subarray(q+h,q+s)});
+          q+=s;
+        }
+      }
+      else if(type==='iinf'){
+        const ver=bytes[body];
+        let q=body+4;
+        const count=ver===0?dv.getUint16(q):dv.getUint32(q);
+        q+=ver===0?2:4;
+        while(q+8<=bodyEnd){
+          let s=dv.getUint32(q);
+          const t=String.fromCharCode(bytes[q+4],bytes[q+5],bytes[q+6],bytes[q+7]);
+          if(t==='infe'){
+            const v=bytes[q+8];
+            let r=q+12;
+            const id=v===2?dv.getUint16(r):dv.getUint32(r);
+            r+=v===2?2:4;
+            r+=2; // protection index
+            const itype=String.fromCharCode(bytes[r],bytes[r+1],bytes[r+2],bytes[r+3]);
+            items[id]={id, type:itype};
+          }
+          q+=s||8;
+        }
+      }
+      else if(type==='ipma'){
+        const ver=bytes[body], flags=dv.getUint32(body)&0xFFFFFF;
+        let q=body+4;
+        const count=dv.getUint32(q); q+=4;
+        for(let i=0;i<count;i++){
+          const id=ver<1?dv.getUint16(q):dv.getUint32(q); q+=ver<1?2:4;
+          const n=bytes[q++]; const list=[];
+          for(let j=0;j<n;j++){
+            let idx;
+            if(flags&1){ idx=dv.getUint16(q)&0x7FFF; q+=2; }
+            else { idx=bytes[q]&0x7F; q+=1; }
+            list.push(idx); // 1-based into props
+          }
+          assoc[id]=list;
+        }
+      }
+      else if(type==='iref'){
+        const ver=bytes[body];
+        let q=body+4;
+        while(q+8<=bodyEnd){
+          const s=dv.getUint32(q);
+          const t=String.fromCharCode(bytes[q+4],bytes[q+5],bytes[q+6],bytes[q+7]);
+          let r=q+8;
+          const from=ver===0?dv.getUint16(r):dv.getUint32(r); r+=ver===0?2:4;
+          const cnt=dv.getUint16(r); r+=2;
+          const to=[];
+          for(let j=0;j<cnt;j++){ to.push(ver===0?dv.getUint16(r):dv.getUint32(r)); r+=ver===0?2:4; }
+          refs.push({type:t,from,to});
+          q+=s;
+        }
+      }
+      else if(type==='iloc') iloc={body,bodyEnd};
+      else if(type==='idat') idat=bytes.subarray(body,bodyEnd);
+      p+=size;
+    }
+  }
+  walk(0,bytes.length,0);
+  if(!iloc) throw new Error('No iloc box — not a HEIF image?');
+
+  // iloc proper
+  const locs={};
+  {
+    const b=iloc.body, ver=bytes[b];
+    let q=b+4;
+    const offSize=bytes[q]>>4, lenSize=bytes[q]&15;
+    const baseSize=bytes[q+1]>>4, idxSize=bytes[q+1]&15;
+    q+=2;
+    const count=ver<2?dv.getUint16(q):dv.getUint32(q); q+=ver<2?2:4;
+    const readN=n=>{ let v=0; for(let i=0;i<n;i++) v=v*256+bytes[q++]; return v; };
+    for(let i=0;i<count;i++){
+      const id=ver<2?dv.getUint16(q):dv.getUint32(q); q+=ver<2?2:4;
+      let method=0;
+      if(ver===1||ver===2){ method=dv.getUint16(q)&15; q+=2; }
+      q+=2; // data_reference_index
+      const base=readN(baseSize);
+      const extCount=dv.getUint16(q); q+=2;
+      const extents=[];
+      for(let j=0;j<extCount;j++){
+        if((ver===1||ver===2)&&idxSize) readN(idxSize);
+        const off=readN(offSize), len=readN(lenSize);
+        extents.push({off:base+off,len});
+      }
+      locs[id]={method,extents};
+    }
+  }
+
+  function itemProps(id){ return (assoc[id]||[]).map(i=>props[i-1]).filter(Boolean); }
+  function itemData(id){
+    const loc=locs[id];
+    if(!loc) return null;
+    const src=loc.method===1?idat:bytes;
+    if(!src) return null;
+    return concatBytes(loc.extents.map(e=>src.subarray(e.off,e.off+e.len)));
+  }
+
+  const found=[];
+  for(const id in items){
+    const it=items[id];
+    const ps=itemProps(it.id);
+    const auxC=ps.find(p=>p.type==='auxC');
+    if(!auxC) continue;
+    // auxC payload: fullbox version/flags (4 bytes) then NUL-terminated urn
+    let urn='', i=4;
+    while(i<auxC.payload.length&&auxC.payload[i]!==0) urn+=String.fromCharCode(auxC.payload[i++]);
+    const ispe=ps.find(p=>p.type==='ispe');
+    const w=ispe?new DataView(ispe.payload.buffer,ispe.payload.byteOffset).getUint32(4):0;
+    const h=ispe?new DataView(ispe.payload.buffer,ispe.payload.byteOffset).getUint32(8):0;
+    const hvcC=ps.find(p=>p.type==='hvcC');
+    found.push({
+      kind:'heic-aux', label:classifyUrn(urn), urn, item:it,
+      w,h, hvcC:hvcC?hvcC.payload:null,
+      data:itemData(it.id),
+      detail:`item ${it.id} (${it.type}) · ${w}×${h}`,
+      grid: it.type==='grid'?gridInfo(it.id):null
+    });
+  }
+
+  function gridInfo(id){
+    const raw=itemData(id);
+    if(!raw||raw.length<8) return null;
+    const g=new DataView(raw.buffer,raw.byteOffset);
+    const tiles=(refs.find(r=>r.type==='dimg'&&r.from==id)||{to:[]}).to;
+    return {
+      rows:raw[2]+1, cols:raw[3]+1,
+      w:raw.length>=8&&raw[1]&1?g.getUint32(4):g.getUint16(4),
+      h:raw.length>=8&&raw[1]&1?g.getUint32(8):g.getUint16(6),
+      tiles: tiles.map(tid=>({
+        data:itemData(tid),
+        hvcC:(itemProps(tid).find(p=>p.type==='hvcC')||{}).payload||null,
+        ispe:(()=>{const s=itemProps(tid).find(p=>p.type==='ispe');
+          return s?{w:new DataView(s.payload.buffer,s.payload.byteOffset).getUint32(4),
+                    h:new DataView(s.payload.buffer,s.payload.byteOffset).getUint32(8)}:null;})()
+      }))
+    };
+  }
+
+  if(!found.length)
+    throw new Error('No auxiliary images in this HEIC. Depth rides only in Portrait-mode originals (and gain maps / mattes in HDR shots); “most compatible” exports strip them.');
+  xPayloads=found;
+  renderItemList();
+}
+
+function classifyUrn(urn){
+  const u=urn.toLowerCase();
+  if(u.includes('disparity')) return 'disparity map';
+  if(u.includes('depth')||u.includes('auxid:2')) return 'depth map';
+  if(u.includes('hdrgainmap')) return 'HDR gain map';
+  if(u.includes('matte')) return 'segmentation matte';
+  if(u.includes('alpha')||u.includes('auxid:1')) return 'alpha';
+  return 'auxiliary image';
+}
+function defaultInterp(p){
+  const l=(p.urn||'').toLowerCase()+p.label;
+  if(l.includes('disparity')) return 'disparity';
+  if(l.includes('depth')) return 'depth';
+  if(l.includes('matte')||l.includes('alpha')) return 'matte';
+  return 'unknown';
+}
+
+function renderItemList(){
+  const list=$('item-list');
+  list.innerHTML='';
+  xPayloads.forEach((p,i)=>{
+    const b=document.createElement('button');
+    b.className='item-btn';
+    b.innerHTML=`<strong>${p.label}</strong><small>${p.detail}${p.urn?' · '+p.urn:''}</small>`;
+    b.onclick=()=>selectPayload(i,b);
+    list.appendChild(b);
+  });
+  if(xPayloads.length===1) list.firstChild.click();
+}
+
+async function selectPayload(i,btn){
+  document.querySelectorAll('.item-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  selected=xPayloads[i]; grayResult=null;
+  setMsg('err-x','');
+  $('interp').value=defaultInterp(selected);
+  show('btn-raw', selected.kind==='heic-aux' && !!selected.data);
+  try{
+    if(selected.kind==='jpeg-sub'){
+      if(!selected.bitmap) throw new Error('This sub-image did not decode as JPEG.');
+      grayResult=grayFromDrawable(selected.bitmap,selected.bitmap.width,selected.bitmap.height);
+    }else{
+      grayResult=await decodeHeicAux(selected);
+    }
+    renderSelected();
+    ['preview-wrap','interp-row','btn-png','btn-json'].forEach(id=>show(id,true));
+  }catch(e){
+    ['preview-wrap','interp-row','btn-png','btn-json'].forEach(id=>show(id,false));
+    setMsg('err-x',e.message+(selected.kind==='heic-aux'?'\nYou can still download the raw HEVC payload below and finish with: heif-convert --with-aux in.heic out.jpg':''));
+  }
+}
+
+function grayFromDrawable(drawable,w,h){
+  const c=document.createElement('canvas');
+  c.width=w; c.height=h;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(drawable,0,0,w,h);
+  const px=ctx.getImageData(0,0,w,h).data;
+  const gray=new Uint8Array(w*h);
+  for(let i=0;i<gray.length;i++) gray[i]=px[i*4];
+  return {gray,w,h};
+}
+
+/* WebCodecs HEVC: the hvcC record goes in verbatim as `description`, the
+   item payload is already length-prefixed NAL units in hvcC framing, so a
+   single key chunk decodes the still. Codec string per ISO 14496-15 E.3. */
+
+function hvccCodecString(hvcC){
+  const profileSpace=hvcC[1]>>6, tier=(hvcC[1]>>5)&1, profile=hvcC[1]&0x1F;
+  // compatibility flags: 32 bits big-endian, emitted bit-reversed per 14496-15
+  // E.3 — Apple's usual 60 00 00 00 must come out as "6", not "6000000"
+  const U=(hvcC[2]<<24)|(hvcC[3]<<16)|(hvcC[4]<<8)|hvcC[5];
+  let compat=0;
+  for(let i=0;i<32;i++) compat=((compat<<1)|((U>>>i)&1))>>>0;
+  const level=hvcC[12];
+  let s='hvc1.'+(profileSpace?String.fromCharCode(64+profileSpace):'')+profile
+    +'.'+(compat>>>0).toString(16).toUpperCase()
+    +'.'+(tier?'H':'L')+level;
+  const cons=[...hvcC.subarray(6,12)];
+  while(cons.length&&cons[cons.length-1]===0) cons.pop();
+  for(const c of cons) s+='.'+c.toString(16).toUpperCase();
+  return s;
+}
+
+function decodeHevcStill(data,hvcC,w,h){
+  return new Promise((resolve,reject)=>{
+    if(!('VideoDecoder' in window))
+      return reject(new Error('WebCodecs is not available in this browser.'));
+    let frame=null;
+    const dec=new VideoDecoder({
+      output:f=>{ frame=f; },
+      error:e=>reject(new Error('HEVC decode failed: '+e.message))
+    });
+    try{
+      dec.configure({codec:hvccCodecString(hvcC),
+        description:hvcC, codedWidth:w||undefined, codedHeight:h||undefined});
+      dec.decode(new EncodedVideoChunk({type:'key',timestamp:0,data}));
+      dec.flush().then(()=>{
+        if(!frame) return reject(new Error('Decoder produced no frame.'));
+        resolve(frame);
+        dec.close();
+      }).catch(e=>reject(new Error('HEVC decode failed: '+(e&&e.message||e))));
+    }catch(e){ reject(new Error('HEVC decoder rejected the stream: '+e.message)); }
+  });
+}
+
+async function decodeHeicAux(p){
+  if(p.grid){
+    const g=p.grid;
+    if(!g.tiles.length||g.tiles.some(t=>!t.data||!t.hvcC))
+      throw new Error('Grid tiles are missing data.');
+    const c=document.createElement('canvas');
+    c.width=g.w; c.height=g.h;
+    const ctx=c.getContext('2d');
+    let x=0,y=0;
+    for(const t of g.tiles){
+      const f=await decodeHevcStill(t.data,t.hvcC,t.ispe?t.ispe.w:0,t.ispe?t.ispe.h:0);
+      ctx.drawImage(f,x,y); f.close();
+      x+=t.ispe?t.ispe.w:f.displayWidth;
+      if(x>=g.w){ x=0; y+=t.ispe?t.ispe.h:f.displayHeight; }
+    }
+    return grayFromDrawable(c,g.w,g.h);
+  }
+  if(!p.data||!p.hvcC) throw new Error('Item has no extractable HEVC payload.');
+  const f=await decodeHevcStill(p.data,p.hvcC,p.w,p.h);
+  const out=grayFromDrawable(f,p.w||f.displayWidth,p.h||f.displayHeight);
+  f.close();
+  return out;
+}
+
+function renderSelected(){
+  if(!grayResult) return;
+  const {gray,w,h}=grayResult;
+  const inv=$('invert').checked;
+  const c=$('preview');
+  c.width=w; c.height=h;
+  const ctx=c.getContext('2d');
+  const img=ctx.createImageData(w,h);
+  for(let i=0;i<gray.length;i++){
+    const v=inv?255-gray[i]:gray[i];
+    img.data[i*4]=img.data[i*4+1]=img.data[i*4+2]=v;
+    img.data[i*4+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+}
+
+/* ── hand-written 16-bit grayscale PNG ── */
+
+const CRC_TABLE=(()=>{
+  const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){
+    let c=n;
+    for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1;
+    t[n]=c>>>0;
+  }
+  return t;
+})();
+function crc32(bytes){
+  let c=0xFFFFFFFF;
+  for(let i=0;i<bytes.length;i++) c=CRC_TABLE[(c^bytes[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;
+}
+function pngChunk(type,data){
+  const out=new Uint8Array(12+data.length);
+  const dv=new DataView(out.buffer);
+  dv.setUint32(0,data.length);
+  for(let i=0;i<4;i++) out[4+i]=type.charCodeAt(i);
+  out.set(data,8);
+  dv.setUint32(8+data.length,crc32(out.subarray(4,8+data.length)));
+  return out;
+}
+function png16Gray(gray16,w,h){
+  const raw=new Uint8Array(h*(1+w*2));
+  let p=0;
+  for(let y=0;y<h;y++){
+    raw[p++]=0; // filter: none
+    for(let x=0;x<w;x++){ const v=gray16[y*w+x]; raw[p++]=v>>8; raw[p++]=v&0xFF; }
+  }
+  // zlib stream of stored-deflate blocks: valid, dependency-free, ~0.03% overhead
+  const nBlocks=Math.max(1,Math.ceil(raw.length/65535));
+  const z=new Uint8Array(2+nBlocks*5+raw.length+4);
+  z[0]=0x78; z[1]=0x01;
+  let q=2,r=0;
+  for(let b=0;b<nBlocks;b++){
+    const n=Math.min(65535,raw.length-r);
+    z[q++]=b===nBlocks-1?1:0;
+    z[q++]=n&0xFF; z[q++]=n>>8; z[q++]=(~n)&0xFF; z[q++]=((~n)>>8)&0xFF;
+    z.set(raw.subarray(r,r+n),q); q+=n; r+=n;
+  }
+  let a=1,s=0;
+  for(let i=0;i<raw.length;i++){ a=(a+raw[i])%65521; s=(s+a)%65521; }
+  z[q++]=(s>>8)&0xFF; z[q++]=s&0xFF; z[q++]=(a>>8)&0xFF; z[q++]=a&0xFF;
+  const ihdr=new Uint8Array(13);
+  const dv=new DataView(ihdr.buffer);
+  dv.setUint32(0,w); dv.setUint32(4,h);
+  ihdr[8]=16; ihdr[9]=0; // 16-bit grayscale
+  return concatBytes([
+    new Uint8Array([137,80,78,71,13,10,26,10]),
+    pngChunk('IHDR',ihdr),
+    pngChunk('IDAT',z.subarray(0,q)),
+    pngChunk('IEND',new Uint8Array(0))
+  ]);
+}
+
+function exportPng16(){
+  if(!grayResult) return;
+  const {gray,w,h}=grayResult;
+  const inv=$('invert').checked;
+  const g16=new Uint16Array(w*h);
+  for(let i=0;i<g16.length;i++) g16[i]=(inv?255-gray[i]:gray[i])*257;
+  dlBlob(baseName(xFile.name)+'-depth16.png',
+    new Blob([png16Gray(g16,w,h)],{type:'image/png'}));
+}
+function exportJson(){
+  if(!grayResult) return;
+  const interp=$('interp').value, inv=$('invert').checked;
+  const meta={
+    tool:'https://e-z-g.github.io/spatialize.html',
+    source_file:xFile.name,
+    source:selected.kind==='jpeg-sub'?'JPEG appended sub-image':'HEIC auxiliary item',
+    aux_type_urn:selected.urn||null,
+    width:grayResult.w, height:grayResult.h,
+    interpretation:interp,
+    near_is:interp==='disparity'?(inv?'dark':'bright'):interp==='depth'?(inv?'bright':'dark'):'unknown',
+    inverted:inv,
+    source_bit_depth:8,
+    png_mapping:'png16 = source8 * 257'+(inv?' (after inversion)':''),
+    note:'8-bit source passed through the browser YUV-to-RGB path; treat values as relative, not metric.'
+  };
+  dlBlob(baseName(xFile.name)+'-depth.json',
+    new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}));
+}
+function exportRaw(){
+  if(!selected||selected.kind!=='heic-aux') return;
+  if(selected.data) dlBlob(baseName(xFile.name)+'-aux.hevc',new Blob([selected.data]));
+  if(selected.hvcC) dlBlob(baseName(xFile.name)+'-aux-hvcC.bin',new Blob([selected.hvcC]));
+}
+</script>
+</body>
+</html>
