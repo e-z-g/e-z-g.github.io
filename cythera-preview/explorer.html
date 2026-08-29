@@ -3087,8 +3087,11 @@ function rsrcViewFork() {
 // The application ships as res/Cythera.hqx. extractDelverArchive() refuses it
 // on purpose -- it is not a Delver archive -- so this unwraps the container
 // itself and keeps only the resource fork.
-// Local only, for the same reason as the data archive: the application is not
-// in the repository, so there is nothing to fetch remotely.
+// Local candidates by default -- the application is not in the repository --
+// but `?app=<url>` names a remote copy, the same way `?src=` does for the
+// data archive. The published preview passes both, pointing at the owner's
+// own hosted copies, which is what lets the application's 339 resources
+// (its icons, dialogs, PICTs, cursors) be browsed from a phone.
 const APP_HQX_CANDIDATES = [
   'Cythera.hqx', 'reference/Cythera.hqx', 'res/Cythera.hqx'
 ];
@@ -3097,7 +3100,9 @@ async function loadApplicationFork() {
   window.APP_RSRC_STATE = 'loading';
   renderMacRsrcSheet();
   let lastErr = '';
-  for (const url of APP_HQX_CANDIDATES) {
+  const forcedApp = new URLSearchParams(location.search).get('app');
+  const candidates = forcedApp ? [forcedApp].concat(APP_HQX_CANDIDATES) : APP_HQX_CANDIDATES;
+  for (const url of candidates) {
     try {
       const raw = await fetchWithProgress(url, 'Downloading the application');
       const c = sniffMacContainer(raw);
@@ -7625,6 +7630,52 @@ const MONSTER_FIELDS = [
   ['hp', 'Hit points.']
 ];
 
+/* The 0xF008 flags word, decoded. Neither delvmod (monster.py is a stub) nor
+   the wiki ever worked these out. They fell to a cross-reference: gandreas
+   posted the authoritative monster attribute list on the old board (t1217;
+   preserved at forums.cytheraguides.com/post/11047, tabulated on the
+   cytheraguides Monster Stats page), and solving his labels against the
+   archive's flag words gives every attribute exactly one bit, uniquely,
+   with zero contradictions across 32 monsters. 0x4000 = bleeds is Bryce's
+   (delvmod's rdasm header), confirmed by the same solve: every human and
+   animal has it, no undead, construct, spirit or ooze does.
+
+   Three bits remain unnamed. 0x0004 sits on every humanoid (and tracks
+   gandreas's "Body based attack" imperfectly); 0x1000 is bird + harpy +
+   sea monster; 0x2000 is ghost, golem, harpy and the oozes. Do not guess
+   labels for them here -- an unlabeled bit prints as hex below, which is
+   honest.
+
+   Note the divergence this table exposes: the lich has NO fire-immunity
+   bit (0x0080), agreeing with gandreas's own list -- yet in-game testing
+   (453, dozens of bombs) shows bombs do not damage it. Its protection must
+   come through 0x0100/0x0800 (a bomb is a non-magical source) or engine
+   code, not the fire flag. The same list already carries one known
+   engine/label mismatch: Death Strike hurts demons despite Immune to
+   Death. */
+const MONSTER_FLAG_NAMES = [
+  [0x0001, 'can swim'],
+  [0x0002, 'can fly'],
+  [0x0010, 'immune to sleep'],
+  [0x0020, 'immune to death magic'],
+  [0x0040, 'immune to poison'],
+  [0x0080, 'immune to fire'],
+  [0x0100, 'resists non-magical weapons'],
+  [0x0200, 'vulnerable to fire'],
+  [0x0400, 'resists non-blunt weapons'],
+  [0x0800, 'resists magic'],
+  [0x4000, 'bleeds'],
+  [0x8000, 'immune to electricity'],
+];
+function monsterFlagsText(f) {
+  const bits = [];
+  let rest = f;
+  for (const [bit, name] of MONSTER_FLAG_NAMES)
+    if (f & bit) { bits.push(name); rest &= ~bit; }
+  if (rest) bits.push('+0x' + rest.toString(16).toUpperCase() + ' (unidentified)');
+  return bits.length ? bits.join(' · ') : 'none set';
+}
+
 function parseMonsterStats() {
   if (window.MONSTER_STATS) return window.MONSTER_STATS;
   const out = [];
@@ -7715,7 +7766,7 @@ function showMonsterDetail(idx) {
     '<div><b>Health</b>' + r.hp + (r.armor ? ' &nbsp; <b>Armor</b> ' + r.armor : '') +
       (r.size ? ' &nbsp; <b>Size?</b> ' + r.size : '') + '</div>' +
     '<div><b>Special flags</b>0x' + r.flags.toString(16).toUpperCase().padStart(4, '0') +
-      ' <span style="font-size:11px;color:#9d9270">values not yet worked out</span></div>' +
+      ' <span style="font-size:11px;color:#9d9270">' + svEsc(monsterFlagsText(r.flags)) + '</span></div>' +
     '</div>';
   panel.innerHTML = h;
 
