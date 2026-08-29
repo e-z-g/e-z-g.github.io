@@ -225,7 +225,14 @@ function renderCanvas() {
         ctx.fillStyle = heatmap ? '#1a1d27' : bgGrad;
         ctx.fillRect(0, 0, cSz, cSz);
 
-        const aps = AP_LOCATIONS[oV] || [];
+        // Derive the version from the matrix in hand rather than reusing oV.
+        // renderM draws BOTH previews, and a version override can leave the
+        // naive matrix on a different version than the optimised one (override
+        // V3 on a payload whose byte encoding needs V4). Reading oV for both
+        // then drew the naive preview's alignment square at V3's coordinates on
+        // a V4 grid -- [6,22] where the pattern actually sits at [6,26].
+        const matrixV = (matrix.modules.size - 17) / 4;
+        const aps = AP_LOCATIONS[matrixV] || [];
         const sz = cSz * (pct/100), padPx = cSz * (padPct/100), tSz = sz + (padPx * 2), pXy = (cSz - tSz) / 2, lC = cSz / 2;
 
         const isModuleObscured = (r, c) => {
@@ -314,7 +321,12 @@ function renderCanvas() {
         }
 
         const drawStruct = (r, c, x, y, size, type) => {
-            let obscured = isModuleObscured(type === 'finder' ? r+3 : r, type === 'finder' ? c+3 : c);
+            // r,c is the top-left cell of the structure; both branches want its
+            // centre -- 3 in from the corner of a 7x7 finder, 2 for a 5x5
+            // alignment. The alignment case was reading the corner, so the
+            // heatmap flagged the wrong patterns as logo-obscured.
+            const ctrOff = type === 'finder' ? 3 : 2;
+            let obscured = isModuleObscured(r + ctrOff, c + ctrOff);
             if (heatmap && obscured) { ctx.fillStyle = '#ef4444'; ctx.strokeStyle = '#ef4444'; }
             else if (heatmap) { setHeatmapColor(type); }
             else {
@@ -364,7 +376,19 @@ function renderCanvas() {
             }); });
         }
 
-        const batchSolidPath = shape === 'solid' && !isAnimated ? new Path2D() : null;
+        // Batching every solid module into one Path2D and filling it once is a
+        // big win, but it can only be done when every module is the SAME fill at
+        // the SAME size: a Path2D records absolute coordinates, so the per-module
+        // ctx.scale() below never reaches it, and one ctx.fill() can only carry
+        // one colour. Batching unconditionally silently dropped both -- an image
+        // colour map painted every solid module flat black, and a radial or image
+        // density map did nothing at all (identical output, to the pixel).
+        const perModuleColor = colorStyle === 'image' && !!hMapColor;
+        const perModuleSize = densityMapStyle === 'radial' ||
+                              (densityMapStyle === 'image' && !!hMapDensity);
+        const canBatchSolid = shape === 'solid' && !isAnimated && !heatmap &&
+                              !perModuleColor && !perModuleSize;
+        const batchSolidPath = canBatchSolid ? new Path2D() : null;
 
         // CHARACTER MODE
         // Rasterize glyph once via getGlyphSprite(), then stamp with drawImage().
@@ -380,6 +404,20 @@ function renderCanvas() {
                 for (let c = 0; c < gSz; c++) {
                     if (!shouldRenderData(r, c)) continue;
                     const cx = (c+marg)*cell, cy = (r+marg)*cell;
+
+                    // The heatmap is about which modules are which, so it wins
+                    // over the glyph -- otherwise switching to character shape
+                    // left the heatmap showing plain black on dark, with none of
+                    // the finder / alignment / data / obscured colours it exists
+                    // to show.
+                    if (heatmap) {
+                        if (isModuleObscured(r, c))  { ctx.fillStyle = '#ef4444'; }
+                        else if (isFinder(r, c))     setHeatmapColor('finder');
+                        else if (isAlignment(r, c))  setHeatmapColor('alignment');
+                        else                         setHeatmapColor('data');
+                        ctx.fillRect(cx, cy, cell, cell);
+                        continue;
+                    }
 
                     let dX = 0, dY = 0, dS = 1.0;
                     if (isAnimated) {
@@ -567,7 +605,12 @@ function renderCanvas() {
         }
     };
 
-    if (!isAnimated && !getHasAnimatedGif()) {
+    // The naive canvas is a 1024x1024 comparison view behind the "Show naive"
+    // toggle, which is off by default. Drawing it into a hidden container cost
+    // ~18% of every render for something nobody was looking at.
+    const naiveVisible = !!E('show-naive')?.checked &&
+                         !E('naive-container')?.classList.contains('hidden');
+    if (naiveVisible && !isAnimated && !getHasAnimatedGif()) {
         renderM('qr-naive', nData);
     }
     renderM('qr-optimal', oData);
@@ -610,6 +653,12 @@ function animLoop(timestamp) {
     if (!isAnimMeshOn && !getHasAnimatedGif()) {
         lastAnimTime = 0;
         window.animLoopId = null;
+        // One last paint on the way out. The loop stopped mid-displacement, so
+        // without this the preview stayed frozen on whatever frame it happened
+        // to be on -- and an HD export taken afterwards baked that in. This is
+        // the one place every way of stopping goes through (the toggle, a
+        // config import, clearing an animated logo), so it belongs here.
+        renderCanvas();
         return;
     }
     if (!lastAnimTime) lastAnimTime = timestamp;
@@ -621,7 +670,14 @@ function animLoop(timestamp) {
         const speed = parseInt(E('anim-speed')?.value || '30') / 30;
         globalTime += (safeDelta * 0.003) * speed;
     }
-    renderCanvas();
+    // Reschedule even if the render throws. When an exception escaped here the
+    // rAF chain died with window.animLoopId still holding a stale handle, so
+    // startAnimIfNeeded() saw a "running" loop forever and the preview froze
+    // until reload. That is what the callers' `animLoopId = null` resets were
+    // working around -- and those resets are what started a second loop
+    // alongside a live one.
+    try { renderCanvas(); }
+    catch (e) { console.error('Render failed inside the animation loop:', e); }
     window.animLoopId = requestAnimationFrame(animLoop);
 }
 

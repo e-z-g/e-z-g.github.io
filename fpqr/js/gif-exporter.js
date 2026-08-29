@@ -3,7 +3,17 @@ async function decodeGif(file) {
     if (!window.ImageDecoder) return null;
     try {
         const decoder = new ImageDecoder({ type: "image/gif", data: file.stream() });
+        // The track list is populated asynchronously from the stream, so
+        // selectedTrack is ALWAYS null on the line after the constructor --
+        // reading .frameCount off it threw every single time, the catch below
+        // swallowed it, and every animated GIF silently loaded as one still
+        // frame with no error shown. Await tracks.ready before touching the
+        // track, and completed before trusting frameCount, which climbs as the
+        // stream arrives.
+        await decoder.tracks.ready;
+        await decoder.completed;
         const track = decoder.tracks.selectedTrack;
+        if (!track || !track.frameCount) return null;
         const frameCount = track.frameCount;
         const frames = [];
         let totalTime = 0;
@@ -26,11 +36,18 @@ async function decodeGif(file) {
     }
 }
 
+let lastGifBlobUrl = null;
+let gifExportRunning = false;
+
 window.exportGIF = function(canvasId) {
     if (!gifWorkerUrl) { 
         showToast("GIF Engine loading...", true); 
         return; 
     }
+    // Two captures at once would fight over globalTime and produce a pair of
+    // scrambled animations.
+    if (gifExportRunning) { showToast("A GIF is already being rendered.", true); return; }
+    gifExportRunning = true;
     
     const canvas = E(canvasId);
     const progEl = E('gif-progress');
@@ -72,11 +89,18 @@ window.exportGIF = function(canvasId) {
         durationSecs = maxMs / 1000;
     }
 
-    const frames = Math.max(10, Math.round(durationSecs * fps));
+    // Every captured frame is copied into gif.js at 1024x1024 RGBA -- 4MB each,
+    // all held until the encode finishes. Taken straight from a source GIF's
+    // length that is a tab-killer: a 10s GIF asks for 250 frames (~1GB), a 20s
+    // one for 500 (~2GB). Cap the count and stretch the per-frame delay to keep
+    // the loop the right duration, just at a lower frame rate.
+    const MAX_EXPORT_FRAMES = 120;
+    const frames = Math.min(MAX_EXPORT_FRAMES, Math.max(10, Math.round(durationSecs * fps)));
     const preciseDelta = (2 * Math.PI) / frames;
     const frameDelay = Math.round((durationSecs * 1000) / frames); 
     
     let frame = 0;
+    window.isExporting = 'gif';
     const capture = () => {
         if (frame < frames) {
             globalTime = origTime + (frame * preciseDelta); 
@@ -119,13 +143,29 @@ window.exportGIF = function(canvasId) {
         } else {
             if(progTxt) progTxt.textContent = "ENCODING..."; 
             gif.on('progress', p => { if(progTxt) progTxt.textContent = `ENCODING ${Math.round(50 + p*50)}%`; });
+            gif.on('abort', () => {
+                // Without this a failed encode leaves the guard latched and the
+                // button dead until the page is reloaded.
+                gifExportRunning = false;
+                window.isExporting = false;
+                progEl?.classList.add('hidden');
+                globalTime = origTime;
+                gifTimeMs = origGifTime;
+                renderCanvas();
+                showToast('GIF encoding failed.', true);
+            });
             gif.on('finished', b => { 
                 progEl?.classList.add('hidden'); 
+                window.isExporting = false;
                 globalTime = origTime; 
                 gifTimeMs = origGifTime;
                 renderCanvas(); 
                 
+                // Released when the modal closes; a 1024px animation is several
+                // megabytes and every export was leaking one for the session.
+                if (lastGifBlobUrl) URL.revokeObjectURL(lastGifBlobUrl);
                 const blobUrl = URL.createObjectURL(b);
+                lastGifBlobUrl = blobUrl;
                 const modal = E('isolate-modal');
                 const img = E('isolate-img');
                 if(img) img.src = blobUrl;
@@ -149,6 +189,7 @@ window.exportGIF = function(canvasId) {
                     void modal.offsetWidth; 
                     modal.classList.add('opacity-100'); 
                 }
+                gifExportRunning = false;
             });
             gif.render();
         }
