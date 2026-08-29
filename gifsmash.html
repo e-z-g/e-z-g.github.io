@@ -1,0 +1,2428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GIF Smasher</title>
+<!--
+  GIF SMASHER — target-size GIF compressor, in the browser.
+
+  This is a port of the `gif_smasher.sh` bash script
+  (https://github.com/e-z-g/GIF-Smasher), which drove ffmpeg and a
+  lossy-patched gifsicle in a loop: encode a GIF, measure it, nudge four
+  knobs, encode again, until the file lands on a requested byte count.
+
+  WHY THE PORT LOOKS LIKE THIS
+  ----------------------------
+  The script's whole design is "shell out to two binaries and read
+  `stat`". None of that survives a move to a static page: there is no
+  ffmpeg, no gifsicle, no /tmp, and nothing on this site is allowed to
+  grow a build step. So every stage the two binaries performed is
+  reimplemented here by hand, keeping the *knob* rather than the
+  implementation:
+
+    ffmpeg palettegen  -> buildPalette()   (max_colors, stats_mode,
+                                            reserve_transparent)
+    ffmpeg paletteuse  -> ditherFrame()    (none / floyd_steinberg /
+                                            sierra2 / sierra2_4a /
+                                            bayer + bayer_scale)
+    ffmpeg -r          -> resampleTimeline()
+    gifsicle --scale   -> resampleImage()  (sample/mix/catrom/mitchell/
+                       + --resize-method    lanczos2/lanczos3)
+    gifsicle --colors  -> buildPalette()   (median-cut / diversity /
+                       + --color-method     blend-diversity)
+    gifsicle --lossy   -> lzwEncode()'s substitution search
+    gifsicle -O3       -> optimiseFrame()  (crop + transparent carry-over)
+
+  The two loop modes, their constants, and their clamping are ported
+  line for line from the script — see runApprox() and runThreshold().
+  Where a number in this file looks arbitrary, it is arbitrary in the
+  same way the script's was: it came out of the original's trial and
+  error, and changing it changes what the defaults do.
+
+  ONE INHERITED QUIRK, KEPT ON PURPOSE
+  ------------------------------------
+  The script computes `weightSum` as the sum of the four weights and
+  then, on the very next line, overwrites it with the literal "2.00".
+  Every weight is therefore divided by 2 no matter what the others are,
+  which is why a weight of 1 means "close half the gap on this knob"
+  rather than "take a quarter of the correction". That is the behaviour
+  the script's defaults were tuned against, so it is the behaviour here.
+  The Normalise control lets you pick the arithmetic that was probably
+  intended instead; it is off by default.
+
+  WHAT IS DELIBERATELY NOT FAITHFUL
+  --------------------------------
+  gifsicle's --lossy is a patched LZW compressor, and its exact error
+  metric and look-ahead are not reproduced — see lzwEncode() for what
+  this one does instead. Likewise `diversity` is the same idea as
+  gifsicle's heuristic (pick colours far from the ones already chosen,
+  biased by how common they are) rather than the same code. Numbers
+  will not match a gifsicle run; behaviour under the knob will.
+
+  Two things the script got wrong for its user, fixed here because the
+  fix costs nothing and the shell version could not have done it:
+  approx mode always shipped the *last* iteration even when an earlier
+  one was closer to the target, and it never stopped early when it had
+  already arrived. Both are now options, both default to the better
+  behaviour, and both can be turned off to get the script's output.
+
+  NO CDN. Everything below is hand-written and the page works from
+  file:// — including the compressor, which runs in a worker built out
+  of this page's own <script> text when the browser allows it and falls
+  back to the main thread when it does not.
+-->
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0d0d0d;
+    --panel: #151515;
+    --panel-2: #1b1b1b;
+    --text: #e0e0e0;
+    --muted: #7a7a7a;
+    --dim: #999;
+    --link: #7eb8f7;
+    --line: #262626;
+    --line-2: #333;
+    --accent: #7eb8f7;
+    --good: #6fcf7f;
+    --warn: #e0b169;
+    --bad: #e07a7a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.45;
+    padding: 28px 20px 60px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  header { margin-bottom: 22px; }
+  h1 {
+    font-size: 1.4rem; font-weight: 600; margin: 0 0 .3rem; color: #fff;
+    letter-spacing: -0.01em;
+  }
+  header p { margin: 0; color: var(--muted); font-size: .9rem; max-width: 62ch; }
+  header a { color: var(--link); text-decoration: none; }
+  header a:hover { text-decoration: underline; }
+
+  .cols { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.05fr); gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .panel > h2 {
+    font-size: .7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .09em; color: #6d6d6d; margin: 0 0 .85rem;
+    padding-bottom: .4rem; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  }
+  .panel > h2 .note { text-transform: none; letter-spacing: 0; color: #5c5c5c; font-weight: 400; font-size: .72rem; }
+
+  /* ---- drop zone ---- */
+  #drop {
+    border: 1px dashed var(--line-2); border-radius: 10px;
+    padding: 26px 18px; text-align: center; cursor: pointer;
+    transition: border-color .15s, background .15s;
+    background: var(--panel-2);
+  }
+  #drop:hover, #drop.over { border-color: var(--accent); background: #17202b; }
+  #drop.over { border-style: solid; }
+  #drop .big { font-size: .95rem; color: #cfcfcf; }
+  #drop .small { font-size: .78rem; color: var(--muted); margin-top: .35rem; }
+  #file { display: none; }
+
+  #srcInfo { display: none; margin-top: 12px; font-size: .8rem; color: var(--dim); }
+  #srcInfo.on { display: block; }
+  #srcInfo b { color: #ddd; font-weight: 600; }
+  .srcgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(102px, 1fr)); gap: 8px 14px; margin-top: 6px; }
+  .srcgrid div span { display: block; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ---- rows / fields ---- */
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 11px; }
+  .row:last-child { margin-bottom: 0; }
+  .row > label.name { flex: 0 0 108px; color: var(--dim); font-size: .82rem; }
+  .row.wide > label.name { flex-basis: 132px; }
+  .grow { flex: 1 1 auto; min-width: 0; }
+  .hint { color: #5f5f5f; font-size: .74rem; margin: -4px 0 12px 118px; }
+  @media (max-width: 560px) { .hint { margin-left: 0; } .row > label.name, .row.wide > label.name { flex-basis: 100%; } }
+  .hint.full { margin-left: 0; }
+
+  input[type=number], input[type=text], select {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line-2); border-radius: 6px;
+    padding: 6px 8px; font: inherit; font-size: .85rem; min-width: 0;
+  }
+  input[type=number] { width: 84px; }
+  select { padding-right: 4px; }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  input[type=range] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 3px; background: #303030; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; border: 0;
+  }
+  input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); cursor: pointer; border: 0; }
+  input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+  label.check { display: flex; align-items: center; gap: 7px; color: var(--dim); font-size: .82rem; cursor: pointer; }
+
+  button {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line-2); border-radius: 6px;
+    padding: 7px 13px; font: inherit; font-size: .85rem; cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: #4a4a4a; background: #232323; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: #1d4a7a; border-color: #2a6299; color: #eaf3ff; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: #23578c; border-color: #3573b0; }
+  button.danger { border-color: #5c3535; color: #e6b3b3; }
+
+  .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 6px 12px; background: var(--panel-2); color: var(--dim); }
+  .seg button + button { border-left: 1px solid var(--line-2); }
+  .seg button.on { background: #1d4a7a; color: #eaf3ff; }
+
+  /* ---- knob cards ---- */
+  .knobs { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+  @media (max-width: 520px) { .knobs { grid-template-columns: 1fr; } }
+  .knob { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px 11px; }
+  .knob h3 { margin: 0 0 2px; font-size: .82rem; font-weight: 600; color: #d8d8d8; display: flex; justify-content: space-between; align-items: baseline; }
+  .knob h3 em { font-style: normal; font-size: .72rem; color: var(--muted); font-weight: 400; }
+  .knob .wt { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+  .knob .wt input[type=range] { flex: 1; }
+  .knob .wt output { flex: 0 0 30px; text-align: right; font-variant-numeric: tabular-nums; color: var(--dim); font-size: .78rem; }
+  .knob .lim { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: .76rem; color: var(--muted); }
+  .knob .lim input[type=number] { width: 68px; padding: 4px 6px; font-size: .8rem; }
+  .knob.off { opacity: .5; }
+
+  details { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }
+  details > summary {
+    cursor: pointer; color: var(--muted); font-size: .78rem;
+    text-transform: uppercase; letter-spacing: .07em; list-style: none; user-select: none;
+  }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::before { content: "▸ "; color: #555; }
+  details[open] > summary::before { content: "▾ "; }
+  details .body { padding-top: 12px; }
+
+  /* ---- run bar ---- */
+  #runbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #progWrap { flex: 1 1 140px; min-width: 120px; height: 5px; border-radius: 3px; background: #262626; overflow: hidden; }
+  #prog { height: 100%; width: 0%; background: var(--accent); transition: width .18s linear; }
+  #status { font-size: .78rem; color: var(--muted); flex: 1 1 100%; min-height: 1.2em; }
+  #status.err { color: var(--bad); }
+
+  /* ---- preview ---- */
+  #stage {
+    background:
+      linear-gradient(45deg,#191919 25%,transparent 25%,transparent 75%,#191919 75%),
+      linear-gradient(45deg,#191919 25%,#131313 25%,#131313 75%,#191919 75%);
+    background-size: 18px 18px; background-position: 0 0, 9px 9px;
+    border: 1px solid var(--line); border-radius: 8px;
+    min-height: 220px; display: flex; align-items: center; justify-content: center;
+    overflow: hidden; padding: 8px;
+  }
+  #stage img, #stage canvas { max-width: 100%; max-height: 62vh; display: block; image-rendering: auto; }
+  #stage .placeholder { color: #4d4d4d; font-size: .82rem; padding: 40px 12px; text-align: center; }
+  #stage.pixel img, #stage.pixel canvas { image-rendering: pixelated; }
+
+  .viewbar { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .viewbar .spacer { flex: 1; }
+
+  #resultStats { display: none; margin-top: 12px; }
+  #resultStats.on { display: block; }
+  .statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(102px,1fr)); gap: 10px 14px; }
+  .statgrid div span { display: block; color: var(--muted); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
+  .statgrid div b { font-weight: 600; font-size: .95rem; color: #efefef; font-variant-numeric: tabular-nums; }
+  .statgrid div b.good { color: var(--good); }
+  .statgrid div b.warn { color: var(--warn); }
+  .statgrid div b.bad  { color: var(--bad); }
+
+  /* ---- log ---- */
+  #logWrap { max-height: 320px; overflow: auto; }
+  table.log { min-width: 340px; }
+  table.log { width: 100%; border-collapse: collapse; font-size: .78rem; font-variant-numeric: tabular-nums; }
+  table.log th {
+    position: sticky; top: 0; background: var(--panel); z-index: 1;
+    text-align: right; color: #6d6d6d; font-weight: 500; font-size: .68rem;
+    text-transform: uppercase; letter-spacing: .05em; padding: 4px 7px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.log th:first-child, table.log td:first-child { text-align: left; }
+  table.log td { text-align: right; padding: 4px 7px; border-bottom: 1px solid #1c1c1c; color: var(--dim); }
+  table.log tr.best td { color: #eaeaea; background: #16232f; }
+  table.log tr.best td:first-child::after { content: " ●"; color: var(--accent); }
+  table.log tr.running td { color: #8a8a8a; font-style: italic; }
+  table.log td.hit { color: var(--good); }
+  table.log td.miss { color: var(--warn); }
+  .empty { color: #4d4d4d; font-size: .8rem; padding: 6px 0; }
+
+  footer { margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--line); font-size: .74rem; color: #5c5c5c; }
+  footer a { color: #6d93bd; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; color: #b9c6d2; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>GIF Smasher</h1>
+  <p>Squeeze a video or GIF down to a target file size. Give it a number of megabytes and it
+     encodes, measures, and re-encodes — trading away framerate, colours, resolution and
+     fidelity in whatever mix you tell it to — until the file fits. Everything runs in this tab;
+     nothing is uploaded.</p>
+</header>
+
+<div class="cols">
+
+  <!-- ============ LEFT: controls ============ -->
+  <div>
+    <div class="panel">
+      <h2>Source</h2>
+      <div id="drop" tabindex="0" role="button" aria-label="Choose a video or GIF">
+        <div class="big">Drop a video or GIF here</div>
+        <div class="small">or click to choose &middot; mp4, mov, webm, gif</div>
+      </div>
+      <input type="file" id="file" accept="video/*,image/gif" />
+      <div id="srcInfo">
+        <div class="srcgrid">
+          <div><span>Name</span><b id="sName">—</b></div>
+          <div><span>Size</span><b id="sSize">—</b></div>
+          <div><span>Frames</span><b id="sFrames">—</b></div>
+          <div><span>Pixels</span><b id="sDims">—</b></div>
+          <div><span>Framerate</span><b id="sFps">—</b></div>
+          <div><span>Duration</span><b id="sDur">—</b></div>
+        </div>
+      </div>
+      <details id="decodeOpts">
+        <summary>Decoding limits</summary>
+        <div class="body">
+          <div class="row"><label class="name" for="capEdge">Max edge</label>
+            <input type="number" id="capEdge" value="720" min="32" max="4096" step="16" />
+            <span class="hint full" style="margin:0">px — source is decoded no larger than this</span>
+          </div>
+          <div class="row"><label class="name" for="capFrames">Max frames</label>
+            <input type="number" id="capFrames" value="300" min="2" max="2000" step="10" />
+            <span class="hint full" style="margin:0">longer sources are sampled down to fit</span>
+          </div>
+          <div class="row"><label class="name" for="capFps">Decode at</label>
+            <input type="number" id="capFps" value="0" min="0" max="60" step="1" />
+            <span class="hint full" style="margin:0">fps — 0 keeps the source's own rate</span>
+          </div>
+          <p class="hint full">These bound how much of the source is held in memory. Raising them
+             raises quality and the chance of running out of it; the framerate knob can never go
+             above whatever is decoded here.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>Target <span class="note">what the file has to fit into</span></h2>
+      <div class="row">
+        <label class="name" for="targetVal">Size</label>
+        <input type="number" id="targetVal" value="2" min="0.001" step="0.1" />
+        <select id="targetUnit">
+          <option value="1000000" selected>MB</option>
+          <option value="1000">KB</option>
+        </select>
+        <span class="hint full" style="margin:0" id="targetBytesTxt">= 2,000,000 bytes</span>
+      </div>
+      <div class="row">
+        <label class="name">Mode</label>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="approx" class="on">Approximate</button>
+          <button type="button" data-mode="threshold">Threshold</button>
+        </div>
+      </div>
+      <p class="hint" id="modeHint">Feeds each result back in: overshoot by 2× and the next
+        iteration cuts twice as hard. Lands close to the target from either side.</p>
+      <div class="row">
+        <label class="name" for="maxIter">Iterations</label>
+        <input type="number" id="maxIter" value="6" min="1" max="24" step="1" />
+        <span class="hint full" style="margin:0">upper bound on encodes</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>What to give up <span class="note">weight 0 = never touch this</span></h2>
+      <div class="knobs">
+        <div class="knob" id="knobF">
+          <h3>Framerate <em id="fCur">—</em></h3>
+          <div class="wt">
+            <input type="range" id="fWeight" min="0" max="2" step="0.05" value="1" />
+            <output id="fWeightOut">1.00</output>
+          </div>
+          <div class="lim"><label for="minFramerate">floor</label>
+            <input type="number" id="minFramerate" value="0.5" min="0.1" max="60" step="0.1" /> fps</div>
+        </div>
+        <div class="knob" id="knobL">
+          <h3>Lossiness <em id="lCur">—</em></h3>
+          <div class="wt">
+            <input type="range" id="lWeight" min="0" max="2" step="0.05" value="1" />
+            <output id="lWeightOut">1.00</output>
+          </div>
+          <div class="lim"><label for="maxLossy">ceiling</label>
+            <input type="number" id="maxLossy" value="200" min="0" max="400" step="5" /></div>
+        </div>
+        <div class="knob" id="knobS">
+          <h3>Scale <em id="sCur">—</em></h3>
+          <div class="wt">
+            <input type="range" id="sWeight" min="0" max="2" step="0.05" value="1" />
+            <output id="sWeightOut">1.00</output>
+          </div>
+          <div class="lim"><label for="minScale">floor</label>
+            <input type="number" id="minScale" value="0.1" min="0.02" max="1" step="0.05" /> ×</div>
+        </div>
+        <div class="knob" id="knobC">
+          <h3>Colours <em id="cCur">—</em></h3>
+          <div class="wt">
+            <input type="range" id="cWeight" min="0" max="2" step="0.05" value="1" />
+            <output id="cWeightOut">1.00</output>
+          </div>
+          <div class="lim"><label for="minColors">floor</label>
+            <input type="number" id="minColors" value="4" min="2" max="256" step="1" /></div>
+        </div>
+      </div>
+
+      <details>
+        <summary>Encoder</summary>
+        <div class="body">
+          <div class="row wide"><label class="name" for="dither">Dither</label>
+            <select id="dither" class="grow">
+              <option value="bayer" selected>Bayer (ordered)</option>
+              <option value="floyd_steinberg">Floyd–Steinberg</option>
+              <option value="sierra2">Sierra 2</option>
+              <option value="sierra2_4a">Sierra 2-4A (lite)</option>
+              <option value="none">None</option>
+            </select>
+          </div>
+          <div class="row wide" id="bayerRow"><label class="name" for="bayerScale">Bayer scale</label>
+            <input type="range" id="bayerScale" min="0" max="5" step="1" value="2" class="grow" />
+            <output id="bayerScaleOut" style="width:1.5em;text-align:right;color:var(--dim);font-size:.8rem">2</output>
+          </div>
+          <p class="hint">Ordered dithering compresses far better than error diffusion — the pattern
+             repeats, so LZW eats it. Higher scale means a weaker, coarser pattern.</p>
+          <div class="row wide"><label class="name" for="statsMode">Palette from</label>
+            <select id="statsMode" class="grow">
+              <option value="full" selected>full — every pixel of every frame</option>
+              <option value="diff">diff — only pixels that change</option>
+            </select>
+          </div>
+          <div class="row wide"><label class="name" for="colorMethod">Colour method</label>
+            <select id="colorMethod" class="grow">
+              <option value="diversity" selected>diversity</option>
+              <option value="blend-diversity">blend-diversity</option>
+              <option value="median-cut">median-cut</option>
+            </select>
+          </div>
+          <div class="row wide"><label class="name" for="resizeMethod">Resize method</label>
+            <select id="resizeMethod" class="grow">
+              <option value="lanczos3" selected>lanczos3</option>
+              <option value="lanczos2">lanczos2</option>
+              <option value="catrom">catrom</option>
+              <option value="mitchell">mitchell</option>
+              <option value="mix">mix (box)</option>
+              <option value="sample">sample (nearest)</option>
+            </select>
+          </div>
+          <div class="row wide"><label class="name" for="optLevel">Optimisation</label>
+            <select id="optLevel" class="grow">
+              <option value="3" selected>-O3 — try both, keep the smaller</option>
+              <option value="2">-O2 — crop + carry unchanged pixels</option>
+              <option value="1">-O1 — crop changed area only</option>
+              <option value="0">-O0 — whole frame every time</option>
+            </select>
+          </div>
+          <div class="row wide"><label class="name">Transparency</label>
+            <label class="check"><input type="checkbox" id="reserveTransparent" checked /> reserve a palette slot</label>
+          </div>
+          <p class="hint">Needed for sources with alpha, and for -O2/-O3 to leave unchanged pixels
+             out of a frame. Costs one colour.</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Loop behaviour</summary>
+        <div class="body">
+          <div class="row wide"><label class="name">Keep</label>
+            <label class="check"><input type="checkbox" id="keepBest" checked /> best iteration, not the last</label>
+          </div>
+          <div class="row wide"><label class="name" for="tolPct">Stop within</label>
+            <input type="number" id="tolPct" value="2" min="0" max="50" step="0.5" />
+            <span class="hint full" style="margin:0">% under target — 0 runs every iteration</span>
+          </div>
+          <div class="row wide"><label class="name" for="normMode">Weights are</label>
+            <select id="normMode" class="grow">
+              <option value="half" selected>halved — as the script shipped</option>
+              <option value="sum">shared across the four</option>
+              <option value="none">used as given</option>
+            </select>
+          </div>
+          <p class="hint">The script divided every weight by 2 no matter what the others were, so
+             weight 1 means "close half the gap". Sharing divides by the sum of the four instead,
+             which is what the line it overwrote was computing. As-given divides by nothing: in
+             threshold mode that is the setting where weight 1 walks a knob all the way to its
+             limit by the last iteration. In approximate mode it applies the whole correction at
+             once, which overshoots and then swings back — useful for finding the floor fast,
+             not for landing on a number.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h2>Run</h2>
+      <div id="runbar">
+        <button id="go" class="primary" disabled>Smash</button>
+        <button id="stop" class="danger" disabled>Stop</button>
+        <div id="progWrap"><div id="prog"></div></div>
+        <div id="status">Load a video or GIF to begin.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ RIGHT: output ============ -->
+  <div>
+    <div class="panel">
+      <h2>Result <span class="note" id="viewLabel"></span></h2>
+      <div id="stage"><div class="placeholder">Nothing encoded yet.</div></div>
+      <div class="viewbar">
+        <div class="seg" id="viewSeg">
+          <button type="button" data-view="out" class="on">Output</button>
+          <button type="button" data-view="src">Source</button>
+        </div>
+        <label class="check"><input type="checkbox" id="pixelate" /> pixelated</label>
+        <div class="spacer"></div>
+        <button id="download" disabled>Download GIF</button>
+      </div>
+      <div id="resultStats">
+        <div class="statgrid">
+          <div><span>Size</span><b id="rSize">—</b></div>
+          <div><span>Of target</span><b id="rPct">—</b></div>
+          <div><span>Vs source file</span><b id="rRatio">—</b></div>
+          <div><span>Frames</span><b id="rFrames">—</b></div>
+          <div><span>Pixels</span><b id="rDims">—</b></div>
+          <div><span>Framerate</span><b id="rFps">—</b></div>
+          <div><span>Colours</span><b id="rColors">—</b></div>
+          <div><span>Lossy</span><b id="rLossy">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Iterations <span class="note" id="iterNote"></span></h2>
+      <div id="logWrap">
+        <div class="empty" id="logEmpty">Each pass prints the settings it tried and what they weighed.</div>
+        <table class="log" id="logTable" style="display:none">
+          <thead><tr>
+            <th>#</th><th>fps</th><th>lossy</th><th>scale</th><th>colours</th>
+            <th>bytes</th><th>of target</th>
+          </tr></thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Port of <a href="https://github.com/e-z-g/GIF-Smasher">GIF Smasher</a>, which used ffmpeg and a
+  lossy-patched <a href="https://www.lcdf.org/gifsicle/man.html">gifsicle</a>. The palette,
+  dithering, resampling and LZW here are hand-written — see the comment at the top of this file
+  for what that changes.
+</footer>
+
+</div>
+
+<!--
+  ============================================================================
+  THE CORE.  Pure typed-array maths, no DOM. This same <script> text is read
+  back out by the app below and handed to a Web Worker, so it must keep
+  working when `document` does not exist. Everything it needs arrives in one
+  message; everything it says goes back through a report callback.
+  ============================================================================
+-->
+<script id="gs-core">
+(function (scope) {
+'use strict';
+
+var GS = {};
+scope.GS = GS;
+
+/* ------------------------------------------------------------------ *
+ * Numeric helpers that reproduce the shell script's arithmetic.
+ *
+ * The original did its sums in `bc` with `scale=2` and rounded through
+ * awk. bc truncates rather than rounds, and the truncation is load-
+ * bearing: several of the loop's comparisons are written as
+ * `$(calc_to_int "$x * 100") -le ...`, i.e. "compare at two decimal
+ * places". Doing the same maths in full float here would drift away
+ * from the tuning the defaults were chosen against, so these three
+ * functions keep the script's precision exactly.
+ * ------------------------------------------------------------------ */
+function t2(x) { return Math.trunc(x * 100) / 100; }   // bc scale=2
+function ti(x) { return Math.trunc(x); }                // calc_to_int
+function ceilAwk(x) { return Math.trunc(x + 0.999); }   // round_up()
+
+/* ------------------------------------------------------------------ *
+ * Colour distance.
+ *
+ * One metric is used everywhere — nearest-colour lookup, diversity
+ * selection, and the lossy substitution search — so that "how far apart
+ * are these two colours" means one thing across the whole file. It is
+ * luma-weighted (77/151/28 sum to 256) because an eye notices a green
+ * shift long before it notices the same numeric shift in blue, and the
+ * lossy encoder leans on that hard.
+ * ------------------------------------------------------------------ */
+function dist2(r1, g1, b1, r2, g2, b2) {
+  var dr = r1 - r2, dg = g1 - g2, db = b1 - b2;
+  return (dr * dr * 77 + dg * dg * 151 + db * db * 28) >> 8;
+}
+
+/* ================================================================== *
+ * 1. RESAMPLING  —  gifsicle --scale / --resize-method
+ * ================================================================== */
+
+function cubicKernel(B, C) {
+  return function (x) {
+    x = Math.abs(x);
+    var x2 = x * x, x3 = x2 * x;
+    if (x < 1) return ((12 - 9 * B - 6 * C) * x3 + (-18 + 12 * B + 6 * C) * x2 + (6 - 2 * B)) / 6;
+    if (x < 2) return ((-B - 6 * C) * x3 + (6 * B + 30 * C) * x2 + (-12 * B - 48 * C) * x + (8 * B + 24 * C)) / 6;
+    return 0;
+  };
+}
+function lanczosKernel(a) {
+  return function (x) {
+    x = Math.abs(x);
+    if (x < 1e-8) return 1;
+    if (x >= a) return 0;
+    var px = Math.PI * x;
+    return (a * Math.sin(px) * Math.sin(px / a)) / (px * px);
+  };
+}
+var FILTERS = {
+  sample:   { radius: 0,   fn: null },                       // nearest neighbour
+  mix:      { radius: 0.5, fn: function () { return 1; } },  // box / area average
+  catrom:   { radius: 2,   fn: cubicKernel(0, 0.5) },
+  mitchell: { radius: 2,   fn: cubicKernel(1 / 3, 1 / 3) },
+  lanczos2: { radius: 2,   fn: lanczosKernel(2) },
+  lanczos3: { radius: 3,   fn: lanczosKernel(3) }
+};
+
+/* Precompute the taps for one axis. When shrinking, the kernel is
+ * stretched by 1/scale so that every source pixel inside the footprint
+ * contributes — skipping this is the classic way to get aliased,
+ * sparkling downscales that then cost a fortune to compress. */
+function buildTaps(srcLen, dstLen, filt) {
+  var scale = dstLen / srcLen;
+  var support = filt.radius / Math.min(scale, 1);
+  var starts = new Int32Array(dstLen);
+  var counts = new Int32Array(dstLen);
+  var weights = [];
+  for (var i = 0; i < dstLen; i++) {
+    var center = (i + 0.5) / scale - 0.5;
+    var lo = Math.max(0, Math.ceil(center - support));
+    var hi = Math.min(srcLen - 1, Math.floor(center + support));
+    if (hi < lo) { lo = hi = Math.min(srcLen - 1, Math.max(0, Math.round(center))); }
+    var w = new Float32Array(hi - lo + 1), sum = 0;
+    for (var j = lo; j <= hi; j++) {
+      var d = (j - center) * Math.min(scale, 1);
+      var v = filt.fn(d);
+      w[j - lo] = v; sum += v;
+    }
+    if (sum === 0) { w.fill(0); w[Math.min(w.length - 1, Math.max(0, Math.round(center) - lo))] = 1; sum = 1; }
+    for (var k = 0; k < w.length; k++) w[k] /= sum;
+    starts[i] = lo; counts[i] = w.length; weights.push(w);
+  }
+  return { starts: starts, counts: counts, weights: weights };
+}
+
+/* RGBA in, RGBA out. Alpha is premultiplied for the duration of the
+ * filter and divided back out afterwards; without that, a filter tap
+ * landing half on a transparent pixel drags that pixel's (meaningless)
+ * colour into the result and you get dark fringes around everything. */
+function resampleImage(src, sw, sh, dw, dh, method) {
+  if (sw === dw && sh === dh) return src;
+  var filt = FILTERS[method] || FILTERS.lanczos3;
+
+  if (!filt.fn) { // nearest — no premultiply needed, nothing is blended
+    var out = new Uint8ClampedArray(dw * dh * 4);
+    for (var y = 0; y < dh; y++) {
+      var sy = Math.min(sh - 1, Math.floor((y + 0.5) * sh / dh));
+      for (var x = 0; x < dw; x++) {
+        var sx = Math.min(sw - 1, Math.floor((x + 0.5) * sw / dw));
+        var s = (sy * sw + sx) * 4, d = (y * dw + x) * 4;
+        out[d] = src[s]; out[d + 1] = src[s + 1]; out[d + 2] = src[s + 2]; out[d + 3] = src[s + 3];
+      }
+    }
+    return out;
+  }
+
+  var n = sw * sh, i, a;
+  var pr = new Float32Array(n), pg = new Float32Array(n), pb = new Float32Array(n), pa = new Float32Array(n);
+  for (i = 0; i < n; i++) {
+    a = src[i * 4 + 3] / 255;
+    pr[i] = src[i * 4] * a; pg[i] = src[i * 4 + 1] * a; pb[i] = src[i * 4 + 2] * a; pa[i] = a * 255;
+  }
+
+  // horizontal pass -> sh rows of dw
+  var hx = buildTaps(sw, dw, filt);
+  var m = dw * sh;
+  var tr = new Float32Array(m), tg = new Float32Array(m), tb = new Float32Array(m), ta = new Float32Array(m);
+  for (var y2 = 0; y2 < sh; y2++) {
+    var rowS = y2 * sw, rowD = y2 * dw;
+    for (var x2 = 0; x2 < dw; x2++) {
+      var st = hx.starts[x2], ct = hx.counts[x2], w = hx.weights[x2];
+      var ar = 0, ag = 0, ab = 0, aa = 0;
+      for (var k2 = 0; k2 < ct; k2++) {
+        var idx = rowS + st + k2, wt = w[k2];
+        ar += pr[idx] * wt; ag += pg[idx] * wt; ab += pb[idx] * wt; aa += pa[idx] * wt;
+      }
+      tr[rowD + x2] = ar; tg[rowD + x2] = ag; tb[rowD + x2] = ab; ta[rowD + x2] = aa;
+    }
+  }
+
+  // vertical pass -> dh rows of dw
+  var vy = buildTaps(sh, dh, filt);
+  var out2 = new Uint8ClampedArray(dw * dh * 4);
+  for (var y3 = 0; y3 < dh; y3++) {
+    var st2 = vy.starts[y3], ct2 = vy.counts[y3], w2 = vy.weights[y3];
+    for (var x3 = 0; x3 < dw; x3++) {
+      var br = 0, bg = 0, bb = 0, ba = 0;
+      for (var k3 = 0; k3 < ct2; k3++) {
+        var id2 = (st2 + k3) * dw + x3, wt2 = w2[k3];
+        br += tr[id2] * wt2; bg += tg[id2] * wt2; bb += tb[id2] * wt2; ba += ta[id2] * wt2;
+      }
+      var d2 = (y3 * dw + x3) * 4;
+      if (ba > 0.5) {
+        var inv = 255 / ba;
+        out2[d2] = br * inv; out2[d2 + 1] = bg * inv; out2[d2 + 2] = bb * inv;
+      }
+      out2[d2 + 3] = ba;
+    }
+  }
+  return out2;
+}
+
+/* ================================================================== *
+ * 2. PALETTE  —  ffmpeg palettegen + gifsicle --colors/--color-method
+ *
+ * A 6-bit-per-channel histogram (262 144 buckets) is accumulated across
+ * every frame, holding a count and the exact RGB sum for each bucket,
+ * so the representative colour of a bucket is the true average of the
+ * pixels in it rather than the bucket's centre. 6 bits is the smallest
+ * width where the quantisation error (±2 per channel) stays under what
+ * the dither is about to add anyway, and it keeps both the histogram
+ * and the inverse lookup table small enough to rebuild every iteration.
+ * ================================================================== */
+
+function newHistogram() {
+  return {
+    count: new Uint32Array(262144),
+    r: new Float64Array(262144),
+    g: new Float64Array(262144),
+    b: new Float64Array(262144),
+    used: 0
+  };
+}
+
+/* stats_mode=diff means only pixels that differ from the previous frame
+ * feed the histogram — the point being that a mostly-static clip should
+ * spend its colours on the part that actually moves. */
+function addToHistogram(h, rgba, prev, diffOnly) {
+  var n = rgba.length >> 2;
+  for (var i = 0; i < n; i++) {
+    var o = i * 4;
+    if (rgba[o + 3] < 128) continue;
+    if (diffOnly && prev) {
+      if (prev[o] === rgba[o] && prev[o + 1] === rgba[o + 1] &&
+          prev[o + 2] === rgba[o + 2] && prev[o + 3] === rgba[o + 3]) continue;
+    }
+    var R = rgba[o], G = rgba[o + 1], B = rgba[o + 2];
+    var key = ((R >> 2) << 12) | ((G >> 2) << 6) | (B >> 2);
+    if (h.count[key] === 0) h.used++;
+    h.count[key]++;
+    h.r[key] += R; h.g[key] += G; h.b[key] += B;
+  }
+}
+
+function histEntries(h) {
+  var out = [];
+  for (var key = 0; key < 262144; key++) {
+    var c = h.count[key];
+    if (c === 0) continue;
+    out.push({ r: h.r[key] / c, g: h.g[key] / c, b: h.b[key] / c, c: c });
+  }
+  return out;
+}
+
+/* Median cut: split the box with the widest channel spread at its
+ * population median, repeat until we have enough boxes. */
+function medianCut(entries, want) {
+  if (entries.length === 0) return [{ r: 0, g: 0, b: 0 }];
+  var boxes = [makeBox(entries)];
+  while (boxes.length < want) {
+    var bi = -1, bestScore = -1;
+    for (var i = 0; i < boxes.length; i++) {
+      var bx = boxes[i];
+      if (bx.e.length < 2) continue;
+      var score = bx.spread * Math.cbrt(bx.total);
+      if (score > bestScore) { bestScore = score; bi = i; }
+    }
+    if (bi < 0) break;
+    var box = boxes[bi];
+    var ch = box.axis;
+    box.e.sort(function (a, b) { return a[ch] - b[ch]; });
+    var half = box.total / 2, acc = 0, cut = 0;
+    for (var j = 0; j < box.e.length - 1; j++) { acc += box.e[j].c; cut = j + 1; if (acc >= half) break; }
+    boxes.splice(bi, 1, makeBox(box.e.slice(0, cut)), makeBox(box.e.slice(cut)));
+  }
+  return boxes.map(function (bx) {
+    var tr = 0, tg = 0, tb = 0, tc = 0;
+    for (var i = 0; i < bx.e.length; i++) {
+      var e = bx.e[i]; tr += e.r * e.c; tg += e.g * e.c; tb += e.b * e.c; tc += e.c;
+    }
+    return { r: Math.round(tr / tc), g: Math.round(tg / tc), b: Math.round(tb / tc) };
+  });
+}
+function makeBox(e) {
+  var rlo = 255, rhi = 0, glo = 255, ghi = 0, blo = 255, bhi = 0, total = 0;
+  for (var i = 0; i < e.length; i++) {
+    var x = e[i];
+    if (x.r < rlo) rlo = x.r; if (x.r > rhi) rhi = x.r;
+    if (x.g < glo) glo = x.g; if (x.g > ghi) ghi = x.g;
+    if (x.b < blo) blo = x.b; if (x.b > bhi) bhi = x.b;
+    total += x.c;
+  }
+  // Weighted extents, same reasoning as the distance metric: a given
+  // spread in green matters more than the same spread in blue.
+  var dr = (rhi - rlo) * 0.30, dg = (ghi - glo) * 0.59, db = (bhi - blo) * 0.11;
+  var axis = dr >= dg && dr >= db ? 'r' : (dg >= db ? 'g' : 'b');
+  return { e: e, axis: axis, spread: Math.max(dr, dg, db), total: total };
+}
+
+/* Diversity: gifsicle's idea rather than gifsicle's code. Start from the
+ * most popular colour, then repeatedly take whichever colour is furthest
+ * from everything picked so far, tilted towards popular colours by a
+ * fourth root so that a single stray pixel of neon can't win a slot over
+ * a colour half the picture is made of. blend-diversity then replaces
+ * each pick with the average of the colours that map to it, which pulls
+ * the entry back towards the centre of what it actually represents. */
+function diversity(entries, want, blend) {
+  if (entries.length === 0) return [{ r: 0, g: 0, b: 0 }];
+  if (entries.length <= want) {
+    return entries.map(function (e) { return { r: Math.round(e.r), g: Math.round(e.g), b: Math.round(e.b) }; });
+  }
+  var n = entries.length;
+  var er = new Float32Array(n), eg = new Float32Array(n), eb = new Float32Array(n), ec = new Float32Array(n);
+  for (var i = 0; i < n; i++) { er[i] = entries[i].r; eg[i] = entries[i].g; eb[i] = entries[i].b; ec[i] = entries[i].c; }
+
+  var pop = new Float32Array(n);
+  for (i = 0; i < n; i++) pop[i] = Math.pow(ec[i], 0.25);
+
+  var chosen = [], mind = new Float32Array(n), owner = new Int32Array(n);
+  var first = 0;
+  for (i = 1; i < n; i++) if (ec[i] > ec[first]) first = i;
+  chosen.push(first);
+  for (i = 0; i < n; i++) { mind[i] = dist2(er[i], eg[i], eb[i], er[first], eg[first], eb[first]); owner[i] = 0; }
+
+  while (chosen.length < want) {
+    var best = -1, bestScore = -1;
+    for (i = 0; i < n; i++) {
+      if (mind[i] <= 0) continue;
+      var sc = mind[i] * pop[i];
+      if (sc > bestScore) { bestScore = sc; best = i; }
+    }
+    if (best < 0) break;
+    var slot = chosen.length;
+    chosen.push(best);
+    for (i = 0; i < n; i++) {
+      var d = dist2(er[i], eg[i], eb[i], er[best], eg[best], eb[best]);
+      if (d < mind[i]) { mind[i] = d; owner[i] = slot; }
+    }
+  }
+
+  if (!blend) {
+    return chosen.map(function (ix) { return { r: Math.round(er[ix]), g: Math.round(eg[ix]), b: Math.round(eb[ix]) }; });
+  }
+  var sr = new Float64Array(chosen.length), sg = new Float64Array(chosen.length),
+      sb = new Float64Array(chosen.length), sc2 = new Float64Array(chosen.length);
+  for (i = 0; i < n; i++) {
+    var o = owner[i];
+    sr[o] += er[i] * ec[i]; sg[o] += eg[i] * ec[i]; sb[o] += eb[i] * ec[i]; sc2[o] += ec[i];
+  }
+  return chosen.map(function (ix, s) {
+    if (sc2[s] === 0) return { r: Math.round(er[ix]), g: Math.round(eg[ix]), b: Math.round(eb[ix]) };
+    return { r: Math.round(sr[s] / sc2[s]), g: Math.round(sg[s] / sc2[s]), b: Math.round(sb[s] / sc2[s]) };
+  });
+}
+
+function buildPalette(hist, maxColors, method, reserveTransparent) {
+  var want = Math.max(2, Math.min(256, maxColors)) - (reserveTransparent ? 1 : 0);
+  if (want < 1) want = 1;
+  var entries = histEntries(hist);
+  var cols;
+  if (method === 'median-cut') cols = medianCut(entries, want);
+  else cols = diversity(entries, want, method === 'blend-diversity');
+
+  var pal = new Uint8Array(256 * 3), count = Math.min(cols.length, want);
+  for (var i = 0; i < count; i++) {
+    pal[i * 3] = cols[i].r; pal[i * 3 + 1] = cols[i].g; pal[i * 3 + 2] = cols[i].b;
+  }
+  var transIndex = -1;
+  if (reserveTransparent) { transIndex = count; count++; }  // slot left black; never drawn
+  return { rgb: pal, size: count, transIndex: transIndex };
+}
+
+/* Inverse lookup over the same 6-bit grid the histogram used. Built once
+ * per palette: 262 144 keys x up to 256 colours is ~67M comparisons,
+ * which is a fraction of what doing it per pixel would cost on any clip
+ * worth compressing. */
+function buildLUT(pal) {
+  var lut = new Uint8Array(262144);
+  var n = pal.transIndex >= 0 ? pal.size - 1 : pal.size;
+  if (n < 1) n = 1;
+  var pr = new Int32Array(n), pg = new Int32Array(n), pb = new Int32Array(n);
+  for (var i = 0; i < n; i++) { pr[i] = pal.rgb[i * 3]; pg[i] = pal.rgb[i * 3 + 1]; pb[i] = pal.rgb[i * 3 + 2]; }
+  for (var key = 0; key < 262144; key++) {
+    var R = ((key >> 12) & 63) * 4 + 2, G = ((key >> 6) & 63) * 4 + 2, B = (key & 63) * 4 + 2;
+    var best = 0, bd = 0x7fffffff;
+    for (i = 0; i < n; i++) {
+      var dr = R - pr[i], dg = G - pg[i], db = B - pb[i];
+      var d = (dr * dr * 77 + dg * dg * 151 + db * db * 28);
+      if (d < bd) { bd = d; best = i; if (d === 0) break; }
+    }
+    lut[key] = best;
+  }
+  return lut;
+}
+function lookup(lut, r, g, b) {
+  if (r < 0) r = 0; else if (r > 255) r = 255;
+  if (g < 0) g = 0; else if (g > 255) g = 255;
+  if (b < 0) b = 0; else if (b > 255) b = 255;
+  return lut[((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2)];
+}
+
+/* ================================================================== *
+ * 3. DITHER  —  ffmpeg paletteuse=dither=...
+ *
+ * The choice here matters more for file size than for looks. Error
+ * diffusion scatters unique pixel values through every flat area, which
+ * is exactly the input LZW is worst at; the ordered Bayer pattern
+ * repeats on an 8x8 grid, so it costs a fraction as much. That is why
+ * Bayer is the default both here and in the original script.
+ * ================================================================== */
+
+var BAYER8 = (function () {
+  // Recursive 2x2 expansion, three levels deep: values 0..63 in the
+  // classic void-and-cluster-free ordered pattern.
+  var m = new Uint8Array(64), base = [[0, 2], [3, 1]];
+  for (var y = 0; y < 8; y++) {
+    for (var x = 0; x < 8; x++) {
+      var val = 0;
+      for (var s = 4; s >= 1; s >>= 1) {
+        val = val * 4 + base[((y / s) | 0) & 1][((x / s) | 0) & 1];
+      }
+      m[y * 8 + x] = val;
+    }
+  }
+  return m;
+})();
+
+var DIFFUSIONS = {
+  floyd_steinberg: [[1, 0, 7 / 16], [-1, 1, 3 / 16], [0, 1, 5 / 16], [1, 1, 1 / 16]],
+  sierra2: [[1, 0, 4 / 16], [2, 0, 3 / 16],
+            [-2, 1, 1 / 16], [-1, 1, 2 / 16], [0, 1, 3 / 16], [1, 1, 2 / 16], [2, 1, 1 / 16]],
+  sierra2_4a: [[1, 0, 2 / 4], [-1, 1, 1 / 4], [0, 1, 1 / 4]]
+};
+
+/* RGBA frame -> palette indices. Pixels below half alpha become the
+ * reserved transparent index and take no part in error diffusion; letting
+ * their nonsense colour spill into their neighbours is how you get a halo
+ * of source-colour crud around every cut-out. */
+function ditherFrame(rgba, w, h, pal, lut, mode, bayerScale) {
+  var out = new Uint8Array(w * h);
+  var trans = pal.transIndex;
+  var i, o;
+
+  if (mode === 'none' || mode === 'bayer') {
+    var amp = mode === 'bayer' ? (128 >> bayerScale) : 0;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        i = y * w + x; o = i * 4;
+        if (trans >= 0 && rgba[o + 3] < 128) { out[i] = trans; continue; }
+        if (amp) {
+          var t = (BAYER8[(y & 7) * 8 + (x & 7)] / 64 - 0.5) * amp;
+          out[i] = lookup(lut, rgba[o] + t, rgba[o + 1] + t, rgba[o + 2] + t);
+        } else {
+          out[i] = lookup(lut, rgba[o], rgba[o + 1], rgba[o + 2]);
+        }
+      }
+    }
+    return out;
+  }
+
+  var taps = DIFFUSIONS[mode] || DIFFUSIONS.floyd_steinberg;
+  var maxDy = 0;
+  for (i = 0; i < taps.length; i++) if (taps[i][1] > maxDy) maxDy = taps[i][1];
+  var rows = maxDy + 1;
+  var er = [], eg = [], eb = [];
+  for (i = 0; i < rows; i++) { er.push(new Float32Array(w)); eg.push(new Float32Array(w)); eb.push(new Float32Array(w)); }
+
+  for (var y2 = 0; y2 < h; y2++) {
+    for (var x2 = 0; x2 < w; x2++) {
+      i = y2 * w + x2; o = i * 4;
+      if (trans >= 0 && rgba[o + 3] < 128) { out[i] = trans; continue; }
+      var R = rgba[o] + er[0][x2], G = rgba[o + 1] + eg[0][x2], B = rgba[o + 2] + eb[0][x2];
+      var idx = lookup(lut, R, G, B);
+      out[i] = idx;
+      var qr = R - pal.rgb[idx * 3], qg = G - pal.rgb[idx * 3 + 1], qb = B - pal.rgb[idx * 3 + 2];
+      // Runaway error on a colour the palette simply doesn't have turns
+      // into visible worms; clamping one quantisation step keeps it local.
+      if (qr > 64) qr = 64; else if (qr < -64) qr = -64;
+      if (qg > 64) qg = 64; else if (qg < -64) qg = -64;
+      if (qb > 64) qb = 64; else if (qb < -64) qb = -64;
+      for (var k = 0; k < taps.length; k++) {
+        var tx = x2 + taps[k][0], ty = taps[k][1], wgt = taps[k][2];
+        if (tx < 0 || tx >= w) continue;
+        er[ty][tx] += qr * wgt; eg[ty][tx] += qg * wgt; eb[ty][tx] += qb * wgt;
+      }
+    }
+    var r0 = er.shift(), g0 = eg.shift(), b0 = eb.shift();
+    r0.fill(0); g0.fill(0); b0.fill(0);
+    er.push(r0); eg.push(g0); eb.push(b0);
+  }
+  return out;
+}
+
+/* ================================================================== *
+ * 4. LZW  —  and gifsicle --lossy
+ *
+ * The lossy mode is the one part of the original toolchain with no
+ * honest equivalent in a hundred lines of JavaScript, so here is exactly
+ * what this does instead.
+ *
+ * Ordinary GIF LZW walks the image emitting the longest string it has
+ * already seen. It stops extending the moment one pixel disagrees. The
+ * lossy patch's insight is that a pixel which disagrees by an amount
+ * nobody can see is not worth breaking a match over: if swapping it for
+ * a near-identical palette entry lets the run continue, swap it.
+ *
+ * At every pixel this encoder walks that pixel's near-colour list in
+ * order of increasing error — the exact colour first, so a match that
+ * costs nothing is always preferred — and takes the first candidate the
+ * dictionary can already extend by. Two limits keep it from smearing:
+ * no single substitution may exceed the per-pixel error the --lossy
+ * value allows, and the errors accumulated across one uninterrupted run
+ * may not exceed twice that, which stops a long match from drifting a
+ * gradient somewhere it was never going.
+ *
+ * gifsicle looks further ahead than this and measures error differently,
+ * so a given --lossy number will not produce gifsicle's byte count. It
+ * produces gifsicle's *trade*: the same knob, turned the same way, with
+ * the same kind of damage at the top of its range.
+ * ================================================================== */
+
+var DICT = null, DICT_KEYS = null;   // reused across frames; 4 MB, allocated once
+
+function buildNearTable(pal, lossy) {
+  if (lossy <= 0) return null;
+  var n = pal.transIndex >= 0 ? pal.size - 1 : pal.size;
+  var maxP = lossy / 2;                 // --lossy 0..200 -> 0..100 units of weighted error
+  var maxErr = maxP * maxP;
+  var near = new Array(256), nearErr = new Array(256), i, j;
+  for (i = 0; i < n; i++) {
+    var cand = [];
+    var ri = pal.rgb[i * 3], gi = pal.rgb[i * 3 + 1], bi = pal.rgb[i * 3 + 2];
+    for (j = 0; j < n; j++) {
+      var d = i === j ? 0 : dist2(ri, gi, bi, pal.rgb[j * 3], pal.rgb[j * 3 + 1], pal.rgb[j * 3 + 2]);
+      if (d <= maxErr) cand.push([j, d]);
+    }
+    cand.sort(function (a, b) { return a[1] - b[1]; });
+    var ids = new Uint8Array(cand.length), errs = new Float32Array(cand.length);
+    for (j = 0; j < cand.length; j++) { ids[j] = cand[j][0]; errs[j] = Math.sqrt(cand[j][1]); }
+    near[i] = ids; nearErr[i] = errs;
+  }
+  return { ids: near, errs: nearErr, maxP: maxP, budget: maxP * 2 };
+}
+
+/* Encodes `data` (palette indices, row-major) and returns
+ * { bytes, emitted } — `emitted` being what the decoder will actually
+ * paint, which differs from `data` wherever a lossy substitution
+ * happened. The caller composites from `emitted`, never from `data`,
+ * or the next frame's difference map is computed against an image that
+ * was never on screen. */
+function lzwEncode(data, minCodeSize, near, transIndex) {
+  var clearCode = 1 << minCodeSize;
+  var eoiCode = clearCode + 1;
+  var nextCode = eoiCode + 1;
+  var codeSize = minCodeSize + 1;
+
+  if (!DICT) { DICT = new Int32Array(4096 * 256); DICT_KEYS = new Int32Array(4096); }
+  var keyCount = 0;
+  function resetDict() {
+    for (var q = 0; q < keyCount; q++) DICT[DICT_KEYS[q]] = 0;
+    keyCount = 0;
+    nextCode = eoiCode + 1;
+    codeSize = minCodeSize + 1;
+  }
+  function addKey(key, code) {
+    DICT[key] = code + 1;
+    if (keyCount < 4096) DICT_KEYS[keyCount++] = key;
+  }
+
+  // Bit packer: LSB-first, flushed into GIF's 255-byte sub-blocks.
+  var out = [], block = new Uint8Array(255), blockLen = 0, bitBuf = 0, bitCount = 0;
+  function flushBlock() {
+    if (blockLen === 0) return;
+    var b = new Uint8Array(blockLen + 1);
+    b[0] = blockLen; b.set(block.subarray(0, blockLen), 1);
+    out.push(b); blockLen = 0;
+  }
+  function emit(code) {
+    bitBuf |= code << bitCount;
+    bitCount += codeSize;
+    while (bitCount >= 8) {
+      block[blockLen++] = bitBuf & 255;
+      bitBuf >>= 8; bitCount -= 8;
+      if (blockLen === 255) flushBlock();
+    }
+  }
+
+  var emitted = near ? new Uint8Array(data.length) : data;
+  emit(clearCode);
+
+  var prefix = data[0];
+  if (near) emitted[0] = prefix;
+  var accErr = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var px = data[i], chosen = -1, code = 0, addErr = 0;
+
+    if (near && px !== transIndex && near.ids[px]) {
+      var ids = near.ids[px], errs = near.errs[px];
+      for (var c = 0; c < ids.length; c++) {
+        var cand = ids[c];
+        if (cand === transIndex) continue;
+        var e = errs[c];
+        if (e > near.maxP || accErr + e > near.budget) break;   // list is sorted; nothing after this fits
+        var hit = DICT[(prefix << 8) | cand];
+        if (hit) { chosen = cand; code = hit - 1; addErr = e; break; }
+      }
+      if (chosen < 0) {
+        var hit0 = DICT[(prefix << 8) | px];
+        if (hit0) { chosen = px; code = hit0 - 1; addErr = 0; }
+      }
+    } else {
+      var hitP = DICT[(prefix << 8) | px];
+      if (hitP) { chosen = px; code = hitP - 1; }
+    }
+
+    if (chosen >= 0) {
+      if (near) emitted[i] = chosen;
+      prefix = code;
+      accErr += addErr;
+      continue;
+    }
+
+    emit(prefix);
+    if (nextCode === 4096) {
+      emit(clearCode);
+      resetDict();
+    } else {
+      // The code size has to grow one step LATER than feels right. A
+      // decoder cannot define the entry the encoder just defined until
+      // it has read the *following* code — it needs that code's first
+      // character to know what the entry is. So it spends one more code
+      // at the old width than the encoder otherwise would, and widening
+      // here rather than after the assignment is what keeps the two
+      // reading the same bits.
+      if (nextCode >= (1 << codeSize) && codeSize < 12) codeSize++;
+      addKey((prefix << 8) | px, nextCode);
+      nextCode++;
+    }
+    prefix = px;
+    if (near) emitted[i] = px;
+    accErr = 0;
+  }
+
+  emit(prefix);
+  emit(eoiCode);
+  if (bitCount > 0) {
+    block[blockLen++] = bitBuf & 255;
+    if (blockLen === 255) flushBlock();
+  }
+  flushBlock();
+  resetDict();
+
+  var total = 0, k;
+  for (k = 0; k < out.length; k++) total += out[k].length;
+  var bytes = new Uint8Array(total + 1), off = 0;
+  for (k = 0; k < out.length; k++) { bytes.set(out[k], off); off += out[k].length; }
+  bytes[off] = 0;   // block terminator
+  return { bytes: bytes, emitted: emitted };
+}
+
+/* ================================================================== *
+ * 5. FRAME OPTIMISATION  —  gifsicle -O1/-O2/-O3
+ *
+ * -O1 crops each frame to the rectangle that changed. -O2 additionally
+ * marks every pixel identical to the previous frame transparent, so the
+ * decoder leaves it alone and LZW gets a long run of one value instead
+ * of a picture. -O3 encodes both and keeps whichever came out smaller,
+ * which is worth the second pass surprisingly often: on noisy footage
+ * the transparency map is itself more expensive than the pixels it
+ * replaces.
+ *
+ * The catch that costs people a weekend: a frame that needs to *remove*
+ * something the previous frame drew cannot be expressed this way at all,
+ * because "transparent" means "leave what is there", not "erase". When
+ * that happens the previous frame is retroactively given disposal 2
+ * (restore to background) and this one is written whole — which is why
+ * frames are held back one step before being committed.
+ * ================================================================== */
+
+function crop(data, w, h, x0, y0, cw, ch) {
+  if (x0 === 0 && y0 === 0 && cw === w && ch === h) return data;
+  var out = new Uint8Array(cw * ch);
+  for (var y = 0; y < ch; y++) out.set(data.subarray((y0 + y) * w + x0, (y0 + y) * w + x0 + cw), y * cw);
+  return out;
+}
+
+/* ================================================================== *
+ * 6. GIF ASSEMBLY
+ * ================================================================== */
+
+function GifBuilder(w, h, pal) {
+  this.w = w; this.h = h; this.pal = pal;
+  this.parts = [];
+  this.pending = null;
+  this.bytes = 0;
+
+  var bits = 1;
+  while ((1 << bits) < pal.size) bits++;
+  if (bits < 1) bits = 1;
+  if (bits > 8) bits = 8;
+  this.gctBits = bits;
+  this.minCodeSize = Math.max(2, bits);
+
+  var head = new Uint8Array(13 + 3 * (1 << bits));
+  head.set([0x47, 0x49, 0x46, 0x38, 0x39, 0x61], 0);        // GIF89a
+  head[6] = w & 255; head[7] = w >> 8;
+  head[8] = h & 255; head[9] = h >> 8;
+  head[10] = 0x80 | ((bits - 1) << 4) | (bits - 1);          // GCT present, depth, size
+  head[11] = 0;                                              // background index
+  head[12] = 0;                                              // pixel aspect ratio
+  head.set(pal.rgb.subarray(0, Math.min(pal.size, 1 << bits) * 3), 13);
+  this.push(head);
+
+  // NETSCAPE 2.0 — loop forever, the only thing anyone has ever wanted
+  this.push(new Uint8Array([0x21, 0xFF, 0x0B,
+    0x4E, 0x45, 0x54, 0x53, 0x43, 0x41, 0x50, 0x45, 0x32, 0x2E, 0x30,
+    0x03, 0x01, 0x00, 0x00, 0x00]));
+}
+GifBuilder.prototype.push = function (arr) { this.parts.push(arr); this.bytes += arr.length; };
+
+GifBuilder.prototype.addFrame = function (x, y, w, h, lzwBytes, delayCs, transIndex, disposal) {
+  var head = new Uint8Array(18);
+  head[0] = 0x21; head[1] = 0xF9; head[2] = 0x04;
+  head[3] = (disposal << 2) | (transIndex >= 0 ? 1 : 0);
+  head[4] = delayCs & 255; head[5] = delayCs >> 8;
+  head[6] = transIndex >= 0 ? transIndex : 0;
+  head[7] = 0;
+  head[8] = 0x2C;
+  head[9] = x & 255; head[10] = x >> 8;
+  head[11] = y & 255; head[12] = y >> 8;
+  head[13] = w & 255; head[14] = w >> 8;
+  head[15] = h & 255; head[16] = h >> 8;
+  head[17] = 0;                                   // no local table, not interlaced
+  var mcs = new Uint8Array([this.minCodeSize]);
+  this.flushPending();
+  this.pending = { head: head, rest: [mcs, lzwBytes] };
+};
+GifBuilder.prototype.setPendingDisposal = function (d) {
+  if (this.pending) this.pending.head[3] = (this.pending.head[3] & ~0x1C) | (d << 2);
+};
+GifBuilder.prototype.flushPending = function () {
+  if (!this.pending) return;
+  this.push(this.pending.head);
+  for (var i = 0; i < this.pending.rest.length; i++) this.push(this.pending.rest[i]);
+  this.pending = null;
+};
+GifBuilder.prototype.finish = function () {
+  this.flushPending();
+  this.push(new Uint8Array([0x3B]));
+  var out = new Uint8Array(this.bytes), off = 0;
+  for (var i = 0; i < this.parts.length; i++) { out.set(this.parts[i], off); off += this.parts[i].length; }
+  this.parts = null;
+  return out;
+};
+
+/* ================================================================== *
+ * 7. ONE ENCODE  —  the browser's stand-in for a full
+ *    "ffmpeg | gifsicle" round trip.
+ *
+ * Two passes over the timeline. The first resamples each frame and pours
+ * it into the histogram; the second resamples again, dithers, optimises
+ * and compresses. Resampling twice looks wasteful and is deliberate:
+ * holding every scaled frame at once costs four bytes a pixel, which on
+ * a 300-frame clip is most of a gigabyte, and the histogram cannot be
+ * built without having seen all of them. Where the scaled frames do fit
+ * in a sane budget they are cached and the second pass is free.
+ * ================================================================== */
+
+var SCALE_CACHE_BUDGET = 256 * 1024 * 1024;
+
+function nearestFrameIndex(times, t) {
+  var lo = 0, hi = times.length - 1;
+  while (lo < hi) {
+    var mid = (lo + hi) >> 1;
+    if (times[mid] < t) lo = mid + 1; else hi = mid;
+  }
+  if (lo > 0 && Math.abs(times[lo - 1] - t) <= Math.abs(times[lo] - t)) lo--;
+  return lo;
+}
+
+/* ffmpeg -r: resample the timeline to a constant rate, keeping the
+ * clip's duration. Consecutive picks that land on the same source frame
+ * are merged into one longer frame rather than emitted twice — ffmpeg
+ * would have duplicated them and gifsicle would have spent bytes
+ * noticing they were identical. */
+function pickFrames(job, fps) {
+  var n = job.frames.length;
+  if (n === 0) return { idx: [], delays: [] };
+  if (fps >= job.initFps - 1e-6) {
+    var idx0 = [], del0 = [];
+    for (var i = 0; i < n; i++) { idx0.push(i); del0.push(Math.max(2, job.delaysCs[i])); }
+    return { idx: idx0, delays: del0 };
+  }
+  var durCs = Math.max(1, Math.round(job.duration / 10));
+  var count = Math.max(1, Math.round(job.duration * fps / 1000));
+  var idx = [], delays = [], prevEnd = 0;
+  for (var k = 0; k < count; k++) {
+    var t = (k + 0.5) * job.duration / count;
+    var src = nearestFrameIndex(job.times, t);
+    var end = Math.round((k + 1) * durCs / count);
+    var d = Math.max(2, end - prevEnd);
+    prevEnd = end;
+    if (idx.length && idx[idx.length - 1] === src) delays[delays.length - 1] += d;
+    else { idx.push(src); delays.push(d); }
+  }
+  return { idx: idx, delays: delays };
+}
+
+function tick() { return new Promise(function (r) { setTimeout(r, 0); }); }
+
+GS.encodeOnce = async function (job, s, report, isCancelled) {
+  var tl = pickFrames(job, s.fps);
+  var count = tl.idx.length;
+  if (count === 0) throw new Error('nothing to encode');
+
+  var dw = Math.max(1, Math.round(job.width * s.scale));
+  var dh = Math.max(1, Math.round(job.height * s.scale));
+  var scaling = dw !== job.width || dh !== job.height;
+
+  var cache = null;
+  if (!scaling || dw * dh * 4 * count <= SCALE_CACHE_BUDGET) cache = new Array(count);
+
+  function frameAt(i) {
+    if (cache && cache[i]) return cache[i];
+    var src = job.frames[tl.idx[i]];
+    var out = scaling ? resampleImage(src, job.width, job.height, dw, dh, s.resizeMethod) : src;
+    if (cache) cache[i] = out;
+    return out;
+  }
+
+  // ---- pass 1: histogram (ffmpeg palettegen) ----
+  var hist = newHistogram(), prevRgba = null, i;
+  for (i = 0; i < count; i++) {
+    if (isCancelled()) throw new Error('cancelled');
+    var f = frameAt(i);
+    addToHistogram(hist, f, prevRgba, s.statsMode === 'diff');
+    prevRgba = s.statsMode === 'diff' ? f : null;
+    if ((i & 7) === 0) { report({ type: 'progress', frac: (i / count) * 0.45, label: 'palette' }); await tick(); }
+  }
+  if (hist.used === 0) addToHistogram(hist, new Uint8ClampedArray([0, 0, 0, 255]), null, false);
+
+  var pal = buildPalette(hist, s.colors, s.colorMethod, s.reserveTransparent);
+  hist = null;
+  report({ type: 'progress', frac: 0.5, label: 'palette' });
+  await tick();
+  var lut = buildLUT(pal);
+  var near = buildNearTable(pal, s.lossy);
+  var trans = pal.transIndex;
+
+  // ---- pass 2: dither, optimise, compress (paletteuse + gifsicle) ----
+  var gif = new GifBuilder(dw, dh, pal);
+  var canvas = new Uint8Array(dw * dh);
+  if (trans >= 0) canvas.fill(trans);
+  var havePrev = false;
+
+  for (i = 0; i < count; i++) {
+    if (isCancelled()) throw new Error('cancelled');
+    var cur = ditherFrame(frameAt(i), dw, dh, pal, lut, s.dither, s.bayerScale);
+    if (cache) cache[i] = null;      // scaled RGBA is dead once dithered
+
+    var x0 = 0, y0 = 0, cw = dw, ch = dh, disposal = 1, useTrans = trans;
+    var full = !havePrev || s.optLevel === 0;
+
+    if (!full && trans >= 0) {
+      // A pixel that must become transparent over an opaque one cannot be
+      // expressed by drawing; the frame before has to clear itself first.
+      var mustClear = false;
+      for (var p = 0; p < cur.length; p++) {
+        if (cur[p] === trans && canvas[p] !== trans) { mustClear = true; break; }
+      }
+      if (mustClear) {
+        gif.setPendingDisposal(2);
+        canvas.fill(trans);
+        full = true;
+      }
+    }
+
+    if (full) {
+      var enc = lzwEncode(cur, gif.minCodeSize, near, trans);
+      gif.addFrame(0, 0, dw, dh, enc.bytes, tl.delays[i], trans, 1);
+      canvas.set(enc.emitted);
+    } else {
+      // bounding box of everything that changed
+      var minX = dw, minY = dh, maxX = -1, maxY = -1;
+      for (var y = 0; y < dh; y++) {
+        var row = y * dw;
+        for (var x = 0; x < dw; x++) {
+          if (cur[row + x] !== canvas[row + x]) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX < 0) {
+        // Identical to what is already on screen. One transparent pixel
+        // holds the delay; anything larger is wasted bytes.
+        var one = new Uint8Array(1); one[0] = trans >= 0 ? trans : canvas[0];
+        var encN = lzwEncode(one, gif.minCodeSize, null, trans);
+        gif.addFrame(0, 0, 1, 1, encN.bytes, tl.delays[i], trans, 1);
+      } else {
+        x0 = minX; y0 = minY; cw = maxX - minX + 1; ch = maxY - minY + 1;
+        var plain = crop(cur, dw, dh, x0, y0, cw, ch);
+        var best = null, bestData = null;
+
+        if (s.optLevel >= 1) {
+          var e1 = lzwEncode(plain, gif.minCodeSize, near, trans);
+          best = e1; bestData = e1.emitted;
+        }
+        if (s.optLevel >= 2 && trans >= 0) {
+          var masked = new Uint8Array(cw * ch);
+          for (var yy = 0; yy < ch; yy++) {
+            var so = (y0 + yy) * dw + x0, doff = yy * cw;
+            for (var xx = 0; xx < cw; xx++) {
+              masked[doff + xx] = cur[so + xx] === canvas[so + xx] ? trans : cur[so + xx];
+            }
+          }
+          var e2 = lzwEncode(masked, gif.minCodeSize, near, trans);
+          if (!best || e2.bytes.length < best.bytes.length) { best = e2; bestData = e2.emitted; }
+        }
+        gif.addFrame(x0, y0, cw, ch, best.bytes, tl.delays[i], trans, 1);
+        for (var yy2 = 0; yy2 < ch; yy2++) {
+          var co = (y0 + yy2) * dw + x0, bo = yy2 * cw;
+          for (var xx2 = 0; xx2 < cw; xx2++) {
+            var v = bestData[bo + xx2];
+            if (v !== trans) canvas[co + xx2] = v;
+          }
+        }
+      }
+    }
+    havePrev = true;
+
+    if ((i & 3) === 0) {
+      report({ type: 'progress', frac: 0.5 + (i / count) * 0.5, label: 'encoding' });
+      await tick();
+    }
+  }
+
+  var bytes = gif.finish();
+  report({ type: 'progress', frac: 1, label: 'encoding' });
+  return {
+    bytes: bytes, width: dw, height: dh,
+    frames: count, palette: pal.size,
+    effFps: count > 0 ? Math.round(1000 / (job.duration / count)) : 0
+  };
+};
+
+/* ================================================================== *
+ * 8. THE LOOP  —  ported from gif_smasher.sh
+ *
+ * Both modes below are the script's, constant for constant. The comments
+ * that look like folk wisdom ("LOSSINESS is SIZE^(-1/4)") are the
+ * script's own, and they are the reason each knob gets a different
+ * exponent: they came out of measuring what each one did to a file, not
+ * out of any theory.
+ * ================================================================== */
+
+function relativise(w, sum, mode) {
+  // The script's weightSum is overwritten with the literal 2.00 one line
+  // after being computed. See the header comment: `half` is that, `sum`
+  // is the line it overwrote, `none` is the reading under which a weight
+  // of 1 means "use this knob's whole range".
+  var div = mode === 'sum' ? (sum > 0 ? sum : 1) : (mode === 'none' ? 1 : 2);
+  return t2(w / div);
+}
+
+GS.smash = async function (job, cfg, report, isCancelled) {
+  var target = cfg.targetBytes;
+  var wsum = cfg.fWeight + cfg.lWeight + cfg.sWeight + cfg.cWeight;
+  var fW = relativise(cfg.fWeight, wsum, cfg.normMode);
+  var lW = relativise(cfg.lWeight, wsum, cfg.normMode);
+  var sW = relativise(cfg.sWeight, wsum, cfg.normMode);
+  var cW = relativise(cfg.cWeight, wsum, cfg.normMode);
+
+  var initFramerate = t2(job.initFps);
+  var initLossy = 0, initScale = 1, initColors = 256;
+
+  var framerate = initFramerate;
+  var lossy = Math.min(cfg.maxLossy, initLossy);
+  var scale = initScale;
+  var colors = initColors;
+
+  var best = null, bestUnder = false, last = null;
+  var log = [];
+
+  function consider(res, meta) {
+    var under = res.bytes.length <= target;
+    var take;
+    if (!best) take = true;
+    else if (under && !bestUnder) take = true;                       // first one that fits wins outright
+    else if (under && bestUnder) take = res.bytes.length > best.res.bytes.length;   // fits, and closer to the ceiling
+    else if (!under && !bestUnder) take = res.bytes.length < best.res.bytes.length; // nothing fits yet; take the smallest
+    else take = false;
+    if (take) { best = { res: res, meta: meta }; bestUnder = under; }
+    last = { res: res, meta: meta };
+  }
+
+  function settings(f, l, sc, co) {
+    return {
+      fps: f, lossy: l, scale: sc, colors: co,
+      dither: cfg.dither, bayerScale: cfg.bayerScale,
+      statsMode: cfg.statsMode, reserveTransparent: cfg.reserveTransparent,
+      colorMethod: cfg.colorMethod, resizeMethod: cfg.resizeMethod,
+      optLevel: cfg.optLevel
+    };
+  }
+
+  /* ---- APPROXIMATION MODE ---------------------------------------- *
+   * Each result is fed back as globalWeight = target / actual, and each
+   * knob moves by its own function of that ratio. A file twice too big
+   * gives 0.5, and the four exponents turn that one number into four
+   * different-sized nudges.
+   * ---------------------------------------------------------------- */
+  if (cfg.mode === 'approx') {
+    var iteration = 0;
+    for (;;) {
+      iteration++;
+      if (isCancelled()) throw new Error('cancelled');
+      var meta = { n: iteration, fps: framerate, lossy: lossy, scale: scale, colors: colors };
+      report({ type: 'iterStart', meta: meta });
+      var res = await GS.encodeOnce(job, settings(framerate, lossy, scale, colors), report, isCancelled);
+      var gw = t2(target / res.bytes.length);
+      meta.bytes = res.bytes.length; meta.gw = gw;
+      log.push(meta);
+      consider(res, meta);
+      report({ type: 'iterDone', meta: meta });
+
+      if (iteration >= cfg.maxIterations || ti(gw * 100) === 100) break;
+      if (cfg.tolPct > 0 && res.bytes.length <= target &&
+          res.bytes.length >= target * (1 - cfg.tolPct / 100)) break;
+
+      // FPS is proportional to size, so it moves with the raw ratio.
+      framerate = t2(framerate - framerate * fW * (1 - gw));
+      if (ti(framerate * 100) <= ti(cfg.minFramerate * 100)) framerate = cfg.minFramerate;
+      else if (ti(framerate * 100) >= ti(initFramerate * 100)) framerate = initFramerate;
+
+      // Lossiness buys size back at roughly the fourth root, so it is
+      // driven by an additive step rather than a proportional one.
+      if (ti(lW * 100) > 0) {
+        lossy = ti(t2(lossy + 18 * lW * (1 - Math.pow(gw, 4))));
+        if (lossy >= cfg.maxLossy) lossy = cfg.maxLossy;
+        else if (lossy <= initLossy) lossy = initLossy;
+      }
+
+      // Scale is area, so size goes as its square: correct by the root.
+      if (ti(sW * 100) > 0) {
+        scale = t2(scale - scale * sW * (1 - Math.sqrt(gw)));
+        if (ti(scale * 100) <= ti(cfg.minScale * 100)) scale = cfg.minScale;
+        else if (ti(scale * 100) >= ti(initScale * 100)) scale = initScale;
+      }
+
+      // Colours pay off about as the square root of size.
+      colors = ceilAwk(t2(colors - colors * cW * (1 - gw * gw)));
+      if (colors <= cfg.minColors) colors = cfg.minColors;
+      else if (colors >= initColors) colors = initColors;
+    }
+  }
+
+  /* ---- THRESHOLD MODE -------------------------------------------- *
+   * No feedback: every knob walks from its starting value towards its
+   * limit in maxIterations equal steps, scaled by its weight, and the
+   * run stops at the first result that fits. The pre-pass mirrors the
+   * script's habit of checking ffmpeg's own output before handing it to
+   * gifsicle — quality settings, current framerate — because if that
+   * already fits there is no reason to damage anything.
+   * ---------------------------------------------------------------- */
+  if (cfg.mode === 'threshold') {
+    var fBreadth = t2(initFramerate - cfg.minFramerate);
+    var lBreadth = t2(cfg.maxLossy - initLossy);
+    var sBreadth = t2(initScale - cfg.minScale);
+    var cBreadth = t2(initColors - cfg.minColors);
+    var iter = 0, reached = false;
+
+    while (!reached && iter <= cfg.maxIterations) {
+      if (isCancelled()) throw new Error('cancelled');
+
+      if (framerate !== initFramerate || iter === 0) {
+        var pm = { n: iter + 0.5, fps: framerate, lossy: 0, scale: 1, colors: colors, pre: true };
+        report({ type: 'iterStart', meta: pm });
+        var pre = await GS.encodeOnce(job, settings(framerate, 0, 1, colors), report, isCancelled);
+        pm.bytes = pre.bytes.length;
+        log.push(pm);
+        consider(pre, pm);
+        report({ type: 'iterDone', meta: pm });
+        if (pre.bytes.length <= target) { reached = true; break; }
+      }
+
+      iter++;
+      var m2 = { n: iter, fps: framerate, lossy: lossy, scale: scale, colors: colors };
+      report({ type: 'iterStart', meta: m2 });
+      var r2 = await GS.encodeOnce(job, settings(framerate, lossy, scale, colors), report, isCancelled);
+      m2.bytes = r2.bytes.length;
+      log.push(m2);
+      consider(r2, m2);
+      report({ type: 'iterDone', meta: m2 });
+      if (r2.bytes.length <= target) { reached = true; break; }
+
+      var iterMult = iter / cfg.maxIterations;
+      if (ti(fW * 100) > 0) {
+        var wf = t2(initFramerate - fW * fBreadth * iterMult);
+        framerate = ti(wf * 100) < ti(cfg.minFramerate * 100) ? cfg.minFramerate : wf;
+      }
+      if (ti(lW * 100) > 0) {
+        var wl = ceilAwk(t2(initLossy + lW * lBreadth * iterMult));
+        lossy = wl > cfg.maxLossy ? cfg.maxLossy : wl;
+      }
+      if (ti(sW * 100) > 0) {
+        var ws = t2(initScale - sW * sBreadth * iterMult);
+        scale = ti(ws * 100) < ti(cfg.minScale * 100) ? cfg.minScale : ws;
+      }
+      if (ti(cW * 100) > 0) {
+        var wc = ceilAwk(t2(initColors - cW * cBreadth * iterMult));
+        colors = wc < cfg.minColors ? cfg.minColors : wc;
+      }
+    }
+  }
+
+  var chosen = cfg.keepBest ? best : last;
+  return {
+    bytes: chosen.res.bytes,
+    meta: chosen.meta,
+    info: chosen.res,
+    fits: chosen.res.bytes.length <= target,
+    log: log,
+    bestIter: chosen.meta.n
+  };
+};
+
+})(typeof self !== 'undefined' ? self : this);
+</script>
+
+<!--
+  ============================================================================
+  THE APP. Decoding (which needs <video> and therefore the main thread),
+  the worker bootstrap, and everything the user touches.
+  ============================================================================
+-->
+<script>
+(function () {
+'use strict';
+
+var $ = function (id) { return document.getElementById(id); };
+
+/* ================================================================== *
+ * GIF DECODER
+ *
+ * Enough of GIF89a to read anything a camera roll or an export dialog
+ * will produce: LZW, interlacing, local colour tables, transparency and
+ * all four disposal methods. It writes RGBA straight into a composite
+ * buffer rather than going through a canvas, because the whole point of
+ * loading a GIF here is to get at its pixels, and a round trip through
+ * 2D canvas costs a copy per frame and can hand back premultiplied
+ * values that were never in the file.
+ * ================================================================== */
+function decodeGIF(buffer) {
+  var d = new Uint8Array(buffer), pos = 0;
+  function byte() { return d[pos++]; }
+  function word() { var v = d[pos] | (d[pos + 1] << 8); pos += 2; return v; }
+  function bytes(n) { var s = d.subarray(pos, pos + n); pos += n; return s; }
+
+  if (String.fromCharCode(d[0], d[1], d[2]) !== 'GIF') throw new Error('Not a GIF file');
+  pos = 6;
+  var width = word(), height = word();
+  var packed = byte();
+  byte(); byte();                                   // background index, aspect ratio
+  var gct = null;
+  if (packed & 0x80) gct = bytes((2 << (packed & 7)) * 3);
+
+  function subBlocks() {
+    var parts = [], total = 0, n;
+    while (pos < d.length && (n = byte())) { parts.push(bytes(n)); total += n; }
+    var out = new Uint8Array(total), off = 0;
+    for (var i = 0; i < parts.length; i++) { out.set(parts[i], off); off += parts[i].length; }
+    return out;
+  }
+
+  function lzw(minCode, src, expected) {
+    var clear = 1 << minCode, eoi = clear + 1;
+    var codeSize = minCode + 1;
+    var prefix = new Int32Array(4096), suffix = new Uint8Array(4096), first = new Uint8Array(4096);
+    var out = new Uint8Array(expected), outPos = 0;
+    var stack = new Uint8Array(4096), sp = 0;
+    var next = eoi + 1, prev = -1, i;
+    for (i = 0; i < clear; i++) { prefix[i] = -1; suffix[i] = i; first[i] = i; }
+
+    var bitPos = 0, bitBuf = 0, srcPos = 0;
+    function readCode() {
+      while (bitPos < codeSize) {
+        if (srcPos >= src.length) return eoi;
+        bitBuf |= src[srcPos++] << bitPos; bitPos += 8;
+      }
+      var c = bitBuf & ((1 << codeSize) - 1);
+      bitBuf >>= codeSize; bitPos -= codeSize;
+      return c;
+    }
+
+    for (;;) {
+      var code = readCode();
+      if (code === eoi) break;
+      if (code === clear) { codeSize = minCode + 1; next = eoi + 1; prev = -1; continue; }
+      if (prev === -1) {
+        if (code >= clear) break;
+        if (outPos < out.length) out[outPos++] = suffix[code];
+        prev = code;
+        continue;
+      }
+      var inCode = code;
+      sp = 0;
+      // The one case that trips every hand-written LZW: a code that has
+      // not been defined yet is legal, and always means "the previous
+      // string plus its own first character".
+      if (code >= next) { stack[sp++] = first[prev]; code = prev; }
+      while (code >= clear) { stack[sp++] = suffix[code]; code = prefix[code]; }
+      var firstChar = suffix[code];
+      stack[sp++] = firstChar;
+      if (next < 4096) {
+        prefix[next] = prev;
+        suffix[next] = firstChar;
+        first[next] = first[prev];
+        next++;
+        if (next === (1 << codeSize) && codeSize < 12) codeSize++;
+      }
+      while (sp > 0) { sp--; if (outPos < out.length) out[outPos++] = stack[sp]; }
+      prev = inCode;
+    }
+    return out;
+  }
+
+  var frames = [], gce = null;
+  var composite = new Uint8ClampedArray(width * height * 4);
+  var saved = null;
+
+  while (pos < d.length) {
+    var sentinel = byte();
+    if (sentinel === 0x3B || sentinel === undefined) break;
+
+    if (sentinel === 0x21) {
+      var label = byte();
+      if (label === 0xF9) {
+        byte();
+        var gp = byte(), delay = word(), tIdx = byte();
+        byte();
+        gce = { disposal: (gp >> 2) & 7, transparent: (gp & 1) ? tIdx : -1, delay: delay };
+      } else { subBlocks(); }
+      continue;
+    }
+
+    if (sentinel !== 0x2C) continue;
+
+    var left = word(), top = word(), fw = word(), fh = word();
+    var ip = byte();
+    var ct = gct;
+    if (ip & 0x80) ct = bytes((2 << (ip & 7)) * 3);
+    var interlaced = (ip & 0x40) !== 0;
+    var minCode = byte();
+    var indices = lzw(minCode, subBlocks(), fw * fh);
+
+    var disposal = gce ? gce.disposal : 0;
+    var transparent = gce ? gce.transparent : -1;
+
+    if (disposal === 3) { saved = composite.slice(); }
+
+    var rowMap = null;
+    if (interlaced) {
+      rowMap = new Int32Array(fh);
+      var passes = [[0, 8], [4, 8], [2, 4], [1, 2]], src = 0;
+      for (var p = 0; p < 4; p++) {
+        for (var r = passes[p][0]; r < fh; r += passes[p][1]) rowMap[r] = src++;
+      }
+    }
+
+    for (var y = 0; y < fh; y++) {
+      var cy = top + y;
+      if (cy < 0 || cy >= height) continue;
+      var sy = interlaced ? rowMap[y] : y;
+      for (var x = 0; x < fw; x++) {
+        var cx = left + x;
+        if (cx < 0 || cx >= width) continue;
+        var idx = indices[sy * fw + x];
+        if (idx === transparent) continue;
+        var o = (cy * width + cx) * 4;
+        if (ct) {
+          composite[o] = ct[idx * 3]; composite[o + 1] = ct[idx * 3 + 1]; composite[o + 2] = ct[idx * 3 + 2];
+        }
+        composite[o + 3] = 255;
+      }
+    }
+
+    frames.push({ rgba: composite.slice(), delay: gce && gce.delay ? gce.delay * 10 : 100 });
+
+    if (disposal === 2) {
+      for (var yy = 0; yy < fh; yy++) {
+        var cy2 = top + yy;
+        if (cy2 < 0 || cy2 >= height) continue;
+        var base = (cy2 * width + left) * 4;
+        var span = Math.min(fw, width - left) * 4;
+        if (span > 0) composite.fill(0, base, base + span);
+      }
+    } else if (disposal === 3 && saved) {
+      composite.set(saved);
+    }
+    gce = null;
+  }
+
+  if (!frames.length) throw new Error('GIF contained no frames');
+  return { width: width, height: height, frames: frames };
+}
+
+/* ================================================================== *
+ * VIDEO DECODER
+ *
+ * Seek-and-grab. requestVideoFrameCallback, where it exists, is used
+ * only to *measure* the source framerate from a short burst of playback
+ * — knowing the real rate matters because the framerate knob starts
+ * there and is never allowed above it. The frames themselves come from
+ * seeking, which is the only approach that behaves the same in every
+ * browser and does not make a 40-second clip take 40 seconds to load.
+ * ================================================================== */
+function measureFps(video) {
+  return new Promise(function (resolve) {
+    if (!video.requestVideoFrameCallback) { resolve(0); return; }
+    var stamps = [], done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      video.pause();
+      try { video.currentTime = 0; } catch (e) {}
+      if (stamps.length < 4) { resolve(0); return; }
+      var deltas = [];
+      for (var i = 1; i < stamps.length; i++) deltas.push(stamps[i] - stamps[i - 1]);
+      deltas.sort(function (a, b) { return a - b; });
+      var med = deltas[deltas.length >> 1];
+      resolve(med > 0 ? Math.min(60, Math.max(1, Math.round(1 / med))) : 0);
+    }
+    var timer = setTimeout(finish, 2000);
+    function step(now, meta) {
+      stamps.push(meta.mediaTime);
+      if (stamps.length >= 14) { clearTimeout(timer); finish(); return; }
+      if (!done) video.requestVideoFrameCallback(step);
+    }
+    video.requestVideoFrameCallback(step);
+    video.play().catch(function () { clearTimeout(timer); finish(); });
+  });
+}
+
+function seek(video, t) {
+  return new Promise(function (resolve, reject) {
+    var timer = setTimeout(function () { cleanup(); resolve(); }, 4000);
+    function ok() { cleanup(); resolve(); }
+    function bad() { cleanup(); reject(new Error('seek failed')); }
+    function cleanup() {
+      clearTimeout(timer);
+      video.removeEventListener('seeked', ok);
+      video.removeEventListener('error', bad);
+    }
+    video.addEventListener('seeked', ok);
+    video.addEventListener('error', bad);
+    try { video.currentTime = t; } catch (e) { cleanup(); reject(e); }
+  });
+}
+
+async function decodeVideo(file, caps, onProgress) {
+  var url = URL.createObjectURL(file);
+  var video = document.createElement('video');
+  video.preload = 'auto'; video.muted = true; video.playsInline = true;
+  video.crossOrigin = 'anonymous';
+  video.src = url;
+
+  await new Promise(function (res, rej) {
+    video.addEventListener('loadedmetadata', res, { once: true });
+    video.addEventListener('error', function () { rej(new Error('Could not read that video')); }, { once: true });
+  });
+
+  var vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) throw new Error('Video has no picture');
+  var duration = video.duration;
+  if (!isFinite(duration) || duration <= 0) throw new Error('Video has no duration');
+
+  var fps = caps.fps > 0 ? caps.fps : await measureFps(video);
+  if (!fps) fps = 25;
+
+  var count = Math.max(1, Math.round(duration * fps));
+  if (count > caps.maxFrames) { count = caps.maxFrames; fps = count / duration; }
+
+  var scale = Math.min(1, caps.maxEdge / Math.max(vw, vh));
+  var dw = Math.max(1, Math.round(vw * scale)), dh = Math.max(1, Math.round(vh * scale));
+
+  var cv = document.createElement('canvas');
+  cv.width = dw; cv.height = dh;
+  var ctx = cv.getContext('2d', { willReadFrequently: true, alpha: true });
+
+  var frames = [];
+  for (var i = 0; i < count; i++) {
+    var t = Math.min(duration - 1e-3, (i + 0.5) / fps);
+    await seek(video, t);
+    ctx.clearRect(0, 0, dw, dh);
+    ctx.drawImage(video, 0, 0, dw, dh);
+    frames.push({ rgba: ctx.getImageData(0, 0, dw, dh).data, delay: 1000 / fps });
+    if (onProgress) onProgress((i + 1) / count);
+  }
+
+  URL.revokeObjectURL(url);
+  return { width: dw, height: dh, frames: frames, fps: fps };
+}
+
+/* ================================================================== *
+ * RUNNER — worker if the browser will build one, this thread if not.
+ *
+ * The worker is assembled out of this page's own core <script> text, so
+ * there is no second file to keep in sync and nothing to fetch. Opening
+ * the page from file:// usually refuses blob workers (the origin is
+ * opaque), which is exactly the case the fallback exists for: the tool
+ * still works by double-clicking it, it just cannot get out of its own
+ * way while encoding.
+ * ================================================================== */
+function makeRunner(onMessage) {
+  var core = document.getElementById('gs-core').textContent;
+  var glue = [
+    'var JOB=null,CANCEL=false;',
+    'self.onmessage=async function(e){var m=e.data;',
+    ' if(m.cmd==="job"){JOB=m.job;self.postMessage({type:"ready"});return;}',
+    ' if(m.cmd==="cancel"){CANCEL=true;return;}',
+    ' if(m.cmd==="run"){CANCEL=false;',
+    '  try{',
+    '   var out=await GS.smash(JOB,m.cfg,function(r){self.postMessage(r);},function(){return CANCEL;});',
+    '   self.postMessage({type:"done",bytes:out.bytes,meta:out.meta,fits:out.fits,',
+    '     width:out.info.width,height:out.info.height,frames:out.info.frames,',
+    '     palette:out.info.palette,effFps:out.info.effFps},[out.bytes.buffer]);',
+    '  }catch(err){self.postMessage({type:err&&err.message==="cancelled"?"cancelled":"error",message:String(err&&err.message||err)});}',
+    ' }',
+    '};'
+  ].join('\n');
+
+  try {
+    var blob = new Blob([core, '\n', glue], { type: 'text/javascript' });
+    var w = new Worker(URL.createObjectURL(blob));
+    w.onmessage = function (e) { onMessage(e.data); };
+    w.onerror = function () { onMessage({ type: 'error', message: 'The encoder worker failed.' }); };
+    return {
+      kind: 'worker',
+      post: function (m, tr) { w.postMessage(m, tr || []); },
+      dispose: function () { w.terminate(); }
+    };
+  } catch (e) {
+    var JOB = null, CANCEL = false;
+    return {
+      kind: 'inline',
+      dispose: function () { JOB = null; CANCEL = true; },
+      post: function (m) {
+        if (m.cmd === 'job') { JOB = m.job; onMessage({ type: 'ready' }); return; }
+        if (m.cmd === 'cancel') { CANCEL = true; return; }
+        if (m.cmd === 'run') {
+          CANCEL = false;
+          GS.smash(JOB, m.cfg, onMessage, function () { return CANCEL; }).then(function (out) {
+            onMessage({
+              type: 'done', bytes: out.bytes, meta: out.meta, fits: out.fits,
+              width: out.info.width, height: out.info.height, frames: out.info.frames,
+              palette: out.info.palette, effFps: out.info.effFps
+            });
+          }, function (err) {
+            onMessage({
+              type: err && err.message === 'cancelled' ? 'cancelled' : 'error',
+              message: String(err && err.message || err)
+            });
+          });
+        }
+      }
+    };
+  }
+}
+
+/* ================================================================== *
+ * UI
+ * ================================================================== */
+
+var job = null;          // decoded source, owned by the runner once sent
+var runner = null;
+var running = false;
+var outUrl = null;
+var srcEl = null;
+var srcName = 'output';
+var srcBytes = 0;
+var rowEls = {};
+
+function fmtBytes(n) {
+  if (n < 1000) return n + ' B';
+  if (n < 1000000) return (n / 1000).toFixed(n < 10000 ? 1 : 0) + ' KB';
+  return (n / 1000000).toFixed(n < 10000000 ? 2 : 1) + ' MB';
+}
+function fmtNum(n) { return n.toLocaleString(); }
+function setStatus(msg, isErr) {
+  var el = $('status');
+  el.textContent = msg;
+  el.className = isErr ? 'err' : '';
+}
+function setProgress(f) { $('prog').style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; }
+
+function targetBytes() {
+  var v = parseFloat($('targetVal').value) || 0;
+  return Math.max(1, Math.round(v * parseFloat($('targetUnit').value)));
+}
+function syncTargetText() { $('targetBytesTxt').textContent = '= ' + fmtNum(targetBytes()) + ' bytes'; }
+
+/* ---- knob weight sliders ---- */
+['f', 'l', 's', 'c'].forEach(function (k) {
+  var slider = $(k + 'Weight'), out = $(k + 'WeightOut');
+  var card = $('knob' + k.toUpperCase());
+  function sync() {
+    out.textContent = parseFloat(slider.value).toFixed(2);
+    card.classList.toggle('off', parseFloat(slider.value) === 0);
+  }
+  slider.addEventListener('input', sync);
+  sync();
+});
+$('bayerScale').addEventListener('input', function () { $('bayerScaleOut').textContent = this.value; });
+$('dither').addEventListener('change', function () {
+  $('bayerRow').style.display = this.value === 'bayer' ? '' : 'none';
+});
+$('targetVal').addEventListener('input', syncTargetText);
+$('targetUnit').addEventListener('change', syncTargetText);
+syncTargetText();
+
+var MODE_HINTS = {
+  approx: 'Feeds each result back in: overshoot by 2× and the next iteration cuts twice as hard. Lands close to the target from either side.',
+  threshold: 'No feedback — each knob walks steadily towards its limit and the run stops at the first encode that fits. Predictable, and usually smaller than it needed to be.'
+};
+Array.prototype.forEach.call($('modeSeg').children, function (b) {
+  b.addEventListener('click', function () {
+    Array.prototype.forEach.call($('modeSeg').children, function (o) { o.classList.remove('on'); });
+    b.classList.add('on');
+    $('modeHint').textContent = MODE_HINTS[b.dataset.mode];
+  });
+});
+function currentMode() { return $('modeSeg').querySelector('.on').dataset.mode; }
+
+Array.prototype.forEach.call($('viewSeg').children, function (b) {
+  b.addEventListener('click', function () {
+    Array.prototype.forEach.call($('viewSeg').children, function (o) { o.classList.remove('on'); });
+    b.classList.add('on');
+    showView(b.dataset.view);
+  });
+});
+$('pixelate').addEventListener('change', function () { $('stage').classList.toggle('pixel', this.checked); });
+
+/* A 90-pixel-tall GIF sitting at its natural size in the middle of a big
+ * panel tells you nothing. Small pictures are scaled up by whole numbers
+ * so the pixelated toggle still shows what is really there. */
+function fitToStage(el, natW, natH) {
+  if (!natW || !natH) return;
+  var stage = $('stage');
+  var availW = stage.clientWidth - 18;
+  var availH = Math.min(window.innerHeight * 0.62, 560);
+  if (natW > availW || natH > availH) return;
+  var k = Math.max(1, Math.floor(Math.min(availW / natW, availH / natH)));
+  if (k > 1) { el.style.width = (natW * k) + 'px'; el.style.height = (natH * k) + 'px'; }
+}
+
+function showView(which) {
+  var stage = $('stage');
+  stage.innerHTML = '';
+  if (which === 'src' && srcEl) {
+    srcEl.style.width = srcEl.style.height = '';
+    stage.appendChild(srcEl);
+    if (srcEl.tagName === 'CANVAS') fitToStage(srcEl, srcEl.width, srcEl.height);
+    else if (srcEl.naturalWidth) fitToStage(srcEl, srcEl.naturalWidth, srcEl.naturalHeight);
+    else srcEl.addEventListener('load', function () { fitToStage(srcEl, srcEl.naturalWidth, srcEl.naturalHeight); }, { once: true });
+    $('viewLabel').textContent = 'source, as decoded';
+    return;
+  }
+  if (which === 'out' && outUrl) {
+    var img = document.createElement('img');
+    img.alt = 'compressed result';
+    img.addEventListener('load', function () { fitToStage(img, img.naturalWidth, img.naturalHeight); }, { once: true });
+    img.src = outUrl;
+    stage.appendChild(img);
+    $('viewLabel').textContent = '';
+    return;
+  }
+  var ph = document.createElement('div');
+  ph.className = 'placeholder';
+  ph.textContent = which === 'src' ? 'No source loaded.' : 'Nothing encoded yet.';
+  stage.appendChild(ph);
+  $('viewLabel').textContent = '';
+}
+
+/* ---- file intake ---- */
+var drop = $('drop');
+drop.addEventListener('click', function () { $('file').click(); });
+drop.addEventListener('keydown', function (e) {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); }
+});
+['dragenter', 'dragover'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); });
+});
+['dragleave', 'drop'].forEach(function (ev) {
+  drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+});
+drop.addEventListener('drop', function (e) {
+  if (e.dataTransfer.files && e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+});
+$('file').addEventListener('change', function () { if (this.files[0]) load(this.files[0]); });
+
+async function load(file) {
+  if (running) return;
+  $('go').disabled = true;
+  $('download').disabled = true;
+  if (runner && runner.dispose) runner.dispose();
+  runner = null;
+  if (outUrl) { URL.revokeObjectURL(outUrl); outUrl = null; }
+  if (srcEl && srcEl.tagName === 'IMG' && srcEl.src.indexOf('blob:') === 0) URL.revokeObjectURL(srcEl.src);
+  srcEl = null;
+  showView('out');
+  $('resultStats').classList.remove('on');
+  clearLog();
+  srcName = file.name.replace(/\.[^.]+$/, '') || 'output';
+  srcBytes = file.size;
+
+  var caps = {
+    maxEdge: Math.max(32, parseInt($('capEdge').value, 10) || 720),
+    maxFrames: Math.max(2, parseInt($('capFrames').value, 10) || 300),
+    fps: Math.max(0, parseFloat($('capFps').value) || 0)
+  };
+
+  try {
+    var decoded, isGif = /\.gif$/i.test(file.name) || file.type === 'image/gif';
+    if (isGif) {
+      setStatus('Reading GIF…');
+      setProgress(0.2);
+      var buf = await file.arrayBuffer();
+      decoded = decodeGIF(buf);
+      // Honour the decode cap for GIFs too, so a huge one cannot eat the tab.
+      if (decoded.frames.length > caps.maxFrames) {
+        var step = decoded.frames.length / caps.maxFrames, kept = [];
+        for (var i = 0; i < caps.maxFrames; i++) {
+          var src = decoded.frames[Math.min(decoded.frames.length - 1, Math.round(i * step))];
+          kept.push({ rgba: src.rgba, delay: src.delay * step });
+        }
+        decoded.frames = kept;
+      }
+      var big = Math.max(decoded.width, decoded.height);
+      if (big > caps.maxEdge) {
+        var sc = caps.maxEdge / big;
+        var nw = Math.max(1, Math.round(decoded.width * sc)), nh = Math.max(1, Math.round(decoded.height * sc));
+        for (var j = 0; j < decoded.frames.length; j++) {
+          decoded.frames[j].rgba = GS_resample(decoded.frames[j].rgba, decoded.width, decoded.height, nw, nh);
+        }
+        decoded.width = nw; decoded.height = nh;
+      }
+    } else {
+      setStatus('Decoding video… (seeking frame by frame)');
+      decoded = await decodeVideo(file, caps, function (f) {
+        setProgress(f);
+        setStatus('Decoding video… ' + Math.round(f * 100) + '%');
+      });
+    }
+
+    var times = [], delaysCs = [], t = 0;
+    for (var k = 0; k < decoded.frames.length; k++) {
+      times.push(t);
+      delaysCs.push(Math.max(2, Math.round(decoded.frames[k].delay / 10)));
+      t += decoded.frames[k].delay;
+    }
+    var duration = t;
+    var initFps = duration > 0 ? (decoded.frames.length * 1000) / duration : 10;
+
+    job = {
+      width: decoded.width, height: decoded.height,
+      frames: decoded.frames.map(function (f) { return f.rgba; }),
+      times: times, delaysCs: delaysCs,
+      duration: duration, initFps: Math.max(0.1, Math.round(initFps * 100) / 100)
+    };
+
+    // A still preview of the first frame stands in for the source; for a
+    // GIF the file itself animates, which is more useful for comparison.
+    if (isGif) {
+      var img = document.createElement('img');
+      img.src = URL.createObjectURL(file); img.alt = 'source';
+      srcEl = img;
+    } else {
+      var cv = document.createElement('canvas');
+      cv.width = job.width; cv.height = job.height;
+      cv.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(job.frames[0]), job.width, job.height), 0, 0);
+      srcEl = cv;
+    }
+
+    $('sName').textContent = file.name;
+    $('sSize').textContent = fmtBytes(file.size);
+    $('sFrames').textContent = fmtNum(job.frames.length);
+    $('sDims').textContent = job.width + '×' + job.height;
+    $('sFps').textContent = job.initFps + ' fps';
+    $('sDur').textContent = (duration / 1000).toFixed(2) + ' s';
+    $('srcInfo').classList.add('on');
+
+    $('fCur').textContent = job.initFps + ' fps';
+    $('lCur').textContent = '0';
+    $('sCur').textContent = '1.00×';
+    $('cCur').textContent = '256';
+
+    if (parseFloat($('minFramerate').value) > job.initFps) $('minFramerate').value = Math.max(0.1, job.initFps / 4).toFixed(1);
+
+    sendJob();
+    var held = job.frames.length * job.width * job.height * 4;
+    setStatus('Ready — ' + job.frames.length + ' frames held at ' + job.width + '×' + job.height +
+              ', about ' + (held < 1048576 ? Math.round(held / 1024) + ' KB' : Math.round(held / 1048576) + ' MB') +
+              ' of pixels' +
+              (runner && runner.kind === 'inline' ? ' · encoding on the main thread (no worker here)' : ''));
+    setProgress(0);
+    $('go').disabled = false;
+  } catch (err) {
+    console.error(err);
+    setStatus(err.message || 'Could not read that file.', true);
+    setProgress(0);
+    job = null;
+  }
+}
+
+/* Resampling on the main thread reuses the core's own filter so a GIF
+ * shrunk at decode time is shrunk exactly the way an iteration would. */
+function GS_resample(rgba, sw, sh, dw, dh) {
+  var cv = document.createElement('canvas');
+  cv.width = dw; cv.height = dh;
+  var src = document.createElement('canvas');
+  src.width = sw; src.height = sh;
+  src.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba), sw, sh), 0, 0);
+  var ctx = cv.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, dw, dh);
+  return ctx.getImageData(0, 0, dw, dh).data;
+}
+
+function sendJob() {
+  runner = makeRunner(onMessage);
+  var buffers = job.frames.map(function (f) { return f.buffer; });
+  runner.post({ cmd: 'job', job: job }, runner.kind === 'worker' ? buffers : undefined);
+  if (runner.kind === 'worker') {
+    // The pixel data now lives in the worker. Keep the shape of the job
+    // around for the UI, but never touch .frames again from here.
+    job = { width: job.width, height: job.height, duration: job.duration, initFps: job.initFps, frames: { length: job.frames.length } };
+  }
+}
+
+/* ---- log table ---- */
+function clearLog() {
+  $('logBody').innerHTML = '';
+  $('logTable').style.display = 'none';
+  $('logEmpty').style.display = '';
+  $('iterNote').textContent = '';
+  rowEls = {};
+}
+function logRow(meta, done) {
+  $('logTable').style.display = '';
+  $('logEmpty').style.display = 'none';
+  var key = String(meta.n);
+  var tr = rowEls[key];
+  if (!tr) {
+    tr = document.createElement('tr');
+    for (var i = 0; i < 7; i++) tr.appendChild(document.createElement('td'));
+    $('logBody').appendChild(tr);
+    rowEls[key] = tr;
+  }
+  var td = tr.children;
+  td[0].textContent = meta.pre ? meta.n + ' pre' : meta.n;
+  td[1].textContent = (+meta.fps).toFixed(2);
+  td[2].textContent = meta.lossy;
+  td[3].textContent = (+meta.scale).toFixed(2);
+  td[4].textContent = meta.colors;
+  if (done) {
+    tr.classList.remove('running');
+    td[5].textContent = fmtBytes(meta.bytes);
+    var pct = (meta.bytes / targetBytes()) * 100;
+    td[6].textContent = pct.toFixed(0) + '%';
+    td[6].className = meta.bytes <= targetBytes() ? 'hit' : 'miss';
+  } else {
+    tr.classList.add('running');
+    td[5].textContent = '…';
+    td[6].textContent = '';
+  }
+}
+
+/* ---- run ---- */
+function readCfg() {
+  return {
+    targetBytes: targetBytes(),
+    mode: currentMode(),
+    maxIterations: Math.max(1, parseInt($('maxIter').value, 10) || 6),
+    fWeight: parseFloat($('fWeight').value),
+    lWeight: parseFloat($('lWeight').value),
+    sWeight: parseFloat($('sWeight').value),
+    cWeight: parseFloat($('cWeight').value),
+    minFramerate: Math.max(0.1, parseFloat($('minFramerate').value) || 0.5),
+    maxLossy: Math.max(0, parseInt($('maxLossy').value, 10) || 0),
+    minScale: Math.max(0.02, parseFloat($('minScale').value) || 0.1),
+    minColors: Math.max(2, parseInt($('minColors').value, 10) || 4),
+    dither: $('dither').value,
+    bayerScale: parseInt($('bayerScale').value, 10),
+    statsMode: $('statsMode').value,
+    colorMethod: $('colorMethod').value,
+    resizeMethod: $('resizeMethod').value,
+    optLevel: parseInt($('optLevel').value, 10),
+    reserveTransparent: $('reserveTransparent').checked,
+    keepBest: $('keepBest').checked,
+    tolPct: Math.max(0, parseFloat($('tolPct').value) || 0),
+    normMode: $('normMode').value
+  };
+}
+
+$('go').addEventListener('click', function () {
+  if (!job || running) return;
+  running = true;
+  $('go').disabled = true;
+  $('stop').disabled = false;
+  $('download').disabled = true;
+  clearLog();
+  setProgress(0);
+  setStatus('Encoding…');
+  runner.post({ cmd: 'run', cfg: readCfg() });
+});
+
+$('stop').addEventListener('click', function () {
+  if (!running) return;
+  runner.post({ cmd: 'cancel' });
+  setStatus('Stopping…');
+});
+
+$('download').addEventListener('click', function () {
+  if (!outUrl) return;
+  var a = document.createElement('a');
+  a.href = outUrl;
+  a.download = srcName + '-smashed.gif';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
+
+function onMessage(m) {
+  if (m.type === 'progress') {
+    setProgress(m.frac);
+    return;
+  }
+  if (m.type === 'iterStart') {
+    logRow(m.meta, false);
+    $('fCur').textContent = (+m.meta.fps).toFixed(2) + ' fps';
+    $('lCur').textContent = m.meta.lossy;
+    $('sCur').textContent = (+m.meta.scale).toFixed(2) + '×';
+    $('cCur').textContent = m.meta.colors;
+    setStatus('Iteration ' + m.meta.n + (m.meta.pre ? ' (quality pre-pass)' : '') + '…');
+    return;
+  }
+  if (m.type === 'iterDone') { logRow(m.meta, true); return; }
+
+  if (m.type === 'done') {
+    running = false;
+    $('go').disabled = false;
+    $('stop').disabled = true;
+    setProgress(1);
+
+    var blob = new Blob([m.bytes], { type: 'image/gif' });
+    if (outUrl) URL.revokeObjectURL(outUrl);
+    outUrl = URL.createObjectURL(blob);
+    $('download').disabled = false;
+
+    var rows = $('logBody').children;
+    for (var i = 0; i < rows.length; i++) rows[i].classList.remove('best');
+    var chosen = rowEls[String(m.meta.n)];
+    if (chosen) chosen.classList.add('best');
+
+    var size = m.bytes.length, tgt = targetBytes();
+    $('rSize').textContent = fmtBytes(size);
+    var pctEl = $('rPct');
+    pctEl.textContent = ((size / tgt) * 100).toFixed(0) + '%';
+    pctEl.className = m.fits ? 'good' : 'bad';
+    if (!srcBytes) $('rRatio').textContent = '—';
+    else if (size <= srcBytes) $('rRatio').textContent = (srcBytes / size).toFixed(1) + '× smaller';
+    else $('rRatio').textContent = (size / srcBytes).toFixed(1) + '× bigger';
+    $('rFrames').textContent = fmtNum(m.frames);
+    $('rDims').textContent = m.width + '×' + m.height;
+    $('rFps').textContent = (+m.meta.fps).toFixed(2);
+    $('rColors').textContent = m.palette;
+    $('rLossy').textContent = m.meta.lossy;
+    $('resultStats').classList.add('on');
+    $('iterNote').textContent = 'kept iteration ' + m.meta.n;
+
+    Array.prototype.forEach.call($('viewSeg').children, function (o) { o.classList.toggle('on', o.dataset.view === 'out'); });
+    showView('out');
+
+    setStatus(m.fits
+      ? 'Done — ' + fmtBytes(size) + ', under the ' + fmtBytes(tgt) + ' target.'
+      : 'Done — ' + fmtBytes(size) + ', still over the ' + fmtBytes(tgt) +
+        ' target. Give it more iterations, or loosen a floor.');
+    return;
+  }
+
+  if (m.type === 'cancelled') {
+    running = false;
+    $('go').disabled = false;
+    $('stop').disabled = true;
+    setProgress(0);
+    setStatus('Stopped.');
+    return;
+  }
+
+  if (m.type === 'error') {
+    running = false;
+    $('go').disabled = false;
+    $('stop').disabled = true;
+    setProgress(0);
+    setStatus(m.message || 'Something went wrong.', true);
+    return;
+  }
+}
+
+})();
+</script>
+</body>
+</html>
