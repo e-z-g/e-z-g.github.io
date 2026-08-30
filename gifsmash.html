@@ -383,9 +383,13 @@
     <div class="panel">
       <h2><span class="ttl">Framing <button type="button" class="i" data-info="i-crop" aria-expanded="false" aria-label="About cropping">i</button></span><span class="note" id="cropNote">drag on the picture</span></h2>
       <div class="info" id="i-crop" hidden>
-        <p>Drag a rectangle on the first frame to keep only part of the picture. Drag inside it
-           to move it, drag an edge or a corner to resize, double-click to go back to the whole
-           frame.</p>
+        <p>Drag a rectangle on the picture to keep only part of it. Drag inside it to move it,
+           drag an edge or a corner to resize, double-click to go back to the whole frame.</p>
+        <p>The clip plays while you do it, because a crop judged on one frame is a crop that
+           loses the subject two seconds later. What plays here is a small proxy — a few dozen
+           frames at reduced size — not the full source, so it is a guide to framing rather than
+           a preview of quality. Untick <b>play</b> to hold it still when you want to line an
+           edge up precisely.</p>
         <p>Cropping is the cheapest thing in this tool. Every other control trades quality for
            size; a crop removes pixels that were never carrying anything — the desktop around
            the window, the bars above and below a widescreen shot, the half of the frame where
@@ -411,6 +415,7 @@
           <option value="0.5625">9:16 vertical</option>
           <option value="2.3900">2.39:1 scope</option>
         </select>
+        <label class="check"><input type="checkbox" id="cropPlay" checked disabled /> play</label>
         <span class="spacer"></span>
         <span id="cropSize">—</span>
         <button type="button" id="cropReset" disabled>Whole frame</button>
@@ -2615,6 +2620,10 @@ function showView(which) {
  * ================================================================== */
 
 var cropImg = null;          // canvas: first frame at source resolution
+var cropFrames = null;       // ImageBitmap[]: the low-res proxy that plays
+var cropDelays = null;       // ms per proxy frame
+var cropFrame = 0;
+var cropTimer = null;
 var crop = null;             // {x,y,w,h} in source pixels, or null for the whole frame
 var cvW = 0, cvH = 0, kDraw = 1;
 var dragMode = null, dragStart = null, dragOrigin = null;
@@ -2638,12 +2647,12 @@ function setupCropper() {
     e.id = 'cropEmpty';
     e.textContent = 'Load something and its first frame appears here to crop.';
     stage.appendChild(e);
-    ['cropX', 'cropY', 'cropW', 'cropH', 'cropReset'].forEach(function (id) { $(id).disabled = true; });
+    ['cropX', 'cropY', 'cropW', 'cropH', 'cropReset', 'cropPlay'].forEach(function (id) { $(id).disabled = true; });
     $('cropSize').textContent = '—';
     return;
   }
   stage.appendChild(cropCv);
-  ['cropX', 'cropY', 'cropW', 'cropH', 'cropReset'].forEach(function (id) { $(id).disabled = false; });
+  ['cropX', 'cropY', 'cropW', 'cropH', 'cropReset', 'cropPlay'].forEach(function (id) { $(id).disabled = false; });
   sizeCropper();
 }
 
@@ -2681,7 +2690,7 @@ function drawCropper() {
   // what is between them — this is the view people judge a crop on.
   ctx.imageSmoothingEnabled = kDraw < 2;
   ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(cropImg, 0, 0, cvW, cvH);
+  ctx.drawImage(cropFrames ? cropFrames[cropFrame] : cropImg, 0, 0, cvW, cvH);
 
   var r = cropRect();
   syncCropFields(r);
@@ -2714,6 +2723,68 @@ function drawCropper() {
     ctx.fillRect(p[0] - 3, p[1] - 3, 6, 6);
   });
 }
+
+/* Proxy playback.
+ *
+ * The decoded frames are transferred into the worker the moment the job
+ * is sent, so this thread cannot get them back to animate anything. It
+ * keeps its own small copy instead: a few dozen frames at a few hundred
+ * pixels, as ImageBitmaps, which is what the cropper draws. That is
+ * enough to see whether the subject stays inside the rectangle, which is
+ * the only question this panel exists to answer, and it costs a fraction
+ * of what holding the real frames would.
+ *
+ * The timing is the source's own, with the delays of the frames each
+ * proxy frame stands in for added together, so a clip that pauses still
+ * pauses here. */
+var PROXY_FRAMES = 48, PROXY_EDGE = 420;
+
+async function buildProxy(frames, w, h, delaysMs) {
+  stopProxy();
+  cropFrames = null; cropDelays = null; cropFrame = 0;
+  if (frames.length < 2) return;
+
+  var sc = Math.min(1, PROXY_EDGE / Math.max(w, h));
+  var pw = Math.max(1, Math.round(w * sc)), ph = Math.max(1, Math.round(h * sc));
+  var step = Math.max(1, frames.length / PROXY_FRAMES);
+
+  var bitmaps = [], delays = [];
+  for (var i = 0; i < frames.length; i += step) {
+    var idx = Math.min(frames.length - 1, Math.round(i));
+    var d = 0;
+    for (var j = Math.round(i); j < Math.min(frames.length, Math.round(i + step)); j++) d += delaysMs[j];
+    // A copy is required: the ImageData is about to be handed to the worker.
+    var data = new ImageData(new Uint8ClampedArray(frames[idx]), w, h);
+    bitmaps.push(await createImageBitmap(data, { resizeWidth: pw, resizeHeight: ph, resizeQuality: 'medium' }));
+    delays.push(Math.max(20, d));
+  }
+  if (bitmaps.length < 2) { bitmaps.forEach(function (b) { b.close && b.close(); }); return; }
+  cropFrames = bitmaps; cropDelays = delays;
+}
+
+function stopProxy() {
+  if (cropTimer) { clearTimeout(cropTimer); cropTimer = null; }
+}
+function releaseProxy() {
+  stopProxy();
+  if (cropFrames) cropFrames.forEach(function (b) { if (b.close) b.close(); });
+  cropFrames = null; cropDelays = null; cropFrame = 0;
+}
+function startProxy() {
+  stopProxy();
+  if (!cropFrames || !$('cropPlay').checked) return;
+  (function tick() {
+    cropTimer = setTimeout(function () {
+      cropFrame = (cropFrame + 1) % cropFrames.length;
+      drawCropper();
+      tick();
+    }, cropDelays[cropFrame]);
+  })();
+}
+$('cropPlay').addEventListener('change', function () {
+  if (this.checked) startProxy();
+  else { stopProxy(); drawCropper(); }
+});
 
 function syncCropFields(r) {
   $('cropNote').textContent = !job ? 'drag on the picture'
@@ -2910,6 +2981,7 @@ async function load(file) {
   srcEl = null;
   crop = null;
   cropImg = null;
+  releaseProxy();
   setupCropper();
   showView('out');
   $('resultStats').classList.remove('on');
@@ -2979,6 +3051,7 @@ async function load(file) {
     cropImg.width = job.width; cropImg.height = job.height;
     cropImg.getContext('2d').putImageData(
       new ImageData(new Uint8ClampedArray(job.frames[0]), job.width, job.height), 0, 0);
+    await buildProxy(job.frames, job.width, job.height, decoded.frames.map(function (f) { return f.delay; }));
 
     // A still preview of the first frame stands in for the source; for a
     // GIF the file itself animates, which is more useful for comparison.
@@ -3002,6 +3075,7 @@ async function load(file) {
     $('srcInfo').classList.add('on');
 
     setupCropper();
+    startProxy();
     if (aspectValue()) applyAspect();
 
     $('fCur').textContent = job.initFps + ' fps';
