@@ -67,6 +67,49 @@
   already arrived. Both are now options, both default to the better
   behaviour, and both can be turned off to get the script's output.
 
+  TRIED AND REJECTED: A ROOT FIND INSTEAD OF THE LOOP
+  ---------------------------------------------------
+  Approx mode looks indefensible. It is a proportional controller whose
+  gain is the literal constant 2, and it rings around the target rather
+  than converging — 83% of target, then 116%, then 101%, then 84% on a
+  real clip. The obvious fix is to stop steering four knobs and steer
+  one: every knob is monotone in the same direction, so collapse them
+  onto a single quality scalar, let the weights be the shape of the
+  descent, and solve for the scalar that hits the number with a
+  bracketed secant. That was built, measured against approx over ten
+  source-and-target pairs, and deleted.
+
+    approx  10/10 fits, 4.3 encodes, 83% of target reached
+    search  10/10 fits, 4.6 encodes, 77% of target reached
+
+  It converged tidily and handed back a smaller, worse file every time.
+  The reason is that GIF size against quality is not a curve, it is a
+  staircase: colours and lossiness move in integer steps and the palette
+  is rebuilt from scratch at each one, so the smooth local behaviour a
+  secant method assumes is not there. Approx's untidy overshooting
+  samples that staircase in several places, and keep-best takes the good
+  sample — so the ringing that looks like the flaw is doing the work.
+
+  Do not rebuild it without beating those numbers first.
+
+  ALSO REJECTED: THE OTHER TWO READINGS OF weightSum
+  ---------------------------------------------------
+  The script computes weightSum as the sum of the four weights and then
+  overwrites it with the literal 2.00 one line later, so every weight is
+  halved regardless of the others. Both other readings — divide by the
+  actual sum, which is what the overwritten line computed, or divide by
+  nothing — shipped as options until they were measured over thirty
+  runs:
+
+    approx  halved   10/10 fits, 83% of target reached
+    approx  shared    3/10 fits, 53%
+    approx  as-given 10/10 fits, 33%
+
+  Shared cannot hit a target. As-given hits it by overshooting so far
+  down that two thirds of the budget is thrown away. The accident is
+  better than either thing it might have been, so the divisor is 2 and
+  there is no control for it.
+
   NO CDN. Everything below is hand-written and the page works from
   file:// — including the compressor, which runs in a worker built out
   of this page's own <script> text when the browser allows it and falls
@@ -209,8 +252,6 @@
   }
   button:hover:not(:disabled) { border-color: #4a4a4a; background: #232323; }
   button:disabled { opacity: .4; cursor: default; }
-  button.primary { background: #1d4a7a; border-color: #2a6299; color: #eaf3ff; font-weight: 600; }
-  button.primary:hover:not(:disabled) { background: #23578c; border-color: #3573b0; }
   button.danger { border-color: #5c3535; color: #e6b3b3; }
 
   .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
@@ -588,30 +629,22 @@
             <label class="name">Mode</label>
             <div class="seg" id="modeSeg">
               <button type="button" data-mode="approx" class="on">Approximate</button>
-              <button type="button" data-mode="search">Search</button>
               <button type="button" data-mode="threshold">Threshold</button>
             </div>
           </div>
           <p class="hint full" id="modeHint">Feeds each result back in: overshoot by 2× and the
             next iteration cuts twice as hard. Lands close to the target from either side.</p>
           <div class="info" id="i-loop" hidden>
-            <p><b>Approximate</b> is the script's, and the default because it measurably wins.
-               It corrects each knob by its own function of one ratio, overshoots, and comes
-               back — which looks untidy in the log and does not matter, because keep-best
-               holds the good pass. Across ten source-and-target combinations it fitted 10/10
-               in 4.3 encodes, landing at 83% of the target on average.</p>
-            <p><b>Search</b> collapses the four knobs onto a single quality scalar and finds
-               the target by secant root-finding, with a bracket so it cannot diverge. It is
-               the tidier algorithm and it lost: 10/10 fits, 4.6 encodes, 77% utilisation. GIF
-               size against quality is not smooth enough for a root finder — colours and
-               lossiness move in integer steps and the palette is rebuilt from scratch each
-               time — and approximate's untidy exploring copes with that better than
-               convergence does. Kept because it always brackets, so it can tell you a target
-               is impossible rather than just failing to reach it.</p>
-            <p><b>Threshold</b> is the script's other mode and the weak one: no feedback at
-               all, every knob walking to its limit on a fixed schedule. It missed 4 of those
-               10 targets outright while spending 9.1 encodes doing it. Use it when you want
-               a predictable ramp rather than a result.</p>
+            <p><b>Approximate</b> is the default because it measurably wins. It corrects each
+               knob by its own function of one ratio, overshoots, and comes back — which looks
+               untidy in the log and does not matter, because keep-best holds the good pass.
+               Across ten source-and-target combinations it fitted 10 out of 10 in 4.3 encodes,
+               landing at 83% of the target on average.</p>
+            <p><b>Threshold</b> is the weak one: no feedback at all, every knob walking to its
+               limit on a fixed schedule. It missed 4 of those 10 targets outright while
+               spending 9.1 encodes doing it. It is here because it is what the script did, and
+               because a predictable ramp is occasionally what you want. It is not what you
+               want if you want a result.</p>
             <p><b>Keep best</b> holds whichever pass landed closest under the target rather
                than whichever ran last. The script always shipped the last one, so a pass that
                overshot after a good one threw the good one away. Turn it off to reproduce
@@ -619,11 +652,10 @@
                this much of it; 0 spends every iteration. A run also stops early when a result
                fits with every knob still at its starting value — there is nothing left to
                hand back.</p>
-            <p><b>Weights</b> were divided by 2 by the script no matter what the others were,
-               so weight 1 closes half the gap. Sharing divides by the sum of the four, which
-               is what the line it overwrote computed. As-given divides by nothing. In search
-               mode only the ratios matter — the weights are the mix, and the search decides
-               the amount.</p>
+            <p><b>Weights</b> are divided by 2 no matter what the others are set to, so a
+               weight of 1 closes half the gap rather than all of it. That is the script's
+               arithmetic, and the two other readings of it were tried and measured worse —
+               see the comment at the top of this file.</p>
           </div>
           <div class="row">
             <label class="name" for="maxIter">Iterations</label>
@@ -636,13 +668,6 @@
           <div class="row wide"><label class="name" for="tolPct">Stop within</label>
             <input type="number" id="tolPct" value="2" min="0" max="50" step="0.5" />
             <span class="hint full" style="margin:0">% under target — 0 runs every iteration</span>
-          </div>
-          <div class="row wide"><label class="name" for="normMode">Weights are</label>
-            <select id="normMode" class="grow">
-              <option value="half" selected>halved — as the script shipped</option>
-              <option value="sum">shared across the four</option>
-              <option value="none">used as given</option>
-            </select>
           </div>
         </div>
       </details>
@@ -936,7 +961,7 @@
         <div class="empty" id="logEmpty">Each pass prints the settings it tried and what they weighed.</div>
         <table class="log" id="logTable" style="display:none">
           <thead><tr>
-            <th>#</th><th>q</th><th>fps</th><th>lossy</th><th>scale</th><th>colours</th>
+            <th>#</th><th>fps</th><th>lossy</th><th>scale</th><th>colours</th>
             <th>bytes</th><th>of target</th>
           </tr></thead>
           <tbody id="logBody"></tbody>
@@ -1977,22 +2002,21 @@ GS.encodeOnce = async function (job, s, report, isCancelled) {
  * out of any theory.
  * ================================================================== */
 
-function relativise(w, sum, mode) {
-  // The script's weightSum is overwritten with the literal 2.00 one line
-  // after being computed. See the header comment: `half` is that, `sum`
-  // is the line it overwrote, `none` is the reading under which a weight
-  // of 1 means "use this knob's whole range".
-  var div = mode === 'sum' ? (sum > 0 ? sum : 1) : (mode === 'none' ? 1 : 2);
-  return t2(w / div);
+function relativise(w) {
+  // The script computes weightSum as the sum of the four weights and then
+  // overwrites it with the literal 2.00 on the next line. Both other
+  // readings of that were offered as options for a while and both
+  // measured worse — see TRIED AND REJECTED at the top of this file. So
+  // this is the divisor, and a weight of 1 closes half the gap.
+  return t2(w / 2);
 }
 
 GS.smash = async function (job, cfg, report, isCancelled) {
   var target = cfg.targetBytes;
-  var wsum = cfg.fWeight + cfg.lWeight + cfg.sWeight + cfg.cWeight;
-  var fW = relativise(cfg.fWeight, wsum, cfg.normMode);
-  var lW = relativise(cfg.lWeight, wsum, cfg.normMode);
-  var sW = relativise(cfg.sWeight, wsum, cfg.normMode);
-  var cW = relativise(cfg.cWeight, wsum, cfg.normMode);
+  var fW = relativise(cfg.fWeight);
+  var lW = relativise(cfg.lWeight);
+  var sW = relativise(cfg.sWeight);
+  var cW = relativise(cfg.cWeight);
 
   var initFramerate = t2(job.initFps);
   var initLossy = 0, initColors = 256;
@@ -2040,156 +2064,6 @@ GS.smash = async function (job, cfg, report, isCancelled) {
       colorMethod: cfg.colorMethod, resizeMethod: cfg.resizeMethod,
       optLevel: cfg.optLevel, crop: cfg.crop, motionThreshold: cfg.motionThreshold
     };
-  }
-
-  /* ---- SEARCH MODE ------------------------------------------------ *
-   *
-   * The two modes below this one are the script's, and both have the
-   * same flaw: they are open-loop guesses dressed as control. Approx is
-   * a proportional controller whose gain is the literal constant 2, and
-   * on a real clip it rings — 83% of target, then 116%, then 101%, then
-   * 84% — because it corrects from wherever it currently stands without
-   * ever learning how the file actually responded. Six encodes to land
-   * where three should.
-   *
-   * The fix is to stop steering four knobs and steer one. Every knob
-   * here is monotone in the same direction: less framerate, fewer
-   * colours, smaller, lossier all make the file smaller. So collapse
-   * them onto a single quality scalar q, where q=1 is every knob at its
-   * starting value and q=0 is every knob at its floor, and let the
-   * weights decide the *shape* of that descent rather than the size of
-   * each correction. Size is then monotone in q, and finding the q that
-   * hits the target is a one-dimensional root find — a solved problem
-   * with no magic constants in it.
-   *
-   * What the weights mean is unchanged in spirit and cleaner in fact:
-   * they are the mix, not the amount. Only their ratios matter now,
-   * because the search decides the amount. A weight of 0 still pins a
-   * knob exactly where it started.
-   *
-   * Size against q is close to a power law, so the step is a secant in
-   * log-log space: two probes give the exponent, and the third usually
-   * lands within a percent. A bracket is kept around the answer and the
-   * step falls back to bisection whenever the secant would leave it, so
-   * this cannot diverge and cannot oscillate — each probe strictly
-   * narrows the range. That is the whole difference: the modes below
-   * hope, this one converges.
-   * ---------------------------------------------------------------- */
-  if (cfg.mode === 'search') {
-    var wmax = Math.max(cfg.fWeight, cfg.lWeight, cfg.sWeight, cfg.cWeight);
-    if (wmax <= 0) wmax = 1;
-
-    /* The ladder. Framerate and lossiness move linearly because they are
-     * already linear-ish in what they cost; scale and colours move
-     * geometrically because 256 to 128 is the same step as 128 to 64,
-     * and treating them linearly spends the whole useful range in the
-     * first third of the travel. */
-    function ladder(q) {
-      var t = 1 - Math.max(0, Math.min(1, q));
-      function frac(w) { return Math.max(0, Math.min(1, t * (w / wmax))); }
-      var tf = frac(cfg.fWeight), tl = frac(cfg.lWeight),
-          ts = frac(cfg.sWeight), tc = frac(cfg.cWeight);
-      return {
-        fps: t2(initFramerate + (cfg.minFramerate - initFramerate) * tf),
-        lossy: Math.round(initLossy + (cfg.maxLossy - initLossy) * tl),
-        scale: t2(initScale * Math.pow(minScale / initScale, ts)),
-        colors: Math.max(cfg.minColors,
-                Math.round(initColors * Math.pow(cfg.minColors / initColors, tc)))
-      };
-    }
-
-    /* Root-finding on f(q) = log(size(q)) - log(target).
-     *
-     * Size follows q as a power law, so f is close to linear in log q.
-     * The step is a plain secant through the two probes nearest the
-     * target — which tracks the local exponent, where anchoring on a
-     * far endpoint tracks the average of the whole curve and crawls.
-     * A bracket is kept alongside purely as a guard: the secant is
-     * clamped into it, so the method keeps secant speed but cannot
-     * leave the region where the answer is known to be.
-     *
-     * Clamping rather than rejecting matters. The first version of this
-     * rejected any step landing near a bracket end and bisected
-     * instead, which threw away a secant estimate of 0.417 in favour of
-     * 0.698 — and 0.419 was the answer. */
-    var pts = [];                // every probe: {q, x, f}
-    var logT = Math.log(target);
-
-    async function probe(q, n) {
-      q = Math.max(0, Math.min(1, q));
-      var v = ladder(q);
-      var meta = { n: n, q: q, fps: v.fps, lossy: v.lossy, scale: v.scale, colors: v.colors };
-      report({ type: 'iterStart', meta: meta });
-      var r = await GS.encodeOnce(job, settings(v.fps, v.lossy, v.scale, v.colors), report, isCancelled);
-      meta.bytes = r.bytes.length;
-      log.push(meta);
-      consider(r, meta);
-      report({ type: 'iterDone', meta: meta });
-      pts.push({ q: q, x: Math.log(Math.max(q, 1e-4)), f: Math.log(r.bytes.length) - logT });
-      return r.bytes.length;
-    }
-
-    function bracket() {
-      var lo = null, hi = null;
-      for (var i = 0; i < pts.length; i++) {
-        var p = pts[i];
-        if (p.f <= 0) { if (!lo || p.q > lo.q) lo = p; }
-        else if (!hi || p.q < hi.q) hi = p;
-      }
-      return { lo: lo, hi: hi };
-    }
-    function closeEnough() {
-      return bestUnder && cfg.tolPct > 0 &&
-             best.res.bytes.length >= target * (1 - cfg.tolPct / 100);
-    }
-
-    var n = 1;
-    await probe(1, n++);
-
-    if (bracket().hi) {                       // q=1 overshoots; there is work to do
-      var s1 = pts[0];
-      // Power law of exponent 2.5 is roughly what the ladder does across
-      // its middle — close enough to put the second probe in the right
-      // neighbourhood, after which the secant takes over.
-      await probe(Math.max(0.02, Math.min(0.9, Math.exp(-s1.f / 2.5))), n++);
-
-      while (n <= cfg.maxIterations && !closeEnough()) {
-        if (isCancelled()) throw new Error('cancelled');
-        var br = bracket();
-        if (br.lo && br.hi && br.hi.q - br.lo.q < 0.004) break;
-
-        // Secant through the two probes closest to the target.
-        var near = pts.slice().sort(function (p, q2) { return Math.abs(p.f) - Math.abs(q2.f); });
-        var p1 = near[0], p2 = near[1];
-        var q;
-        if (p2 && Math.abs(p2.f - p1.f) > 1e-6) {
-          q = Math.exp(p1.x - p1.f * (p2.x - p1.x) / (p2.f - p1.f));
-        } else if (br.lo && br.hi) {
-          q = (br.lo.q + br.hi.q) / 2;
-        } else {
-          q = p1.q * (p1.f > 0 ? 0.45 : 1.6);   // no bracket yet: stride towards it
-        }
-        if (!isFinite(q) || q <= 0) break;
-
-        if (br.lo && br.hi) {                   // clamp into the bracket, never reject
-          var eps = Math.min(0.006, (br.hi.q - br.lo.q) * 0.05);
-          q = Math.max(br.lo.q + eps, Math.min(br.hi.q - eps, q));
-        }
-        q = Math.max(0, Math.min(1, q));
-        var seen = false;
-        for (var k = 0; k < pts.length; k++) if (Math.abs(pts[k].q - q) < 0.002) seen = true;
-        if (seen) {
-          // Repeating a probe learns nothing — but only stop if something
-          // already fits. With no bracket yet, a stalled secant means the
-          // curve is flatter than the model thinks, so stride down instead
-          // of returning an over-target result with budget still unspent.
-          if (br.lo) break;
-          q = Math.max(0, Math.min(q, br.hi ? br.hi.q * 0.5 : q * 0.5));
-          if (q < 0.005) { await probe(0, n++); break; }
-        }
-        await probe(q, n++);
-      }
-    }
   }
 
   /* ---- APPROXIMATION MODE ---------------------------------------- *
@@ -2809,7 +2683,6 @@ syncTargetText();
 
 var MODE_HINTS = {
   approx: 'The script\u2019s, and the default because it measurably wins. Overshoots and comes back; keep-best holds the good pass.',
-  search: 'One quality scalar, found by secant root-finding with a bracket. Tidier, slightly worse, but it always knows whether a target is reachable.',
   threshold: 'No feedback \u2014 each knob walks to its limit on a schedule and the run stops at the first encode that fits. Misses tight targets.'
 };
 Array.prototype.forEach.call($('modeSeg').children, function (b) {
@@ -3429,27 +3302,26 @@ function logRow(meta, done) {
   var tr = rowEls[key];
   if (!tr) {
     tr = document.createElement('tr');
-    for (var i = 0; i < 8; i++) tr.appendChild(document.createElement('td'));
+    for (var i = 0; i < 7; i++) tr.appendChild(document.createElement('td'));
     $('logBody').appendChild(tr);
     rowEls[key] = tr;
   }
   var td = tr.children;
   td[0].textContent = meta.pre ? meta.n + ' pre' : meta.n;
-  td[1].textContent = meta.q === undefined ? '—' : (+meta.q).toFixed(3);
-  td[2].textContent = (+meta.fps).toFixed(2);
-  td[3].textContent = meta.lossy;
-  td[4].textContent = (+meta.scale).toFixed(2);
-  td[5].textContent = meta.colors;
+  td[1].textContent = (+meta.fps).toFixed(2);
+  td[2].textContent = meta.lossy;
+  td[3].textContent = (+meta.scale).toFixed(2);
+  td[4].textContent = meta.colors;
   if (done) {
     tr.classList.remove('running');
-    td[6].textContent = fmtBytes(meta.bytes);
+    td[5].textContent = fmtBytes(meta.bytes);
     var pct = (meta.bytes / targetBytes()) * 100;
-    td[7].textContent = pct.toFixed(0) + '%';
-    td[7].className = meta.bytes <= targetBytes() ? 'hit' : 'miss';
+    td[6].textContent = pct.toFixed(0) + '%';
+    td[6].className = meta.bytes <= targetBytes() ? 'hit' : 'miss';
   } else {
     tr.classList.add('running');
-    td[6].textContent = '…';
-    td[7].textContent = '';
+    td[5].textContent = '…';
+    td[6].textContent = '';
   }
 }
 
@@ -3481,8 +3353,7 @@ function readCfg() {
     motionThreshold: parseInt($('motionThreshold').value, 10) || 0,
     maxOutEdge: Math.max(0, parseInt($('maxOutEdge').value, 10) || 0),
     keepBest: $('keepBest').checked,
-    tolPct: Math.max(0, parseFloat($('tolPct').value) || 0),
-    normMode: $('normMode').value
+    tolPct: Math.max(0, parseFloat($('tolPct').value) || 0)
   };
 }
 
