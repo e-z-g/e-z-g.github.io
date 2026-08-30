@@ -67,6 +67,49 @@
   already arrived. Both are now options, both default to the better
   behaviour, and both can be turned off to get the script's output.
 
+  TRIED AND REJECTED: A ROOT FIND INSTEAD OF THE LOOP
+  ---------------------------------------------------
+  Approx mode looks indefensible. It is a proportional controller whose
+  gain is the literal constant 2, and it rings around the target rather
+  than converging — 83% of target, then 116%, then 101%, then 84% on a
+  real clip. The obvious fix is to stop steering four knobs and steer
+  one: every knob is monotone in the same direction, so collapse them
+  onto a single quality scalar, let the weights be the shape of the
+  descent, and solve for the scalar that hits the number with a
+  bracketed secant. That was built, measured against approx over ten
+  source-and-target pairs, and deleted.
+
+    approx  10/10 fits, 4.3 encodes, 83% of target reached
+    search  10/10 fits, 4.6 encodes, 77% of target reached
+
+  It converged tidily and handed back a smaller, worse file every time.
+  The reason is that GIF size against quality is not a curve, it is a
+  staircase: colours and lossiness move in integer steps and the palette
+  is rebuilt from scratch at each one, so the smooth local behaviour a
+  secant method assumes is not there. Approx's untidy overshooting
+  samples that staircase in several places, and keep-best takes the good
+  sample — so the ringing that looks like the flaw is doing the work.
+
+  Do not rebuild it without beating those numbers first.
+
+  ALSO REJECTED: THE OTHER TWO READINGS OF weightSum
+  ---------------------------------------------------
+  The script computes weightSum as the sum of the four weights and then
+  overwrites it with the literal 2.00 one line later, so every weight is
+  halved regardless of the others. Both other readings — divide by the
+  actual sum, which is what the overwritten line computed, or divide by
+  nothing — shipped as options until they were measured over thirty
+  runs:
+
+    approx  halved   10/10 fits, 83% of target reached
+    approx  shared    3/10 fits, 53%
+    approx  as-given 10/10 fits, 33%
+
+  Shared cannot hit a target. As-given hits it by overshooting so far
+  down that two thirds of the budget is thrown away. The accident is
+  better than either thing it might have been, so the divisor is 2 and
+  there is no control for it.
+
   NO CDN. Everything below is hand-written and the page works from
   file:// — including the compressor, which runs in a worker built out
   of this page's own <script> text when the browser allows it and falls
@@ -179,6 +222,9 @@
   .row.wide > label.name { flex-basis: 132px; }
   .grow { flex: 1 1 auto; min-width: 0; }
   .hint { color: #5f5f5f; font-size: .74rem; margin: -4px 0 12px 118px; }
+  /* the one line of prose left on the surface: what the profile just did */
+  .pick { color: #7d8a95; font-size: .76rem; margin: -2px 0 12px 118px; }
+  @media (max-width: 560px) { .pick { margin-left: 0; } }
   @media (max-width: 560px) { .hint { margin-left: 0; } .row > label.name, .row.wide > label.name { flex-basis: 100%; } }
   .hint.full { margin-left: 0; }
 
@@ -206,8 +252,6 @@
   }
   button:hover:not(:disabled) { border-color: #4a4a4a; background: #232323; }
   button:disabled { opacity: .4; cursor: default; }
-  button.primary { background: #1d4a7a; border-color: #2a6299; color: #eaf3ff; font-weight: 600; }
-  button.primary:hover:not(:disabled) { background: #23578c; border-color: #3573b0; }
   button.danger { border-color: #5c3535; color: #e6b3b3; }
 
   .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
@@ -238,12 +282,102 @@
   details[open] > summary::before { content: "▾ "; }
   details .body { padding-top: 12px; }
 
-  /* ---- run bar ---- */
-  #runbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  #progWrap { flex: 1 1 140px; min-width: 120px; height: 5px; border-radius: 3px; background: #262626; overflow: hidden; }
-  #prog { height: 100%; width: 0%; background: var(--accent); transition: width .18s linear; }
+  /* ---- the smash button ----
+     It is the progress bar as well as the trigger: a run fills it left to
+     right, so the one thing you are looking at while you wait is the one
+     thing you pressed. --p carries the fraction. */
+  #runbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   #status { font-size: .78rem; color: var(--muted); flex: 1 1 100%; min-height: 1.2em; }
   #status.err { color: var(--bad); }
+
+  #go {
+    --p: 0;
+    position: relative; isolation: isolate; overflow: hidden;
+    flex: 1 1 190px; min-width: 160px;
+    padding: 15px 26px;
+    font: 800 1.02rem/1 system-ui, -apple-system, sans-serif;
+    letter-spacing: .13em; text-transform: uppercase;
+    color: #eef6ff;
+    border: 0; border-radius: 11px;
+    background: linear-gradient(180deg, #2a6ba8, #17456f);
+    cursor: pointer;
+    box-shadow: 0 3px 0 #0e2740, 0 10px 26px -12px rgba(80,164,240,.9),
+                inset 0 1px 0 rgba(255,255,255,.22);
+    transition: transform .13s cubic-bezier(.34,1.6,.5,1), box-shadow .2s, filter .2s;
+  }
+  #go .lbl { position: relative; z-index: 2; display: block; }
+  /* the fill */
+  #go::before {
+    content: ""; position: absolute; inset: 0; z-index: 0;
+    background: linear-gradient(90deg, #3f95dd, #6fc0f5);
+    transform: scaleX(var(--p)); transform-origin: left;
+    transition: transform .25s cubic-bezier(.4,0,.2,1);
+  }
+  /* the sheen that sweeps across while it waits to be pressed */
+  #go::after {
+    content: ""; position: absolute; top: -60%; bottom: -60%; left: 0; width: 45%;
+    z-index: 1; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.30), transparent);
+    transform: translateX(-160%) skewX(-16deg);
+    animation: sheen 4.2s cubic-bezier(.5,0,.5,1) infinite;
+  }
+  #go .ring {
+    position: absolute; z-index: 1; left: 50%; top: 50%; width: 12px; height: 12px;
+    margin: -6px 0 0 -6px; border-radius: 50%; pointer-events: none;
+    border: 2px solid rgba(190,225,255,.95); opacity: 0; transform: scale(1);
+  }
+  #go.blast .ring { animation: blast .55s cubic-bezier(.2,.7,.3,1); }
+  #go:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 0 #0e2740, 0 18px 34px -14px rgba(110,192,245,1),
+                inset 0 1px 0 rgba(255,255,255,.3);
+    filter: saturate(1.15);
+  }
+  #go:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 #0e2740, 0 6px 16px -10px rgba(110,192,245,.9),
+                inset 0 1px 0 rgba(255,255,255,.18);
+  }
+  #go:disabled { opacity: .38; filter: grayscale(.55); cursor: default; box-shadow: 0 3px 0 #0e2740; }
+  #go:disabled::after { animation: none; }
+  /* A run disables the button so it cannot be pressed twice, but the greyed
+     -out treatment is for "there is nothing to smash yet" and it was
+     swallowing the whole running state. Keep the disabling, drop the pallor. */
+  #go.running:disabled { opacity: 1; filter: none; cursor: progress; }
+  #go.running:disabled::after { animation: sheen 1.15s cubic-bezier(.5,0,.5,1) infinite; }
+  #go.running { animation: throb 1.5s ease-in-out infinite; }
+  #go.running::after { animation-duration: 1.15s; }
+  /* a kick each time an iteration lands, so the wait has a pulse to it */
+  #go.hit { animation: hit .34s cubic-bezier(.25,1.7,.4,1); }
+  #go.done { animation: done .6s ease-out; }
+  #go.done::before { background: linear-gradient(90deg, #3f9e63, #6fd08c); }
+
+  @keyframes sheen {
+    0%, 62% { transform: translateX(-160%) skewX(-16deg); }
+    100%    { transform: translateX(430%)  skewX(-16deg); }
+  }
+  @keyframes throb {
+    0%, 100% { box-shadow: 0 3px 0 #0e2740, 0 10px 26px -12px rgba(80,164,240,.8), inset 0 1px 0 rgba(255,255,255,.22); }
+    50%      { box-shadow: 0 3px 0 #0e2740, 0 14px 40px -10px rgba(120,200,255,1),  inset 0 1px 0 rgba(255,255,255,.3); }
+  }
+  @keyframes hit {
+    0%   { transform: scale(1); }
+    38%  { transform: scale(1.045) translateY(-1px); }
+    100% { transform: scale(1); }
+  }
+  @keyframes done {
+    0%   { transform: scale(1); filter: brightness(1); }
+    22%  { transform: scale(1.06); filter: brightness(1.5); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+  @keyframes blast {
+    0%   { opacity: .9; transform: scale(1); border-width: 3px; }
+    100% { opacity: 0; transform: scale(34); border-width: 1px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #go, #go::after, #go .ring { animation: none !important; transition: none; }
+    #go::before { transition: none; }
+  }
 
   /* ---- cropper ---- */
   #cropStage {
@@ -420,12 +554,17 @@
         <span id="cropSize">—</span>
         <button type="button" id="cropReset" disabled>Whole frame</button>
       </div>
-      <div class="cropbar">
-        <label for="cropX">x</label><input type="number" id="cropX" value="0" min="0" step="1" disabled />
-        <label for="cropY">y</label><input type="number" id="cropY" value="0" min="0" step="1" disabled />
-        <label for="cropW">w</label><input type="number" id="cropW" value="0" min="1" step="1" disabled />
-        <label for="cropH">h</label><input type="number" id="cropH" value="0" min="1" step="1" disabled />
-      </div>
+      <details>
+        <summary>Exact numbers</summary>
+        <div class="body">
+          <div class="cropbar" style="margin-top:0">
+            <label for="cropX">x</label><input type="number" id="cropX" value="0" min="0" step="1" disabled />
+            <label for="cropY">y</label><input type="number" id="cropY" value="0" min="0" step="1" disabled />
+            <label for="cropW">w</label><input type="number" id="cropW" value="0" min="1" step="1" disabled />
+            <label for="cropH">h</label><input type="number" id="cropH" value="0" min="1" step="1" disabled />
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="panel">
@@ -468,7 +607,7 @@
           <option value="web">Web page — inline</option>
         </select>
       </div>
-      <p class="hint" id="profileHint">Nothing preset — the controls below are yours.</p>
+      <p class="pick" id="profileHint">Nothing preset — the controls below are yours.</p>
       <div class="row">
         <label class="name" for="targetVal">Size</label>
         <input type="number" id="targetVal" value="2" min="0.001" step="0.1" />
@@ -478,25 +617,60 @@
         </select>
         <span class="hint full" style="margin:0" id="targetBytesTxt">= 2,000,000 bytes</span>
       </div>
-      <div class="row">
-        <label class="name" for="maxOutEdge">Max output</label>
-        <input type="number" id="maxOutEdge" value="0" min="0" max="4096" step="16" />
-        <span class="hint full" style="margin:0">px on the long edge — 0 for no cap</span>
-      </div>
-      <div class="row">
-        <label class="name">Mode</label>
-        <div class="seg" id="modeSeg">
-          <button type="button" data-mode="approx" class="on">Approximate</button>
-          <button type="button" data-mode="threshold">Threshold</button>
+      <details>
+        <summary>How it searches</summary>
+        <div class="body">
+          <div class="row">
+            <label class="name" for="maxOutEdge">Max output</label>
+            <input type="number" id="maxOutEdge" value="0" min="0" max="4096" step="16" />
+            <span class="hint full" style="margin:0">px on the long edge — 0 for no cap</span>
+          </div>
+          <div class="row">
+            <label class="name">Mode</label>
+            <div class="seg" id="modeSeg">
+              <button type="button" data-mode="approx" class="on">Approximate</button>
+              <button type="button" data-mode="threshold">Threshold</button>
+            </div>
+          </div>
+          <p class="hint full" id="modeHint">Feeds each result back in: overshoot by 2× and the
+            next iteration cuts twice as hard. Lands close to the target from either side.</p>
+          <div class="info" id="i-loop" hidden>
+            <p><b>Approximate</b> is the default because it measurably wins. It corrects each
+               knob by its own function of one ratio, overshoots, and comes back — which looks
+               untidy in the log and does not matter, because keep-best holds the good pass.
+               Across ten source-and-target combinations it fitted 10 out of 10 in 4.3 encodes,
+               landing at 83% of the target on average.</p>
+            <p><b>Threshold</b> is the weak one: no feedback at all, every knob walking to its
+               limit on a fixed schedule. It missed 4 of those 10 targets outright while
+               spending 9.1 encodes doing it. It is here because it is what the script did, and
+               because a predictable ramp is occasionally what you want. It is not what you
+               want if you want a result.</p>
+            <p><b>Keep best</b> holds whichever pass landed closest under the target rather
+               than whichever ran last. The script always shipped the last one, so a pass that
+               overshot after a good one threw the good one away. Turn it off to reproduce
+               that. <b>Stop within</b> ends the run once a result is under target and within
+               this much of it; 0 spends every iteration. A run also stops early when a result
+               fits with every knob still at its starting value — there is nothing left to
+               hand back.</p>
+            <p><b>Weights</b> are divided by 2 no matter what the others are set to, so a
+               weight of 1 closes half the gap rather than all of it. That is the script's
+               arithmetic, and the two other readings of it were tried and measured worse —
+               see the comment at the top of this file.</p>
+          </div>
+          <div class="row">
+            <label class="name" for="maxIter">Iterations</label>
+            <input type="number" id="maxIter" value="6" min="1" max="24" step="1" />
+            <span class="hint full" style="margin:0">upper bound on encodes</span>
+          </div>
+          <div class="row wide"><label class="name">Keep</label>
+            <label class="check"><input type="checkbox" id="keepBest" checked /> best iteration, not the last</label>
+          </div>
+          <div class="row wide"><label class="name" for="tolPct">Stop within</label>
+            <input type="number" id="tolPct" value="2" min="0" max="50" step="0.5" />
+            <span class="hint full" style="margin:0">% under target — 0 runs every iteration</span>
+          </div>
         </div>
-      </div>
-      <p class="hint" id="modeHint">Feeds each result back in: overshoot by 2× and the next
-        iteration cuts twice as hard. Lands close to the target from either side.</p>
-      <div class="row">
-        <label class="name" for="maxIter">Iterations</label>
-        <input type="number" id="maxIter" value="6" min="1" max="24" step="1" />
-        <span class="hint full" style="margin:0">upper bound on encodes</span>
-      </div>
+      </details>
     </div>
 
     <div class="panel">
@@ -531,8 +705,6 @@
             <input type="range" id="fWeight" min="0" max="2" step="0.05" value="1" />
             <output id="fWeightOut">1.00</output>
           </div>
-          <div class="lim"><label for="minFramerate">floor</label>
-            <input type="number" id="minFramerate" value="0.5" min="0.1" max="60" step="0.1" /> fps</div>
         </div>
         <div class="knob" id="knobL">
           <h3>Lossiness <em id="lCur">—</em></h3>
@@ -540,8 +712,6 @@
             <input type="range" id="lWeight" min="0" max="2" step="0.05" value="1" />
             <output id="lWeightOut">1.00</output>
           </div>
-          <div class="lim"><label for="maxLossy">ceiling</label>
-            <input type="number" id="maxLossy" value="200" min="0" max="400" step="5" /></div>
         </div>
         <div class="knob" id="knobS">
           <h3>Scale <em id="sCur">—</em></h3>
@@ -549,8 +719,6 @@
             <input type="range" id="sWeight" min="0" max="2" step="0.05" value="1" />
             <output id="sWeightOut">1.00</output>
           </div>
-          <div class="lim"><label for="minScale">floor</label>
-            <input type="number" id="minScale" value="0.1" min="0.02" max="1" step="0.05" /> ×</div>
         </div>
         <div class="knob" id="knobC">
           <h3>Colours <em id="cCur">—</em></h3>
@@ -558,10 +726,26 @@
             <input type="range" id="cWeight" min="0" max="2" step="0.05" value="1" />
             <output id="cWeightOut">1.00</output>
           </div>
-          <div class="lim"><label for="minColors">floor</label>
-            <input type="number" id="minColors" value="4" min="2" max="256" step="1" /></div>
         </div>
       </div>
+
+      <details>
+        <summary>Limits <span style="text-transform:none;letter-spacing:0;color:#5c5c5c">— how far each one may go</span></summary>
+        <div class="body">
+          <div class="row"><label class="name" for="minFramerate">Framerate floor</label>
+            <input type="number" id="minFramerate" value="0.5" min="0.1" max="60" step="0.1" />
+            <span class="hint full" style="margin:0">fps</span></div>
+          <div class="row"><label class="name" for="maxLossy">Lossiness ceiling</label>
+            <input type="number" id="maxLossy" value="200" min="0" max="400" step="5" />
+            <span class="hint full" style="margin:0">0–200 is gifsicle's range</span></div>
+          <div class="row"><label class="name" for="minScale">Scale floor</label>
+            <input type="number" id="minScale" value="0.1" min="0.02" max="1" step="0.05" />
+            <span class="hint full" style="margin:0">× of the crop</span></div>
+          <div class="row"><label class="name" for="minColors">Colour floor</label>
+            <input type="number" id="minColors" value="4" min="2" max="256" step="1" />
+            <span class="hint full" style="margin:0">fewest palette entries</span></div>
+        </div>
+      </details>
 
       <div class="row wide" style="margin-top:12px">
         <label class="name" for="motionThreshold">Motion threshold</label>
@@ -681,45 +865,6 @@
         </div>
       </details>
 
-      <details>
-        <summary>Loop behaviour <button type="button" class="i" data-info="i-loop" aria-expanded="false" aria-label="About loop behaviour">i</button></summary>
-        <div class="body">
-          <div class="row wide"><label class="name">Keep</label>
-            <label class="check"><input type="checkbox" id="keepBest" checked /> best iteration, not the last</label>
-          </div>
-          <div class="row wide"><label class="name" for="tolPct">Stop within</label>
-            <input type="number" id="tolPct" value="2" min="0" max="50" step="0.5" />
-            <span class="hint full" style="margin:0">% under target — 0 runs every iteration</span>
-          </div>
-          <div class="row wide"><label class="name" for="normMode">Weights are</label>
-            <select id="normMode" class="grow">
-              <option value="half" selected>halved — as the script shipped</option>
-              <option value="sum">shared across the four</option>
-              <option value="none">used as given</option>
-            </select>
-          </div>
-          <div class="info" id="i-loop" hidden>
-            <p><b>Keep best</b> holds on to whichever pass landed closest under the target
-               rather than whichever happened to run last. The original script always shipped
-               the last one, which meant an iteration that overshot after a good one threw the
-               good one away. Turn it off to reproduce that.</p>
-            <p><b>Stop within</b> ends the run once a result is under the target and within
-               this much of it. Set it to 0 and the run always spends every iteration, which
-               is what the script did — and, with keep-best on, occasionally finds something
-               better on the last pass.</p>
-            <p>A run also stops early when a result fits and every knob is still at its
-               starting value: there is nothing left to hand back, so further passes would
-               encode the same file again.</p>
-          </div>
-          <p class="hint">The script divided every weight by 2 no matter what the others were, so
-             weight 1 means "close half the gap". Sharing divides by the sum of the four instead,
-             which is what the line it overwrote was computing. As-given divides by nothing: in
-             threshold mode that is the setting where weight 1 walks a knob all the way to its
-             limit by the last iteration. In approximate mode it applies the whole correction at
-             once, which overshoots and then swings back — useful for finding the floor fast,
-             not for landing on a number.</p>
-        </div>
-      </details>
     </div>
 
     <div class="panel">
@@ -734,9 +879,11 @@
            instead, and the status line says so.</p>
       </div>
       <div id="runbar">
-        <button id="go" class="primary" disabled>Smash</button>
+        <button id="go" disabled aria-label="Smash">
+          <span class="ring" aria-hidden="true"></span>
+          <span class="lbl">Smash</span>
+        </button>
         <button id="stop" class="danger" disabled>Stop</button>
-        <div id="progWrap"><div id="prog"></div></div>
         <div id="status">Load a video or GIF to begin.</div>
       </div>
     </div>
@@ -1855,22 +2002,21 @@ GS.encodeOnce = async function (job, s, report, isCancelled) {
  * out of any theory.
  * ================================================================== */
 
-function relativise(w, sum, mode) {
-  // The script's weightSum is overwritten with the literal 2.00 one line
-  // after being computed. See the header comment: `half` is that, `sum`
-  // is the line it overwrote, `none` is the reading under which a weight
-  // of 1 means "use this knob's whole range".
-  var div = mode === 'sum' ? (sum > 0 ? sum : 1) : (mode === 'none' ? 1 : 2);
-  return t2(w / div);
+function relativise(w) {
+  // The script computes weightSum as the sum of the four weights and then
+  // overwrites it with the literal 2.00 on the next line. Both other
+  // readings of that were offered as options for a while and both
+  // measured worse — see TRIED AND REJECTED at the top of this file. So
+  // this is the divisor, and a weight of 1 closes half the gap.
+  return t2(w / 2);
 }
 
 GS.smash = async function (job, cfg, report, isCancelled) {
   var target = cfg.targetBytes;
-  var wsum = cfg.fWeight + cfg.lWeight + cfg.sWeight + cfg.cWeight;
-  var fW = relativise(cfg.fWeight, wsum, cfg.normMode);
-  var lW = relativise(cfg.lWeight, wsum, cfg.normMode);
-  var sW = relativise(cfg.sWeight, wsum, cfg.normMode);
-  var cW = relativise(cfg.cWeight, wsum, cfg.normMode);
+  var fW = relativise(cfg.fWeight);
+  var lW = relativise(cfg.lWeight);
+  var sW = relativise(cfg.sWeight);
+  var cW = relativise(cfg.cWeight);
 
   var initFramerate = t2(job.initFps);
   var initLossy = 0, initColors = 256;
@@ -2414,7 +2560,19 @@ function setStatus(msg, isErr) {
   el.textContent = msg;
   el.className = isErr ? 'err' : '';
 }
-function setProgress(f) { $('prog').style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; }
+function setProgress(f) {
+  $('go').style.setProperty('--p', Math.max(0, Math.min(1, f)).toFixed(4));
+}
+function buttonLabel(t) { $('go').querySelector('.lbl').textContent = t; }
+/* Restart a CSS animation by taking the class off and forcing a reflow —
+ * re-adding it without that is a no-op if the animation is still running. */
+function flash(cls, ms) {
+  var el = $('go');
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  setTimeout(function () { el.classList.remove(cls); }, ms);
+}
 
 function targetBytes() {
   var v = parseFloat($('targetVal').value) || 0;
@@ -2524,8 +2682,8 @@ $('targetUnit').addEventListener('change', syncTargetText);
 syncTargetText();
 
 var MODE_HINTS = {
-  approx: 'Feeds each result back in: overshoot by 2× and the next iteration cuts twice as hard. Lands close to the target from either side.',
-  threshold: 'No feedback — each knob walks steadily towards its limit and the run stops at the first encode that fits. Predictable, and usually smaller than it needed to be.'
+  approx: 'The script\u2019s, and the default because it measurably wins. Overshoots and comes back; keep-best holds the good pass.',
+  threshold: 'No feedback \u2014 each knob walks to its limit on a schedule and the run stops at the first encode that fits. Misses tight targets.'
 };
 Array.prototype.forEach.call($('modeSeg').children, function (b) {
   b.addEventListener('click', function () {
@@ -2981,6 +3139,9 @@ async function load(file) {
   srcEl = null;
   crop = null;
   cropImg = null;
+  $('go').classList.remove('running', 'done');
+  buttonLabel('Smash');
+  setProgress(0);
   releaseProxy();
   setupCropper();
   showView('out');
@@ -3192,8 +3353,7 @@ function readCfg() {
     motionThreshold: parseInt($('motionThreshold').value, 10) || 0,
     maxOutEdge: Math.max(0, parseInt($('maxOutEdge').value, 10) || 0),
     keepBest: $('keepBest').checked,
-    tolPct: Math.max(0, parseFloat($('tolPct').value) || 0),
-    normMode: $('normMode').value
+    tolPct: Math.max(0, parseFloat($('tolPct').value) || 0)
   };
 }
 
@@ -3201,6 +3361,10 @@ $('go').addEventListener('click', function () {
   if (!job || running) return;
   running = true;
   $('go').disabled = true;
+  $('go').classList.remove('done');
+  $('go').classList.add('running');
+  flash('blast', 600);
+  buttonLabel('Smashing');
   $('stop').disabled = false;
   $('download').disabled = true;
   clearLog();
@@ -3239,13 +3403,17 @@ function onMessage(m) {
     setStatus('Iteration ' + m.meta.n + (m.meta.pre ? ' (quality pre-pass)' : '') + '…');
     return;
   }
-  if (m.type === 'iterDone') { logRow(m.meta, true); return; }
+  if (m.type === 'iterDone') { logRow(m.meta, true); flash('hit', 400); return; }
 
   if (m.type === 'done') {
     running = false;
     $('go').disabled = false;
+    $('go').classList.remove('running');
     $('stop').disabled = true;
     setProgress(1);
+    buttonLabel('Smash again');
+    flash('done', 900);
+    setTimeout(function () { if (!running) setProgress(0); }, 1000);
 
     var blob = new Blob([m.bytes], { type: 'image/gif' });
     if (outUrl) URL.revokeObjectURL(outUrl);
@@ -3292,6 +3460,8 @@ function onMessage(m) {
   if (m.type === 'cancelled') {
     running = false;
     $('go').disabled = false;
+    $('go').classList.remove('running');
+    buttonLabel('Smash');
     $('stop').disabled = true;
     setProgress(0);
     setStatus('Stopped.');
@@ -3301,6 +3471,8 @@ function onMessage(m) {
   if (m.type === 'error') {
     running = false;
     $('go').disabled = false;
+    $('go').classList.remove('running');
+    buttonLabel('Smash');
     $('stop').disabled = true;
     setProgress(0);
     setStatus(m.message || 'Something went wrong.', true);
