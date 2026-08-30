@@ -108,6 +108,25 @@
   the browser only offers WebM the tool says so rather than pretending.
   Dimensions are forced even — H.264 refuses odd ones.
 
+  RECOVERING iOS'S OWN DEPTH FROM SCREENSHOTS
+  ───────────────────────────────────────────
+  The Spatial Scene depth never leaves the phone as a file — but the
+  SCREEN shows it. Tilt the phone to one extreme and screenshot, tilt to
+  the other and screenshot again, and those two frames are a synthetic
+  stereo pair rendered from Apple's own depth map. Panel 2's pair mode
+  inverts that: a coarse-to-fine global alignment absorbs any framing
+  drift between the shots, then the same SAD matcher (with ±1 px of
+  vertical slack for imperfect alignment) turns the residual per-pixel
+  parallax back into a depth map. A screen recording while tilting works
+  too — load it as a video and tag two frames as A and B.
+
+  Sober expectations: what comes back is a reconstruction of the depth
+  iOS *rendered*, complete with its rubber-sheet warping, relative not
+  metric, and mirrored if the tilt went the other way (that's what the
+  invert box is for). Crop both screenshots identically to just the
+  photo first; UI chrome matches itself at zero parallax and wastes
+  normalization range.
+
   Everything runs locally; nothing is uploaded anywhere.
 -->
 <style>
@@ -131,7 +150,9 @@
       <div class="file-name" id="fn-in" hidden></div>
       <div class="row"><label for="dt-in">Taken at</label><input type="datetime-local" id="dt-in" step="1"></div>
       <button class="process-btn" id="btn-build" disabled onclick="buildCameraJpeg()">Build camera-clad JPEG</button>
-      <button class="process-btn" id="btn-dl-jpeg" hidden onclick="dlBlob(outJpeg.name, outJpeg.blob)">Download JPEG</button>
+      <button class="process-btn" id="btn-share-jpeg" hidden onclick="shareOut()">Send to Photos (share sheet)</button>
+      <button class="ghost-btn" id="btn-dl-jpeg" hidden onclick="dlBlob(outJpeg.name, outJpeg.blob)">Download as a file instead</button>
+      <div class="preview-wrap" id="out-wrap" hidden><img id="out-preview" alt="camera-clad JPEG" style="max-width:100%;display:block;border-radius:.25rem"></div>
       <div class="ok-msg" id="ok-in" hidden></div>
       <div class="error-msg" id="err-in" hidden></div>
     </div>
@@ -155,8 +176,21 @@
           <label style="min-width:auto"><input type="checkbox" id="swap-eyes"> swap eyes</label>
         </div>
         <button class="process-btn" id="btn-stereo" onclick="computeStereoDepth()">Compute depth from this frame</button>
+        <div class="row" style="gap:.5rem">
+          <button class="ghost-btn" style="flex:1;margin:0" onclick="tagFrame('a')">Tag frame → A</button>
+          <button class="ghost-btn" style="flex:1;margin:0" onclick="tagFrame('b')">Tag frame → B</button>
+        </div>
         <div class="ok-msg" id="stereo-status" hidden></div>
       </div>
+      <div class="card-desc" style="margin-top:.9rem;margin-bottom:.5rem">…or a stereo pair: two screenshots of a Spatial Scene, tilted to opposite extremes (crop both to just the photo)</div>
+      <div class="row" style="gap:.6rem;align-items:stretch">
+        <div class="drop-zone" id="dz-pa" style="flex:1;padding:1rem .5rem;margin:0" onclick="document.getElementById('fi-pa').click()"><p><strong>A</strong></p><p id="pa-label">tilted one way</p></div>
+        <div class="drop-zone" id="dz-pb" style="flex:1;padding:1rem .5rem;margin:0" onclick="document.getElementById('fi-pb').click()"><p><strong>B</strong></p><p id="pb-label">tilted the other</p></div>
+      </div>
+      <input type="file" id="fi-pa" accept="image/*" onchange="loadPair('a',this.files[0])">
+      <input type="file" id="fi-pb" accept="image/*" onchange="loadPair('b',this.files[0])">
+      <button class="process-btn" id="btn-pair" disabled onclick="computePairDepth()">Compute depth from the pair</button>
+      <div class="ok-msg" id="pair-status" hidden></div>
       <div class="preview-wrap" id="preview-wrap" hidden><canvas id="preview"></canvas></div>
       <div class="row" id="interp-row" hidden>
         <label for="interp">Values are</label>
@@ -244,6 +278,7 @@
       <strong>Toggle still not showing?</strong> The gate is not only metadata. Known additional requirements, all reported in the wild: the phone must be on <em>Wi-Fi</em> (mobile data silently fails), <em>Reduce Motion</em> must be off (Settings → Accessibility → Motion), the <em>full-resolution original</em> must be on the device (with iCloud-optimized storage, open the photo and start-then-cancel an edit to force the download), and it takes an iPhone 12 or newer on iOS 26. Photos may also need a little time after import before the option appears. Work through that list before blaming the EXIF.<br><br>
       <strong>Getting depth out:</strong> the Spatial Scene depth map itself never leaves the phone — Photos renders it live and exports no file containing it. What <em>is</em> extractable, and what panel 2 reads: Portrait-mode shots (HEIC aux disparity image, or the extra JPEGs appended to a shared Portrait JPEG), HDR gain maps, and segmentation mattes. Export the <em>unmodified original</em> from Photos, or AirDrop to a Mac — “most compatible” conversions usually strip the aux images.<br><br>
       <strong>Output format:</strong> 16-bit grayscale PNG, values scaled ×257 from the 8-bit source, plus a JSON sidecar naming the source urn and whether bright means near (disparity) or far (depth). That pair drops straight into MiDaS-style depth pipelines.<br><br>
+      <strong>Recovering iOS's own depth — the screenshot trick:</strong> the Spatial Scene depth never leaves the phone as a file, but the screen renders it. Turn the effect on, tilt the phone to one extreme and screenshot, tilt to the other extreme and screenshot again: those are two views rendered from Apple's own depth map, and the pair mode above inverts the parallax back into that depth. Crop both screenshots identically to just the photo (UI chrome sits at zero parallax and wastes the range), tilt <em>horizontally</em>, and if the result looks inside-out the tilt went the other way — tick invert. A screen recording while tilting works too: load it as a video, scrub, and tag two frames as A and B. What you get is a reconstruction of the depth iOS rendered — relative, not metric, and carrying the renderer's own edge-stretching — but it needs no file-format tricks at all.<br><br>
       <strong>Spatial / Facebook & Meta video:</strong> Meta's side takes stereo video as Apple MV-HEVC (uploaded through the Meta Quest app; a Facebook feed post just shows it flat) or as plain full side-by-side video. Drop a .MOV/.MP4 above and the tool reads the stereo boxes — Apple's <code>vexu</code> (eyes, baseline, disparity adjustment) and the <code>st3d</code> SBS/TB tag — even when the browser can't play the codec. MV-HEVC's second eye is beyond every browser decoder, so flatten to SBS first (<code>ffmpeg</code> 7.1+ decodes MV-HEVC, or Spatialify on iOS) and feed the SBS back in: then you can grab a frame, split the eyes, and compute a real disparity map by block matching, exported in the same 16-bit PNG + JSON format. Facebook's own “3D photo” upload path (2D + depth pair) is long past its heyday — Stories dropped it and it is not something to build on now — so panel 3 goes the other way and hands Meta what it reliably eats: video.<br><br>
       <strong>Panel 3 — preview, and the hold:</strong> load a picture (plus a depth map, if you have one) to see the parallax rendered live, then record it. <em>Flat hold</em> needs no depth at all: it is your still, held for N seconds, as an ordinary video — the thing that uploads anywhere, and what Quest's own photo-to-3D conversion can then chew on. <em>Wiggle</em> oscillates the camera, which is what actually reads as three-dimensional to a phone or desktop feed, since a flat viewer never sees a second eye. <em>Side-by-side</em> writes both eyes into one frame for Quest and any SBS player. MP4/H.264 is requested first because Meta ingests it most happily; if your browser only offers WebM the tool tells you, and <code>ffmpeg -i in.webm -c:v libx264 -pix_fmt yuv420p out.mp4</code> finishes the job. No depth map to hand? Pull one from a Portrait shot above, from a stereo video above, or from any monocular depth model — the 16-bit PNG this tool exports is the same format they emit.<br><br>
       HEIC decoding uses WebCodecs HEVC — works in Safari and in Chrome on hardware with an HEVC decoder. Where it can’t decode, the tool still lists the file’s contents and hands you the raw HEVC payload for <code>heif-convert --with-aux</code> or <code>ffmpeg</code>. Everything runs locally; nothing is uploaded.
@@ -418,6 +453,12 @@ function buildExifApp1(width, height, when){
   return seg;
 }
 
+async function shareOut(){
+  if(!outJpeg) return;
+  try{ await navigator.share({files:[outJpeg.file]}); }
+  catch(e){ /* user dismissed the sheet — nothing to report */ }
+}
+
 async function buildCameraJpeg(){
   setMsg('err-in',''); setMsg('ok-in','');
   try{
@@ -436,9 +477,17 @@ async function buildCameraJpeg(){
     // stays behind it, which real-world files do all the time.
     const out=concatBytes([jpeg.subarray(0,2),app1,jpeg.subarray(2)]);
     outJpeg={name:baseName(inFile.name)+'-camera.jpg', blob:new Blob([out],{type:'image/jpeg'})};
+    outJpeg.file=new File([outJpeg.blob],outJpeg.name,{type:'image/jpeg'});
     show('btn-dl-jpeg',true);
+    // the share sheet is the path that lands in Photos as a photo rather
+    // than in Files as a download — offer it wherever the browser can
+    show('btn-share-jpeg', !!(navigator.canShare&&navigator.canShare({files:[outJpeg.file]})));
+    const prev=$('out-preview');
+    if(prev.src) URL.revokeObjectURL(prev.src);
+    prev.src=URL.createObjectURL(outJpeg.blob);
+    show('out-wrap',true);
     syncHandoffButtons();
-    setMsg('ok-in',`Wrote ${bmp.width}×${bmp.height} JPEG with Apple/iPhone 15 Pro EXIF, DateTimeOriginal ${exifDateString(when)}. AirDrop or save it into Photos, then look for the spatial toggle.`);
+    setMsg('ok-in',`Wrote ${bmp.width}×${bmp.height} JPEG with Apple/iPhone 15 Pro EXIF, DateTimeOriginal ${exifDateString(when)}. On an iPhone use the share sheet (Save Image goes straight into the library) or long-press the preview → Add to Photos; from a computer, AirDrop the file. Then look for the spatial toggle.`);
   }catch(e){
     setMsg('err-in',e.message);
   }
@@ -1452,6 +1501,136 @@ async function recordHold(){
   syncPreview();
 }
 
+/* ── stereo pair mode: two screenshots (or two tagged video frames) ──
+   The pair differs from an SBS frame in one crucial way: the two shots
+   were framed by a human, so before any per-pixel matching a GLOBAL
+   translation between them has to be found and subtracted — otherwise
+   the matcher spends its whole search range on the framing drift and
+   the depth signal drowns. Coarse (quarter-res, wide window) then fine
+   (full working res, ±3) alignment handles that; the per-pixel pass
+   then searches ±10% of width horizontally with ±1 px of vertical
+   slack, since screenshot alignment is never perfectly row-exact.
+   The disparity that remains after the global shift IS the depth iOS
+   rendered — up to sign, which depends on which way the phone tilted;
+   the invert box settles it. */
+
+const pair={a:null,b:null};
+
+async function loadPair(slot,f){
+  if(!f) return;
+  try{
+    const bmp=await createImageBitmap(f);
+    pair[slot]={bitmap:bmp,label:f.name};
+    $(slot==='a'?'pa-label':'pb-label').textContent=`${f.name} ${bmp.width}×${bmp.height}`;
+    syncPairButton();
+  }catch(e){ setMsg('err-x','Could not decode '+f.name+': '+e.message); }
+}
+
+function tagFrame(slot){
+  if(!vidEl||!vidEl.videoWidth) return;
+  const c=document.createElement('canvas');
+  c.width=vidEl.videoWidth; c.height=vidEl.videoHeight;
+  c.getContext('2d').drawImage(vidEl,0,0);
+  const label=`frame @ ${vidEl.currentTime.toFixed(2)}s`;
+  createImageBitmap(c).then(bmp=>{
+    pair[slot]={bitmap:bmp,label};
+    $(slot==='a'?'pa-label':'pb-label').textContent=label;
+    syncPairButton();
+  });
+}
+
+function syncPairButton(){
+  $('btn-pair').disabled=!(pair.a&&pair.b);
+}
+
+function grayFromBitmap(bmp,w,h){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(bmp,0,0,w,h);
+  const d=ctx.getImageData(0,0,w,h).data, g=new Uint8Array(w*h);
+  for(let i=0;i<g.length;i++) g[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
+  return g;
+}
+function sadShift(A,B,w,h,cx,cy,rx,ry,step){
+  // best (dx,dy) minimizing mean |A(x,y)-B(x+dx,y+dy)| over the overlap
+  let best=Infinity,bx=0,by=0;
+  for(let dy=cy-ry;dy<=cy+ry;dy++) for(let dx=cx-rx;dx<=cx+rx;dx++){
+    let s=0,n=0;
+    for(let y=Math.max(8,-dy);y<h-Math.max(8,dy);y+=step)
+      for(let x=Math.max(8,-dx);x<w-Math.max(8,dx);x+=step){ s+=Math.abs(A[y*w+x]-B[(y+dy)*w+x+dx]); n++; }
+    if(n>200){ const m=s/n; if(m<best){best=m;bx=dx;by=dy;} }
+  }
+  return {dx:bx,dy:by,err:best};
+}
+
+async function computePairDepth(){
+  if(!(pair.a&&pair.b)) return;
+  setMsg('err-x','');
+  const A=pair.a.bitmap,B=pair.b.bitmap;
+  if(Math.abs(A.width/A.height-B.width/B.height)>0.03)
+    return setMsg('err-x',`The two images have different shapes (${A.width}×${A.height} vs ${B.width}×${B.height}). Crop them identically first.`);
+  const w=Math.min(420,A.width), h=Math.round(w*A.height/A.width);
+  const ga=grayFromBitmap(A,w,h), gb=grayFromBitmap(B,w,h);
+  const status=t=>{ const el=$('pair-status'); el.textContent=t; el.hidden=false; };
+  const tick=()=>new Promise(r=>setTimeout(r));
+  status('aligning…'); await tick();
+
+  // Align on BLURRED copies at full resolution. A decimating coarse pass
+  // was tried first and failed on fine texture: point-sampling every 4th
+  // pixel decorrelates any shift that isn't a multiple of 4, and the
+  // aligner locked onto the nearest multiple instead of the truth. Blur
+  // gives the texture a correlation length the sparse SAD can grip.
+  const ba=boxBlur(ga,w,h,2), bb=boxBlur(gb,w,h,2);
+  const rough=sadShift(ba,bb,w,h,0,0,Math.round(w*0.25),Math.round(h*0.12),3);
+  const fine=sadShift(ba,bb,w,h,rough.dx,rough.dy,2,2,1);
+  const gx=fine.dx, gy=fine.dy;
+
+  const range=Math.max(8,Math.round(w*0.10)), B2=3;
+  const disp=new Float32Array(w*h).fill(-range-1);
+  for(let y=B2;y<h-B2;y++){
+    for(let x=B2;x<w-B2;x++){
+      let best=Infinity,bd=0;
+      for(let d=-range;d<=range;d++) for(let j=-1;j<=1;j++){
+        const xb=x+gx+d, yb=y+gy+j;
+        if(xb-B2<0||xb+B2>=w||yb-B2<0||yb+B2>=h) continue;
+        let sad=0;
+        for(let dy=-B2;dy<=B2&&sad<best;dy++){
+          const ao=(y+dy)*w+x, bo=(yb+dy)*w+xb;
+          for(let dx=-B2;dx<=B2;dx++) sad+=Math.abs(ga[ao+dx]-gb[bo+dx]);
+        }
+        if(sad<best){ best=sad; bd=d; }
+      }
+      disp[y*w+x]=bd;
+    }
+    if((y&15)===0){ status(`matching… ${Math.round(100*y/h)}%`); await tick(); }
+  }
+  const valid=[];
+  for(let i=0;i<disp.length;i++) if(disp[i]>=-range) valid.push(disp[i]);
+  valid.sort((a,b)=>a-b);
+  const p2=valid[Math.floor(valid.length*0.02)]||-range;
+  const p98=valid[Math.floor(valid.length*0.98)]||range;
+  const span=Math.max(1e-6,p98-p2);
+  const gray=new Uint8Array(w*h);
+  for(let i=0;i<disp.length;i++){
+    const v=disp[i]<-range?p2:disp[i];
+    gray[i]=Math.max(0,Math.min(255,Math.round((v-p2)/span*255)));
+  }
+  status(`done — global shift (${gx},${gy}) px, residual parallax ${p2.toFixed(1)}…${p98.toFixed(1)} px`);
+  grayResult={gray,w,h};
+  if(!xFile) xFile={name:baseName(pair.a.label)||'pair'};
+  selected={kind:'screen-pair',label:'depth recovered from a screenshot pair',
+    urn:'(parallax inversion of two rendered views)',
+    extra:{a:pair.a.label,b:pair.b.label,global_shift_px:[gx,gy],
+      search_range_px:range,vertical_slack_px:1,block:'7x7',working_width:w,
+      normalization:`2-98 percentile, ${p2.toFixed(1)}..${p98.toFixed(1)} px`,
+      sign_note:'depends on tilt direction — invert if it looks inside-out'}};
+  $('interp').value='disparity'; $('invert').checked=false;
+  renderSelected();
+  ['preview-wrap','interp-row','btn-png','btn-json'].forEach(id=>show(id,true));
+  show('btn-raw',false);
+  syncHandoffButtons();
+}
+
 /* ── hand-written 16-bit grayscale PNG ── */
 
 const CRC_TABLE=(()=>{
@@ -1527,7 +1706,8 @@ function exportJson(){
     source_file:xFile.name,
     source:{ 'jpeg-sub':'JPEG appended sub-image',
              'heic-aux':'HEIC auxiliary item',
-             'stereo-frame':'disparity computed from a stereo video frame' }[selected.kind],
+             'stereo-frame':'disparity computed from a stereo video frame',
+             'screen-pair':'depth recovered from two rendered views (screenshot parallax)' }[selected.kind],
     aux_type_urn:selected.urn||null,
     width:grayResult.w, height:grayResult.h,
     interpretation:interp,
