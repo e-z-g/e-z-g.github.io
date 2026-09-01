@@ -44,8 +44,6 @@ const QR_CAPACITY = {
 let currentMatrices = null;
 
 // Live Validation Tracker
-let lastValidateTime = 0;
-let validationTimeout = null;
 let scanHistory = [];
 const validateCanvas = document.createElement('canvas');
 validateCanvas.width = 512; 
@@ -62,6 +60,10 @@ let lastAnimScanUpdate = Date.now();
 // the range the DP is actually choosing between.
 const SEG_HEADER_BITS = { numeric: 4 + 10, alphanumeric: 4 + 9, byte: 4 + 8 };
 
+// Trailing bits for a numeric run whose length is 1 or 2 past a multiple of 3.
+// Hoisted so the DP's inner loop is not re-creating it a few million times.
+const NUMERIC_TAIL_BITS = [0, 4, 7];
+
 function getBits(s, m) {
     const l = s.length; 
     if(m === 'numeric') return Math.floor(l/3)*10 + [0,4,7][l%3]; 
@@ -73,7 +75,15 @@ function extractFormatInfoFromImage(imageData, code) {
     let result = { ec: 'M', mask: -1 };
     try {
         const tl = code.location.topLeftCorner, tr = code.location.topRightCorner, bl = code.location.bottomLeftCorner;
-        const dim = code.version * 4 + 17, dist = dim - 1; 
+        // jsQR's *Corner points are the OUTER corners of the symbol, not the
+        // centres of the corner modules -- topLeft/topRight are a full `dim`
+        // modules apart, so one module step is the span divided by dim, NOT by
+        // dim-1. Dividing by dim-1 stretches every step by dim/(dim-1), which
+        // by row 8 has drifted 8.5/(dim-1) of a module: 0.425 at version 1,
+        // against a half-module of tolerance. It read the right module on clean
+        // renders and had almost nothing left for a photo or a rounded module.
+        // With the correct step the `+ 0.5` offsets below land on module centres.
+        const dim = code.version * 4 + 17, dist = dim;
         const dX_col = (tr.x - tl.x) / dist, dY_col = (tr.y - tl.y) / dist;
         const dX_row = (bl.x - tl.x) / dist, dY_row = (bl.y - tl.y) / dist;
 
@@ -120,18 +130,89 @@ function runDP(text, uT, pT) {
         s = uT ? s.toUpperCase() : s;
     }
 
-    const n = s.length, dp = Array(n+1).fill(Infinity), back = Array(n+1).fill(null); dp[0] = 0;
-    for(let i=0; i<n; i++) for(let j=i+1; j<=n; j++) {
-        const sub = s.substring(i,j);
-        const modes = [{m:'numeric',v:/^[0-9]+$/.test(sub)}, {m:'alphanumeric',v:/^[0-9A-Z $%*+\-./:]+$/.test(sub)}, {m:'byte',v:true}];
-        for(const {m,v} of modes) if(v) {
-            const c = SEG_HEADER_BITS[m] + getBits(sub,m);
-            if(dp[i]+c < dp[j]) { dp[j] = dp[i]+c; back[j] = {f:i,m,d:sub,c}; }
+    const n = s.length;
+
+    // The DP still considers every (start, end) pair, but it used to do so by
+    // cutting a fresh substring for each one and running two regexes and a
+    // TextEncoder over it -- O(n^3) work, on the main thread, on every
+    // keystroke. A 400-character payload took 400ms and an 800-character one
+    // 1.8 SECONDS per edit, which read as the tab hanging. The tables below
+    // answer the same three questions in constant time per pair:
+    //   numRunEnd[i] / alnRunEnd[i]  how far a segment starting at i may run
+    //                                and still be all-numeric / all-alphanumeric
+    //   utf8Prefix[i]                UTF-8 bytes in s[0..i), so a byte segment's
+    //                                length is one subtraction
+    // Same search, same tie-breaks, same answer -- just without the allocation.
+    const numRunEnd = new Int32Array(n + 1);
+    const alnRunEnd = new Int32Array(n + 1);
+    const utf8Prefix = new Int32Array(n + 1);
+    numRunEnd[n] = alnRunEnd[n] = n;
+    for (let i = n - 1; i >= 0; i--) {
+        const ch = s.charCodeAt(i);
+        const isNum = ch >= 48 && ch <= 57;
+        // 0-9 A-Z space $ % * + - . / :  -- the QR alphanumeric set
+        const isAln = isNum || (ch >= 65 && ch <= 90) || ch === 32 || ch === 36 ||
+                      ch === 37 || ch === 42 || ch === 43 || ch === 45 ||
+                      ch === 46 || ch === 47 || ch === 58;
+        numRunEnd[i] = isNum ? numRunEnd[i + 1] : i;
+        alnRunEnd[i] = isAln ? alnRunEnd[i + 1] : i;
+    }
+    for (let i = 0; i < n; i++) {
+        const ch = s.charCodeAt(i);
+        let bytes;
+        if (ch < 0x80) bytes = 1;
+        else if (ch < 0x800) bytes = 2;
+        // A surrogate pair is 4 UTF-8 bytes, counted as 2 against each half so
+        // that any prefix difference still totals correctly.
+        else if (ch >= 0xD800 && ch <= 0xDBFF && i + 1 < n) {
+            const next = s.charCodeAt(i + 1);
+            bytes = (next >= 0xDC00 && next <= 0xDFFF) ? 2 : 3;
+        }
+        else if (ch >= 0xDC00 && ch <= 0xDFFF && i > 0) {
+            const prev = s.charCodeAt(i - 1);
+            bytes = (prev >= 0xD800 && prev <= 0xDBFF) ? 2 : 3;
+        }
+        else bytes = 3;
+        utf8Prefix[i + 1] = utf8Prefix[i] + bytes;
+    }
+
+    const dp = new Float64Array(n + 1).fill(Infinity);
+    const backFrom = new Int32Array(n + 1).fill(-1);
+    const backMode = new Array(n + 1).fill(null);
+    dp[0] = 0;
+
+    for (let i = 0; i < n; i++) {
+        const base = dp[i];
+        if (base === Infinity) continue;
+        const numEnd = numRunEnd[i], alnEnd = alnRunEnd[i], byteBase = utf8Prefix[i];
+        // Modes are tried numeric, then alphanumeric, then byte, and start
+        // positions ascend, so a strict < keeps the original tie-breaking.
+        for (let j = i + 1; j <= n; j++) {
+            const len = j - i;
+            if (j <= numEnd) {
+                const c = base + SEG_HEADER_BITS.numeric + Math.floor(len/3)*10 + NUMERIC_TAIL_BITS[len%3];
+                if (c < dp[j]) { dp[j] = c; backFrom[j] = i; backMode[j] = 'numeric'; }
+            }
+            if (j <= alnEnd) {
+                const c = base + SEG_HEADER_BITS.alphanumeric + Math.floor(len/2)*11 + (len%2===1?6:0);
+                if (c < dp[j]) { dp[j] = c; backFrom[j] = i; backMode[j] = 'alphanumeric'; }
+            }
+            const cb = base + SEG_HEADER_BITS.byte + (utf8Prefix[j] - byteBase)*8;
+            if (cb < dp[j]) { dp[j] = cb; backFrom[j] = i; backMode[j] = 'byte'; }
         }
     }
-    let segs = [], currIdx = n;
-    while(currIdx > 0) { let st = back[currIdx]; segs.unshift({mode:st.m, data:st.d, bits:st.c}); currIdx = st.f; }
-    return { segs, dpBits: dp[n], finalString: s };
+
+    // Segment text is cut once, here, rather than n^2 times above.
+    let segs = [], currIdx = n, dpBits = 0;
+    while (currIdx > 0) {
+        const from = backFrom[currIdx], mode = backMode[currIdx];
+        const data = s.substring(from, currIdx);
+        const bits = SEG_HEADER_BITS[mode] + getBits(data, mode);
+        segs.unshift({ mode, data, bits });
+        dpBits += bits;
+        currIdx = from;
+    }
+    return { segs, dpBits, finalString: s };
 }
 
 function analyzeData() {

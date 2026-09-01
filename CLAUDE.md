@@ -23,7 +23,12 @@ The Cythera and retro-Mac tools used to live here in `cythera/`. They are their
 own repository now — <https://github.com/e-z-g/cythera> — served at the same
 URLs, `e-z-g.github.io/cythera/…`, because a project repo of that name occupies
 that path. `index.html` and `README.md` still link to them and should keep
-doing so; the links did not change.
+doing so — but **the filenames on the other side do change, and nothing here
+notices**. Three of the four links were 404 for a while: the viewer is
+`explorer.html` now, not `cythera_data_viewer.html`; the paint tool is
+`canvas.html`, not `colorcyclecanvas.html`; and the Mac Resource Fork Browser
+was retired outright, its decoders folded into the viewer's Resource Fork
+gallery. Check them against that repository when it moves.
 
 ```
 index.html            tool directory (the site's front page)
