@@ -48,6 +48,7 @@ Then open <http://localhost:8000/>.
 ## Repository layout
 
 - `cube/` — cubemap viewer, stitcher, atlas layout, and scene assets
+  ([`cube/README.md`](cube/README.md) covers the rendering pipeline)
 - `ev/` — star/planet viewer assets
 - `fpqr/` — QR encoder assets
 - `wine/` — VinoVision assets

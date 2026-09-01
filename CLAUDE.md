@@ -37,6 +37,7 @@ README.md             same directory, in markdown
 *.html                standalone single-file tools (see below)
 
 cube/                 cubemap VR viewer + face stitcher (ES modules, three.js)
+  README.md             the viewer's rendering pipeline and its invariants
   index.html            the viewer
   stitcher.html         builds atlases the viewer reads
   atlas-layout.js       the shared contract between the two
@@ -81,6 +82,22 @@ reads them back on that assumption. Change one side without the other and the
 cube poles smear silently — read the header comment in that file before
 touching either page.
 
+**`cube/README.md` is the map of the viewer itself** — the depth pipeline, the
+material kinds, the seam invariant, and how to verify a change in a real
+browser. Read it before editing `cube/index.html`. Two rules from it are worth
+repeating here, because both fail *silently and only at certain camera angles*:
+
+- **The vertex stage must pick its depth face from the direction, not from
+  `uFace`.** A `BoxGeometry` keeps a separate copy of every cube-edge vertex per
+  adjoining face. If each copy reads its own face's depth map, the two disagree
+  by whatever the maps disagree by at that seam, the copies displace to
+  different radii, and the mesh pulls apart — a black tear the length of the
+  edge. `faceOfDir()` makes both copies choose the same face, so the seam closes
+  by construction. Its `>=` tie-breaks are load-bearing.
+- **Depth has to reach the vertex stage as an atlas**, since that is what lets a
+  face read its neighbour. Colour stays as six separate images where it can, so
+  it keeps mipmaps and anisotropy.
+
 `fpqr/` splits its script into `js/qr-engine.js`, `js/renderer.js`,
 `js/app.js` and `js/gif-exporter.js`, loaded as ordinary classic `<script src>`
 tags (not modules), with CSS in `css/styles.css`.
@@ -94,6 +111,30 @@ relative module or asset need a server:
 python3 -m http.server 8000     # from the repo root
 # then http://localhost:8000/
 ```
+
+## Looking at a page in a real browser
+
+Most changes here can be judged by reading them. Rendering changes cannot —
+`cube/`, `pixelator.html` and `scanimation.html` produce artefacts that only
+appear at particular angles, zoom levels or frames.
+
+Headless Chromium **does** work in Claude Code's remote container, driven by
+Playwright installed into a scratch directory (never into the repo — see "Do not
+add tooling"). Serve the repo with `python3 -m http.server`, then:
+
+- Launch the pre-installed browser at
+  `/opt/pw-browsers/chromium-*/chrome-linux/chrome` with
+  `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`. There is
+  no GPU; SwiftShader is the renderer and it is slow.
+- **CDN imports fail inside the browser** even though `curl` reaches them, because
+  the headless browser does not inherit the agent proxy. Fetch `three.module.js`
+  once with `curl` and `page.route()` the jsDelivr URL to the local copy.
+- For a WebGL page, force `preserveDrawingBuffer: true` by wrapping
+  `HTMLCanvasElement.prototype.getContext`, stop the rAF loop before capturing,
+  and call `gl.finish()`. Otherwise the screenshot is a scatter of tiles.
+
+`cube/README.md` has the full recipe, including how to pin an animated camera to
+a repeatable frame and two ways to turn "looks better" into a number.
 
 ## Conventions
 
