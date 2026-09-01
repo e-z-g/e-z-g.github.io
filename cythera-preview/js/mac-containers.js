@@ -194,3 +194,53 @@ function sniffMacContainer(bytes) {
   if (looksLikeBinHex(bytes)) return binhexSplitForks(binhexDecode(bytes));
   return appleSingleForks(bytes) || macBinaryForks(bytes);
 }
+
+/* ---- Writing MacBinary ------------------------------------------------- */
+/* The one container this file can produce as well as open. MacBinary II is
+ * the format that carries BOTH forks in one flat file and that emulators
+ * accept by drag-and-drop, which is exactly what an edited archive needs --
+ * a bare .data download loses the resource fork, and BinHex would mean
+ * writing the RLE/6-bit encoder for no added carrying capacity.
+ *
+ * The layout is the mirror of macBinaryForks above: version-0 byte, Pascal
+ * name, type/creator, fork lengths at 83/87, forks 128-byte aligned after
+ * the header. The MacBinary II extras are the version pair at 122/123 (129 =
+ * "II", both as written-by and minimum-to-read) and the CRC-16/XMODEM of
+ * bytes 0..123 at 124 -- the CRC is what lets a strict reader tell a real
+ * MacBinary II file from 128 bytes of coincidence, so it is computed, not
+ * zeroed. Dates at 91/95 are seconds since the Mac epoch, 1904-01-01. */
+function crc16xmodem(bytes, start, end) {
+  let crc = 0;
+  for (let i = start; i < end; i++) {
+    crc ^= bytes[i] << 8;
+    for (let b = 0; b < 8; b++) crc = ((crc & 0x8000) ? (crc << 1) ^ 0x1021 : crc << 1) & 0xFFFF;
+  }
+  return crc;
+}
+
+function writeMacBinary(f) {
+  const name = encodeMacRoman((f.name || 'Untitled').slice(0, 31));
+  const type = encodeMacRoman(((f.type || '????') + '    ').slice(0, 4));
+  const creator = encodeMacRoman(((f.creator || '????') + '    ').slice(0, 4));
+  const data = f.data || new Uint8Array(0);
+  const rsrc = f.rsrc || new Uint8Array(0);
+  const dataPad = Math.ceil(data.length / 128) * 128;
+  const rsrcPad = Math.ceil(rsrc.length / 128) * 128;
+  const out = new Uint8Array(128 + dataPad + rsrcPad);
+  const w32 = (v, at) => { out[at] = (v >>> 24) & 0xFF; out[at+1] = (v >>> 16) & 0xFF; out[at+2] = (v >>> 8) & 0xFF; out[at+3] = v & 0xFF; };
+  out[1] = name.length;
+  out.set(name, 2);
+  out.set(type, 65);
+  out.set(creator, 69);
+  w32(data.length, 83);
+  w32(rsrc.length, 87);
+  const macNow = Math.floor(Date.now() / 1000) + 2082844800;   // 1904 epoch
+  w32(macNow, 91);
+  w32(macNow, 95);
+  out[122] = 129; out[123] = 129;                              // MacBinary II
+  const crc = crc16xmodem(out, 0, 124);
+  out[124] = crc >> 8; out[125] = crc & 0xFF;
+  out.set(data, 128);
+  out.set(rsrc, 128 + dataPad);
+  return out;
+}

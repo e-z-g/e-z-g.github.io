@@ -14,9 +14,10 @@ Web tools and interactive experiments: <https://e-z-g.github.io/>
 | | |
 |---|---|
 | [Pixelator](https://e-z-g.github.io/pixelator.html) | [PNG Alpha Tools](https://e-z-g.github.io/unpremultiply.html) |
-| [GIF Sprite Extractor](https://e-z-g.github.io/gif2sheet.html) | [Custom Video Scaler](https://e-z-g.github.io/vidscale.html) |
-| [3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html) | [Star/Planet Viewer](https://e-z-g.github.io/ev/) |
-| [Anachronism Machine](https://e-z-g.github.io/anachronism.html) | |
+| [GIF Sprite Extractor](https://e-z-g.github.io/gif2sheet.html) | [GIF Smasher](https://e-z-g.github.io/gifsmash.html) |
+| [Custom Video Scaler](https://e-z-g.github.io/vidscale.html) | [3D Print Scanimation Generator](https://e-z-g.github.io/scanimation.html) |
+| [Star/Planet Viewer](https://e-z-g.github.io/ev/) | [Anachronism Machine](https://e-z-g.github.io/anachronism.html) |
+| [Spatial Photo Kit](https://e-z-g.github.io/spatialize.html) | |
 
 ## Utilities
 
@@ -30,8 +31,8 @@ Web tools and interactive experiments: <https://e-z-g.github.io/>
 
 | | |
 |---|---|
-| [Cythera Data Viewer](https://e-z-g.github.io/cythera/cythera_data_viewer.html) | [Cythera Mobile](https://e-z-g.github.io/cythera/mobile.html) |
-| [ColorCycleCanvas](https://e-z-g.github.io/cythera/colorcyclecanvas.html) | [Mac Resource Fork Browser](https://e-z-g.github.io/cythera/resource_fork_browser.html) |
+| [Cythera Data Viewer](https://e-z-g.github.io/cythera/explorer.html) | [Cythera Mobile](https://e-z-g.github.io/cythera/mobile.html) |
+| [ColorCycleCanvas](https://e-z-g.github.io/cythera/canvas.html) | |
 | [JumpStart 4th Grade Player](https://e-z-g.github.io/infj4.html) | |
 
 ## Local preview
@@ -48,10 +49,13 @@ Then open <http://localhost:8000/>.
 
 - `cube/` — cubemap viewer, stitcher, atlas layout, and scene assets
   ([`cube/README.md`](cube/README.md) covers the rendering pipeline)
-- `cythera/` — Cythera viewers, emulator, resource browser, and data
 - `ev/` — star/planet viewer assets
 - `fpqr/` — QR encoder assets
 - `wine/` — VinoVision assets
 - `*.html` — standalone tools
+
+The Cythera and retro-Mac tools are their own repository —
+<https://github.com/e-z-g/cythera> — served at the same
+`e-z-g.github.io/cythera/…` addresses, so the links above are unchanged.
 
 Source: <https://github.com/e-z-g/e-z-g.github.io>

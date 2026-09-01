@@ -77,6 +77,27 @@ function pstring(bytes, off) {
   return decodeMacRoman(bytes.subarray(p + 1, p + 1 + len));
 }
 
+/* The exact inverse of decodeMacRoman, for writing. The reverse map is built
+ * from MACROMAN_HIGH itself rather than transcribed, so the two cannot drift:
+ * any string made of characters Mac Roman can express round-trips byte for
+ * byte. A character outside the repertoire becomes '?' -- the archive writer
+ * that needs this encodes titles read FROM Mac Roman bytes in the first
+ * place, so hitting that case means the caller has a bug, not the table. */
+let MACROMAN_REVERSE = null;
+function encodeMacRoman(s) {
+  if (!MACROMAN_REVERSE) {
+    MACROMAN_REVERSE = new Map();
+    for (let i = 0; i < 128; i++) MACROMAN_REVERSE.set(MACROMAN_HIGH[i], 0x80 + i);
+  }
+  const out = new Uint8Array(s.length);
+  let n = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0);
+    out[n++] = cp < 0x80 ? cp : (MACROMAN_REVERSE.get(cp) ?? 0x3F);
+  }
+  return out.subarray(0, n);
+}
+
 /* ---- CRC-32 ------------------------------------------------------------ */
 /* One table, used by both the ZIP writer and the PNG writer -- they want the
  * same polynomial, and each file used to carry its own copy of it. */
