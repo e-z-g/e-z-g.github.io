@@ -331,6 +331,10 @@ const initApp = () => {
 
     E('show-naive')?.addEventListener('change', (e) => {
         E('naive-container')?.classList.toggle('hidden', !e.target.checked);
+        // renderCanvas() now skips the naive canvas while it is off screen, and
+        // 'input' has already fired by the time this runs, so the reveal has to
+        // ask for the paint itself or the panel opens on a blank canvas.
+        if (typeof renderCanvas === 'function') renderCanvas();
     });
 
     E('import-cfg-input')?.addEventListener('change', (e) => {
@@ -364,8 +368,7 @@ const initApp = () => {
                 updateImageMapVisibility();
                 updateAnimVisibility();
                 if (E('anim-toggle')?.checked) {
-                    window.animLoopId = null;
-                    dbg('cfg import: anim on, resetting loop', 'info');
+                    dbg('cfg import: anim on, starting loop if idle', 'info');
                     startAnimIfNeeded();
                 } else if (!getHasAnimatedGif()) {
                     E('export-gif-btn')?.classList.add('hidden');
@@ -393,6 +396,11 @@ const initApp = () => {
                 gifFrames = parsed.frames;
                 gifTotalTime = parsed.totalTime;
                 showToast(`Animated ${type} Map Loaded!`);
+            } else {
+                // Falling through silently is how the broken decoder went
+                // unnoticed for so long -- the map loaded, just frozen.
+                showToast(`Could not read the GIF frames — using the first frame only.`, true);
+                dbg(`${type} map GIF decode returned no frames`, 'warn');
             }
         } else if (isGif) {
             showToast("Animated GIF Support requires Chromium browsers.", true);
@@ -456,6 +464,9 @@ const initApp = () => {
                 gifFrames = parsed.frames;
                 gifTotalTime = parsed.totalTime;
                 showToast('Animated logo loaded!');
+            } else {
+                showToast('Could not read the GIF frames — using the first frame only.', true);
+                dbg('logo GIF decode returned no frames', 'warn');
             }
         } else if (isGif) {
             showToast('Animated GIF Support requires Chromium browsers.', true);
@@ -564,7 +575,6 @@ const initApp = () => {
 
     E('live-scan-toggle')?.addEventListener('change', (e) => {
         if (e.target.checked) {
-            lastValidateTime = 0;
             scanHistory = [];
             renderCanvas();
         } else {
@@ -604,11 +614,17 @@ const initApp = () => {
         renderCanvas();
     });
 
+    // The one place that starts the mesh animation. It used to be two: this
+    // handler AND the generic .render-trigger 'input' handler, which the same
+    // checkbox also matched. A click fires input then change, so both ran, both
+    // cleared window.animLoopId, and both called startAnimIfNeeded() -- leaving
+    // two rAF loops rendering the same canvas every frame for the rest of the
+    // session (three, with an animated GIF already loaded). startAnimIfNeeded()
+    // is idempotent on its own, so nothing needs to clear the guard first.
     E('anim-toggle')?.addEventListener('change', (e) => {
         dbg(`anim-toggle change: checked=${e.target.checked} | window.animLoopId=${window.animLoopId}`, 'info');
         updateAnimVisibility();
         if (e.target.checked) {
-            window.animLoopId = null;   // ← clear REAL loop guard
             dbg('Calling startAnimIfNeeded()', 'info');
             startAnimIfNeeded();
             dbg(`after startAnimIfNeeded: window.animLoopId=${window.animLoopId}`, window.animLoopId ? 'ok' : 'error');
@@ -632,13 +648,8 @@ const initApp = () => {
         if (typeof analyzeData === 'function') analyzeData();
     }));
 
-    document.querySelectorAll('.render-trigger').forEach(el => el?.addEventListener('input', (e) => {
-        if (e.target.id === 'anim-toggle' && e.target.checked) {
-            window.animLoopId = null;   // ← clear REAL loop guard
-            if (typeof startAnimIfNeeded === 'function') startAnimIfNeeded();
-        } else if (e.target.id !== 'anim-toggle') {
-            if (typeof renderCanvas === 'function') renderCanvas();
-        }
+    document.querySelectorAll('.render-trigger').forEach(el => el?.addEventListener('input', () => {
+        if (typeof renderCanvas === 'function') renderCanvas();
     }));
 
     setTimeout(() => {

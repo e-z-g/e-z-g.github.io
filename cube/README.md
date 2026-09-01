@@ -208,8 +208,7 @@ write 5×3 cells with their rotations.
 The cube is one of the few places in this repository where you cannot read the
 diff and know it works — the artefacts are geometric and only appear at
 particular angles. Headless Chromium **does** work in Claude Code's remote
-container (unlike `cythera/`'s sandbox, where `browser_smoke.mjs` documents a
-`ProcessSingleton` bind failure). Serve the repo root with
+container. Serve the repo root with
 `python3 -m http.server`, drive it with Playwright installed into a scratch
 directory — never into the repo — and expect five non-obvious things:
 
