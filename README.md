@@ -27,12 +27,10 @@ Web tools and interactive experiments: <https://e-z-g.github.io/>
 | [Instant Mobile Tester](https://e-z-g.github.io/check.html) | [VinoVision](https://e-z-g.github.io/wine/) |
 | [Desktop View](https://e-z-g.github.io/frame.html) | |
 
-## Retro Mac / Cythera
+## Retro
 
 | | |
 |---|---|
-| [Cythera Data Viewer](https://e-z-g.github.io/cythera/explorer.html) | [Cythera Mobile](https://e-z-g.github.io/cythera/mobile.html) |
-| [ColorCycleCanvas](https://e-z-g.github.io/cythera/canvas.html) | |
 | [JumpStart 4th Grade Player](https://e-z-g.github.io/infj4.html) | |
 
 ## Local preview
@@ -53,9 +51,5 @@ Then open <http://localhost:8000/>.
 - `fpqr/` — QR encoder assets
 - `wine/` — VinoVision assets
 - `*.html` — standalone tools
-
-The Cythera and retro-Mac tools are their own repository —
-<https://github.com/e-z-g/cythera> — served at the same
-`e-z-g.github.io/cythera/…` addresses, so the links above are unchanged.
 
 Source: <https://github.com/e-z-g/e-z-g.github.io>

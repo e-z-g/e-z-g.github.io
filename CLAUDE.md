@@ -19,16 +19,13 @@ you — verify changes locally before pushing.
 
 ## Repository layout
 
-The Cythera and retro-Mac tools used to live here in `cythera/`. They are their
-own repository now — <https://github.com/e-z-g/cythera> — served at the same
-URLs, `e-z-g.github.io/cythera/…`, because a project repo of that name occupies
-that path. `index.html` and `README.md` still link to them and should keep
-doing so — but **the filenames on the other side do change, and nothing here
-notices**. Three of the four links were 404 for a while: the viewer is
-`explorer.html` now, not `cythera_data_viewer.html`; the paint tool is
-`canvas.html`, not `colorcyclecanvas.html`; and the Mac Resource Fork Browser
-was retired outright, its decoders folded into the viewer's Resource Fork
-gallery. Check them against that repository when it moves.
+A set of retro-Mac tools used to live in a subdirectory here and moved to a
+project of its own. Nothing here links to them any more, and nothing here
+should: **a link out to a separate project goes stale silently.** All four of
+those links were dead by the time they were removed — the pages had been
+renamed or retired on the other side and nothing in this repository noticed
+for months. If you add an outbound link to another project, expect to check it
+by hand or not at all.
 
 ```
 index.html            tool directory (the site's front page)
@@ -156,7 +153,7 @@ Match that register. No `feat:` / `fix:` prefixes, no scope tags.
 
 1. the tool file itself,
 2. a link in `index.html` under the right section (360° / VR · Image / video ·
-   Utilities · Retro Mac / Cythera),
+   Utilities · Retro),
 3. a matching row in `README.md`'s tables.
 
 `index.html` and `README.md` list the same tools in the same four sections;
