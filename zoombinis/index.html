@@ -35,8 +35,10 @@
   exporter, not here - the part's skin recoloured to the host's (a Fleen's
   legs belong to its feet, a Zoombini's eyelids to its eyes), mirrored
   because a Zoombini faces right and a Fleen left, and re-anchored to the
-  host's head top, body bottom, or its own eye and nose spots. The page only
-  paints the result, with borrowed feet over the body (see variantsFor).
+  host's head top, body bottom, or its own eye and nose spots. Borrowed feet
+  get more: a Zoombini's far foot goes behind the egg and its near foot in
+  front, and a Fleen keeps its own legs with the Zoombini feet on the ends.
+  The page only paints the result (see variantsFor).
 
   Why the sprite sheet is a data: URI inside sprites.js rather than a PNG:
   so "Save PNG" works when the page is opened from file://. A canvas that has
@@ -325,22 +327,22 @@ function drawSprite(ctx, index, x, y, scale = 1) {
 }
 
 // The sprites to paint, in order. A borrowed part comes ready-fitted from the
-// exporter (recoloured, mirrored, re-anchored) and takes its feature's place,
-// except borrowed feet, which are painted straight over the body: a Fleen's
-// feet are drawn to sit in front of its stalk, and either kind's joint to a
-// body it was not drawn for is best hidden. (A Zoombini paints its own feet
-// under the egg, so for it this moves them; a Fleen's slot is already there.)
+// exporter (recoloured, mirrored, re-anchored) and takes its feature's place.
+// Borrowed feet come in two layers around the body instead: a Zoombini in
+// Fleen feet has its far foot behind the egg and its near foot in front, so
+// it stands between its treads rather than on them; a Fleen in Zoombini feet
+// gets its own legs back with the feet on the ends, all in front of the stalk
+// as its own feet are, so it has no back layer.
 function variantsFor(kind, build, borrow) {
   const ch = S.characters[kind];
   const out = ch.parts.map(part =>
     borrow[part.name] ? { name: part.name, v: ch.borrowed[part.name][build[part.name]] }
       : { name: part.name, v: part.variants.length === 1 ? part.variants[0] : part.variants[build[part.name]] });
   if (borrow.feet) {
-    const feet = out.findIndex(p => p.name === 'feet');
-    if (feet < out.findIndex(p => p.name === 'body')) {
-      const [f] = out.splice(feet, 1);
-      out.splice(out.findIndex(p => p.name === 'body') + 1, 0, f);
-    }
+    const [feet] = out.splice(out.findIndex(p => p.name === 'feet'), 1);
+    const body = out.findIndex(p => p.name === 'body');
+    out.splice(body + 1, 0, feet);
+    if (feet.v.back) out.splice(body, 0, { name: 'feet', v: feet.v.back });
   }
   return out.map(p => p.v);
 }
