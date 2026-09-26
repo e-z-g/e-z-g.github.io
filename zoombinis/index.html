@@ -6,8 +6,8 @@
 <title>Zoombini Maker</title>
 <!--
   Zoombini Maker - build a Zoombini (or a Fleen) the way the 1996 game's
-  Zoombini Isle screen does: four rows of five feature tiles and a dice for a
-  random one.
+  Zoombini Isle screen does: rows of feature tiles and a dice for a random
+  one. It then stands there idling, as the game's characters do.
 
   Where the pieces come from. Everything drawn here is the game's own art,
   pulled out of its Mohawk archives by tools/export_web.py in the separate
@@ -30,8 +30,8 @@
   moves - hair and feet are lopsided, and re-centring on every click makes
   the whole figure jump.
 
-  Either character can wear the other's parts: the switches above the tiles
-  turn a row over to the other character's five. The fitting is done by the
+  Either character can wear the other's parts: each feature row offers its
+  own five and then the other character's five. The fitting is done by the
   exporter, not here - the part's skin recoloured to the host's (a Fleen's
   legs belong to its feet, a Zoombini's eyelids to its eyes), mirrored
   because a Zoombini faces right and a Fleen left, and re-anchored to the
@@ -40,6 +40,14 @@
   front, and a Fleen keeps its own legs for Zoombini shoes and stands its
   stalk on a Zoombini spring, wheels or propeller.
   The page only paints the result (see variantsFor).
+
+  The idling is the game's own: its idle scripts for each character, which
+  change nothing but the eyes and where the whole figure stands (glances,
+  blinks, a Fleen's hops). The exporter writes them in terms of what the eyes
+  do - rest, blink, glance - rather than frame numbers, so borrowed eyes
+  blink and glance with their own frames. Fleen idles never blink, so the
+  page adds a blink of its own. Motion stops for prefers-reduced-motion, and
+  the Pause button stops it anywhere; Save PNG always takes the rest pose.
 
   Why the sprite sheet is a data: URI inside sprites.js rather than a PNG:
   so "Save PNG" works when the page is opened from file://. A canvas that has
@@ -69,7 +77,7 @@
     line-height: 1.4;
   }
   .page {
-    max-width: 1100px;
+    max-width: 1180px;
     margin: 0 auto;
     padding: 20px 16px 40px;
   }
@@ -114,7 +122,7 @@
     align-items: stretch;
   }
   /* On a narrow screen the character comes first, then the box under it. */
-  @media (max-width: 820px) {
+  @media (max-width: 900px) {
     main { grid-template-columns: minmax(0, 1fr); }
   }
 
@@ -141,45 +149,25 @@
     border-radius: 10px;
     padding: 14px;
     width: 100%;
-    max-width: 460px;
+    max-width: 620px;
     justify-self: center;
   }
-  .borrow {
+  .rows { display: grid; gap: 8px; }
+  /* A feature: this character's five tiles, then the other's five - side by
+     side where they fit, one set under the other where they do not. */
+  .feature {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
     justify-content: center;
-    gap: 6px;
-    margin: 0 0 12px;
-    font-size: 0.85rem;
-    color: var(--muted);
+    gap: 6px 14px;
   }
-  .borrow span { margin-right: 2px; }
-  /* Too narrow for the label and all four switches: label above, switches together. */
-  @media (max-width: 420px) {
-    .borrow span { flex-basis: 100%; text-align: center; margin: 0; }
-  }
-  .borrow button {
-    font: inherit;
-    color: var(--text);
-    background: #3a332c;
-    border: 1px solid var(--panel-edge);
-    border-radius: 999px;
-    padding: 3px 11px;
-    cursor: pointer;
-  }
-  .borrow button[aria-pressed="true"] {
-    color: #1b1712;
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-  .borrow button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .rows { display: grid; gap: 6px; }
-  .row {
+  .set {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 80px));
-    gap: 6px;
-    justify-content: center;
+    grid-template-columns: repeat(5, minmax(0, 52px));
+    gap: 4px;
+  }
+  @media (max-width: 420px) {
+    .set { grid-template-columns: repeat(5, minmax(0, 1fr)); flex: 1 1 100%; }
   }
   .tile, .ctl {
     padding: 0;
@@ -246,19 +234,13 @@
     </div>
 
     <section class="box" aria-label="Features">
-      <div class="borrow" role="group" aria-labelledby="borrow-label">
-        <span id="borrow-label">Fleen parts:</span>
-        <button data-feature="hair" aria-pressed="false">Hair</button>
-        <button data-feature="eyes" aria-pressed="false">Eyes</button>
-        <button data-feature="nose" aria-pressed="false">Nose</button>
-        <button data-feature="feet" aria-pressed="false">Feet</button>
-      </div>
       <div class="rows" id="rows"></div>
       <p class="readout" id="readout" aria-live="polite"></p>
       <div class="actions">
         <button class="ctl" id="btn-random" title="Random features" aria-label="Random features"><canvas width="54" height="39"></canvas></button>
         <button class="text-btn" id="btn-save">Save PNG</button>
         <button class="text-btn" id="btn-link">Copy link</button>
+        <button class="text-btn" id="btn-motion" aria-pressed="false">Pause</button>
       </div>
       <p class="status" id="status" aria-live="polite"></p>
     </section>
@@ -278,29 +260,29 @@
 const S = window.ZOOMBINI_SPRITES;
 const FEATURES = S.features;                 // ['hair', 'eyes', 'nose', 'feet']
 const LABEL = { zoombini: 'Zoombini', fleen: 'Fleen' };
+const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
 const PAD = 3;                               // source pixels around the figure
+const TICK_MS = 100;                         // one script section per tick
 
 // ---- state -------------------------------------------------------------
 
-const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
-const noBorrowing = () => Object.fromEntries(FEATURES.map(f => [f, false]));
-const randomBuild = () => Object.fromEntries(FEATURES.map(f => [f, Math.floor(Math.random() * 5)]));
+// A pick is {v, borrowed}: variant v of this character's part, or of the
+// other character's if borrowed.
+const randomPick = () => ({ v: Math.floor(Math.random() * 5), borrowed: Math.random() < 0.5 });
+const randomBuild = () => Object.fromEntries(FEATURES.map(f => [f, randomPick()]));
+const plainBuild = () => Object.fromEntries(FEATURES.map(f => [f, { v: Math.floor(Math.random() * 5), borrowed: false }]));
 
-// build[kind] holds a variant per feature; borrow[kind] says which features
-// come from the other character instead.
 const state = {
   kind: 'zoombini',
-  build: { zoombini: randomBuild(), fleen: randomBuild() },
-  borrow: { zoombini: noBorrowing(), fleen: noBorrowing() },
+  build: { zoombini: plainBuild(), fleen: plainBuild() },
 };
 
 // The build lives in the address, so a link shows the same character:
 // #zoombini-2031 is hair 2, eyes 0, nose 3, feet 1, and a letter marks a
 // feature borrowed from the other character - #zoombini-2d31 has the other's
-// eyes number 3 (a = 0). Links from before borrowing are all digits and still
-// mean what they did.
-const codeOf = (build, borrow) => FEATURES.map(f =>
-  borrow[f] ? 'abcde'[build[f]] : String(build[f])).join('');
+// eyes number 3 (a = 0).
+const codeOf = build => FEATURES.map(f =>
+  build[f].borrowed ? 'abcde'[build[f].v] : String(build[f].v)).join('');
 function readHash() {
   const m = /^#(zoombini|fleen)(?:-([0-4a-e]{4}))?$/.exec(location.hash);
   if (!m) return;
@@ -308,12 +290,11 @@ function readHash() {
   if (!m[2]) return;
   FEATURES.forEach((f, i) => {
     const c = m[2][i], letter = c >= 'a';
-    state.borrow[m[1]][f] = letter;
-    state.build[m[1]][f] = letter ? c.charCodeAt(0) - 97 : +c;
+    state.build[m[1]][f] = { v: letter ? c.charCodeAt(0) - 97 : +c, borrowed: letter };
   });
 }
 function writeHash() {
-  const hash = '#' + state.kind + '-' + codeOf(state.build[state.kind], state.borrow[state.kind]);
+  const hash = '#' + state.kind + '-' + codeOf(state.build[state.kind]);
   if (location.hash !== hash) history.replaceState(null, '', hash);
 }
 
@@ -327,6 +308,16 @@ function drawSprite(ctx, index, x, y, scale = 1) {
   ctx.drawImage(sheet, sx, sy, w, h, x, y, w * scale, h * scale);
 }
 
+// The eyes as the idle wants them: 0 rest, 1 blink, 2 + k glance k. Each
+// eye variant carries its own blink and glances; a character with fewer
+// glances than asked for wraps round them.
+function eyeFrame(entry, eyes) {
+  if (!eyes || !entry.frames) return entry;
+  if (eyes === 1) return entry.frames.blink;
+  const g = entry.frames.glance;
+  return g[(eyes - 2) % g.length];
+}
+
 // The sprites to paint, in order. A borrowed part comes ready-fitted from the
 // exporter (recoloured, mirrored, re-anchored) and takes its feature's place.
 // Borrowed feet are placed around the body instead: a Zoombini in Fleen feet
@@ -335,12 +326,16 @@ function drawSprite(ctx, index, x, y, scale = 1) {
 // gets its own legs back with a shoe on each, in front of the stalk as its own
 // feet are; and a Fleen on a Zoombini spring, wheels or propeller has it
 // `behind` the stalk, which rests on top.
-function variantsFor(kind, build, borrow) {
+function variantsFor(kind, build, eyes = 0) {
   const ch = S.characters[kind];
-  const out = ch.parts.map(part =>
-    borrow[part.name] ? { name: part.name, v: ch.borrowed[part.name][build[part.name]] }
-      : { name: part.name, v: part.variants.length === 1 ? part.variants[0] : part.variants[build[part.name]] });
-  if (borrow.feet) {
+  const out = ch.parts.map(part => {
+    const pick = build[part.name];
+    let v = part.variants.length === 1 ? part.variants[0]
+      : pick.borrowed ? ch.borrowed[part.name][pick.v] : part.variants[pick.v];
+    if (part.name === 'eyes') v = eyeFrame(v, eyes);
+    return { name: part.name, v };
+  });
+  if (build.feet.borrowed) {
     const [feet] = out.splice(out.findIndex(p => p.name === 'feet'), 1);
     const body = out.findIndex(p => p.name === 'body');
     out.splice(feet.v.behind ? body : body + 1, 0, feet);
@@ -359,33 +354,55 @@ function boundsOf(variants) {
   }
   return { l, t, r, b };
 }
-// The box every build fits in, given which rows are borrowed: the preview's
-// size. It only changes when a row is switched, never on a pick within a row.
-function maxBounds(kind, borrow) {
-  const ch = S.characters[kind];
-  return boundsOf(ch.parts.flatMap(p => borrow[p.name] ? ch.borrowed[p.name] : p.variants));
-}
 
-// Draw with the REGS origin at (ox, oy); parts come in draw order.
-function drawCharacter(ctx, kind, build, borrow, ox, oy, scale = 1) {
-  for (const v of variantsFor(kind, build, borrow)) {
+// The box every build and every idle fits in: the preview's size. It is
+// fixed per character, so picking a part never rescales or moves the figure.
+const maxBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
+  const ch = S.characters[kind];
+  const all = [];
+  for (const p of ch.parts) {
+    for (const v of p.variants.concat(ch.borrowed[p.name] || [])) {
+      all.push(v);
+      if (v.back) all.push(v.back);
+      if (v.frames) all.push(v.frames.blink, ...v.frames.glance);
+    }
+  }
+  const bb = boundsOf(all);
+  for (const clip of ch.idles) {
+    for (const [, dx, dy] of clip) {
+      bb.l0 = Math.min(bb.l0 ?? 0, dx); bb.r0 = Math.max(bb.r0 ?? 0, dx);
+      bb.t0 = Math.min(bb.t0 ?? 0, dy); bb.b0 = Math.max(bb.b0 ?? 0, dy);
+    }
+  }
+  return [kind, { l: bb.l + (bb.l0 ?? 0), r: bb.r + (bb.r0 ?? 0),
+                  t: bb.t + (bb.t0 ?? 0), b: bb.b + (bb.b0 ?? 0) }];
+}));
+
+// Draw with the REGS origin at (ox, oy).
+function drawCharacter(ctx, kind, build, ox, oy, scale = 1, eyes = 0) {
+  for (const v of variantsFor(kind, build, eyes)) {
     drawSprite(ctx, v.sprite, ox - v.rx * scale, oy - v.ry * scale, scale);
   }
 }
 
 const wrap = document.getElementById('preview-wrap');
 const preview = document.getElementById('preview');
+const pose = { eyes: 0, dx: 0, dy: 0 };      // the idle's current tick
 
 function drawPreview() {
-  const bb = maxBounds(state.kind, state.borrow[state.kind]);
+  const bb = maxBounds[state.kind];
   const w = bb.r - bb.l + PAD * 2, h = bb.b - bb.t + PAD * 2;
-  if (preview.width !== w || preview.height !== h) { preview.width = w; preview.height = h; }
+  if (preview.width !== w || preview.height !== h) {
+    preview.width = w; preview.height = h;
+    fitPreview();
+  }
   const ctx = preview.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, w, h);
-  if (sheet.complete) drawCharacter(ctx, state.kind, state.build[state.kind],
-                                    state.borrow[state.kind], PAD - bb.l, PAD - bb.t);
-  fitPreview();
+  if (sheet.complete) {
+    drawCharacter(ctx, state.kind, state.build[state.kind],
+                  PAD - bb.l + pose.dx, PAD - bb.t + pose.dy, 1, pose.eyes);
+  }
 }
 
 // The largest whole-number scale that fits the panel. Beside the box it
@@ -396,7 +413,7 @@ const box = document.querySelector('.box');
 function fitPreview() {
   const cs = getComputedStyle(wrap);
   const availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  const narrow = window.matchMedia('(max-width: 820px)').matches;
+  const narrow = window.matchMedia('(max-width: 900px)').matches;
   const availH = narrow ? window.innerHeight * 0.42 : Math.max(box.offsetHeight - 32, 300);
   const s = Math.max(1, Math.floor(Math.min(availW / preview.width, availH / preview.height)));
   preview.style.width = preview.width * s + 'px';
@@ -416,34 +433,40 @@ function paintTile(canvas, index) {
 // ---- the feature box ---------------------------------------------------
 
 const rowsEl = document.getElementById('rows');
-let tiles = {};                                   // feature -> [button, ...]
+let tiles = {};                          // feature -> [{b, v, borrowed}]
 
-// Which character a row's options come from: its own, or the other's.
-const sourceOf = feat => state.borrow[state.kind][feat] ? OTHER[state.kind] : state.kind;
-const nameOf = feat => S.characters[sourceOf(feat)].names[feat][state.build[state.kind][feat]];
+const nameOf = (feat, pick) =>
+  S.characters[pick.borrowed ? OTHER[state.kind] : state.kind].names[feat][pick.v];
 
 function buildTiles() {
   rowsEl.textContent = '';
   tiles = {};
   for (const feat of FEATURES) {
-    const ch = S.characters[sourceOf(feat)];
     const row = document.createElement('div');
-    row.className = 'row';
+    row.className = 'feature';
     row.setAttribute('role', 'group');
     row.setAttribute('aria-label', feat[0].toUpperCase() + feat.slice(1));
-    tiles[feat] = ch.buttons[feat].map((pair, v) => {
-      const b = document.createElement('button');
-      b.className = 'tile';
-      b.title = ch.names[feat][v];
-      b.setAttribute('aria-label', ch.names[feat][v]);
-      b.appendChild(document.createElement('canvas'));
-      b.addEventListener('click', () => {
-        state.build[state.kind][feat] = v;
-        update();
+    tiles[feat] = [];
+    for (const borrowed of [false, true]) {
+      const kind = borrowed ? OTHER[state.kind] : state.kind;
+      const set = document.createElement('div');
+      set.className = 'set';
+      S.characters[kind].buttons[feat].forEach((pair, v) => {
+        const b = document.createElement('button');
+        b.className = 'tile';
+        const name = S.characters[kind].names[feat][v] + (borrowed ? ' (' + LABEL[kind] + ')' : '');
+        b.title = name;
+        b.setAttribute('aria-label', name);
+        b.appendChild(document.createElement('canvas'));
+        b.addEventListener('click', () => {
+          state.build[state.kind][feat] = { v, borrowed };
+          update();
+        });
+        set.appendChild(b);
+        tiles[feat].push({ b, v, borrowed, kind });
       });
-      row.appendChild(b);
-      return b;
-    });
+      row.appendChild(set);
+    }
     rowsEl.appendChild(row);
   }
 }
@@ -451,12 +474,11 @@ function buildTiles() {
 function paintTiles() {
   const build = state.build[state.kind];
   for (const feat of FEATURES) {
-    const ch = S.characters[sourceOf(feat)];
-    tiles[feat].forEach((b, v) => {
-      const on = build[feat] === v;
-      b.setAttribute('aria-pressed', on);
-      paintTile(b.firstChild, ch.buttons[feat][v][on ? 1 : 0]);
-    });
+    for (const t of tiles[feat]) {
+      const on = build[feat].v === t.v && build[feat].borrowed === t.borrowed;
+      t.b.setAttribute('aria-pressed', on);
+      paintTile(t.b.firstChild, S.characters[t.kind].buttons[feat][t.v][on ? 1 : 0]);
+    }
   }
 }
 
@@ -473,28 +495,49 @@ dice.addEventListener('click', () => {
   update();
 });
 
-// ---- borrowing ---------------------------------------------------------
+// ---- idling ------------------------------------------------------------
 
-// One switch per feature row. On, the row offers the other character's five
-// options and the pick carries over by position, so a Zoombini with the
-// second hair switched to Fleens gets the Fleens' second hair.
-const switches = Object.fromEntries(FEATURES.map(f => {
-  const b = document.querySelector('.borrow button[data-feature="' + f + '"]');
-  b.addEventListener('click', () => {
-    state.borrow[state.kind][f] = !state.borrow[state.kind][f];
-    buildTiles();
-    update();
-  });
-  return [f, b];
-}));
-function paintBorrowSwitches() {
-  const other = LABEL[OTHER[state.kind]];
-  for (const f of FEATURES) {
-    const on = state.borrow[state.kind][f];
-    switches[f].setAttribute('aria-pressed', on);
-    switches[f].title = (on ? 'Back to ' + LABEL[state.kind] + ' ' : 'Use ' + other + ' ') + f;
-  }
+// Stand still for a while, then play one of the character's idle clips,
+// then stand still again - as the game's characters do between moves.
+// Fleen idles never blink, so they get a blink of the page's own.
+const PAGE_BLINK = [[1, 0, 0], [1, 0, 0]];
+const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+let paused = motionQuery.matches;
+let clip = null, clipAt = 0, waitTicks = 15, timer = 0;
+
+function clipsFor(kind) {
+  const own = S.characters[kind].idles;
+  return kind === 'fleen' ? own.concat([PAGE_BLINK, PAGE_BLINK]) : own;
 }
+
+function tick() {
+  if (clip) {
+    [pose.eyes, pose.dx, pose.dy] = clip[clipAt++];
+    if (clipAt >= clip.length) { clip = null; waitTicks = 15 + Math.floor(Math.random() * 30); }
+  } else {
+    Object.assign(pose, { eyes: 0, dx: 0, dy: 0 });
+    if (--waitTicks <= 0) {
+      const clips = clipsFor(state.kind);
+      clip = clips[Math.floor(Math.random() * clips.length)];
+      clipAt = 0;
+    }
+  }
+  drawPreview();
+}
+
+function setPaused(p) {
+  paused = p;
+  clearInterval(timer);
+  clip = null;
+  Object.assign(pose, { eyes: 0, dx: 0, dy: 0 });
+  if (!paused) { waitTicks = 8; timer = setInterval(tick, TICK_MS); }
+  const btn = document.getElementById('btn-motion');
+  btn.textContent = paused ? 'Play' : 'Pause';
+  btn.setAttribute('aria-pressed', paused);
+  drawPreview();
+}
+document.getElementById('btn-motion').addEventListener('click', () => setPaused(!paused));
+motionQuery.addEventListener('change', e => setPaused(e.matches));
 
 // ---- saving and sharing ------------------------------------------------
 
@@ -506,19 +549,19 @@ function say(text) {
   statusTimer = setTimeout(() => { statusEl.textContent = ''; }, 2500);
 }
 
-// The character alone, cropped to its own outline, at 4x on transparency.
+// The character alone at rest, cropped to its own outline, at 4x on
+// transparency.
 document.getElementById('btn-save').addEventListener('click', () => {
   const kind = state.kind, build = state.build[kind];
   const scale = 4, pad = 2 * scale;
-  const borrow = state.borrow[kind];
-  const bb = boundsOf(variantsFor(kind, build, borrow));
+  const bb = boundsOf(variantsFor(kind, build));
   const c = document.createElement('canvas');
   c.width = (bb.r - bb.l) * scale + pad * 2;
   c.height = (bb.b - bb.t) * scale + pad * 2;
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  drawCharacter(ctx, kind, build, borrow, pad - bb.l * scale, pad - bb.t * scale, scale);
-  const slug = FEATURES.map(nameOf).join(' ')
+  drawCharacter(ctx, kind, build, pad - bb.l * scale, pad - bb.t * scale, scale);
+  const slug = FEATURES.map(f => nameOf(f, build[f])).join(' ')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-');
   c.toBlob(blob => {
     if (!blob) { say('Could not make the PNG in this browser.'); return; }
@@ -555,26 +598,27 @@ function switchKind() {
   const title = LABEL[state.kind] + ' Maker';
   document.title = title;
   document.querySelector('h1').textContent = title;
-  document.getElementById('borrow-label').textContent = LABEL[OTHER[state.kind]] + ' parts:';
+  clip = null;
   buildTiles();
   update();
 }
 
 function update() {
-  const described = FEATURES.map(nameOf).join(' · ');
+  const build = state.build[state.kind];
+  const described = FEATURES.map(f => nameOf(f, build[f])).join(' · ');
   document.getElementById('readout').textContent = described;
-  paintBorrowSwitches();
   preview.setAttribute('aria-label', 'A ' + LABEL[state.kind] + ': ' + described);
   paintTiles();
   paintDice();
   drawPreview();
+  fitPreview();
   writeHash();
 }
 
 window.addEventListener('hashchange', () => { readHash(); switchKind(); });
 
 readHash();
-sheet.onload = () => switchKind();
+sheet.onload = () => { switchKind(); setPaused(paused); };
 sheet.src = S.sheet;
 </script>
 </body>
