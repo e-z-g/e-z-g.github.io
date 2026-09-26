@@ -42,11 +42,15 @@
   The page only paints the result (see variantsFor).
 
   The idling is the game's own: its idle scripts for each character, which
-  change nothing but the eyes and where the whole figure stands (glances,
-  blinks, a Fleen's hops). The exporter writes them in terms of what the eyes
-  do - rest, blink, glance - rather than frame numbers, so borrowed eyes
-  blink and glance with their own frames. Fleen idles never blink, so the
-  page adds a blink of its own. Motion stops for prefers-reduced-motion, and
+  change nothing but the eyes, the head's facing, the feet and where the
+  whole figure stands - glances and blinks, a Zoombini turning its head and
+  showing off its feet (tapping sneakers, a bouncing spring, a propeller
+  spinning up), a Fleen's hops. The exporter writes them in terms of what
+  the parts do - rest, blink, glance, facing - rather than frame numbers, so
+  borrowed eyes blink and glance with their own frames, and borrowed parts,
+  having no turned frames, ride along with the turning head. A Fleen on a
+  Zoombini spring, wheels or propeller plays that device's special too.
+  Fleen idles never blink, so the page adds a blink of its own. Motion stops for prefers-reduced-motion, and
   the Pause button stops it anywhere; Save PNG always takes the rest pose.
 
   Why the sprite sheet is a data: URI inside sprites.js rather than a PNG:
@@ -263,6 +267,7 @@ const LABEL = { zoombini: 'Zoombini', fleen: 'Fleen' };
 const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
 const PAD = 3;                               // source pixels around the figure
 const TICK_MS = 100;                         // one script section per tick
+const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1 };
 
 // ---- state -------------------------------------------------------------
 
@@ -326,13 +331,22 @@ function eyeFrame(entry, eyes) {
 // gets its own legs back with a shoe on each, in front of the stalk as its own
 // feet are; and a Fleen on a Zoombini spring, wheels or propeller has it
 // `behind` the stalk, which rests on top.
-function variantsFor(kind, build, eyes = 0) {
+//
+// `pose` is the idle's current tick: the head's facing (0 for the rest one)
+// swaps in a part's turned frame - a borrowed part, having none, its frame
+// moved to where the host's own part sits at that angle - and `feet` >= 0
+// swaps in a special frame, keeping the feet's place around the body.
+function variantsFor(kind, build, pose = REST) {
   const ch = S.characters[kind];
   const out = ch.parts.map(part => {
     const pick = build[part.name];
     let v = part.variants.length === 1 ? part.variants[0]
       : pick.borrowed ? ch.borrowed[part.name][pick.v] : part.variants[pick.v];
-    if (part.name === 'eyes') v = eyeFrame(v, eyes);
+    if (pose.facing && v.facings) v = v.facings[pose.facing];
+    if (part.name === 'eyes') v = eyeFrame(v, pose.eyes);
+    if (part.name === 'feet' && pose.feet >= 0 && v.special) {
+      v = Object.assign({}, v.special[pose.feet], { behind: v.behind, back: v.back });
+    }
     return { name: part.name, v };
   });
   if (build.feet.borrowed) {
@@ -360,15 +374,16 @@ function boundsOf(variants) {
 const maxBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
   const ch = S.characters[kind];
   const all = [];
-  for (const p of ch.parts) {
-    for (const v of p.variants.concat(ch.borrowed[p.name] || [])) {
-      all.push(v);
-      if (v.back) all.push(v.back);
-      if (v.frames) all.push(v.frames.blink, ...v.frames.glance);
-    }
-  }
+  const add = v => {
+    all.push(v);
+    if (v.back) all.push(v.back);
+    if (v.frames) all.push(v.frames.blink, ...v.frames.glance);
+    if (v.facings) Object.values(v.facings).forEach(add);
+    if (v.special) v.special.forEach(add);
+  };
+  for (const p of ch.parts) p.variants.concat(ch.borrowed[p.name] || []).forEach(add);
   const bb = boundsOf(all);
-  for (const clip of ch.idles) {
+  for (const clip of ch.idles.concat(S.characters.zoombini.specials)) {
     for (const [, dx, dy] of clip) {
       bb.l0 = Math.min(bb.l0 ?? 0, dx); bb.r0 = Math.max(bb.r0 ?? 0, dx);
       bb.t0 = Math.min(bb.t0 ?? 0, dy); bb.b0 = Math.max(bb.b0 ?? 0, dy);
@@ -379,15 +394,15 @@ const maxBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
 }));
 
 // Draw with the REGS origin at (ox, oy).
-function drawCharacter(ctx, kind, build, ox, oy, scale = 1, eyes = 0) {
-  for (const v of variantsFor(kind, build, eyes)) {
+function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST) {
+  for (const v of variantsFor(kind, build, pose)) {
     drawSprite(ctx, v.sprite, ox - v.rx * scale, oy - v.ry * scale, scale);
   }
 }
 
 const wrap = document.getElementById('preview-wrap');
 const preview = document.getElementById('preview');
-const pose = { eyes: 0, dx: 0, dy: 0 };      // the idle's current tick
+const pose = Object.assign({}, REST);       // the idle's current tick
 
 function drawPreview() {
   const bb = maxBounds[state.kind];
@@ -401,7 +416,7 @@ function drawPreview() {
   ctx.clearRect(0, 0, w, h);
   if (sheet.complete) {
     drawCharacter(ctx, state.kind, state.build[state.kind],
-                  PAD - bb.l + pose.dx, PAD - bb.t + pose.dy, 1, pose.eyes);
+                  PAD - bb.l + pose.dx, PAD - bb.t + pose.dy, 1, pose);
   }
 }
 
@@ -460,6 +475,7 @@ function buildTiles() {
         b.appendChild(document.createElement('canvas'));
         b.addEventListener('click', () => {
           state.build[state.kind][feat] = { v, borrowed };
+          endClip();
           update();
         });
         set.appendChild(b);
@@ -492,30 +508,47 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
 }
 dice.addEventListener('click', () => {
   state.build[state.kind] = randomBuild();
+  endClip();
   update();
 });
 
 // ---- idling ------------------------------------------------------------
 
 // Stand still for a while, then play one of the character's idle clips,
-// then stand still again - as the game's characters do between moves.
-// Fleen idles never blink, so they get a blink of the page's own.
-const PAGE_BLINK = [[1, 0, 0], [1, 0, 0]];
+// then stand still again - as the game's characters do between moves. A
+// Zoombini in its own feet sometimes shows them off (its feet's special); so
+// does a Fleen standing on a Zoombini spring, wheels or propeller, which plays
+// the same feet frames and keeps its own head still. Fleen idles never blink,
+// so they get a blink of the page's own.
+const PAGE_BLINK = [[1, 0, 0, 0, -1], [1, 0, 0, 0, -1]];
+const SPECIAL_WEIGHT = 3;                    // shown off about a quarter of the time
 const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 let paused = motionQuery.matches;
 let clip = null, clipAt = 0, waitTicks = 15, timer = 0;
 
 function clipsFor(kind) {
-  const own = S.characters[kind].idles;
-  return kind === 'fleen' ? own.concat([PAGE_BLINK, PAGE_BLINK]) : own;
+  const ch = S.characters[kind];
+  const feet = state.build[kind].feet;
+  const clips = kind === 'fleen' ? ch.idles.concat([PAGE_BLINK, PAGE_BLINK]) : ch.idles.slice();
+  let special = null;
+  if (kind === 'zoombini' && !feet.borrowed) {
+    special = ch.specials[feet.v];
+  } else if (kind === 'fleen' && feet.borrowed && ch.borrowed.feet[feet.v].special) {
+    // the Fleen's head stays put; the special's opening tick, which faces a
+    // Zoombini (and its device) towards the viewer, is left out
+    special = S.characters.zoombini.specials[feet.v]
+      .filter(t => t[3] !== 1).map(([, dx, dy, , f]) => [0, dx, dy, 0, f]);
+  }
+  for (let i = 0; special && i < SPECIAL_WEIGHT; i++) clips.push(special);
+  return clips;
 }
 
 function tick() {
   if (clip) {
-    [pose.eyes, pose.dx, pose.dy] = clip[clipAt++];
+    [pose.eyes, pose.dx, pose.dy, pose.facing, pose.feet] = clip[clipAt++];
     if (clipAt >= clip.length) { clip = null; waitTicks = 15 + Math.floor(Math.random() * 30); }
   } else {
-    Object.assign(pose, { eyes: 0, dx: 0, dy: 0 });
+    Object.assign(pose, REST);
     if (--waitTicks <= 0) {
       const clips = clipsFor(state.kind);
       clip = clips[Math.floor(Math.random() * clips.length)];
@@ -525,11 +558,20 @@ function tick() {
   drawPreview();
 }
 
+// A clip belongs to the build it started on - a special is one pair of
+// feet's - so a new pick ends it and returns to the rest pose.
+function endClip() {
+  if (!clip) return;
+  clip = null;
+  Object.assign(pose, REST);
+  waitTicks = 15;
+}
+
 function setPaused(p) {
   paused = p;
   clearInterval(timer);
   clip = null;
-  Object.assign(pose, { eyes: 0, dx: 0, dy: 0 });
+  Object.assign(pose, REST);
   if (!paused) { waitTicks = 8; timer = setInterval(tick, TICK_MS); }
   const btn = document.getElementById('btn-motion');
   btn.textContent = paused ? 'Play' : 'Pause';
