@@ -61,6 +61,11 @@
   Fleen idles never blink, so the page adds a blink of its own. Motion stops for prefers-reduced-motion, and
   the Pause button stops it anywhere; Save PNG always takes the rest pose.
 
+  Names come from the game's own generator (ZOOMBINI.EXE seg26:1f26, run for
+  every Zoombini it makes), ported letter for letter - see makeName(). A new
+  name comes with the dice or a click on the name; picking one feature keeps
+  it. The game writes names lowercase; the page capitalises them to show.
+
   Why the sprite sheet is a data: URI inside sprites.js rather than a PNG:
   so "Save PNG" works when the page is opened from file://. A canvas that has
   drawn a file:// image is tainted and toBlob() throws.
@@ -214,6 +219,17 @@
     font-size: 0.95rem;
     min-height: 1.4em;
   }
+  .name-btn {
+    font: inherit;
+    font-weight: 700;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0 2px;
+    cursor: pointer;
+  }
+  .name-btn:hover .name { text-decoration: underline dotted; }
+  .name-btn .again { color: var(--muted); font-weight: 400; font-size: 0.85em; }
   .text-btn {
     font: inherit;
     font-size: 0.85rem;
@@ -270,7 +286,7 @@
         <button class="text-btn" id="btn-walk">Walk</button>
         <button class="text-btn" id="btn-motion" aria-pressed="false">Pause</button>
       </div>
-      <p class="readout" id="readout" aria-live="polite"></p>
+      <p class="readout"><button class="name-btn" id="btn-name" title="New name"><span class="name" id="name"></span> <span class="again" aria-hidden="true">&#x21bb;</span></button> <span id="readout" aria-live="polite"></span></p>
     </div>
 
     <section class="box" aria-label="Features">
@@ -303,10 +319,48 @@ const PAD = 3;                               // source pixels around the figure
 const TICK_MS = 100;                         // one script section per tick
 const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null, faces: null };
 // A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar,
-// device, profile] - each part's pose (-1 rest), how far each borrowed foot
+// device, away] - each part's pose (-1 rest), how far each borrowed foot
 // is lifted, the frame of a borrowed device (-1 none), and 1 when the head is
 // turned away from the viewer. See walk_clip() in the exporter.
 const WALK_PARTS = ['feet', 'body', 'nose', 'eyes', 'hair'];
+
+// ---- names -------------------------------------------------------------
+
+// The game's name generator (ZOOMBINI.EXE seg26:1f26), with its tables
+// (far-data segments 89-92). Vowels and consonants alternate up to a length
+// of 4-8, starting with a vowel 39% of the time. A vowel is drawn from
+// VOWEL_UNITS, which weights the single letters and adds pairs. A consonant
+// is a single letter (from the weighted CONSONANTS) only as the first or
+// second letter, and then two times in three; otherwise, and always later
+// in the name, it is a cluster. A cluster that reaches the length has its
+// second letter redrawn from VOWELS, so every name ends in a vowel, and a
+// doubled start ("ee", "oo", "nn") is cut to one letter. The game's random
+// numbers are inclusive at both ends, as between() is.
+const VOWEL_UNITS = ['a', 'a', 'a', 'e', 'e', 'e', 'e', 'i', 'i', 'i', 'o', 'o', 'o', 'u', 'u', 'y',
+  'ee', 'oo', 'yo', 'ya', 'ye', 'ei', 'ie', 'ai', 'ia', 'au', 'ua', 'uo', 'ou', 'ae', 'ea'];
+const CONSONANTS = 'bbccdddfghjkkllmmnnprrssssttvwxz';
+const VOWELS = 'aeiouy';
+const CLUSTERS = ['bl', 'br', 'ch', 'cl', 'cr', 'dr', 'dw', 'fl', 'fr', 'gh', 'gl', 'gr', 'kl', 'kn',
+  'kr', 'kw', 'ld', 'mp', 'nd', 'nh', 'nn', 'ph', 'pl', 'pr', 'qu', 'qu', 'rh', 'rn', 'sc', 'sl',
+  'sm', 'sn', 'sp', 'sr', 'st', 'sw', 'th', 'tr', 'tw', 'wr'];
+const between = (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1));
+const drawFrom = list => list[between(1, list.length) - 1];
+function makeName() {
+  const length = between(4, 8);
+  let vowel = between(1, 100) < 40;
+  let name = '';
+  while (name.length < length) {
+    let cluster = false;
+    if (vowel) name += drawFrom(VOWEL_UNITS);
+    else if (name.length > 1 || between(1, 100) <= 33) { name += drawFrom(CLUSTERS); cluster = true; }
+    else name += drawFrom(CONSONANTS);
+    vowel = !vowel;
+    if (cluster && name.length >= length) name = name.slice(0, -1) + drawFrom(VOWELS);
+    if (name.length === 2 && name[0] === name[1]) name = name[0];
+  }
+  return name;
+}
+const shownName = name => name[0].toUpperCase() + name.slice(1);
 
 // ---- state -------------------------------------------------------------
 
@@ -319,18 +373,21 @@ const plainBuild = () => Object.fromEntries(FEATURES.map(f => [f, { v: Math.floo
 const state = {
   kind: 'zoombini',
   build: { zoombini: plainBuild(), fleen: plainBuild() },
+  name: { zoombini: makeName(), fleen: makeName() },
 };
 
 // The build lives in the address, so a link shows the same character:
-// #zoombini-2031 is hair 2, eyes 0, nose 3, feet 1, and a letter marks a
-// feature borrowed from the other character - #zoombini-2d31 has the other's
-// eyes number 3 (a = 0).
+// #zoombini-2031-oplie is hair 2, eyes 0, nose 3, feet 1, named Oplie, and a
+// letter marks a feature borrowed from the other character - #zoombini-2d31
+// has the other's eyes number 3 (a = 0). Links from before names keep
+// working, with a new name.
 const codeOf = build => FEATURES.map(f =>
   build[f].borrowed ? 'abcde'[build[f].v] : String(build[f].v)).join('');
 function readHash() {
-  const m = /^#(zoombini|fleen)(?:-([0-4a-e]{4}))?$/.exec(location.hash);
+  const m = /^#(zoombini|fleen)(?:-([0-4a-e]{4}))?(?:-([a-z]{1,12}))?$/.exec(location.hash);
   if (!m) return;
   state.kind = m[1];
+  if (m[3]) state.name[m[1]] = m[3];
   if (!m[2]) return;
   FEATURES.forEach((f, i) => {
     const c = m[2][i], letter = c >= 'a';
@@ -338,7 +395,7 @@ function readHash() {
   });
 }
 function writeHash() {
-  const hash = '#' + state.kind + '-' + codeOf(state.build[state.kind]);
+  const hash = '#' + state.kind + '-' + codeOf(state.build[state.kind]) + '-' + state.name[state.kind];
   if (location.hash !== hash) history.replaceState(null, '', hash);
 }
 
@@ -614,7 +671,12 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
 }
 dice.addEventListener('click', () => {
   state.build[state.kind] = randomBuild();
+  state.name[state.kind] = makeName();
   endClip();
+  update();
+});
+document.getElementById('btn-name').addEventListener('click', () => {
+  state.name[state.kind] = makeName();
   update();
 });
 
@@ -733,13 +795,11 @@ document.getElementById('btn-save').addEventListener('click', () => {
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   drawCharacter(ctx, kind, build, pad - bb.l * scale, pad - bb.t * scale, scale);
-  const slug = FEATURES.map(f => nameOf(f, build[f])).join(' ')
-    .toLowerCase().replace(/[^a-z0-9]+/g, '-');
   c.toBlob(blob => {
     if (!blob) { say('Could not make the PNG in this browser.'); return; }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = kind + '-' + slug + '.png';
+    a.download = state.name[kind] + '-' + kind + '.png';
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -779,8 +839,10 @@ function switchKind() {
 function update() {
   const build = state.build[state.kind];
   const described = FEATURES.map(f => nameOf(f, build[f])).join(' · ');
+  const name = shownName(state.name[state.kind]);
+  document.getElementById('name').textContent = name;
   document.getElementById('readout').textContent = described;
-  preview.setAttribute('aria-label', 'A ' + LABEL[state.kind] + ': ' + described);
+  preview.setAttribute('aria-label', name + ', a ' + LABEL[state.kind] + ': ' + described);
   paintTiles();
   paintDice();
   layoutPreview();
