@@ -30,6 +30,14 @@
   moves - hair and feet are lopsided, and re-centring on every click makes
   the whole figure jump.
 
+  Either character can wear the other's parts: the switches above the tiles
+  turn a row over to the other character's five. The fitting is done by the
+  exporter, not here - the part's skin recoloured to the host's (a Fleen's
+  legs belong to its feet, a Zoombini's eyelids to its eyes), mirrored
+  because a Zoombini faces right and a Fleen left, and re-anchored to the
+  host's head top, body bottom, or its own eye and nose spots. The page only
+  paints the result, with borrowed feet over the body (see variantsFor).
+
   Why the sprite sheet is a data: URI inside sprites.js rather than a PNG:
   so "Save PNG" works when the page is opened from file://. A canvas that has
   drawn a file:// image is tainted and toBlob() throws.
@@ -133,6 +141,36 @@
     max-width: 460px;
     justify-self: center;
   }
+  .borrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0 0 12px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .borrow span { margin-right: 2px; }
+  /* Too narrow for the label and all four switches: label above, switches together. */
+  @media (max-width: 420px) {
+    .borrow span { flex-basis: 100%; text-align: center; margin: 0; }
+  }
+  .borrow button {
+    font: inherit;
+    color: var(--text);
+    background: #3a332c;
+    border: 1px solid var(--panel-edge);
+    border-radius: 999px;
+    padding: 3px 11px;
+    cursor: pointer;
+  }
+  .borrow button[aria-pressed="true"] {
+    color: #1b1712;
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .borrow button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .rows { display: grid; gap: 6px; }
   .row {
     display: grid;
@@ -205,6 +243,13 @@
     </div>
 
     <section class="box" aria-label="Features">
+      <div class="borrow" role="group" aria-labelledby="borrow-label">
+        <span id="borrow-label">Fleen parts:</span>
+        <button data-feature="hair" aria-pressed="false">Hair</button>
+        <button data-feature="eyes" aria-pressed="false">Eyes</button>
+        <button data-feature="nose" aria-pressed="false">Nose</button>
+        <button data-feature="feet" aria-pressed="false">Feet</button>
+      </div>
       <div class="rows" id="rows"></div>
       <p class="readout" id="readout" aria-live="polite"></p>
       <div class="actions">
@@ -234,25 +279,38 @@ const PAD = 3;                               // source pixels around the figure
 
 // ---- state -------------------------------------------------------------
 
+const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
+const noBorrowing = () => Object.fromEntries(FEATURES.map(f => [f, false]));
 const randomBuild = () => Object.fromEntries(FEATURES.map(f => [f, Math.floor(Math.random() * 5)]));
-const codeOf = build => FEATURES.map(f => build[f]).join('');
-const buildOf = code => Object.fromEntries(FEATURES.map((f, i) => [f, +code[i]]));
 
+// build[kind] holds a variant per feature; borrow[kind] says which features
+// come from the other character instead.
 const state = {
   kind: 'zoombini',
   build: { zoombini: randomBuild(), fleen: randomBuild() },
+  borrow: { zoombini: noBorrowing(), fleen: noBorrowing() },
 };
 
 // The build lives in the address, so a link shows the same character:
-// #zoombini-2031 is hair 2, eyes 0, nose 3, feet 1.
+// #zoombini-2031 is hair 2, eyes 0, nose 3, feet 1, and a letter marks a
+// feature borrowed from the other character - #zoombini-2d31 has the other's
+// eyes number 3 (a = 0). Links from before borrowing are all digits and still
+// mean what they did.
+const codeOf = (build, borrow) => FEATURES.map(f =>
+  borrow[f] ? 'abcde'[build[f]] : String(build[f])).join('');
 function readHash() {
-  const m = /^#(zoombini|fleen)(?:-([0-4]{4}))?$/.exec(location.hash);
+  const m = /^#(zoombini|fleen)(?:-([0-4a-e]{4}))?$/.exec(location.hash);
   if (!m) return;
   state.kind = m[1];
-  if (m[2]) state.build[m[1]] = buildOf(m[2]);
+  if (!m[2]) return;
+  FEATURES.forEach((f, i) => {
+    const c = m[2][i], letter = c >= 'a';
+    state.borrow[m[1]][f] = letter;
+    state.build[m[1]][f] = letter ? c.charCodeAt(0) - 97 : +c;
+  });
 }
 function writeHash() {
-  const hash = '#' + state.kind + '-' + codeOf(state.build[state.kind]);
+  const hash = '#' + state.kind + '-' + codeOf(state.build[state.kind], state.borrow[state.kind]);
   if (location.hash !== hash) history.replaceState(null, '', hash);
 }
 
@@ -266,9 +324,25 @@ function drawSprite(ctx, index, x, y, scale = 1) {
   ctx.drawImage(sheet, sx, sy, w, h, x, y, w * scale, h * scale);
 }
 
-function variantsFor(kind, build) {
-  return S.characters[kind].parts.map(part =>
-    part.variants.length === 1 ? part.variants[0] : part.variants[build[part.name]]);
+// The sprites to paint, in order. A borrowed part comes ready-fitted from the
+// exporter (recoloured, mirrored, re-anchored) and takes its feature's place,
+// except borrowed feet, which are painted straight over the body: a Fleen's
+// feet are drawn to sit in front of its stalk, and either kind's joint to a
+// body it was not drawn for is best hidden. (A Zoombini paints its own feet
+// under the egg, so for it this moves them; a Fleen's slot is already there.)
+function variantsFor(kind, build, borrow) {
+  const ch = S.characters[kind];
+  const out = ch.parts.map(part =>
+    borrow[part.name] ? { name: part.name, v: ch.borrowed[part.name][build[part.name]] }
+      : { name: part.name, v: part.variants.length === 1 ? part.variants[0] : part.variants[build[part.name]] });
+  if (borrow.feet) {
+    const feet = out.findIndex(p => p.name === 'feet');
+    if (feet < out.findIndex(p => p.name === 'body')) {
+      const [f] = out.splice(feet, 1);
+      out.splice(out.findIndex(p => p.name === 'body') + 1, 0, f);
+    }
+  }
+  return out.map(p => p.v);
 }
 
 // A box relative to the REGS origin around the given variants.
@@ -281,13 +355,16 @@ function boundsOf(variants) {
   }
   return { l, t, r, b };
 }
-// The box every build of a kind fits in: the preview's size.
-const maxBounds = Object.fromEntries(Object.keys(LABEL).map(kind =>
-  [kind, boundsOf(S.characters[kind].parts.flatMap(p => p.variants))]));
+// The box every build fits in, given which rows are borrowed: the preview's
+// size. It only changes when a row is switched, never on a pick within a row.
+function maxBounds(kind, borrow) {
+  const ch = S.characters[kind];
+  return boundsOf(ch.parts.flatMap(p => borrow[p.name] ? ch.borrowed[p.name] : p.variants));
+}
 
 // Draw with the REGS origin at (ox, oy); parts come in draw order.
-function drawCharacter(ctx, kind, build, ox, oy, scale = 1) {
-  for (const v of variantsFor(kind, build)) {
+function drawCharacter(ctx, kind, build, borrow, ox, oy, scale = 1) {
+  for (const v of variantsFor(kind, build, borrow)) {
     drawSprite(ctx, v.sprite, ox - v.rx * scale, oy - v.ry * scale, scale);
   }
 }
@@ -296,13 +373,14 @@ const wrap = document.getElementById('preview-wrap');
 const preview = document.getElementById('preview');
 
 function drawPreview() {
-  const bb = maxBounds[state.kind];
+  const bb = maxBounds(state.kind, state.borrow[state.kind]);
   const w = bb.r - bb.l + PAD * 2, h = bb.b - bb.t + PAD * 2;
   if (preview.width !== w || preview.height !== h) { preview.width = w; preview.height = h; }
   const ctx = preview.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, w, h);
-  if (sheet.complete) drawCharacter(ctx, state.kind, state.build[state.kind], PAD - bb.l, PAD - bb.t);
+  if (sheet.complete) drawCharacter(ctx, state.kind, state.build[state.kind],
+                                    state.borrow[state.kind], PAD - bb.l, PAD - bb.t);
   fitPreview();
 }
 
@@ -336,11 +414,15 @@ function paintTile(canvas, index) {
 const rowsEl = document.getElementById('rows');
 let tiles = {};                                   // feature -> [button, ...]
 
+// Which character a row's options come from: its own, or the other's.
+const sourceOf = feat => state.borrow[state.kind][feat] ? OTHER[state.kind] : state.kind;
+const nameOf = feat => S.characters[sourceOf(feat)].names[feat][state.build[state.kind][feat]];
+
 function buildTiles() {
-  const ch = S.characters[state.kind];
   rowsEl.textContent = '';
   tiles = {};
   for (const feat of FEATURES) {
+    const ch = S.characters[sourceOf(feat)];
     const row = document.createElement('div');
     row.className = 'row';
     row.setAttribute('role', 'group');
@@ -363,9 +445,9 @@ function buildTiles() {
 }
 
 function paintTiles() {
-  const ch = S.characters[state.kind];
   const build = state.build[state.kind];
   for (const feat of FEATURES) {
+    const ch = S.characters[sourceOf(feat)];
     tiles[feat].forEach((b, v) => {
       const on = build[feat] === v;
       b.setAttribute('aria-pressed', on);
@@ -387,6 +469,29 @@ dice.addEventListener('click', () => {
   update();
 });
 
+// ---- borrowing ---------------------------------------------------------
+
+// One switch per feature row. On, the row offers the other character's five
+// options and the pick carries over by position, so a Zoombini with the
+// second hair switched to Fleens gets the Fleens' second hair.
+const switches = Object.fromEntries(FEATURES.map(f => {
+  const b = document.querySelector('.borrow button[data-feature="' + f + '"]');
+  b.addEventListener('click', () => {
+    state.borrow[state.kind][f] = !state.borrow[state.kind][f];
+    buildTiles();
+    update();
+  });
+  return [f, b];
+}));
+function paintBorrowSwitches() {
+  const other = LABEL[OTHER[state.kind]];
+  for (const f of FEATURES) {
+    const on = state.borrow[state.kind][f];
+    switches[f].setAttribute('aria-pressed', on);
+    switches[f].title = (on ? 'Back to ' + LABEL[state.kind] + ' ' : 'Use ' + other + ' ') + f;
+  }
+}
+
 // ---- saving and sharing ------------------------------------------------
 
 const statusEl = document.getElementById('status');
@@ -401,15 +506,15 @@ function say(text) {
 document.getElementById('btn-save').addEventListener('click', () => {
   const kind = state.kind, build = state.build[kind];
   const scale = 4, pad = 2 * scale;
-  const bb = boundsOf(variantsFor(kind, build));
+  const borrow = state.borrow[kind];
+  const bb = boundsOf(variantsFor(kind, build, borrow));
   const c = document.createElement('canvas');
   c.width = (bb.r - bb.l) * scale + pad * 2;
   c.height = (bb.b - bb.t) * scale + pad * 2;
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  drawCharacter(ctx, kind, build, pad - bb.l * scale, pad - bb.t * scale, scale);
-  const names = S.characters[kind].names;
-  const slug = FEATURES.map(f => names[f][build[f]]).join(' ')
+  drawCharacter(ctx, kind, build, borrow, pad - bb.l * scale, pad - bb.t * scale, scale);
+  const slug = FEATURES.map(nameOf).join(' ')
     .toLowerCase().replace(/[^a-z0-9]+/g, '-');
   c.toBlob(blob => {
     if (!blob) { say('Could not make the PNG in this browser.'); return; }
@@ -446,15 +551,15 @@ function switchKind() {
   const title = LABEL[state.kind] + ' Maker';
   document.title = title;
   document.querySelector('h1').textContent = title;
+  document.getElementById('borrow-label').textContent = LABEL[OTHER[state.kind]] + ' parts:';
   buildTiles();
   update();
 }
 
 function update() {
-  const build = state.build[state.kind];
-  const names = S.characters[state.kind].names;
-  const described = FEATURES.map(f => names[f][build[f]]).join(' · ');
+  const described = FEATURES.map(nameOf).join(' · ');
   document.getElementById('readout').textContent = described;
+  paintBorrowSwitches();
   preview.setAttribute('aria-label', 'A ' + LABEL[state.kind] + ': ' + described);
   paintTiles();
   paintDice();
