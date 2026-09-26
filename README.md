@@ -33,7 +33,7 @@ Web tools and interactive experiments: <https://e-z-g.github.io/>
 |---|---|
 | [Cythera Data Viewer](https://e-z-g.github.io/cythera/explorer.html) | [Cythera Mobile](https://e-z-g.github.io/cythera/mobile.html) |
 | [ColorCycleCanvas](https://e-z-g.github.io/cythera/canvas.html) | |
-| [JumpStart 4th Grade Player](https://e-z-g.github.io/infj4.html) | |
+| [JumpStart 4th Grade Player](https://e-z-g.github.io/infj4.html) | [Zoombini Maker](https://e-z-g.github.io/zoombinis/) |
 
 ## Local preview
 
@@ -52,6 +52,7 @@ Then open <http://localhost:8000/>.
 - `ev/` — star/planet viewer assets
 - `fpqr/` — QR encoder assets
 - `wine/` — VinoVision assets
+- `zoombinis/` — Zoombini Maker (its `sprites.js` is generated from the game data)
 - `*.html` — standalone tools
 
 The Cythera and retro-Mac tools are their own repository —

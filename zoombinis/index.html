@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zoombini Maker</title>
+<!--
+  Zoombini Maker - build a Zoombini (or a Fleen) the way the 1996 game's
+  Zoombini Isle screen does: four rows of five feature tiles and a dice for a
+  random one.
+
+  Where the pieces come from. Everything drawn here is the game's own art,
+  pulled out of its Mohawk archives by tools/export_web.py in the separate
+  zoombinis extraction project, which writes sprites.js next to this file.
+  Do not hand-edit sprites.js; re-run that.
+
+  - The characters are assembled from the in-game atlases (ZOOMBINI tBMP
+    3000, FLEENS tBMP 4000), one rest pose per part variant, each with its
+    REGS anchor. Every part is drawn at (origin - anchor), which is how the
+    game lines them up. The maker screen has its own large parts (PICKER
+    tBMP 4300) but no anchors for them - where the game puts those is in the
+    EXE - so they are not used: guessing offsets would put noses on cheeks.
+  - The Zoombini tiles are the maker screen's real buttons (PICKER tBMP
+    4400), in the same variant order as the atlas. The game has no Fleen
+    maker; the Fleen tiles are made by the exporter in the same style. The
+    dice is PICKER tBMP 4200.
+
+  The character is drawn with its origin fixed in the preview, not centred
+  on its own outline, so the body stays put and only the feature you change
+  moves - hair and feet are lopsided, and re-centring on every click makes
+  the whole figure jump.
+
+  Why the sprite sheet is a data: URI inside sprites.js rather than a PNG:
+  so "Save PNG" works when the page is opened from file://. A canvas that has
+  drawn a file:// image is tainted and toBlob() throws.
+
+  Pixel art is only ever scaled by whole numbers - the preview picks the
+  largest integer CSS scale that fits, and image-rendering: pixelated does
+  the rest - so every source pixel stays square.
+-->
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0e1220;
+    --panel: #26221e;
+    --panel-edge: #4b4238;
+    --panel-hi: #5d5246;
+    --text: #e8e2d6;
+    --muted: #9a917f;
+    --accent: #f0c060;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: sans-serif;
+    line-height: 1.4;
+  }
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 20px;
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin: 0;
+    color: #fff;
+  }
+  .tabs { display: flex; gap: 6px; }
+  .tabs button {
+    font: inherit;
+    font-size: 0.95rem;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--panel-edge);
+    border-radius: 999px;
+    padding: 4px 14px;
+    cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] {
+    color: #1b1712;
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .tabs button:focus-visible, .tile:focus-visible, .ctl:focus-visible, .text-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 20px;
+    align-items: stretch;
+  }
+  /* On a narrow screen the character comes first, then the box under it. */
+  @media (max-width: 820px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 240px;
+    padding: 16px;
+    border-radius: 10px;
+    background: radial-gradient(ellipse at 50% 60%, #2b3350 0%, #161b2e 70%);
+    overflow: hidden;
+  }
+  #preview {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  /* The feature box: a stone slab, as the game's lower-left box is. */
+  .box {
+    background: var(--panel);
+    border: 2px solid var(--panel-edge);
+    border-top-color: var(--panel-hi);
+    border-radius: 10px;
+    padding: 14px;
+    width: 100%;
+    max-width: 460px;
+    justify-self: center;
+  }
+  .rows { display: grid; gap: 6px; }
+  .row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 80px));
+    gap: 6px;
+    justify-content: center;
+  }
+  .tile, .ctl {
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    border-radius: 6px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tile canvas, .ctl canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: pixelated;
+  }
+  .tile canvas { aspect-ratio: 40 / 43; }
+  .ctl { width: 108px; }
+  .ctl canvas { aspect-ratio: 54 / 39; }
+
+  .readout {
+    margin: 14px 0 0;
+    text-align: center;
+    font-size: 0.95rem;
+    min-height: 1.4em;
+  }
+  .actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .text-btn {
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--text);
+    background: #3a332c;
+    border: 1px solid var(--panel-edge);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .text-btn:hover { background: #463d34; }
+  .status { color: var(--muted); font-size: 0.8rem; text-align: center; min-height: 1.2em; margin: 8px 0 0; }
+
+  footer { color: var(--muted); font-size: 0.8rem; margin-top: 28px; }
+  footer a { color: #7eb8f7; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Zoombini Maker</h1>
+    <div class="tabs" role="tablist" aria-label="Character">
+      <button role="tab" data-kind="zoombini" aria-selected="true">Zoombinis</button>
+      <button role="tab" data-kind="fleen" aria-selected="false">Fleens</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="preview" id="preview-wrap">
+      <canvas id="preview" role="img"></canvas>
+    </div>
+
+    <section class="box" aria-label="Features">
+      <div class="rows" id="rows"></div>
+      <p class="readout" id="readout" aria-live="polite"></p>
+      <div class="actions">
+        <button class="ctl" id="btn-random" title="Random features" aria-label="Random features"><canvas width="54" height="39"></canvas></button>
+        <button class="text-btn" id="btn-save">Save PNG</button>
+        <button class="text-btn" id="btn-link">Copy link</button>
+      </div>
+      <p class="status" id="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <footer>
+    Art from <i>The Logical Journey of the Zoombinis</i> (Broderbund, 1996), taken
+    from the game's data files. A fan-made toy, not affiliated with the game's makers.
+    <a href="../">More tools</a>.
+  </footer>
+</div>
+
+<script src="sprites.js"></script>
+<script>
+'use strict';
+
+const S = window.ZOOMBINI_SPRITES;
+const FEATURES = S.features;                 // ['hair', 'eyes', 'nose', 'feet']
+const LABEL = { zoombini: 'Zoombini', fleen: 'Fleen' };
+const PAD = 3;                               // source pixels around the figure
+
+// ---- state -------------------------------------------------------------
+
+const randomBuild = () => Object.fromEntries(FEATURES.map(f => [f, Math.floor(Math.random() * 5)]));
+const codeOf = build => FEATURES.map(f => build[f]).join('');
+const buildOf = code => Object.fromEntries(FEATURES.map((f, i) => [f, +code[i]]));
+
+const state = {
+  kind: 'zoombini',
+  build: { zoombini: randomBuild(), fleen: randomBuild() },
+};
+
+// The build lives in the address, so a link shows the same character:
+// #zoombini-2031 is hair 2, eyes 0, nose 3, feet 1.
+function readHash() {
+  const m = /^#(zoombini|fleen)(?:-([0-4]{4}))?$/.exec(location.hash);
+  if (!m) return;
+  state.kind = m[1];
+  if (m[2]) state.build[m[1]] = buildOf(m[2]);
+}
+function writeHash() {
+  const hash = '#' + state.kind + '-' + codeOf(state.build[state.kind]);
+  if (location.hash !== hash) history.replaceState(null, '', hash);
+}
+
+// ---- drawing -----------------------------------------------------------
+
+const sheet = new Image();
+const rect = i => S.rects[i];
+
+function drawSprite(ctx, index, x, y, scale = 1) {
+  const [sx, sy, w, h] = rect(index);
+  ctx.drawImage(sheet, sx, sy, w, h, x, y, w * scale, h * scale);
+}
+
+function variantsFor(kind, build) {
+  return S.characters[kind].parts.map(part =>
+    part.variants.length === 1 ? part.variants[0] : part.variants[build[part.name]]);
+}
+
+// A box relative to the REGS origin around the given variants.
+function boundsOf(variants) {
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  for (const v of variants) {
+    const [, , w, h] = rect(v.sprite);
+    l = Math.min(l, -v.rx); t = Math.min(t, -v.ry);
+    r = Math.max(r, -v.rx + w); b = Math.max(b, -v.ry + h);
+  }
+  return { l, t, r, b };
+}
+// The box every build of a kind fits in: the preview's size.
+const maxBounds = Object.fromEntries(Object.keys(LABEL).map(kind =>
+  [kind, boundsOf(S.characters[kind].parts.flatMap(p => p.variants))]));
+
+// Draw with the REGS origin at (ox, oy); parts come in draw order.
+function drawCharacter(ctx, kind, build, ox, oy, scale = 1) {
+  for (const v of variantsFor(kind, build)) {
+    drawSprite(ctx, v.sprite, ox - v.rx * scale, oy - v.ry * scale, scale);
+  }
+}
+
+const wrap = document.getElementById('preview-wrap');
+const preview = document.getElementById('preview');
+
+function drawPreview() {
+  const bb = maxBounds[state.kind];
+  const w = bb.r - bb.l + PAD * 2, h = bb.b - bb.t + PAD * 2;
+  if (preview.width !== w || preview.height !== h) { preview.width = w; preview.height = h; }
+  const ctx = preview.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, w, h);
+  if (sheet.complete) drawCharacter(ctx, state.kind, state.build[state.kind], PAD - bb.l, PAD - bb.t);
+  fitPreview();
+}
+
+// The largest whole-number scale that fits the panel. Beside the box it
+// matches the box's height - not the panel's own, which grows with the
+// canvas and would feed back into itself; on a phone it leaves room below
+// for the tiles.
+const box = document.querySelector('.box');
+function fitPreview() {
+  const cs = getComputedStyle(wrap);
+  const availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const narrow = window.matchMedia('(max-width: 820px)').matches;
+  const availH = narrow ? window.innerHeight * 0.42 : Math.max(box.offsetHeight - 32, 300);
+  const s = Math.max(1, Math.floor(Math.min(availW / preview.width, availH / preview.height)));
+  preview.style.width = preview.width * s + 'px';
+  preview.style.height = preview.height * s + 'px';
+}
+new ResizeObserver(fitPreview).observe(wrap);
+
+function paintTile(canvas, index) {
+  const [, , w, h] = rect(index);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, w, h);
+  drawSprite(ctx, index, 0, 0);
+}
+
+// ---- the feature box ---------------------------------------------------
+
+const rowsEl = document.getElementById('rows');
+let tiles = {};                                   // feature -> [button, ...]
+
+function buildTiles() {
+  const ch = S.characters[state.kind];
+  rowsEl.textContent = '';
+  tiles = {};
+  for (const feat of FEATURES) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.setAttribute('role', 'group');
+    row.setAttribute('aria-label', feat[0].toUpperCase() + feat.slice(1));
+    tiles[feat] = ch.buttons[feat].map((pair, v) => {
+      const b = document.createElement('button');
+      b.className = 'tile';
+      b.title = ch.names[feat][v];
+      b.setAttribute('aria-label', ch.names[feat][v]);
+      b.appendChild(document.createElement('canvas'));
+      b.addEventListener('click', () => {
+        state.build[state.kind][feat] = v;
+        update();
+      });
+      row.appendChild(b);
+      return b;
+    });
+    rowsEl.appendChild(row);
+  }
+}
+
+function paintTiles() {
+  const ch = S.characters[state.kind];
+  const build = state.build[state.kind];
+  for (const feat of FEATURES) {
+    tiles[feat].forEach((b, v) => {
+      const on = build[feat] === v;
+      b.setAttribute('aria-pressed', on);
+      paintTile(b.firstChild, ch.buttons[feat][v][on ? 1 : 0]);
+    });
+  }
+}
+
+// The dice shows its pressed art while held, as in the game.
+const dice = document.getElementById('btn-random');
+let diceHeld = false;
+function paintDice() { paintTile(dice.firstChild, S.controls.random[diceHeld ? 1 : 0]); }
+dice.addEventListener('pointerdown', () => { diceHeld = true; paintDice(); });
+for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
+  dice.addEventListener(ev, () => { if (diceHeld) { diceHeld = false; paintDice(); } });
+}
+dice.addEventListener('click', () => {
+  state.build[state.kind] = randomBuild();
+  update();
+});
+
+// ---- saving and sharing ------------------------------------------------
+
+const statusEl = document.getElementById('status');
+let statusTimer = 0;
+function say(text) {
+  statusEl.textContent = text;
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => { statusEl.textContent = ''; }, 2500);
+}
+
+// The character alone, cropped to its own outline, at 4x on transparency.
+document.getElementById('btn-save').addEventListener('click', () => {
+  const kind = state.kind, build = state.build[kind];
+  const scale = 4, pad = 2 * scale;
+  const bb = boundsOf(variantsFor(kind, build));
+  const c = document.createElement('canvas');
+  c.width = (bb.r - bb.l) * scale + pad * 2;
+  c.height = (bb.b - bb.t) * scale + pad * 2;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  drawCharacter(ctx, kind, build, pad - bb.l * scale, pad - bb.t * scale, scale);
+  const names = S.characters[kind].names;
+  const slug = FEATURES.map(f => names[f][build[f]]).join(' ')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  c.toBlob(blob => {
+    if (!blob) { say('Could not make the PNG in this browser.'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = kind + '-' + slug + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }, 'image/png');
+});
+
+document.getElementById('btn-link').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(location.href);
+    say('Link copied.');
+  } catch (e) {
+    say('Copy the address bar - it holds this ' + LABEL[state.kind] + '.');
+  }
+});
+
+// ---- tabs and refresh --------------------------------------------------
+
+const tabs = [...document.querySelectorAll('.tabs button')];
+tabs.forEach(t => t.addEventListener('click', () => {
+  if (state.kind === t.dataset.kind) return;
+  state.kind = t.dataset.kind;
+  switchKind();
+}));
+
+function switchKind() {
+  tabs.forEach(t => t.setAttribute('aria-selected', t.dataset.kind === state.kind));
+  const title = LABEL[state.kind] + ' Maker';
+  document.title = title;
+  document.querySelector('h1').textContent = title;
+  buildTiles();
+  update();
+}
+
+function update() {
+  const build = state.build[state.kind];
+  const names = S.characters[state.kind].names;
+  const described = FEATURES.map(f => names[f][build[f]]).join(' · ');
+  document.getElementById('readout').textContent = described;
+  preview.setAttribute('aria-label', 'A ' + LABEL[state.kind] + ': ' + described);
+  paintTiles();
+  paintDice();
+  drawPreview();
+  writeHash();
+}
+
+window.addEventListener('hashchange', () => { readHash(); switchKind(); });
+
+readHash();
+sheet.onload = () => switchKind();
+sheet.src = S.sheet;
+</script>
+</body>
+</html>

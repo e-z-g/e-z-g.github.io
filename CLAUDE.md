@@ -46,6 +46,11 @@ cube/                 cubemap VR viewer + face stitcher (ES modules, three.js)
 ev/                   star/planet viewer
 fpqr/                 Fancy-Pants QR encoder (index.html + css/ + js/)
 wine/                 VinoVision inventory/AR tool
+zoombinis/            Zoombini (and Fleen) maker, classic scripts, opens from file://
+  index.html            the page
+  sprites.js            GENERATED from the 1996 game's data by tools/export_web.py
+                        in the zoombinis extraction project; re-run that rather
+                        than editing it by hand
 ```
 
 ## The two code regimes
