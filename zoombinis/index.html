@@ -400,32 +400,30 @@ function boundsOf(variants) {
   return { l, t, r, b };
 }
 
-// The box every build and every idle fits in: the preview's size. It is
-// fixed per character, so picking a part never rescales or moves the figure.
-const maxBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
+// The box every standing build fits in, whatever its parts, facing or feet
+// special. The figure is scaled so this box fills the panel, and it stays put
+// while parts are picked. Walks, hops and bounces are left out: counting them
+// shrank a standing Zoombini from about 7x to 4x. They use the panel around
+// the box instead (see layoutPreview).
+const fitBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
   const ch = S.characters[kind];
   const all = [];
   const add = v => {
     all.push(v);
     if (v.back) all.push(v.back);
     if (v.frames) all.push(v.frames.blink, ...v.frames.glance);
-    for (const more of [v.facings, v.poses]) if (more) Object.values(more).forEach(add);
-    for (const more of [v.special, v.units, v.walk]) if (more) more.forEach(add);
+    if (v.facings) Object.values(v.facings).forEach(add);
+    for (const more of [v.special, v.units]) if (more) more.forEach(add);
   };
   for (const p of ch.parts) p.variants.concat(ch.borrowed[p.name] || []).forEach(add);
-  const bb = boundsOf(all);
-  const walks = ch.walks.own.concat(ch.walks.borrowedFeet);
-  const moves = ch.idles.concat(S.characters.zoombini.specials).map(c => c.map(([, dx, dy]) => [dx, dy]))
-    .concat(walks.map(c => c.map(t => [t[0], t[1] - Math.max(t[7], t[8])])));
-  for (const clip of moves) {
-    for (const [dx, dy] of clip) {
-      bb.l0 = Math.min(bb.l0 ?? 0, dx); bb.r0 = Math.max(bb.r0 ?? 0, dx);
-      bb.t0 = Math.min(bb.t0 ?? 0, dy); bb.b0 = Math.max(bb.b0 ?? 0, dy);
-    }
-  }
-  return [kind, { l: bb.l + (bb.l0 ?? 0), r: bb.r + (bb.r0 ?? 0),
-                  t: bb.t + (bb.t0 ?? 0), b: bb.b + (bb.b0 ?? 0) }];
+  return [kind, boundsOf(all)];
 }));
+
+// A bad size here does not throw - a canvas sized NaN is simply empty - so
+// check, and fail loudly instead of drawing nothing.
+for (const [kind, bb] of Object.entries(fitBounds)) {
+  if (![bb.l, bb.t, bb.r, bb.b].every(Number.isFinite)) throw new Error('bad preview bounds for ' + kind);
+}
 
 // Draw with the REGS origin at (ox, oy).
 function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST) {
@@ -438,37 +436,42 @@ const wrap = document.getElementById('preview-wrap');
 const preview = document.getElementById('preview');
 const pose = Object.assign({}, REST);       // the idle's current tick
 
+let origin = { x: 0, y: 0 };                 // where the REGS origin sits on the canvas
+
 function drawPreview() {
-  const bb = maxBounds[state.kind];
-  const w = bb.r - bb.l + PAD * 2, h = bb.b - bb.t + PAD * 2;
-  if (preview.width !== w || preview.height !== h) {
-    preview.width = w; preview.height = h;
-    fitPreview();
-  }
   const ctx = preview.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(0, 0, preview.width, preview.height);
   if (sheet.complete) {
     drawCharacter(ctx, state.kind, state.build[state.kind],
-                  PAD - bb.l + pose.dx, PAD - bb.t + pose.dy, 1, pose);
+                  origin.x + pose.dx, origin.y + pose.dy, 1, pose);
   }
 }
 
-// The largest whole-number scale that fits the panel. Beside the box it
-// matches the box's height - not the panel's own, which grows with the
-// canvas and would feed back into itself; on a phone it leaves room below
-// for the tiles.
+// The canvas fills the panel, at the largest whole-number scale at which the
+// standing box fits, with the box in its middle - so moving figures have the
+// rest of the panel to move in, and only something travelling past the
+// panel's edge is cut off. Beside the tiles the panel matches the box's
+// height - not its own, which grows with the canvas and would feed back into
+// itself; on a phone it leaves room below for the tiles.
 const box = document.querySelector('.box');
-function fitPreview() {
+function layoutPreview() {
   const cs = getComputedStyle(wrap);
   const availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const narrow = window.matchMedia('(max-width: 900px)').matches;
   const availH = narrow ? window.innerHeight * 0.42 : Math.max(box.offsetHeight - 32, 300);
-  const s = Math.max(1, Math.floor(Math.min(availW / preview.width, availH / preview.height)));
-  preview.style.width = preview.width * s + 'px';
-  preview.style.height = preview.height * s + 'px';
+  const bb = fitBounds[state.kind];
+  const fw = bb.r - bb.l + PAD * 2, fh = bb.b - bb.t + PAD * 2;
+  const scale = Math.max(1, Math.floor(Math.min(availW / fw, availH / fh)));
+  const w = Math.max(fw, Math.floor(availW / scale)), h = Math.max(fh, Math.floor(availH / scale));
+  if (preview.width !== w || preview.height !== h) { preview.width = w; preview.height = h; }
+  preview.style.width = w * scale + 'px';
+  preview.style.height = h * scale + 'px';
+  origin = { x: Math.floor((w - (bb.r - bb.l)) / 2) - bb.l,
+             y: Math.floor((h - (bb.b - bb.t)) / 2) - bb.t };
+  drawPreview();
 }
-new ResizeObserver(fitPreview).observe(wrap);
+new ResizeObserver(layoutPreview).observe(wrap);
 
 function paintTile(canvas, index) {
   const [, , w, h] = rect(index);
@@ -567,8 +570,7 @@ function clipsFor(kind) {
   const ch = S.characters[kind];
   const feet = state.build[kind].feet;
   const clips = kind === 'fleen' ? ch.idles.concat([PAGE_BLINK, PAGE_BLINK]) : ch.idles.slice();
-  const walk = !feet.borrowed ? ch.walks.own[feet.v]
-    : kind === 'zoombini' ? ch.walks.borrowedFeet : ch.walks.borrowedFeet[feet.v];
+  const walk = (feet.borrowed ? ch.walks.borrowedFeet : ch.walks.own)[feet.v];
   let special = null;
   if (kind === 'zoombini' && !feet.borrowed) {
     special = ch.specials[feet.v];
@@ -701,8 +703,7 @@ function update() {
   preview.setAttribute('aria-label', 'A ' + LABEL[state.kind] + ': ' + described);
   paintTiles();
   paintDice();
-  drawPreview();
-  fitPreview();
+  layoutPreview();
   writeHash();
 }
 
