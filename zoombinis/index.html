@@ -41,6 +41,10 @@
   stalk on a Zoombini spring, wheels or propeller.
   The page only paints the result (see variantsFor).
 
+  Every so often it walks on the spot: a Zoombini marches with its own
+  feet's walk, a Fleen hop-steps (see walk_clip() in the exporter for how
+  borrowed feet step).
+
   The idling is the game's own: its idle scripts for each character, which
   change nothing but the eyes, the head's facing, the feet and where the
   whole figure stands - glances and blinks, a Zoombini turning its head and
@@ -244,6 +248,7 @@
         <button class="ctl" id="btn-random" title="Random features" aria-label="Random features"><canvas width="54" height="39"></canvas></button>
         <button class="text-btn" id="btn-save">Save PNG</button>
         <button class="text-btn" id="btn-link">Copy link</button>
+        <button class="text-btn" id="btn-walk">Walk</button>
         <button class="text-btn" id="btn-motion" aria-pressed="false">Pause</button>
       </div>
       <p class="status" id="status" aria-live="polite"></p>
@@ -267,7 +272,11 @@ const LABEL = { zoombini: 'Zoombini', fleen: 'Fleen' };
 const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
 const PAD = 3;                               // source pixels around the figure
 const TICK_MS = 100;                         // one script section per tick
-const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1 };
+const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null };
+// A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar, device]
+// - each part's pose (-1 rest), how far each borrowed foot is lifted, and the
+// frame of a borrowed device (-1 none). See walk_clip() in the exporter.
+const WALK_PARTS = ['feet', 'body', 'nose', 'eyes', 'hair'];
 
 // ---- state -------------------------------------------------------------
 
@@ -336,24 +345,46 @@ function eyeFrame(entry, eyes) {
 // swaps in a part's turned frame - a borrowed part, having none, its frame
 // moved to where the host's own part sits at that angle - and `feet` >= 0
 // swaps in a special frame, keeping the feet's place around the body.
+//
+// Walking (`pose.walk`) picks each part's walk pose; a borrowed part follows
+// the host's own part it sits on - hair the body. Borrowed feet do not use
+// the other character's walk frames: a Zoombini's near and far borrowed foot
+// lift in turn, a Fleen's legs-and-shoes lift in turn, and a device plays its
+// own walk frames.
+const lifted = (v, up) => up ? Object.assign({}, v, { oy: -up }) : v;
 function variantsFor(kind, build, pose = REST) {
   const ch = S.characters[kind];
+  const w = pose.walk;
+  const at = n => w[2 + WALK_PARTS.indexOf(n)];
   const out = ch.parts.map(part => {
     const pick = build[part.name];
+    const borrowed = part.variants.length > 1 && pick.borrowed;
     let v = part.variants.length === 1 ? part.variants[0]
-      : pick.borrowed ? ch.borrowed[part.name][pick.v] : part.variants[pick.v];
-    if (pose.facing && v.facings) v = v.facings[pose.facing];
-    if (part.name === 'eyes') v = eyeFrame(v, pose.eyes);
-    if (part.name === 'feet' && pose.feet >= 0 && v.special) {
-      v = Object.assign({}, v.special[pose.feet], { behind: v.behind, back: v.back });
+      : borrowed ? ch.borrowed[part.name][pick.v] : part.variants[pick.v];
+    if (w) {
+      if (!(borrowed && part.name === 'feet')) {
+        const key = at(borrowed && part.name === 'hair' ? 'body' : part.name);
+        if (key >= 0 && v.poses && v.poses[key]) v = v.poses[key];
+      }
+    } else {
+      if (pose.facing && v.facings) v = v.facings[pose.facing];
+      if (part.name === 'eyes') v = eyeFrame(v, pose.eyes);
+      if (part.name === 'feet' && pose.feet >= 0 && v.special) {
+        v = Object.assign({}, v.special[pose.feet], { behind: v.behind, back: v.back });
+      }
     }
     return { name: part.name, v };
   });
   if (build.feet.borrowed) {
     const [feet] = out.splice(out.findIndex(p => p.name === 'feet'), 1);
+    let f = feet.v;
+    const nearUp = w ? w[7] : 0, farUp = w ? w[8] : 0;
+    if (w && w[9] >= 0 && f.walk) f = Object.assign({}, f.walk[w[9]], { behind: f.behind });
+    const layers = w && f.units ? [lifted(f.units[0], farUp), lifted(f.units[1], nearUp)]
+      : [lifted(f, f.back ? nearUp : 0)];
     const body = out.findIndex(p => p.name === 'body');
-    out.splice(feet.v.behind ? body : body + 1, 0, feet);
-    if (feet.v.back) out.splice(out.findIndex(p => p.name === 'body'), 0, { name: 'feet', v: feet.v.back });
+    out.splice(f.behind ? body : body + 1, 0, ...layers.map(v => ({ name: 'feet', v })));
+    if (f.back) out.splice(out.findIndex(p => p.name === 'body'), 0, { name: 'feet', v: lifted(f.back, farUp) });
   }
   return out.map(p => p.v);
 }
@@ -378,13 +409,16 @@ const maxBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
     all.push(v);
     if (v.back) all.push(v.back);
     if (v.frames) all.push(v.frames.blink, ...v.frames.glance);
-    if (v.facings) Object.values(v.facings).forEach(add);
-    if (v.special) v.special.forEach(add);
+    for (const more of [v.facings, v.poses]) if (more) Object.values(more).forEach(add);
+    for (const more of [v.special, v.units, v.walk]) if (more) more.forEach(add);
   };
   for (const p of ch.parts) p.variants.concat(ch.borrowed[p.name] || []).forEach(add);
   const bb = boundsOf(all);
-  for (const clip of ch.idles.concat(S.characters.zoombini.specials)) {
-    for (const [, dx, dy] of clip) {
+  const walks = ch.walks.own.concat(ch.walks.borrowedFeet);
+  const moves = ch.idles.concat(S.characters.zoombini.specials).map(c => c.map(([, dx, dy]) => [dx, dy]))
+    .concat(walks.map(c => c.map(t => [t[0], t[1] - Math.max(t[7], t[8])])));
+  for (const clip of moves) {
+    for (const [dx, dy] of clip) {
       bb.l0 = Math.min(bb.l0 ?? 0, dx); bb.r0 = Math.max(bb.r0 ?? 0, dx);
       bb.t0 = Math.min(bb.t0 ?? 0, dy); bb.b0 = Math.max(bb.b0 ?? 0, dy);
     }
@@ -396,7 +430,7 @@ const maxBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
 // Draw with the REGS origin at (ox, oy).
 function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST) {
   for (const v of variantsFor(kind, build, pose)) {
-    drawSprite(ctx, v.sprite, ox - v.rx * scale, oy - v.ry * scale, scale);
+    drawSprite(ctx, v.sprite, ox - v.rx * scale, oy + ((v.oy || 0) - v.ry) * scale, scale);
   }
 }
 
@@ -522,14 +556,19 @@ dice.addEventListener('click', () => {
 // so they get a blink of the page's own.
 const PAGE_BLINK = [[1, 0, 0, 0, -1], [1, 0, 0, 0, -1]];
 const SPECIAL_WEIGHT = 3;                    // shown off about a quarter of the time
+const WALK_WEIGHT = 3;                       // and walking about as often
 const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 let paused = motionQuery.matches;
 let clip = null, clipAt = 0, waitTicks = 15, timer = 0;
 
+// Clips are {ticks, walk}: idle ticks [eyes, dx, dy, facing, feet], walk
+// ticks as described at WALK_PARTS.
 function clipsFor(kind) {
   const ch = S.characters[kind];
   const feet = state.build[kind].feet;
   const clips = kind === 'fleen' ? ch.idles.concat([PAGE_BLINK, PAGE_BLINK]) : ch.idles.slice();
+  const walk = !feet.borrowed ? ch.walks.own[feet.v]
+    : kind === 'zoombini' ? ch.walks.borrowedFeet : ch.walks.borrowedFeet[feet.v];
   let special = null;
   if (kind === 'zoombini' && !feet.borrowed) {
     special = ch.specials[feet.v];
@@ -540,13 +579,17 @@ function clipsFor(kind) {
       .filter(t => t[3] !== 1).map(([, dx, dy, , f]) => [0, dx, dy, 0, f]);
   }
   for (let i = 0; special && i < SPECIAL_WEIGHT; i++) clips.push(special);
-  return clips;
+  const out = clips.map(ticks => ({ ticks, walk: false }));
+  for (let i = 0; i < WALK_WEIGHT; i++) out.push({ ticks: walk, walk: true });
+  return out;
 }
 
 function tick() {
   if (clip) {
-    [pose.eyes, pose.dx, pose.dy, pose.facing, pose.feet] = clip[clipAt++];
-    if (clipAt >= clip.length) { clip = null; waitTicks = 15 + Math.floor(Math.random() * 30); }
+    const t = clip.ticks[clipAt++];
+    if (clip.walk) Object.assign(pose, REST, { walk: t, dx: t[0], dy: t[1] });
+    else Object.assign(pose, REST, { eyes: t[0], dx: t[1], dy: t[2], facing: t[3], feet: t[4] });
+    if (clipAt >= clip.ticks.length) { clip = null; waitTicks = 15 + Math.floor(Math.random() * 30); }
   } else {
     Object.assign(pose, REST);
     if (--waitTicks <= 0) {
@@ -579,6 +622,12 @@ function setPaused(p) {
   drawPreview();
 }
 document.getElementById('btn-motion').addEventListener('click', () => setPaused(!paused));
+// Walks come round at random; this starts one now.
+document.getElementById('btn-walk').addEventListener('click', () => {
+  if (paused) setPaused(false);
+  clip = clipsFor(state.kind).find(c => c.walk);
+  clipAt = 0;
+});
 motionQuery.addEventListener('change', e => setPaused(e.matches));
 
 // ---- saving and sharing ------------------------------------------------
