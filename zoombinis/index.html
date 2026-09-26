@@ -126,19 +126,20 @@
   main {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 20px;
-    align-items: stretch;
+    grid-template-areas: "stage box" "share box";
+    grid-template-rows: auto 1fr;
+    gap: 14px 20px;
+    align-items: start;
   }
-  /* On a narrow screen the character comes first, then the box under it. */
-  @media (max-width: 900px) {
-    main { grid-template-columns: minmax(0, 1fr); }
-  }
+  /* The character and the controls that act on it. */
+  .stage { grid-area: stage; display: flex; flex-direction: column; gap: 10px; }
+  .share { grid-area: share; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 12px; }
+  .share .status { flex-basis: 100%; margin: 0; }
 
   .preview {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 240px;
     padding: 16px;
     border-radius: 10px;
     background: radial-gradient(ellipse at 50% 60%, #2b3350 0%, #161b2e 70%);
@@ -148,9 +149,16 @@
     display: block;
     image-rendering: pixelated;
   }
+  .toolbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+  }
 
   /* The feature box: a stone slab, as the game's lower-left box is. */
   .box {
+    grid-area: box;
     background: var(--panel);
     border: 2px solid var(--panel-edge);
     border-top-color: var(--panel-hi);
@@ -185,6 +193,7 @@
     border-radius: 6px;
     -webkit-tap-highlight-color: transparent;
   }
+  button { touch-action: manipulation; }       /* no double-tap-zoom wait */
   .tile canvas, .ctl canvas {
     display: block;
     width: 100%;
@@ -196,18 +205,10 @@
   .ctl canvas { aspect-ratio: 54 / 39; }
 
   .readout {
-    margin: 14px 0 0;
+    margin: 0;
     text-align: center;
     font-size: 0.95rem;
     min-height: 1.4em;
-  }
-  .actions {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 14px;
   }
   .text-btn {
     font: inherit;
@@ -220,7 +221,26 @@
     cursor: pointer;
   }
   .text-btn:hover { background: #463d34; }
-  .status { color: var(--muted); font-size: 0.8rem; text-align: center; min-height: 1.2em; margin: 8px 0 0; }
+  .status { color: var(--muted); font-size: 0.8rem; text-align: center; min-height: 1.2em; }
+
+  /* A phone: the character and its controls stay pinned to the top while
+     the tiles scroll beneath, so every pick shows at once; a feature's two
+     sets of tiles group together, with room between features; saving and
+     sharing go after the tiles. */
+  @media (max-width: 900px) {
+    .page { padding-top: 10px; }
+    header { flex-wrap: nowrap; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    h1 { font-size: 1.1rem; white-space: nowrap; }
+    .tabs button { font-size: 0.85rem; padding: 3px 10px; }
+    main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "box" "share";
+           grid-template-rows: none; gap: 12px; }
+    .stage { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 6px 0 8px; gap: 6px; }
+    .preview { padding: 8px; }
+    .toolbar .ctl { width: 64px; }
+    .readout { font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rows { gap: 16px; }
+    .feature { gap: 4px; }
+  }
 
   footer { color: var(--muted); font-size: 0.8rem; margin-top: 28px; }
   footer a { color: #7eb8f7; }
@@ -237,22 +257,27 @@
   </header>
 
   <main>
-    <div class="preview" id="preview-wrap">
-      <canvas id="preview" role="img"></canvas>
+    <div class="stage">
+      <div class="preview" id="preview-wrap">
+        <canvas id="preview" role="img"></canvas>
+      </div>
+      <div class="toolbar">
+        <button class="ctl" id="btn-random" title="Random features" aria-label="Random features"><canvas width="54" height="39"></canvas></button>
+        <button class="text-btn" id="btn-walk">Walk</button>
+        <button class="text-btn" id="btn-motion" aria-pressed="false">Pause</button>
+      </div>
+      <p class="readout" id="readout" aria-live="polite"></p>
     </div>
 
     <section class="box" aria-label="Features">
       <div class="rows" id="rows"></div>
-      <p class="readout" id="readout" aria-live="polite"></p>
-      <div class="actions">
-        <button class="ctl" id="btn-random" title="Random features" aria-label="Random features"><canvas width="54" height="39"></canvas></button>
-        <button class="text-btn" id="btn-save">Save PNG</button>
-        <button class="text-btn" id="btn-link">Copy link</button>
-        <button class="text-btn" id="btn-walk">Walk</button>
-        <button class="text-btn" id="btn-motion" aria-pressed="false">Pause</button>
-      </div>
-      <p class="status" id="status" aria-live="polite"></p>
     </section>
+
+    <div class="share">
+      <button class="text-btn" id="btn-save">Save PNG</button>
+      <button class="text-btn" id="btn-link">Copy link</button>
+      <p class="status" id="status" aria-live="polite"></p>
+    </div>
   </main>
 
   <footer>
@@ -451,15 +476,24 @@ function drawPreview() {
 // The canvas fills the panel, at the largest whole-number scale at which the
 // standing box fits, with the box in its middle - so moving figures have the
 // rest of the panel to move in, and only something travelling past the
-// panel's edge is cut off. Beside the tiles the panel matches the box's
-// height - not its own, which grows with the canvas and would feed back into
-// itself; on a phone it leaves room below for the tiles.
-const box = document.querySelector('.box');
+// panel's edge is cut off. Its height comes from the window, never from the
+// panel's own, which grows with the canvas and would feed back into itself:
+// on a desktop most of the window; on a phone, where the character stays
+// pinned above the scrolling tiles, under a third of it.
+// The window's height without its browser bars (CSS svh): on a phone the
+// address bar comes and goes as the page scrolls, and sizing from
+// innerHeight would resize the pinned character mid-scroll.
+const svh = document.createElement('div');
+svh.style.cssText = 'position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden;pointer-events:none';
+document.body.appendChild(svh);
+const viewHeight = () => svh.offsetHeight || window.innerHeight;
+
 function layoutPreview() {
   const cs = getComputedStyle(wrap);
   const availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const narrow = window.matchMedia('(max-width: 900px)').matches;
-  const availH = narrow ? window.innerHeight * 0.42 : Math.max(box.offsetHeight - 32, 300);
+  const availH = narrow ? viewHeight() * 0.3
+    : Math.max(260, Math.min(560, viewHeight() - 280));
   const bb = fitBounds[state.kind];
   const fw = bb.r - bb.l + PAD * 2, fh = bb.b - bb.t + PAD * 2;
   const scale = Math.max(1, Math.floor(Math.min(availW / fw, availH / fh)));
@@ -472,6 +506,7 @@ function layoutPreview() {
   drawPreview();
 }
 new ResizeObserver(layoutPreview).observe(wrap);
+window.addEventListener('resize', layoutPreview);
 
 function paintTile(canvas, index) {
   const [, , w, h] = rect(index);
