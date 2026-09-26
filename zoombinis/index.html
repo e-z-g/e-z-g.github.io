@@ -35,7 +35,8 @@
   exporter, not here - the part's skin recoloured to the host's (a Fleen's
   legs belong to its feet, a Zoombini's eyelids to its eyes), mirrored
   because a Zoombini faces right and a Fleen left, and re-anchored to the
-  host's head top, body bottom, or its own eye and nose spots. Borrowed feet
+  host's head top, body bottom, or its own eye and nose spots (and Fleen hair
+  goes under a Zoombini's eyes, which sit too high to clear it). Borrowed feet
   get more: a Zoombini's far foot goes behind the egg and its near foot in
   front, and a Fleen keeps its own legs for Zoombini shoes and stands its
   stalk on a Zoombini spring, wheels or propeller.
@@ -481,6 +482,14 @@ function variantsFor(kind, build, pose = REST) {
     const body = out.findIndex(p => p.name === 'body');
     out.splice(f.behind ? body : body + 1, 0, ...layers.map(v => ({ name: 'feet', v })));
     if (f.back) out.splice(out.findIndex(p => p.name === 'body'), 0, { name: 'feet', v: lifted(f.back, farUp) });
+  }
+  // A Zoombini's eyes sit high on its head, about 7px under its top where a
+  // Fleen's are 13px under, so Fleen hair fitted to the top reaches down over
+  // them. Borrowed hair goes under a Zoombini's eyes, then, as a Fleen draws
+  // its own - but not with the head turned away, when the hair is nearer.
+  if (kind === 'zoombini' && build.hair.borrowed && !(w && w[10])) {
+    const [hair] = out.splice(out.findIndex(p => p.name === 'hair'), 1);
+    out.splice(out.findIndex(p => p.name === 'eyes'), 0, hair);
   }
   // walking away, a Zoombini's head is turned from the viewer and the game
   // draws its nose before its body; borrowed eyes go behind with it, so only
