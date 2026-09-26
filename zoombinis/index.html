@@ -37,7 +37,8 @@
   because a Zoombini faces right and a Fleen left, and re-anchored to the
   host's head top, body bottom, or its own eye and nose spots. Borrowed feet
   get more: a Zoombini's far foot goes behind the egg and its near foot in
-  front, and a Fleen keeps its own legs with the Zoombini feet on the ends.
+  front, and a Fleen keeps its own legs for Zoombini shoes and stands its
+  stalk on a Zoombini spring, wheels or propeller.
   The page only paints the result (see variantsFor).
 
   Why the sprite sheet is a data: URI inside sprites.js rather than a PNG:
@@ -328,11 +329,12 @@ function drawSprite(ctx, index, x, y, scale = 1) {
 
 // The sprites to paint, in order. A borrowed part comes ready-fitted from the
 // exporter (recoloured, mirrored, re-anchored) and takes its feature's place.
-// Borrowed feet come in two layers around the body instead: a Zoombini in
-// Fleen feet has its far foot behind the egg and its near foot in front, so
-// it stands between its treads rather than on them; a Fleen in Zoombini feet
-// gets its own legs back with the feet on the ends, all in front of the stalk
-// as its own feet are, so it has no back layer.
+// Borrowed feet are placed around the body instead: a Zoombini in Fleen feet
+// has its far foot behind the egg (`back`) and its near foot in front, so it
+// stands between its treads rather than on them; a Fleen in Zoombini shoes
+// gets its own legs back with a shoe on each, in front of the stalk as its own
+// feet are; and a Fleen on a Zoombini spring, wheels or propeller has it
+// `behind` the stalk, which rests on top.
 function variantsFor(kind, build, borrow) {
   const ch = S.characters[kind];
   const out = ch.parts.map(part =>
@@ -341,8 +343,8 @@ function variantsFor(kind, build, borrow) {
   if (borrow.feet) {
     const [feet] = out.splice(out.findIndex(p => p.name === 'feet'), 1);
     const body = out.findIndex(p => p.name === 'body');
-    out.splice(body + 1, 0, feet);
-    if (feet.v.back) out.splice(body, 0, { name: 'feet', v: feet.v.back });
+    out.splice(feet.v.behind ? body : body + 1, 0, feet);
+    if (feet.v.back) out.splice(out.findIndex(p => p.name === 'body'), 0, { name: 'feet', v: feet.v.back });
   }
   return out.map(p => p.v);
 }
