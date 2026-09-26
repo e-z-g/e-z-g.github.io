@@ -41,9 +41,12 @@
   stalk on a Zoombini spring, wheels or propeller.
   The page only paints the result (see variantsFor).
 
-  Every so often it walks on the spot: a Zoombini marches with its own
-  feet's walk, a Fleen hop-steps (see walk_clip() in the exporter for how
-  borrowed feet step).
+  Every so often it walks on the spot, in one of the game's directions - a
+  Zoombini has five per pair of feet, towards the viewer, three-quarter and
+  in profile - to the right or, mirrored, to the left, and stays turned that
+  way afterwards. A Fleen hop-steps. Borrowed Fleen wheels, treads and
+  rockets use the Fleen's own spinning, rolling and firing frames; see
+  walk_clip() and FLEEN_RIDES in the exporter for how borrowed feet walk.
 
   The idling is the game's own: its idle scripts for each character, which
   change nothing but the eyes, the head's facing, the feet and where the
@@ -298,9 +301,10 @@ const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
 const PAD = 3;                               // source pixels around the figure
 const TICK_MS = 100;                         // one script section per tick
 const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null };
-// A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar, device]
-// - each part's pose (-1 rest), how far each borrowed foot is lifted, and the
-// frame of a borrowed device (-1 none). See walk_clip() in the exporter.
+// A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar,
+// device, profile] - each part's pose (-1 rest), how far each borrowed foot
+// is lifted, the frame of a borrowed device (-1 none), and 1 when the head is
+// in profile. See walk_clip() in the exporter.
 const WALK_PARTS = ['feet', 'body', 'nose', 'eyes', 'hair'];
 
 // ---- state -------------------------------------------------------------
@@ -342,9 +346,18 @@ function writeHash() {
 const sheet = new Image();
 const rect = i => S.rects[i];
 
-function drawSprite(ctx, index, x, y, scale = 1) {
+// With `axis` set, the sprite is drawn mirrored about that vertical line.
+function drawSprite(ctx, index, x, y, scale = 1, axis = null) {
   const [sx, sy, w, h] = rect(index);
-  ctx.drawImage(sheet, sx, sy, w, h, x, y, w * scale, h * scale);
+  if (axis === null) {
+    ctx.drawImage(sheet, sx, sy, w, h, x, y, w * scale, h * scale);
+    return;
+  }
+  ctx.save();
+  ctx.translate(2 * axis - x, y);
+  ctx.scale(-1, 1);
+  ctx.drawImage(sheet, sx, sy, w, h, 0, 0, w * scale, h * scale);
+  ctx.restore();
 }
 
 // The eyes as the idle wants them: 0 rest, 1 blink, 2 + k glance k. Each
@@ -404,12 +417,17 @@ function variantsFor(kind, build, pose = REST) {
     const [feet] = out.splice(out.findIndex(p => p.name === 'feet'), 1);
     let f = feet.v;
     const nearUp = w ? w[7] : 0, farUp = w ? w[8] : 0;
-    if (w && w[9] >= 0 && f.walk) f = Object.assign({}, f.walk[w[9]], { behind: f.behind });
+    if (w && w[9] >= 0 && f.walk) f = Object.assign({ behind: f.behind }, f.walk[w[9]]);
     const layers = w && f.units ? [lifted(f.units[0], farUp), lifted(f.units[1], nearUp)]
       : [lifted(f, f.back ? nearUp : 0)];
     const body = out.findIndex(p => p.name === 'body');
     out.splice(f.behind ? body : body + 1, 0, ...layers.map(v => ({ name: 'feet', v })));
     if (f.back) out.splice(out.findIndex(p => p.name === 'body'), 0, { name: 'feet', v: lifted(f.back, farUp) });
+  }
+  // in profile the game draws a Zoombini's own nose before its body
+  if (w && w[10] && !build.nose.borrowed) {
+    const [nose] = out.splice(out.findIndex(p => p.name === 'nose'), 1);
+    out.splice(out.findIndex(p => p.name === 'body'), 0, nose);
   }
   return out.map(p => p.v);
 }
@@ -450,10 +468,10 @@ for (const [kind, bb] of Object.entries(fitBounds)) {
   if (![bb.l, bb.t, bb.r, bb.b].every(Number.isFinite)) throw new Error('bad preview bounds for ' + kind);
 }
 
-// Draw with the REGS origin at (ox, oy).
-function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST) {
+// Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
+function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST, axis = null) {
   for (const v of variantsFor(kind, build, pose)) {
-    drawSprite(ctx, v.sprite, ox - v.rx * scale, oy + ((v.oy || 0) - v.ry) * scale, scale);
+    drawSprite(ctx, v.sprite, ox - v.rx * scale, oy + ((v.oy || 0) - v.ry) * scale, scale, axis);
   }
 }
 
@@ -462,14 +480,20 @@ const preview = document.getElementById('preview');
 const pose = Object.assign({}, REST);       // the idle's current tick
 
 let origin = { x: 0, y: 0 };                 // where the REGS origin sits on the canvas
+let facingLeft = false;                      // after walking left, it stays turned
 
+// Facing left is the whole figure mirrored about the middle of its standing
+// box - the atlas's own mirrored frames are exact mirrors - so it stays in
+// the same place in the panel.
 function drawPreview() {
   const ctx = preview.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, preview.width, preview.height);
   if (sheet.complete) {
+    const bb = fitBounds[state.kind];
+    const axis = facingLeft ? origin.x + (bb.l + bb.r) / 2 : null;
     drawCharacter(ctx, state.kind, state.build[state.kind],
-                  origin.x + pose.dx, origin.y + pose.dy, 1, pose);
+                  origin.x + pose.dx, origin.y + pose.dy, 1, pose, axis);
   }
 }
 
@@ -599,8 +623,9 @@ const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 let paused = motionQuery.matches;
 let clip = null, clipAt = 0, waitTicks = 15, timer = 0;
 
-// Clips are {ticks, walk}: idle ticks [eyes, dx, dy, facing, feet], walk
-// ticks as described at WALK_PARTS.
+// Clips are {ticks, walk} - idle ticks [eyes, dx, dy, facing, feet] - or
+// {dirs, walk}, a walk with a clip per direction (walk ticks as described at
+// WALK_PARTS); a direction, and left or right, is picked as it starts.
 function clipsFor(kind) {
   const ch = S.characters[kind];
   const feet = state.build[kind].feet;
@@ -617,7 +642,7 @@ function clipsFor(kind) {
   }
   for (let i = 0; special && i < SPECIAL_WEIGHT; i++) clips.push(special);
   const out = clips.map(ticks => ({ ticks, walk: false }));
-  for (let i = 0; i < WALK_WEIGHT; i++) out.push({ ticks: walk, walk: true });
+  for (let i = 0; i < WALK_WEIGHT; i++) out.push({ dirs: walk, walk: true });
   return out;
 }
 
@@ -631,8 +656,7 @@ function tick() {
     Object.assign(pose, REST);
     if (--waitTicks <= 0) {
       const clips = clipsFor(state.kind);
-      clip = clips[Math.floor(Math.random() * clips.length)];
-      clipAt = 0;
+      startClip(clips[Math.floor(Math.random() * clips.length)]);
     }
   }
   drawPreview();
@@ -640,6 +664,16 @@ function tick() {
 
 // A clip belongs to the build it started on - a special is one pair of
 // feet's - so a new pick ends it and returns to the rest pose.
+function startClip(c) {
+  if (c.dirs) {
+    clip = { ticks: c.dirs[Math.floor(Math.random() * c.dirs.length)], walk: true };
+    facingLeft = Math.random() < 0.5;
+  } else {
+    clip = c;
+  }
+  clipAt = 0;
+}
+
 function endClip() {
   if (!clip) return;
   clip = null;
@@ -662,8 +696,7 @@ document.getElementById('btn-motion').addEventListener('click', () => setPaused(
 // Walks come round at random; this starts one now.
 document.getElementById('btn-walk').addEventListener('click', () => {
   if (paused) setPaused(false);
-  clip = clipsFor(state.kind).find(c => c.walk);
-  clipAt = 0;
+  startClip(clipsFor(state.kind).find(c => c.walk));
 });
 motionQuery.addEventListener('change', e => setPaused(e.matches));
 
@@ -727,6 +760,7 @@ function switchKind() {
   document.title = title;
   document.querySelector('h1').textContent = title;
   clip = null;
+  facingLeft = false;
   buildTiles();
   update();
 }
