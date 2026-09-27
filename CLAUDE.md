@@ -52,13 +52,13 @@ zoombinis/            Zoombini (and Fleen) maker, classic scripts, opens from fi
                         in the zoombinis extraction project; re-run that rather
                         than editing it by hand
   play.html             plays the game under js-dos (from jsDelivr), with the Fleens'
-                        hair on the Zoombinis (?original for the stock game). The
+                        hair, eyes and noses on the Zoombinis (?original for the stock game). The
                         game is never here: the page fetches the installer from
                         archive.org's /cors/ path, unpacks it with 7-Zip in
                         WebAssembly and patches it in the browser
   play-lib.js           the unpacking, CD reading, patching and bundling for play.html;
                         checked against the zoombinis project's Python tools
-  fleen-hair.json       GENERATED: only what the mod changes, by tools/make_web_patch.py
+  fleen-parts.json      GENERATED: only what the mod changes, by tools/make_web_patch.py
                         in the zoombinis extraction project
 ```
 

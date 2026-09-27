@@ -10,7 +10,8 @@
     folder in a worker, reading the download in place rather than copying it.
   - readIso: the files on the game's CD image (ISO 9660), so the mod can
     change two of them and js-dos mount the folder as drive D.
-  - patchArchive / patchExe: the mod, as tools/make_web_patch.py writes it,
+  - patchArchive / patchExe: the mod (fleen-parts.json), as
+    tools/make_web_patch.py writes it,
     applied the way tools/mohawk_write.py does - the resource rebuilt with a
     literal-only LZ stream, appended, and its file-table entry repointed - so
     the result is byte for byte the archive the Python tools make.
