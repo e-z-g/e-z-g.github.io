@@ -6,7 +6,7 @@
 <title>Zoombinis Player</title>
 <!--
   Logical Journey of the Zoombinis (1996), in the browser, with the Fleens'
-  hair, eyes and noses on the Zoombinis - or as it shipped, with ?original.
+  hair, eyes, noses and feet on the Zoombinis - or as it shipped, with ?original.
 
   None of the game is in this repository. The page fetches the Zomb's Lair
   installer from archive.org through its /cors/ path (the one that sends a
@@ -49,7 +49,7 @@
 <body>
 <header>
   <b>Zoombinis</b>
-  <a href="?" id="mod">Fleen heads</a>
+  <a href="?" id="mod">Fleen parts</a>
   <a href="?original" id="original">Original</a>
   <span id="status">Starting…</span>
   <span id="fallback">- or <label>use the installer on this device<input type="file" id="file"></label>
@@ -97,7 +97,7 @@ async function build(patch) {
   const exe = await installer();
   say('Unpacking Windows 3.1 and the game…');
   const game = await ZoombiniPlay.unpack(exe);
-  say(patch ? 'Putting the Fleens’ hair, eyes and noses on the Zoombinis…' : 'Packing the game for js-dos…');
+  say(patch ? 'Turning the Zoombinis into Fleens…' : 'Packing the game for js-dos…');
   await new Promise(r => setTimeout(r, 30));             // let the message paint
   const blob = new Blob(ZoombiniPlay.bundle(game, patch));
   say('Starting Windows 3.1…');

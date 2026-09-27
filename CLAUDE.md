@@ -52,7 +52,7 @@ zoombinis/            Zoombini (and Fleen) maker, classic scripts, opens from fi
                         in the zoombinis extraction project; re-run that rather
                         than editing it by hand
   play.html             plays the game under js-dos (from jsDelivr), with the Fleens'
-                        hair, eyes and noses on the Zoombinis (?original for the stock game). The
+                        hair, eyes, noses and feet on the Zoombinis (?original for the stock game). The
                         game is never here: the page fetches the installer from
                         archive.org's /cors/ path, unpacks it with 7-Zip in
                         WebAssembly and patches it in the browser
