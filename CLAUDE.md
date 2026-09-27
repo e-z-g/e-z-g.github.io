@@ -53,15 +53,15 @@ zoombinis/            Zoombini (and Fleen) maker, classic scripts, opens from fi
                         than editing it by hand
   play.html             plays the game under js-dos (from jsDelivr), with the Fleens'
                         hair, eyes, noses and feet on the Zoombinis (?green: green skin too;
-                        ?original: the stock game). The
+                        ?fleens: whole Fleens; ?original: the stock game). The
                         game is never here: the page fetches the installer from
                         archive.org's /cors/ path, unpacks it with 7-Zip in
                         WebAssembly and patches it in the browser
   play-lib.js           the unpacking, CD reading, patching and bundling for play.html;
                         checked against the zoombinis project's Python tools
   fleen-parts.json      GENERATED: only what the mod changes, by tools/make_web_patch.py
-  fleen-green.json      in the zoombinis extraction project (tools/mod_fleen_parts.py,
-                        without and with --green)
+  fleen-green.json      in the zoombinis extraction project (tools/mod_fleen_parts.py
+  fleens.json           without and with --green; tools/mod_fleens.py)
 ```
 
 ## The two code regimes

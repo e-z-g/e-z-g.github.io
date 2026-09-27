@@ -6,16 +6,17 @@
 <title>Zoombinis Player</title>
 <!--
   Logical Journey of the Zoombinis (1996), in the browser, with the Fleens'
-  hair, eyes, noses and feet on the Zoombinis - green as well, with ?green -
-  or as it shipped, with ?original.
+  hair, eyes, noses and feet on the Zoombinis - green as well, with ?green;
+  whole Fleens in their place, with ?fleens - or as it shipped, with ?original.
 
   None of the game is in this repository. The page fetches the Zomb's Lair
   installer from archive.org through its /cors/ path (the one that sends a
   CORS header), unpacks its Game folder - Windows 3.1 with the game
   installed, and the game's CD image - with 7-Zip compiled to WebAssembly,
-  applies fleen-parts.json or fleen-green.json (only what the mod changes:
-  made by tools/make_web_patch.py in the zoombinis extraction project), and runs the
-  result under js-dos, DOSBox compiled to WebAssembly. play-lib.js does the
+  applies fleen-parts.json, fleen-green.json or fleens.json (only what the
+  mod changes: made by tools/make_web_patch.py in the zoombinis extraction
+  project), and runs the result under js-dos, DOSBox compiled to
+  WebAssembly. play-lib.js does the
   unpacking, patching and bundling; the project checks it against its own
   Python tools, and its archives come out byte for byte the same.
 
@@ -53,6 +54,7 @@
   <b>Zoombinis</b>
   <a href="?" id="parts">Fleen parts</a>
   <a href="?green" id="green">Green</a>
+  <a href="?fleens" id="fleens">Fleens</a>
   <a href="?original" id="original">Original</a>
   <span id="status">Starting…</span>
   <span id="fallback">- or <label>use the installer on this device<input type="file" id="file"></label>
@@ -65,7 +67,7 @@
 const INSTALLER = 'https://archive.org/cors/LogicalJourneyOfTheZoombinis-ZombsLair/Logical%20Journey%20of%20the%20Zoombinis.exe';
 const ITEM = 'https://archive.org/details/LogicalJourneyOfTheZoombinis-ZombsLair';
 const JSDOS = 'https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/';
-const PATCHES = { parts: 'fleen-parts.json', green: 'fleen-green.json', original: null };
+const PATCHES = { parts: 'fleen-parts.json', green: 'fleen-green.json', fleens: 'fleens.json', original: null };
 const params = new URLSearchParams(location.search);
 const mode = Object.keys(PATCHES).find(k => params.has(k)) || 'parts';
 document.getElementById(mode).setAttribute('aria-current', 'page');
