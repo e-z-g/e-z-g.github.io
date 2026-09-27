@@ -5,109 +5,152 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Zoombinis Player</title>
 <!--
-  A player for your own copy of Logical Journey of the Zoombinis. It holds no
-  part of the game: you choose a js-dos bundle from your device (a zip with
-  Windows 3.1, the installed game and its disc - made by dosbox/web/build.py
-  in the zoombinis extraction project) and it runs here under js-dos, DOSBox
-  compiled to WebAssembly, loaded from jsDelivr. Nothing is uploaded.
+  Logical Journey of the Zoombinis (1996), in the browser, with the Fleens'
+  hair on the Zoombinis - or as it shipped, with ?original.
+
+  None of the game is in this repository. The page fetches the Zomb's Lair
+  installer from archive.org through its /cors/ path (the one that sends a
+  CORS header), unpacks its Game folder - Windows 3.1 with the game
+  installed, and the game's CD image - with 7-Zip compiled to WebAssembly,
+  applies fleen-hair.json (only what the mod changes: made by
+  tools/make_web_patch.py in the zoombinis extraction project), and runs the
+  result under js-dos, DOSBox compiled to WebAssembly. play-lib.js does the
+  unpacking, patching and bundling; the project checks it against its own
+  Python tools, and its archives come out byte for byte the same.
 
   js-dos keeps each bundle it loads in the browser's storage, keyed by the
-  URL it fetched it from, and keys saved changes (saved games) the same way.
-  A chosen file would only have a random blob: URL, so the page asks js-dos
-  for a fixed name - the file's own name - and answers that one fetch with
-  the chosen file. The copy js-dos stores is then found under that name next
-  time, so the game can be played again without choosing the file, and its
-  saves carry over.
+  URL it fetched it from, and keys saved games the same way. So the page
+  gives the bundle a fixed name - with a checksum of the patch in it, so a
+  new patch builds a new one - and answers js-dos's fetch of that name by
+  building it. The 245 MB download happens once; later visits start from
+  storage, saves and all.
 -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/js-dos.css">
 <script src="https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/js-dos.js"></script>
+<script src="play-lib.js"></script>
 <style>
   :root { color-scheme: dark; --bg: #0e1220; --text: #e8e2d6; --muted: #9a917f; --accent: #f0c060; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-               font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .intro { max-width: 36rem; margin: 0 auto; padding: 24px 16px; }
-  h1 { font-size: 1.3rem; margin: 0 0 12px; }
-  p { margin: 0 0 12px; }
-  .muted { color: var(--muted); font-size: 0.9rem; }
-  .pick { display: inline-block; margin: 8px 0 16px; padding: 10px 16px; border-radius: 8px;
-          background: var(--accent); color: #221a08; font-weight: 600; cursor: pointer; }
-  .pick input { display: none; }
-  .saved button { font: inherit; margin: 0 8px 8px 0; padding: 8px 12px; border-radius: 8px;
-                  border: 1px solid var(--accent); background: none; color: var(--accent); cursor: pointer; }
-  #dos { position: fixed; inset: 0; display: none; }
-  body.playing .intro { display: none; }
-  body.playing #dos { display: block; }
-  a { color: #7eb8f7; }
+               font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; height: 100dvh; }
+  header { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 6px 12px; }
+  header b { font-size: 1rem; }
+  header a { color: var(--accent); }
+  header a[aria-current] { color: var(--text); text-decoration: none; font-weight: 600; }
+  #status { color: var(--muted); font-size: 0.85rem; }
+  #status.error { color: #ff8f7a; }
+  #fallback { display: none; font-size: 0.85rem; }
+  #fallback.shown { display: inline; }
+  #fallback label { color: var(--accent); text-decoration: underline; cursor: pointer; }
+  #fallback input { display: none; }
+  #dos { flex: 1; min-height: 0; }
 </style>
 </head>
 <body>
-<div class="intro">
-  <h1>Zoombinis Player</h1>
-  <p>Plays your own copy of <i>The Logical Journey of the Zoombinis</i> (1996) in the
-  browser. Choose its js-dos bundle - a <code>.jsdos</code> file with Windows 3.1 and the
-  game - and it starts here. The file stays on your device.</p>
-  <label class="pick">Choose a .jsdos file<input type="file" id="file" accept=".jsdos,.zip"></label>
-  <div class="saved" id="saved"></div>
-  <p class="muted">The first start copies the bundle into this browser's storage (about
-  as big as the file), so later it can be played from the buttons above without
-  choosing it again; saved games are kept with it. Clearing this site's data removes
-  both. Tap the game to use the mouse.</p>
-  <p class="muted">Runs on <a href="https://js-dos.com/">js-dos</a>.
-  <a href="./">Zoombini Maker</a>.</p>
-</div>
+<header>
+  <b>Zoombinis</b>
+  <a href="?" id="mod">Fleen hair</a>
+  <a href="?original" id="original">Original</a>
+  <span id="status">Starting…</span>
+  <span id="fallback">- or <label>use the installer on this device<input type="file" id="file"></label>
+    (<i>Logical Journey of the Zoombinis.exe</i>, from archive.org's Zomb's Lair item)</span>
+</header>
 <div id="dos"></div>
 <script>
 'use strict';
 
-const CDN = 'https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/';
-const SAVED = 'zoombinis-player-bundles';     // names of bundles js-dos has stored
+const INSTALLER = 'https://archive.org/cors/LogicalJourneyOfTheZoombinis-ZombsLair/Logical%20Journey%20of%20the%20Zoombinis.exe';
+const ITEM = 'https://archive.org/details/LogicalJourneyOfTheZoombinis-ZombsLair';
+const JSDOS = 'https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/';
+const original = new URLSearchParams(location.search).has('original');
+document.getElementById(original ? 'original' : 'mod').setAttribute('aria-current', 'page');
 
-function savedNames() {
-  try { return JSON.parse(localStorage.getItem(SAVED)) || []; } catch (e) { return []; }
+const statusEl = document.getElementById('status');
+function say(text, error = false) {
+  statusEl.textContent = text;
+  statusEl.classList.toggle('error', error);
 }
-function remember(name) {
-  try {
-    const names = savedNames().filter(n => n !== name);
-    localStorage.setItem(SAVED, JSON.stringify([name, ...names]));
-  } catch (e) { /* storage blocked: it just won't be offered next time */ }
-}
+const MB = n => (n / 1e6).toFixed(0) + ' MB';
 
-// js-dos fetches the bundle URL (after looking in its own storage). Answer
-// that one URL with the chosen file; every other fetch goes out as usual.
+// The installer: a file chosen here if there is one, otherwise archive.org.
 let chosen = null;
+async function installer() {
+  if (chosen) return chosen;
+  say('Downloading the game from archive.org… (once; about 245 MB)');
+  const res = await realFetch(INSTALLER);
+  if (!res.ok) throw new Error(`archive.org answered ${res.status}`);
+  const total = Number(res.headers.get('Content-Length')) || 245577757;
+  const reader = res.body.getReader(), chunks = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    say(`Downloading the game from archive.org: ${MB(got)} of ${MB(total)} (once)`);
+  }
+  return new Blob(chunks);
+}
+
+// Build the js-dos bundle: download, unpack, patch, zip.
+async function build(patch) {
+  const exe = await installer();
+  say('Unpacking Windows 3.1 and the game…');
+  const game = await ZoombiniPlay.unpack(exe);
+  say(patch ? 'Putting the Fleens’ hair on the Zoombinis…' : 'Packing the game for js-dos…');
+  await new Promise(r => setTimeout(r, 30));             // let the message paint
+  const blob = new Blob(ZoombiniPlay.bundle(game, patch));
+  say('Starting Windows 3.1… (tap the game to use the mouse)');
+  return new Response(blob, { status: 200, headers: { 'Content-Length': String(blob.size) } });
+}
+
+// js-dos fetches the bundle by name after looking in its own storage; that
+// one name is answered by building it, anything else goes out as usual.
 const realFetch = window.fetch.bind(window);
+let bundleName = null, patchData = null;
 window.fetch = (input, init) => {
   const url = typeof input === 'string' ? input : input.url;
-  if (chosen && url === chosen.name) {
-    return Promise.resolve(new Response(chosen, {
-      status: 200, headers: { 'Content-Length': String(chosen.size) } }));
+  if (bundleName && url === bundleName) {
+    return build(patchData).catch(e => {
+      say(`Could not get the game: ${e.message}. `, true);
+      document.getElementById('fallback').classList.add('shown');
+      throw e;
+    });
   }
   return realFetch(input, init);
 };
 
-function play(name) {
-  document.body.classList.add('playing');
-  Dos(document.getElementById('dos'), {
-    url: name,
-    pathPrefix: CDN + 'emulators/',
+let dos = null;
+async function start() {
+  if (dos && dos.stop) { try { await dos.stop(); } catch (e) {} }
+  document.getElementById('dos').innerHTML = '';
+  let tag = 'original';
+  patchData = null;
+  if (!original) {
+    const text = await (await realFetch('fleen-hair.json')).text();
+    patchData = JSON.parse(text);
+    tag = 'fleen-hair-' + ZoombiniPlay.crc32(new TextEncoder().encode(text)).toString(16);
+  }
+  bundleName = `zoombinis-${tag}.jsdos`;
+  say(chosen ? 'Using the installer from this device…' : 'Looking for the game in this browser…');
+  dos = Dos(document.getElementById('dos'), {
+    url: bundleName,
+    pathPrefix: JSDOS + 'emulators/',
     autoStart: true,
+    onEvent: event => {
+      if (event === 'ci-ready') say('Running - tap the game to use the mouse. Windows 3.1 takes a moment to start.');
+    },
   });
-  remember(name);
 }
 
 document.getElementById('file').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  chosen = file;
-  play(file.name);
+  const f = e.target.files[0];
+  if (!f) return;
+  chosen = f;
+  document.getElementById('fallback').classList.remove('shown');
+  start().catch(err => say('Could not start: ' + err.message, true));
 });
 
-for (const name of savedNames()) {
-  const b = document.createElement('button');
-  b.textContent = 'Play ' + name + ' again';
-  b.addEventListener('click', () => play(name));
-  document.getElementById('saved').appendChild(b);
-}
+start().catch(err => say('Could not start: ' + err.message, true));
 </script>
 </body>
 </html>
