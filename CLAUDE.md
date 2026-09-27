@@ -51,6 +51,9 @@ zoombinis/            Zoombini (and Fleen) maker, classic scripts, opens from fi
   sprites.js            GENERATED from the 1996 game's data by tools/export_web.py
                         in the zoombinis extraction project; re-run that rather
                         than editing it by hand
+  play.html             plays your own copy of the game under js-dos (from jsDelivr):
+                        you choose a .jsdos bundle on your device; the page holds
+                        no game files and uploads nothing
 ```
 
 ## The two code regimes
