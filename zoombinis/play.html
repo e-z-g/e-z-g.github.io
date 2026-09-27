@@ -71,6 +71,7 @@ function say(text, error = false) {
   statusEl.classList.toggle('error', error);
 }
 const MB = n => (n / 1e6).toFixed(0) + ' MB';
+const TOUCH = matchMedia('(pointer: coarse)').matches;
 
 // The installer: a file chosen here if there is one, otherwise archive.org.
 let chosen = null;
@@ -99,7 +100,7 @@ async function build(patch) {
   say(patch ? 'Putting the Fleens’ hair on the Zoombinis…' : 'Packing the game for js-dos…');
   await new Promise(r => setTimeout(r, 30));             // let the message paint
   const blob = new Blob(ZoombiniPlay.bundle(game, patch));
-  say('Starting Windows 3.1… (tap the game to use the mouse)');
+  say('Starting Windows 3.1…');
   return new Response(blob, { status: 200, headers: { 'Content-Length': String(blob.size) } });
 }
 
@@ -136,8 +137,17 @@ async function start() {
     url: bundleName,
     pathPrefix: JSDOS + 'emulators/',
     autoStart: true,
+    // Windows 3.1 only understands a mouse that moves, not one that jumps to
+    // where the finger is: js-dos's default turns each touch into a move
+    // towards that spot, Windows accelerates it, and the pointer falls short
+    // of the edges (the builder's tiles, at the bottom, were out of reach).
+    // Captured, a touch screen is a trackpad - drag to move, tap to click -
+    // and a mouse is locked to the game, as Windows expects.
+    mouseCapture: true,
     onEvent: event => {
-      if (event === 'ci-ready') say('Running - tap the game to use the mouse. Windows 3.1 takes a moment to start.');
+      if (event === 'ci-ready') say(TOUCH
+        ? 'Running. Drag anywhere to move the pointer, like a trackpad; tap to click.'
+        : 'Running. Click the game to use the mouse; Esc gives it back.');
     },
   });
 }
