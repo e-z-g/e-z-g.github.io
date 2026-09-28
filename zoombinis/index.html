@@ -22,16 +22,18 @@
     EXE - so they are not used: guessing offsets would put noses on cheeks.
   - The Zoombini tiles are the maker screen's real buttons (PICKER tBMP
     4400), in the same variant order as the atlas. The game has no Fleen
-    maker; the Fleen tiles are made by the exporter in the same style. The
-    dice is PICKER tBMP 4200.
+    maker; the Fleen tiles are made by the exporter in the same style, and
+    so are the two body tiles, which the game has no need of. The dice and
+    the go arrow are PICKER tBMP 4200.
 
   The character is drawn with its origin fixed in the preview, not centred
   on its own outline, so the body stays put and only the feature you change
   moves - hair and feet are lopsided, and re-centring on every click makes
   the whole figure jump.
 
-  Either character can wear the other's parts: each feature row offers its
-  own five and then the other character's five. The fitting is done by the
+  Which body it is - Zoombini or Fleen - is picked like any feature, from
+  the first row of tiles, and either can wear the other's parts: each
+  feature row offers the Zoombini's five, then the Fleen's five. The fitting is done by the
   exporter, not here - the part's skin recoloured to the host's (a Fleen's
   legs belong to its feet, a Zoombini's eyelids to its eyes), mirrored
   because a Zoombini faces right and a Fleen left, and re-anchored to the
@@ -196,16 +198,8 @@
       4px 5px 0 #000;
   }
   body[data-kind="fleen"] h1 { color: var(--fleen); }
-  .tabs { display: flex; gap: 10px; }
-  .tabs button {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    padding: 6px 14px 8px 10px;
-    font-weight: 800;
-    font-size: 1.05rem;
-  }
-  .portrait { display: block; image-rendering: pixelated; }
+  .share { display: flex; gap: 10px; }
+  .share .short { display: none; }
 
   /* ---- the character and its controls ---- */
 
@@ -216,7 +210,13 @@
     align-items: start;
   }
   .stage { display: flex; flex-direction: column; gap: 12px; }
-  .window { padding: 10px; }
+  .window { padding: 10px; position: relative; }
+  /* what saving or copying did, over the bottom of the window */
+  .status {
+    position: absolute; left: 0; right: 0; bottom: 18px; margin: 0;
+    text-align: center; font-weight: 700; pointer-events: none;
+    text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000;
+  }
   .preview {
     display: flex;
     align-items: center;
@@ -229,23 +229,23 @@
   }
   #preview { display: block; image-rendering: pixelated; }
 
-  .nameplate { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
   .name-btn {
     display: inline-flex;
     align-items: baseline;
+    justify-content: center;
     gap: 10px;
     padding: 6px 18px 8px;
     font-family: var(--display);
     font-size: 1.9rem;
     line-height: 1.1;
+    min-width: 7em;
     max-width: 100%;
+    min-height: 0;
   }
   .name-btn .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .name-btn { min-width: 9em; justify-content: center; }
   .name-btn .again { font-family: system-ui, sans-serif; font-size: 1.1rem; font-weight: 700; opacity: 0.6; }
-  .readout { margin: 0; text-align: center; font-size: 1rem; min-height: 1.35em; }
 
-  .toolbar { display: flex; justify-content: center; align-items: center; gap: 14px; }
+  .toolbar { display: flex; justify-content: center; align-items: center; gap: 14px; flex-wrap: wrap; }
   .ctl {
     padding: 0;
     border: 0;
@@ -262,21 +262,18 @@
 
   .box { padding: 14px; width: 100%; max-width: 620px; justify-self: center; }
   .rows { display: grid; gap: 10px; }
-  /* A feature: this character's five tiles, then the other's five - side by
-     side where they fit, one set under the other where they do not. */
+  /* A row: the body, then each feature - the Zoombini's five tiles on the
+     left and the Fleen's on the right, whichever body is picked, so a tile
+     is always where it was. The body row has one tile in each. */
   .feature {
     display: flex;
-    flex-wrap: wrap;
     justify-content: center;
-    gap: 6px 14px;
+    gap: 14px;
   }
   .set {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 52px));
     gap: 4px;
-  }
-  @media (max-width: 420px) {
-    .set { grid-template-columns: repeat(5, minmax(0, 1fr)); flex: 1 1 100%; }
   }
   .tile {
     padding: 0;
@@ -292,60 +289,49 @@
     image-rendering: pixelated;
   }
 
-  .share { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 14px; }
-  .status { flex-basis: 100%; margin: 0; text-align: center; font-size: 0.95rem; min-height: 1.35em; }
 
   /* A desktop: the character in its window on the left, as tall as the
-     screen allows; its name, the tiles and the buttons down the right. */
+     screen allows; its name and buttons, then the tiles, down the right. */
   @media (min-width: 901px) {
     main {
       grid-template-columns: minmax(0, 1fr) minmax(0, 620px);
-      grid-template-areas: "window name" "window box" "window tools" "window share" "window .";
-      grid-template-rows: auto auto auto auto 1fr;
+      grid-template-areas: "window tools" "window box" "window .";
+      grid-template-rows: auto auto 1fr;
       gap: 16px 22px;
     }
     .stage { display: contents; }
     .window { grid-area: window; }
-    .nameplate { grid-area: name; }
     .box { grid-area: box; }
     .toolbar { grid-area: tools; }
-    .share { grid-area: share; }
   }
 
-  /* A phone: the character and its controls stay pinned to the top while
-     the tiles scroll beneath, so every pick shows at once - its name beside
-     the dice and the arrow, to leave the window as much of that as it can;
-     saving and sharing go after the tiles. The game's buttons at 1x. */
+  /* A phone: everything on one screen - the window takes whatever height
+     the name, buttons and all 42 tiles leave (see layoutPreview), and the
+     tiles shrink to fit ten across, as the two sets share each row. The
+     game's buttons at 1x. */
   @media (max-width: 900px) {
-    .page { padding-top: 10px; }
-    header { flex-wrap: nowrap; margin-bottom: 8px; }
-    h1 { font-size: 1.7rem; white-space: nowrap;
+    .page { padding: 8px 10px 24px; }
+    header { flex-wrap: nowrap; margin-bottom: 8px; gap: 8px; }
+    h1 { font-size: 1.5rem; white-space: nowrap;
          text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000,
                       1px 1px #000, -1px 1px #000, 1px -1px #000, -1px -1px #000, 2px 3px 0 #000; }
-    .tabs { gap: 6px; }
-    .tabs button { font-size: 0.85rem; padding: 4px 8px 5px 6px; gap: 4px; }
-    .tabs span { display: none; }
-    .stage {
-      position: sticky; top: 0; z-index: 2;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas: "window window" "name tools";
-      align-items: center;
-      gap: 8px 10px;
-      background: var(--night);
-      padding: 6px 0 8px;
-    }
-    .window { grid-area: window; padding: 6px; }
-    .preview { padding: 6px; }
-    .nameplate { grid-area: name; align-items: flex-start; gap: 2px; }
-    .name-btn { font-size: 1.35rem; padding: 3px 10px 5px; min-width: 0; }
-    .readout { font-size: 0.8rem; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-    .toolbar { grid-area: tools; gap: 8px; }
+    .share { gap: 6px; }
+    .share .long { display: none; }
+    .share .short { display: inline; }
+    main { gap: 8px; }
+    .stage { display: flex; flex-direction: column; gap: 8px; }
+    .window { padding: 5px; }
+    .preview { padding: 4px; }
+    .status { bottom: 10px; font-size: 0.85rem; }
+    .toolbar { flex-wrap: nowrap; gap: 8px; }
+    .name-btn { font-size: 1.3rem; padding: 3px 10px 5px; min-width: 0; flex: 1 1 auto; }
     #btn-random canvas { width: 54px; height: 39px; }
     #btn-walk canvas { width: 38px; height: 36px; }
-    .toolbar .plate { min-width: 0; font-size: 0.85rem; padding: 5px 9px 7px; }
-    .rows { gap: 16px; }
-    .feature { gap: 4px; }
+    .plate { min-width: 0; font-size: 0.85rem; padding: 5px 9px 7px; }
+    .box { padding: 6px; }
+    .rows { gap: 4px; }
+    .feature { gap: 6px; }
+    .set { flex: 1 1 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
   }
 
   footer { margin-top: 30px; font-size: 0.9rem; opacity: 0.75; }
@@ -356,9 +342,9 @@
 <div class="page">
   <header>
     <h1>Zoombini Maker</h1>
-    <div class="tabs" role="tablist" aria-label="Character">
-      <button class="stone" role="tab" data-kind="zoombini" aria-selected="true" aria-label="Zoombinis"><canvas class="portrait" aria-hidden="true"></canvas><span>Zoombinis</span></button>
-      <button class="stone" role="tab" data-kind="fleen" aria-selected="false" aria-label="Fleens"><canvas class="portrait" aria-hidden="true"></canvas><span>Fleens</span></button>
+    <div class="share">
+      <button class="stone plate" id="btn-save"><span class="long">Save picture</span><span class="short">Save</span></button>
+      <button class="stone plate" id="btn-link">Copy link</button>
     </div>
   </header>
 
@@ -368,27 +354,19 @@
         <div class="preview" id="preview-wrap">
           <canvas id="preview" role="img"></canvas>
         </div>
-      </div>
-      <div class="nameplate">
-        <button class="stone name-btn" id="btn-name" title="Think of a new name"><span class="name" id="name"></span><span class="again" aria-hidden="true">&#x21bb;</span></button>
-        <p class="readout" id="readout" aria-live="polite"></p>
+        <p class="status" id="status" aria-live="polite"></p>
       </div>
       <div class="toolbar">
+        <button class="stone name-btn" id="btn-name" title="Think of a new name"><span class="name" id="name"></span><span class="again" aria-hidden="true">&#x21bb;</span></button>
         <button class="ctl" id="btn-random" title="Roll a new one" aria-label="Roll a new one"><canvas width="54" height="39"></canvas></button>
         <button class="ctl" id="btn-walk" title="Walk" aria-label="Walk"><canvas width="38" height="36"></canvas></button>
         <button class="stone plate" id="btn-motion" aria-pressed="false">Pause</button>
       </div>
     </div>
 
-    <section class="box rock" aria-label="Features">
+    <section class="box rock" aria-label="Body and features">
       <div class="rows" id="rows"></div>
     </section>
-
-    <div class="share">
-      <button class="stone plate" id="btn-save">Save picture</button>
-      <button class="stone plate" id="btn-link">Copy link</button>
-      <p class="status" id="status" aria-live="polite"></p>
-    </div>
   </main>
 
   <footer>
@@ -672,8 +650,10 @@ function drawPreview() {
 // rest of the panel to move in, and only something travelling past the
 // panel's edge is cut off. Its height comes from the window, never from the
 // panel's own, which grows with the canvas and would feed back into itself:
-// on a desktop most of the window; on a phone, where the character stays
-// pinned above the scrolling tiles, under a third of it.
+// on a desktop most of the window; on a phone, whatever the header, buttons
+// and tiles leave of it - everything else's height, measured without the
+// canvas, is the same whatever the canvas's - so every option is on screen
+// at once, with no scrolling.
 // The window's height without its browser bars (CSS svh): on a phone the
 // address bar comes and goes as the page scrolls, and sizing from
 // innerHeight would resize the pinned character mid-scroll.
@@ -686,7 +666,9 @@ function layoutPreview() {
   const cs = getComputedStyle(wrap);
   const availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const narrow = window.matchMedia('(max-width: 900px)').matches;
-  const availH = narrow ? viewHeight() * 0.3
+  const others = document.querySelector('main').getBoundingClientRect().bottom + window.scrollY
+    - preview.getBoundingClientRect().height + 10;
+  const availH = narrow ? Math.max(90, viewHeight() - others)
     : Math.max(260, Math.min(560, viewHeight() - 280));
   const bb = fitBounds[state.kind];
   const fw = bb.r - bb.l + PAD * 2, fh = bb.b - bb.t + PAD * 2;
@@ -719,33 +701,39 @@ let tiles = {};                          // feature -> [{b, v, borrowed}]
 const nameOf = (feat, pick) =>
   S.characters[pick.borrowed ? OTHER[state.kind] : state.kind].names[feat][pick.v];
 
+// Built once: the body's row, then each feature's, the Zoombini's tiles on
+// the left and the Fleen's on the right. A pick is kept as {v, borrowed}
+// against the body (see state), so a tile's pick depends on the body.
+const ROWS = ['body'].concat(FEATURES);
+const KINDS = ['zoombini', 'fleen'];
 function buildTiles() {
   rowsEl.textContent = '';
   tiles = {};
-  for (const feat of FEATURES) {
+  for (const feat of ROWS) {
     const row = document.createElement('div');
     row.className = 'feature';
     row.setAttribute('role', 'group');
     row.setAttribute('aria-label', feat[0].toUpperCase() + feat.slice(1));
     tiles[feat] = [];
-    for (const borrowed of [false, true]) {
-      const kind = borrowed ? OTHER[state.kind] : state.kind;
+    for (const kind of KINDS) {
       const set = document.createElement('div');
       set.className = 'set';
       S.characters[kind].buttons[feat].forEach((pair, v) => {
         const b = document.createElement('button');
         b.className = 'tile';
-        const name = S.characters[kind].names[feat][v] + (borrowed ? ' (' + LABEL[kind] + ')' : '');
+        const name = feat === 'body' ? LABEL[kind]
+          : S.characters[kind].names[feat][v] + ' (' + LABEL[kind] + ')';
         b.title = name;
         b.setAttribute('aria-label', name);
         b.appendChild(document.createElement('canvas'));
         b.addEventListener('click', () => {
-          state.build[state.kind][feat] = { v, borrowed };
+          if (feat === 'body') setBody(kind);
+          else state.build[state.kind][feat] = { v, borrowed: kind !== state.kind };
           endClip();
           update();
         });
         set.appendChild(b);
-        tiles[feat].push({ b, v, borrowed, kind });
+        tiles[feat].push({ b, v, kind });
       });
       row.appendChild(set);
     }
@@ -753,11 +741,28 @@ function buildTiles() {
   }
 }
 
+// The whole character becomes the other one's body, every feature staying
+// what it was - a Fleen's hair on a Zoombini is that Fleen's own hair on a
+// Fleen - and so does its name.
+function setBody(kind) {
+  if (kind === state.kind) return;
+  const old = state.kind;
+  state.build[kind] = Object.fromEntries(FEATURES.map(f => {
+    const { v, borrowed } = state.build[old][f];
+    return [f, { v, borrowed: (borrowed ? OTHER[old] : old) !== kind }];
+  }));
+  state.name[kind] = state.name[old];
+  state.kind = kind;
+  heading = null;
+}
+
 function paintTiles() {
   const build = state.build[state.kind];
-  for (const feat of FEATURES) {
+  for (const feat of ROWS) {
     for (const t of tiles[feat]) {
-      const on = build[feat].v === t.v && build[feat].borrowed === t.borrowed;
+      const pick = build[feat];
+      const on = feat === 'body' ? t.kind === state.kind
+        : pick.v === t.v && (pick.borrowed ? OTHER[state.kind] : state.kind) === t.kind;
       t.b.setAttribute('aria-pressed', on);
       paintTile(t.b.firstChild, S.characters[t.kind].buttons[feat][t.v][on ? 1 : 0]);
     }
@@ -792,21 +797,6 @@ function dressPage() {
   document.documentElement.style.setProperty('--rock-img', `url(${rockURL()})`);
 }
 
-// Each tab shows its character as it stands now, head and shoulders.
-const PORTRAIT_H = 34;
-function paintPortraits() {
-  for (const t of tabs) {
-    const kind = t.dataset.kind, build = state.build[kind];
-    const bb = boundsOf(variantsFor(kind, build));
-    const c = t.querySelector('canvas');
-    c.width = bb.r - bb.l;
-    c.height = Math.min(bb.b - bb.t, PORTRAIT_H);
-    const ctx = c.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-    drawCharacter(ctx, kind, build, -bb.l, -bb.t, 1);
-  }
-}
-
 // The dice and the go arrow, which walks, show their pressed art while held,
 // as in the game.
 const walkBtn = document.getElementById('btn-walk');
@@ -824,6 +814,8 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
   dice.addEventListener(ev, () => { if (diceHeld) { diceHeld = false; paintDice(); } });
 }
 dice.addEventListener('click', () => {
+  state.kind = KINDS[Math.floor(Math.random() * 2)];
+  heading = null;
   state.build[state.kind] = randomBuild();
   state.name[state.kind] = makeName();
   endClip();
@@ -970,24 +962,12 @@ document.getElementById('btn-link').addEventListener('click', async () => {
   }
 });
 
-// ---- tabs and refresh --------------------------------------------------
-
-const tabs = [...document.querySelectorAll('.tabs button')];
-tabs.forEach(t => t.addEventListener('click', () => {
-  if (state.kind === t.dataset.kind) return;
-  state.kind = t.dataset.kind;
-  switchKind();
-}));
+// ---- refresh -----------------------------------------------------------
 
 function switchKind() {
-  tabs.forEach(t => t.setAttribute('aria-selected', t.dataset.kind === state.kind));
   document.body.dataset.kind = state.kind;
-  const title = LABEL[state.kind] + ' Maker';
-  document.title = title;
-  document.querySelector('h1').textContent = title;
   clip = null;
   heading = null;
-  buildTiles();
   update();
 }
 
@@ -997,14 +977,13 @@ function update() {
     const n = nameOf(f, build[f]);
     return i ? n.toLowerCase() : n;
   }).join(', ');
+  document.body.dataset.kind = state.kind;
   const name = shownName(state.name[state.kind]);
   document.getElementById('name').textContent = name;
-  document.getElementById('readout').textContent = described;
   preview.setAttribute('aria-label', name + ', a ' + LABEL[state.kind] + ': ' + described);
   paintTiles();
   paintDice();
   paintWalk();
-  paintPortraits();
   layoutPreview();
   writeHash();
 }
@@ -1012,7 +991,7 @@ function update() {
 window.addEventListener('hashchange', () => { readHash(); switchKind(); });
 
 readHash();
-sheet.onload = () => { dressPage(); switchKind(); setPaused(paused); };
+sheet.onload = () => { dressPage(); buildTiles(); switchKind(); setPaused(paused); };
 sheet.src = S.sheet;
 </script>
 </body>
