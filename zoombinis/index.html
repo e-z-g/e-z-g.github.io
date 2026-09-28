@@ -629,7 +629,8 @@ function skinLadder(hex) {
 // part's colours (`groups`, from the exporter) that has a pick, to the picked
 // hue and saturation, every shade's lightness moved by as much as the
 // group's middle shade (`ref`) moves to the picked one, keeping the shading.
-// The outline and anything else outside the groups stay as they are, and a
+// A picked colour wins over the skin's (sleepy eyes' lids are skin, and have
+// a picker). The outline and anything else outside the groups stay as they are, and a
 // hat's pixels are never skin (the cream has the Zoombini's lightest blue).
 // With nothing picked, or only a part's own colours, the sprite is the
 // sheet's own, untouched.
@@ -660,11 +661,12 @@ function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
     if (!d[i + 3]) continue;
     const hex = hexAt(i), step = steps[hex];
     let rgb = null;
-    if (step !== undefined) {
-      if (ladder) rgb = ladder[step];
-    } else if (byHex.has(hex)) {
+    // a picked colour first: sleepy eyes' lids are skin, and can be picked
+    if (byHex.has(hex)) {
       const [to, ref] = byHex.get(hex), [, , l] = rgbToHsl([d[i], d[i + 1], d[i + 2]]);
       rgb = hslToRgb([to[0], to[1], clamp01(to[2] + l - ref)]);
+    } else if (step !== undefined) {
+      if (ladder) rgb = ladder[step];
     }
     if (rgb) [d[i], d[i + 1], d[i + 2]] = rgb;
   }
