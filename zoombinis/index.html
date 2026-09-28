@@ -109,6 +109,7 @@
     --tan-hi: #f1dfb2;
     --tan-lo: #ce8431;
     --tan-deep: #844a39;
+    --window: #828282;                   /* behind the character: the tiles' grey stone, so dark hair shows */
     --zoombini: #9ebfff;                 /* the two skins, for the title */
     --fleen: #c9ee31;
     --text: #f1dfb2;
@@ -222,7 +223,7 @@
     align-items: center;
     justify-content: center;
     padding: 12px;
-    background: var(--night-hi);
+    background: var(--window);
     border: 2px solid #000;
     box-shadow: inset 4px 4px 0 rgba(0, 0, 0, 0.35);
     overflow: hidden;
@@ -288,6 +289,7 @@
   }
   .mini canvas { display: block; image-rendering: pixelated; width: 22px; height: auto; }
   .end { display: flex; flex-direction: column; gap: 4px; width: 30px; }
+  .mini.spacer { visibility: hidden; }
   .end .mini { flex: 1 1 0; width: auto; min-height: 0; }
   .end .mini canvas { width: auto; height: 100%; max-height: 22px; }
   /* a colour: the plaque is the button, the browser's own colour picker
@@ -499,12 +501,12 @@ const state = {
 // #zoombini-2031-oplie is hair 2, eyes 0, nose 3, feet 1, named Oplie, and a
 // letter marks a feature borrowed from the other character - #zoombini-2d31
 // has the other's eyes number 3 (a = 0) - or x none. -s and -n with a colour
-// after the name are its skin and nose colours. Links from before names keep
-// working, with a new name.
+// after the name are its skin and nose colours, and -h and a number its hat
+// (see HATS below). Links from before names keep working, with a new name.
 const codeOf = build => FEATURES.map(f =>
   build[f].none ? 'x' : build[f].borrowed ? 'abcde'[build[f].v] : String(build[f].v)).join('');
 function readHash() {
-  const m = /^#(zoombini|fleen)(?:-([0-4a-ex]{4})x?)?(?:-([a-z]{1,12}))?(?:-s([0-9a-f]{6}))?(?:-n([0-9a-f]{6}))?$/.exec(location.hash);
+  const m = /^#(zoombini|fleen)(?:-([0-4a-ex]{4})x?)?(?:-([a-z]{1,12}))?(?:-s([0-9a-f]{6}))?(?:-n([0-9a-f]{6}))?(?:-h([0-9]))?$/.exec(location.hash);
   if (!m) return;
   state.kind = m[1];
   if (m[3]) state.name[m[1]] = m[3];
@@ -515,11 +517,13 @@ function readHash() {
   });
   state.build[m[1]].skin = m[4] ? '#' + m[4] : undefined;
   state.build[m[1]].noseColour = m[5] ? '#' + m[5] : undefined;
+  state.build[m[1]].hat = m[6] && S.hats[+m[6]] ? +m[6] : undefined;
 }
 function writeHash() {
   const build = state.build[state.kind];
   const hash = '#' + state.kind + '-' + codeOf(build) + '-' + state.name[state.kind]
-    + (build.skin ? '-s' + build.skin.slice(1) : '') + (build.noseColour ? '-n' + build.noseColour.slice(1) : '');
+    + (build.skin ? '-s' + build.skin.slice(1) : '') + (build.noseColour ? '-n' + build.noseColour.slice(1) : '')
+    + (build.hat !== undefined ? '-h' + build.hat : '');
   if (location.hash !== hash) history.replaceState(null, '', hash);
 }
 
@@ -728,7 +732,57 @@ function variantsFor(kind, build, pose = REST) {
   // above finds what it looks for, and left out only now
   const none = name => (build[name] || {}).none;
   return out.filter(p => !(p && none(p.name)))
-    .map(p => p.name === 'nose' ? Object.assign({ part: 'nose' }, p.v) : p.v);
+    .map(p => p.name === 'nose' ? Object.assign({ part: 'nose' }, p.v) : p.v)
+    .concat(hatOn(out.find(p => p.name === 'body').v, build.hat,
+                  build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v));
+}
+
+// A hat, worn as Pizza Pass's Zoombinis carry the trolls' orders: centred on
+// the top of the head, whatever the pose - the body's `crown` - and painted
+// last. With hair on, it rests on the hair's solid top over the head's
+// middle: the row that most of the columns under the hat reach, so it sits
+// on a cap or a helmet and down among thin spikes. Its pieces as sprites.
+const HAT_SOLID = 0.6;                       // the share of columns that must reach the row
+function hatOn(body, hat, hair = null) {
+  const h = S.hats[hat];
+  if (!h || !body.crown) return [];
+  const [cx, crownY] = body.crown;
+  let cy = crownY;
+  if (hair && HAT_RULE === 'hair') {
+    const base = h.pieces[0], w = rect(base.sprite)[2];
+    const tops = [];
+    for (let x = Math.round(cx - w / 4); x < Math.round(cx + w / 4); x++) {
+      const t = topAt(hair, x);
+      tops.push(t === null ? crownY : Math.min(t, crownY));
+    }
+    tops.sort((a, b) => a - b);
+    cy = Math.min(crownY, tops[Math.ceil(tops.length * HAT_SOLID) - 1]);
+  }
+  return h.pieces.map(p => ({ sprite: p.sprite, rx: -Math.round(cx + p.dx), ry: -Math.round(cy + h.sink + p.dy) }));
+}
+let HAT_RULE = 'hair';
+
+// The highest opaque pixel of a placed sprite in column x (origin
+// coordinates), or null: read from the sheet once, per sprite.
+const columnTops = new Map();
+let sheetPixels = null;
+function topAt(v, x) {
+  if (!columnTops.has(v.sprite)) {
+    if (!sheetPixels) {
+      const c = document.createElement('canvas');
+      c.width = sheet.width; c.height = sheet.height;
+      const g = c.getContext('2d');
+      g.drawImage(sheet, 0, 0);
+      sheetPixels = g.getImageData(0, 0, c.width, c.height);
+    }
+    const [sx, sy, w, h] = rect(v.sprite), tops = new Int16Array(w).fill(-1);
+    for (let i = 0; i < w; i++) {
+      for (let j = 0; j < h; j++) if (sheetPixels.data[((sy + j) * sheetPixels.width + sx + i) * 4 + 3]) { tops[i] = j; break; }
+    }
+    columnTops.set(v.sprite, tops);
+  }
+  const tops = columnTops.get(v.sprite), i = x + v.rx;
+  return i >= 0 && i < tops.length && tops[i] >= 0 ? tops[i] - v.ry : null;
 }
 
 // A box relative to the REGS origin around the given variants.
@@ -758,6 +812,8 @@ const fitBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
     for (const more of [v.special, v.units]) if (more) more.forEach(add);
   };
   for (const p of ch.parts) p.variants.concat(ch.borrowed[p.name] || []).forEach(add);
+  const body = ch.parts.find(p => p.name === 'body').variants[0];
+  for (const b of [body].concat(Object.values(body.facings || {}))) S.hats.forEach((_, k) => all.push(...hatOn(b, k)));
   return [kind, boundsOf(all)];
 }));
 
@@ -883,7 +939,7 @@ const nameOf = (feat, pick) => pick.none ? 'no ' + feat
 // Built once: the body's row, then each feature's, the Zoombini's tiles on
 // the left and the Fleen's on the right. A pick is kept as {v, borrowed}
 // against the body (see state), so a tile's pick depends on the body.
-const ROWS = ['body'].concat(FEATURES);
+const ROWS = ['body'].concat(FEATURES, ['hat']);
 const KINDS = ['zoombini', 'fleen'];
 // The lock and the none, as pixel icons: '#' outline, 'o' face.
 const ICONS = {
@@ -938,6 +994,7 @@ function buildTiles() {
   rowsEl.textContent = '';
   tiles = {};
   for (const feat of ROWS) {
+    if (feat === 'hat') { buildHatRow(); continue; }
     const row = document.createElement('div');
     row.className = 'feature' + (feat === 'body' ? ' body' : '');
     row.setAttribute('role', 'group');
@@ -998,6 +1055,40 @@ function buildTiles() {
   }
 }
 
+// The hats' row: no lock, as the dice leaves a hat alone; the hats on the
+// body that is picked, in the left-hand set; and none at the end.
+function buildHatRow() {
+  const row = document.createElement('div');
+  row.className = 'feature hats';
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-label', 'Hat');
+  const spacer = document.createElement('div');
+  spacer.className = 'mini spacer';
+  row.appendChild(spacer);
+  tiles.hat = [];
+  const set = document.createElement('div');
+  set.className = 'set';
+  S.hats.forEach((hat, v) => {
+    const b = document.createElement('button');
+    b.className = 'tile';
+    const name = hat.name[0].toUpperCase() + hat.name.slice(1) + ' (from Pizza Pass)';
+    b.title = name;
+    b.setAttribute('aria-label', name);
+    b.appendChild(document.createElement('canvas'));
+    b.addEventListener('click', () => { state.build[state.kind].hat = v; update(); });
+    set.appendChild(b);
+    tiles.hat.push({ b, v, hat: true });
+  });
+  row.append(set, document.createElement('div'));
+  row.lastChild.className = 'set';
+  const end = document.createElement('div');
+  end.className = 'end';
+  tiles.hat.none = miniButton('No hat', () => { state.build[state.kind].hat = undefined; update(); });
+  end.appendChild(tiles.hat.none);
+  row.appendChild(end);
+  rowsEl.appendChild(row);
+}
+
 // The whole character becomes the other one's body, every feature staying
 // what it was - a Fleen's hair on a Zoombini is that Fleen's own hair on a
 // Fleen - and so does its name.
@@ -1010,6 +1101,7 @@ function setBody(kind) {
   }));
   state.build[kind].skin = state.build[old].skin;
   state.build[kind].noseColour = state.build[old].noseColour;
+  state.build[kind].hat = state.build[old].hat;
   state.name[kind] = state.name[old];
   state.kind = kind;
   heading = null;
@@ -1017,7 +1109,15 @@ function setBody(kind) {
 
 function paintTiles() {
   const build = state.build[state.kind];
+  for (const t of tiles.hat) {
+    const on = build.hat === t.v;
+    t.b.setAttribute('aria-pressed', on);
+    paintTile(t.b.firstChild, S.characters[state.kind].buttons.hat[t.v][on ? 1 : 0]);
+  }
+  tiles.hat.none.setAttribute('aria-pressed', build.hat === undefined);
+  paintIcon(tiles.hat.none.firstChild, 'none', build.hat === undefined);
   for (const feat of ROWS) {
+    if (feat === 'hat') continue;
     const pick = build[feat] || {};
     for (const t of tiles[feat]) {
       const on = !pick.none && (feat === 'body' ? t.kind === state.kind
