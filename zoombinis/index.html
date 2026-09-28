@@ -6,8 +6,9 @@
 <title>Zoombini Maker</title>
 <!--
   Zoombini Maker - build a Zoombini (or a Fleen) the way the 1996 game's
-  Zoombini Isle screen does: rows of feature tiles and a dice for a random
-  one. It then stands there idling, as the game's characters do.
+  Zoombini Isle screen does: a tile for each choice of each feature, and a
+  dice for a random one - here one feature at a time, under tabs. It then
+  stands there idling, as the game's characters do.
 
   Where the pieces come from. Everything drawn here is the game's own art,
   pulled out of its Mohawk archives by tools/export_web.py in the separate
@@ -176,14 +177,7 @@
 
   /* ---- header ---- */
 
-  header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px 20px;
-    margin-bottom: 16px;
-  }
+  header { margin-bottom: 16px; }
   /* Cartoon lettering: the skin of whichever character is being made, in
      the art's own black outline. */
   h1 {
@@ -200,11 +194,15 @@
       4px 5px 0 #000;
   }
   body[data-kind="fleen"] h1 { color: var(--fleen); }
-  .share { display: flex; gap: 10px; }
-  .share .short { display: none; }
 
   /* ---- the character and its controls ---- */
 
+  /* The buttons were in two places - saving and sharing in the header, the
+     name, dice, Pure and Pause under the window - and read as a scatter.
+     Now each sits with what it acts on: the name bar under the character,
+     as the game's builder has it; Pause in the window's corner, as it stops
+     the window; and one bar for the rest, rolling at one end and saving and
+     sharing at the other. */
   main {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -212,14 +210,24 @@
     align-items: start;
   }
   .stage { display: flex; flex-direction: column; gap: 12px; }
-  .window { padding: 10px; position: relative; }
-  /* what saving or copying did, over the bottom of the window */
+  .window {
+    padding: 10px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  /* what saving or copying did, over the foot of the window, clear of the
+     Pause button in its corner */
   .status {
-    position: absolute; left: 0; right: 0; bottom: 18px; margin: 0;
-    text-align: center; font-weight: 700; pointer-events: none;
+    position: absolute; left: 0; right: 0; bottom: 10px; margin: 0; padding: 0 8px;
+    text-align: center; pointer-events: none;
     text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000;
   }
   .preview {
+    align-self: stretch;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -230,6 +238,12 @@
     overflow: hidden;
   }
   #preview { display: block; image-rendering: pixelated; }
+  .corner {
+    position: absolute; top: 8px; right: 8px;
+    width: 44px; height: 44px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .corner canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
 
   .name-btn {
     display: inline-flex;
@@ -242,12 +256,13 @@
     line-height: 1.1;
     min-width: 7em;
     max-width: 100%;
-    min-height: 0;
   }
   .name-btn .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .name-btn .again { font-family: system-ui, sans-serif; font-size: 1.1rem; font-weight: 700; opacity: 0.6; }
 
-  .toolbar { display: flex; justify-content: center; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+  .toolbar .group { display: flex; align-items: center; gap: 10px; }
+  .share .short { display: none; }
   .ctl {
     padding: 0;
     border: 0;
@@ -257,54 +272,47 @@
   }
   .ctl canvas { display: block; image-rendering: pixelated; }
   #btn-random canvas { width: 108px; height: 78px; }
-  .plate { padding: 8px 16px 10px; font-weight: 800; font-size: 1.05rem; min-width: 7em; }
+  .plate { padding: 8px 16px 10px; font-size: 1.05rem; min-width: 6em; white-space: nowrap; }
 
-  /* ---- the feature box: the tiles set in the builder's rock ---- */
+  /* ---- the feature box: tabs, and the open one's tiles, in the builder's rock ---- */
 
-  .box { padding: 14px; width: 100%; max-width: 690px; justify-self: center; }
-  .rows { display: grid; gap: 10px; }
-  /* A row: the body, each feature, then the hats - the Zoombini's five
-     tiles on the left and the Fleen's on the right, whichever body is
-     picked, so a tile is always where it was; then none, a tile of its own;
-     then the row's small plaques together, a colour for each of the picked
-     part's colours and the lock. The body row has one tile in each set and
-     no none, the hats one set of three and no lock. */
-  .feature {
-    display: flex;
-    justify-content: center;
-    align-items: stretch;
-    gap: 8px;
+  /* One feature at a time. All the rows at once - 42 tiles - had to shrink
+     to fit a phone, with the character squeezed to a sliver above them and
+     every colour and lock a 10-pixel plaque. With tabs, the open feature's
+     tiles are shown bigger and its colours and lock are full-size plaques
+     with words on, and on a phone the character has the room back. On a
+     desktop the box is as wide as a line of tiles at 2x needs, and the
+     window has the rest.
+     --tile is set by layoutTiles(); the two gaps are read by it too. */
+  .box {
+    --tile: 80px; --set-gap: 6px; --none-gap: 14px;
+    padding: 14px; width: 100%; max-width: 560px; justify-self: center;
+    display: flex; flex-direction: column; gap: 14px;
   }
-  .set {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 50px));
-    gap: 4px;
+  .tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+  .tab {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 8px 4px 10px; font-size: 1.05rem; min-width: 0; white-space: nowrap;
   }
-  .none-tile { flex: 0 1 50px; min-width: 0; }
-  .none-tile.spacer { visibility: hidden; }
-  .controls { display: flex; gap: 3px; flex: none; }
-  .colours { display: flex; flex-direction: column; gap: 3px; width: 20px; }
-  .lock { flex: none; width: 28px; }
-  .mini.lock canvas { max-height: none; height: 26px; }      /* the die-padlock at 2x */
-  /* small plaques with a pixel icon, stacked as tall as a tile */
-  .mini {
-    flex: 1 1 0;
-    min-height: 0;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-  }
-  .mini[hidden] { display: none; }
-  .mini canvas { display: block; image-rendering: pixelated; width: auto; height: 100%; max-height: 13px; }
-  /* a colour: the plaque is the button, the browser's own colour picker
-     under it, invisible, so a tap anywhere on it opens the picker */
-  .mini input[type="color"] {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    opacity: 0; border: 0; padding: 0; cursor: pointer;
-  }
+  .tab canvas { flex: none; width: 12px; height: 13px; image-rendering: pixelated; }
+  .tab canvas[hidden] { display: none; }
+  /* Every panel sits in the same grid cell, the closed ones invisible
+     rather than gone, so the box is always as tall as the tallest - the
+     features' two lines of tiles - and nothing moves when the tab changes:
+     on a phone the character's height comes from what the box leaves. */
+  .panels { display: grid; }
+  .feature { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 14px; }
+  .feature:not(.open) { visibility: hidden; }
+  /* A feature: the Zoombini's five over the Fleen's five, whichever body is
+     picked, so a tile is always where it was; none beside both. The body's
+     two tiles, and the hats' three, make one line, in the middle. */
+  .tiles { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: var(--none-gap); }
+  .sets { display: flex; flex-direction: column; gap: var(--set-gap); }
+  .feature.body .sets { flex-direction: row; gap: var(--none-gap); }
+  .set { display: flex; gap: var(--set-gap); }
   .tile {
+    flex: none;
+    width: var(--tile);
     padding: 0;
     border: 0;
     background: none;
@@ -317,13 +325,32 @@
     aspect-ratio: 40 / 43;
     image-rendering: pixelated;
   }
+  /* Under the tiles, the open part's plaques: a colour for each of its own
+     colours - two for a ponytail or a propeller - and the lock that keeps
+     it when the dice rolls. The icons are at 2x, a whole number of the
+     tiles' pixels, like everything else here. */
+  .controls { display: flex; gap: 8px; min-height: 44px; }
+  .controls .spacer { flex: 1; }
+  .ctrl {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px 8px; position: relative; font-size: 1.05rem; white-space: nowrap;
+  }
+  .ctrl[hidden] { display: none; }
+  .ctrl canvas { display: block; flex: none; image-rendering: pixelated; }
+  /* a colour: the plaque is the button, the browser's own colour picker
+     under it, invisible, so a tap anywhere on it opens the picker */
+  .ctrl input[type="color"] {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; border: 0; padding: 0; cursor: pointer;
+  }
+  .ctrl:has(input:focus-visible) { outline: 3px solid var(--tan); outline-offset: 2px; }
 
 
   /* A desktop: the character in its window on the left, as tall as the
-     screen allows; its name and buttons, then the tiles, down the right. */
+     screen allows; the buttons, then the tiles, down the right. */
   @media (min-width: 901px) {
     main {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 690px);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 560px);
       grid-template-areas: "window tools" "window box" "window .";
       grid-template-rows: auto auto 1fr;
       gap: 16px 22px;
@@ -335,82 +362,47 @@
   }
 
   /* A phone: everything on one screen - the window takes whatever height
-     the name, buttons and all 42 tiles leave (see layoutPreview), and the
-     tiles shrink to fit ten across, as the two sets share each row. The
+     the header, buttons and the open tab leave (see layoutPreview). The
      game's buttons at 1x. */
   @media (max-width: 900px) {
     .page { padding: 8px 10px 24px; }
-    header { flex-wrap: nowrap; margin-bottom: 8px; gap: 8px; }
-    h1 { font-size: 1.5rem; white-space: nowrap;
+    header { margin-bottom: 8px; }
+    /* Cornerstone is wide: smaller, so the title keeps to one line */
+    h1 { font-size: 1.3rem; white-space: nowrap;
          text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000,
                       1px 1px #000, -1px 1px #000, 1px -1px #000, -1px -1px #000, 2px 3px 0 #000; }
-    .share { gap: 6px; }
+    main { gap: 8px; }
+    .stage { gap: 8px; }
+    .window { padding: 5px; gap: 5px; }
+    .preview { padding: 4px; }
+    .corner { top: 4px; right: 4px; width: 36px; height: 36px; }
+    .status { bottom: 6px; font-size: 0.85rem; }
+    .name-btn { font-size: 1.15rem; padding: 3px 12px 5px; min-width: 6em; }
+    .toolbar { gap: 8px; }
+    .toolbar .group { gap: 6px; }
+    #btn-random canvas { width: 54px; height: 39px; }
+    .plate { min-width: 0; font-size: 0.8rem; padding: 6px 10px 8px; }
     .share .long { display: none; }
     .share .short { display: inline; }
-    main { gap: 8px; }
-    .stage { display: flex; flex-direction: column; gap: 8px; }
-    .window { padding: 5px; }
-    .preview { padding: 4px; }
-    .status { bottom: 10px; font-size: 0.85rem; }
-    .toolbar { flex-wrap: nowrap; gap: 8px; }
-    .name-btn { font-size: 1.3rem; padding: 3px 10px 5px; min-width: 0; flex: 1 1 auto; }
-    #btn-random canvas { width: 54px; height: 39px; }
-    .plate { min-width: 0; font-size: 0.85rem; padding: 5px 9px 7px; }
-    .box { padding: 6px; }
-    .rows { gap: 4px; }
-    /* each feature on two lines, the Zoombini's five over the Fleen's, with
-       none at the end of the first and the small plaques at the end of the
-       second - the tiles at up to 1x, as big as the screen's height allows,
-       and the window gives up the rest */
-    .box { --tile: clamp(26px, calc((100svh - 330px) / 10), 40px); }
-    .feature {
-      display: grid;
-      grid-template-columns: auto var(--tile);
-      justify-content: center;
-      column-gap: 4px;
-      row-gap: 2px;
-    }
-    .feature > .set:nth-of-type(1) { grid-row: 1; grid-column: 1; }
-    .feature > .set:nth-of-type(2) { grid-row: 2; grid-column: 1; }
-    .feature > .none-tile { grid-row: 1; grid-column: 2; }
-    .feature > .controls { grid-row: 2; grid-column: 2; gap: 2px; }
-    .colours { width: auto; flex: 1 1 0; gap: 2px; }
-    .lock { width: auto; flex: 1 1 0; }
-    .mini.lock canvas { height: 13px; }
-    .set { grid-template-columns: repeat(5, var(--tile)); gap: 2px; }
-    .mini canvas { max-height: 10px; }
-    /* the body's two tiles side by side on one line, its plaques after */
-    .feature.body { grid-template-columns: var(--tile) var(--tile) var(--tile); }
-    .feature.body > .set:nth-of-type(1) { grid-row: 1; grid-column: 1; }
-    .feature.body > .set:nth-of-type(2) { grid-row: 1; grid-column: 2; }
-    .feature.body > .controls { grid-row: 1; grid-column: 3; }
-    .feature.body > .none-tile { display: none; }
-    .feature.body .set { grid-template-columns: var(--tile); }
-    /* the hats on one line: the three, none, their colours */
-    .feature.hats { grid-template-columns: auto var(--tile) var(--tile); }
-    .feature.hats > .set:nth-of-type(2) { display: none; }
-    .feature.hats > .controls { grid-row: 1; grid-column: 3; }
-    /* Cornerstone is wide: smaller, so the header keeps to one line */
-    h1 { font-size: 1.3rem; }
-    .plate { font-size: 0.75rem; white-space: nowrap; }
-    .name-btn { font-size: 1.15rem; }
+    .box { --set-gap: 3px; --none-gap: 8px; padding: 6px; gap: 6px; }
+    .tabs { gap: 3px; }
+    .tab { font-size: 0.75rem; padding: 7px 2px 9px; gap: 3px; }
+    .feature { gap: 6px; }
+    .controls { gap: 4px; min-height: 0; }
+    .ctrl { font-size: 0.8rem; padding: 4px 10px 6px; gap: 6px; }
   }
 
   footer { margin-top: 30px; font-size: 0.9rem; opacity: 0.75; }
   footer a { color: var(--zoombini); }
   /* Cornerstone has one weight: shown as it is, never made bold */
   html { font-synthesis: none; }
-  body, .plate, .status, h1, .name-btn { font-weight: 400; }
+  body, .plate, .status, h1, .name-btn, .tab, .ctrl { font-weight: 400; }
 </style>
 </head>
 <body data-kind="zoombini">
 <div class="page">
   <header>
     <h1>Zoombini Maker</h1>
-    <div class="share">
-      <button class="stone plate" id="btn-save"><span class="long">Save picture</span><span class="short">Save</span></button>
-      <button class="stone plate" id="btn-link">Copy link</button>
-    </div>
   </header>
 
   <main>
@@ -418,19 +410,26 @@
       <div class="window rock">
         <div class="preview" id="preview-wrap">
           <canvas id="preview" role="img"></canvas>
+          <button class="stone corner" id="btn-motion" aria-pressed="false"><canvas></canvas></button>
+          <p class="status" id="status" aria-live="polite"></p>
         </div>
-        <p class="status" id="status" aria-live="polite"></p>
+        <button class="stone name-btn" id="btn-name" title="Think of a new name"><span class="name" id="name"></span><span class="again" aria-hidden="true">&#x21bb;</span></button>
       </div>
       <div class="toolbar">
-        <button class="stone name-btn" id="btn-name" title="Think of a new name"><span class="name" id="name"></span><span class="again" aria-hidden="true">&#x21bb;</span></button>
-        <button class="ctl" id="btn-random" title="Roll a new one" aria-label="Roll a new one"><canvas width="54" height="39"></canvas></button>
-        <button class="stone plate" id="btn-pure" aria-pressed="false" title="Roll only a Zoombini's parts on a Zoombini and a Fleen's on a Fleen">Pure</button>
-        <button class="stone plate" id="btn-motion" aria-pressed="false">Pause</button>
+        <div class="group">
+          <button class="ctl" id="btn-random" title="Roll a new one" aria-label="Roll a new one"><canvas width="54" height="39"></canvas></button>
+          <button class="stone plate" id="btn-pure" aria-pressed="false" title="Roll only a Zoombini's parts on a Zoombini and a Fleen's on a Fleen">Pure</button>
+        </div>
+        <div class="group share">
+          <button class="stone plate" id="btn-save"><span class="long">Save picture</span><span class="short">Save</span></button>
+          <button class="stone plate" id="btn-link">Copy link</button>
+        </div>
       </div>
     </div>
 
     <section class="box rock" aria-label="Body and features">
-      <div class="rows" id="rows"></div>
+      <div class="tabs" id="tabs" role="tablist" aria-label="Body and features"></div>
+      <div class="panels" id="rows"></div>
     </section>
   </main>
 
@@ -905,8 +904,13 @@ function drawPreview() {
 // panel's own, which grows with the canvas and would feed back into itself:
 // on a desktop most of the window; on a phone, whatever the header, buttons
 // and tiles leave of it - everything else's height, measured without the
-// canvas, is the same whatever the canvas's - so every option is on screen
-// at once, with no scrolling.
+// canvas, is the same whatever the canvas's - so the open tab is on screen
+// with the character, with no scrolling.
+//
+// The scale is whole screen pixels per source pixel, not whole CSS pixels:
+// on a phone at 3x, 2x CSS and 3x CSS are 6 and 9 of its pixels, and
+// stepping by one of them in between (2 1/3x, 2 2/3x) lets the character
+// fill its window rather than drop to the smaller whole number.
 // The window's height without its browser bars (CSS svh): on a phone the
 // address bar comes and goes as the page scrolls, and sizing from
 // innerHeight would resize the pinned character mid-scroll.
@@ -916,6 +920,7 @@ document.body.appendChild(svh);
 const viewHeight = () => svh.offsetHeight || window.innerHeight;
 
 function layoutPreview() {
+  layoutTiles();
   const cs = getComputedStyle(wrap);
   const availW = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const narrow = window.matchMedia('(max-width: 900px)').matches;
@@ -925,7 +930,8 @@ function layoutPreview() {
     : Math.max(260, Math.min(560, viewHeight() - 280));
   const bb = fitBounds[state.kind];
   const fw = bb.r - bb.l + PAD * 2, fh = bb.b - bb.t + PAD * 2;
-  const scale = Math.max(1, Math.floor(Math.min(availW / fw, availH / fh)));
+  const dpr = window.devicePixelRatio || 1;
+  const scale = Math.max(1, Math.floor(Math.min(availW / fw, availH / fh) * dpr)) / dpr;
   const w = Math.max(fw, Math.floor(availW / scale)), h = Math.max(fh, Math.floor(availH / scale));
   if (preview.width !== w || preview.height !== h) { preview.width = w; preview.height = h; }
   preview.style.width = w * scale + 'px';
@@ -936,6 +942,24 @@ function layoutPreview() {
 }
 new ResizeObserver(layoutPreview).observe(wrap);
 window.addEventListener('resize', layoutPreview);
+
+// The tiles likewise: a whole number of screen pixels per pixel of the
+// game's 40 x 43 tile, as big as a line of five and none fits across the
+// box, up to 2x - and on a phone no more than about a quarter of the
+// screen's height for both lines, so a phone held sideways keeps some
+// window. Only the box's width and the screen's height go in, never the
+// window's, so this cannot feed back into layoutPreview.
+function layoutTiles() {
+  const box = document.querySelector('.box');
+  const cs = getComputedStyle(box);
+  const gap = parseFloat(cs.getPropertyValue('--set-gap'));
+  const noneGap = parseFloat(cs.getPropertyValue('--none-gap'));
+  let fit = (rowsEl.clientWidth - 4 * gap - noneGap) / 6;
+  if (window.matchMedia('(max-width: 900px)').matches) fit = Math.min(fit, viewHeight() * 0.115);
+  const dpr = window.devicePixelRatio || 1;
+  const n = Math.min(2 * dpr, Math.max(1, Math.floor(fit * dpr / 40)));
+  box.style.setProperty('--tile', n * 40 / dpr + 'px');
+}
 
 function paintTile(canvas, index) {
   const [, , w, h] = rect(index);
@@ -985,17 +1009,17 @@ function resetColours(feat) {
 const nameOf = (feat, pick) => pick.none ? 'no ' + feat
   : S.characters[pick.borrowed ? OTHER[state.kind] : state.kind].names[feat][pick.v];
 
-// Built once: the body's row, each feature's, then the hats'. A row is the
-// Zoombini's tiles on the left and the Fleen's on the right, then none as a
-// tile of its own, then its small plaques together: a colour for each of
-// the picked part's colours - two for a ponytail or a propeller - and the
-// lock that keeps the row when the dice rolls. A pick is kept as
-// {v, borrowed} against the body (see state), so a tile's pick depends on
-// the body.
+// Built once: a tab for the body, each feature and the hats, and a panel
+// for each - the Zoombini's tiles over the Fleen's, none as a tile of its
+// own beside them, and under them the part's plaques: a colour for each of
+// the picked part's colours and the lock that keeps it when the dice rolls.
+// A pick is kept as {v, borrowed} against the body (see state), so a tile's
+// pick depends on the body.
 const ROWS = ['body'].concat(FEATURES, ['hat']);
 const KINDS = ['zoombini', 'fleen'];
+const titled = s => s[0].toUpperCase() + s.slice(1);
 // Pixel icons: '#' outline, 'o' face. The lock is a padlock whose body is a
-// die, shut to keep the row when the dice rolls and open to let it roll.
+// die, shut to keep the part when the dice rolls and open to let it roll.
 const ICONS = {
   keep: ['....####....', '...#....#...', '..#......#..', '..#......#..', '############', '#oooooooooo#',
          '#o##ooooooo#', '#o##ooooooo#', '#oooo##oooo#', '#oooo##oooo#', '#ooooooo##o#', '#ooooooo##o#',
@@ -1008,6 +1032,10 @@ const ICONS = {
   // a drop of paint: 'o' is the colour picked
   colour: ['....#....', '...#o#...', '...#o#...', '..#ooo#..', '.#ooooo#.', '#ooooooo#', '#ooooooo#',
            '#ooooooo#', '.#ooooo#.', '..#####..'],
+  pause: ['####.####', '#oo#.#oo#', '#oo#.#oo#', '#oo#.#oo#', '#oo#.#oo#', '#oo#.#oo#', '#oo#.#oo#',
+          '#oo#.#oo#', '####.####'],
+  play: ['##.......', '#o##.....', '#ooo##...', '#ooooo##.', '#ooooooo#', '#ooooo##.', '#ooo##...',
+         '#o##.....', '##.......'],
 };
 function drawIcon(ctx, icon, on, fill, x0 = 0, y0 = 0, scale = 1) {
   ICONS[icon].forEach((row, y) => [...row].forEach((c, x) => {
@@ -1016,10 +1044,12 @@ function drawIcon(ctx, icon, on, fill, x0 = 0, y0 = 0, scale = 1) {
     ctx.fillRect(x0 + x * scale, y0 + y * scale, scale, scale);
   }));
 }
-function paintIcon(canvas, icon, on, fill = null) {
+// With `shown` set, the icon is also sized to that many CSS pixels a pixel.
+function paintIcon(canvas, icon, on, fill = null, shown = 0) {
   const rows = ICONS[icon];
   canvas.width = rows[0].length;
   canvas.height = rows.length;
+  if (shown) { canvas.style.width = canvas.width * shown + 'px'; canvas.style.height = canvas.height * shown + 'px'; }
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawIcon(ctx, icon, on, fill);
@@ -1033,24 +1063,15 @@ function paintNone(canvas, on) {
   drawIcon(ctx, 'none', on, null, Math.floor((canvas.width - size) / 2) - (on ? 2 : 0),
            Math.floor((canvas.height - size) / 2) + (on ? 1 : 0), 2);
 }
-// A colour plaque: the paint drop in the colour it holds, over the browser's
-// colour picker.
-function colourButton(label, onPick) {
-  const b = el('label', 'stone mini');
-  b.title = label;
+// A colour plaque: the paint drop in the colour it holds and a word, over
+// the browser's colour picker. Its word is set as it is painted: "Colour",
+// or "Colour 1" and "Colour 2" for a part with two.
+function colourPlaque(onPick) {
+  const b = el('label', 'stone ctrl');
   const input = el('input');
   input.type = 'color';
-  input.setAttribute('aria-label', label);
   input.addEventListener('input', () => onPick(input.value));
-  b.append(el('canvas'), input);
-  return b;
-}
-function miniButton(label, onClick) {
-  const b = el('button', 'stone mini');
-  b.title = label;
-  b.setAttribute('aria-label', label);
-  b.appendChild(el('canvas'));
-  b.addEventListener('click', onClick);
+  b.append(el('canvas'), el('span'), input);
   return b;
 }
 function tileButton(label, onClick) {
@@ -1062,20 +1083,41 @@ function tileButton(label, onClick) {
   return b;
 }
 
+const tabsEl = document.getElementById('tabs');
+const tabs = {};                          // row -> its tab, with a padlock that shows when it is kept
+let openRow = 'body';
+
 function buildTiles() {
   rowsEl.textContent = '';
+  tabsEl.textContent = '';
   tiles = {};
   for (const feat of ROWS) {
-    const row = el('div', 'feature' + (feat === 'body' ? ' body' : feat === 'hat' ? ' hats' : ''));
-    row.setAttribute('role', 'group');
-    const Feat = feat[0].toUpperCase() + feat.slice(1);
-    row.setAttribute('aria-label', Feat);
+    const Feat = titled(feat);
+    const tab = tabs[feat] = el('button', 'stone tab');
+    tab.id = 'tab-' + feat;
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', 'panel-' + feat);
+    const word = el('span');
+    word.textContent = Feat;
+    tab.kept = el('canvas');
+    tab.kept.title = 'Kept when the dice rolls';
+    paintIcon(tab.kept, 'keep', false);
+    tab.append(word, tab.kept);
+    tab.addEventListener('click', () => openTab(feat));
+    tabsEl.appendChild(tab);
+
+    const panel = el('div', 'feature' + (feat === 'body' ? ' body' : ''));
+    panel.id = 'panel-' + feat;
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', tab.id);
     const t = tiles[feat] = [];
+    t.panel = panel;
+    const tilesEl = el('div', 'tiles'), sets = el('div', 'sets');
     if (feat === 'hat') {
-      // the hats on the body that is picked, in the left-hand set
+      // the hats on the body that is picked
       const set = el('div', 'set');
       S.hats.forEach((hat, v) => {
-        const b = tileButton(hat.name[0].toUpperCase() + hat.name.slice(1) + ' (from Pizza Pass)', () => {
+        const b = tileButton(titled(hat.name) + ' (from Pizza Pass)', () => {
           state.build[state.kind].hat = v;
           resetColours('hat');
           update();
@@ -1083,7 +1125,7 @@ function buildTiles() {
         set.appendChild(b);
         t.push({ b, v });
       });
-      row.append(set, el('div', 'set'));
+      sets.appendChild(set);
     } else {
       for (const kind of KINDS) {
         const set = el('div', 'set');
@@ -1100,13 +1142,12 @@ function buildTiles() {
           set.appendChild(b);
           t.push({ b, v, kind });
         });
-        row.appendChild(set);
+        sets.appendChild(set);
       }
     }
-    // none, as a tile of its own (the body has none, and keeps the place)
-    if (feat === 'body') {
-      row.appendChild(el('div', 'tile none-tile spacer'));
-    } else {
+    tilesEl.appendChild(sets);
+    // none, as a tile of its own (the body has none)
+    if (feat !== 'body') {
       t.none = tileButton(feat === 'hat' ? 'No hat' : 'No ' + feat, () => {
         if (feat === 'hat') state.build[state.kind].hat = undefined;
         else state.build[state.kind][feat] = { ...NONE };
@@ -1114,32 +1155,54 @@ function buildTiles() {
         endClip();
         update();
       });
-      t.none.classList.add('none-tile');
-      row.appendChild(t.none);
+      tilesEl.appendChild(t.none);
     }
-    // the small plaques: a colour for each of the part's colours, stacked,
-    // and beside them the lock, as tall as the row
-    const small = el('div', 'controls'), colours = el('div', 'colours');
+    const controls = el('div', 'controls');
     t.colours = [0, 1].map(k => {
-      const label = feat === 'body' ? 'Skin colour' : Feat + (k ? ' colour 2' : ' colour');
-      const c = colourButton(label, value => { setColour(feat, k, value); update(); });
-      colours.appendChild(c);
+      const c = colourPlaque(value => { setColour(feat, k, value); update(); });
+      controls.appendChild(c);
       return c;
     });
-    small.appendChild(colours);
+    controls.appendChild(el('div', 'spacer'));
     if (feat !== 'hat') {
       // a hat is left alone when the dice rolls, and has no lock
-      t.lock = miniButton('Keep this ' + feat + ' when the dice rolls', () => {
+      t.lock = el('button', 'stone ctrl');
+      t.lock.title = 'Keep this ' + feat + ' when the dice rolls';
+      const keep = el('span');
+      keep.textContent = 'Keep';
+      t.lock.append(el('canvas'), keep);
+      t.lock.addEventListener('click', () => {
         locks[feat] = !locks[feat];
         paintTiles();
       });
-      t.lock.classList.add('lock');
-      small.appendChild(t.lock);
+      controls.appendChild(t.lock);
     }
-    row.appendChild(small);
-    rowsEl.appendChild(row);
+    panel.append(tilesEl, controls);
+    rowsEl.appendChild(panel);
   }
+  openTab(openRow);
 }
+
+// The closed panels are only invisible (see .panels), which also takes
+// their tiles out of the tab order; the tabs themselves are one stop, moved
+// along with the arrow keys, as tabs are.
+function openTab(feat, focus = false) {
+  openRow = feat;
+  for (const f of ROWS) {
+    const on = f === feat;
+    tabs[f].setAttribute('aria-selected', on);
+    tabs[f].tabIndex = on ? 0 : -1;
+    tiles[f].panel.classList.toggle('open', on);
+  }
+  if (focus) tabs[feat].focus();
+}
+tabsEl.addEventListener('keydown', e => {
+  const i = ROWS.indexOf(openRow);
+  const to = { ArrowLeft: i - 1, ArrowRight: i + 1, Home: 0, End: ROWS.length - 1 }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  openTab(ROWS[(to + ROWS.length) % ROWS.length], true);
+});
 
 // The whole character becomes the other one's body, every feature staying
 // what it was - a Fleen's hair on a Zoombini is that Fleen's own hair on a
@@ -1181,13 +1244,20 @@ function paintTiles() {
       c.hidden = k >= groups.length;
       if (c.hidden) return;
       const hex = colourPick(build, feat, k) || '#' + groups[k].ref;
-      c.querySelector('input').value = hex;
-      paintIcon(c.firstChild, 'colour', false, hex);
+      const word = feat === 'body' ? 'Skin' : groups.length > 1 ? 'Colour ' + (k + 1) : 'Colour';
+      const label = feat === 'body' ? 'Skin colour' : titled(feat) + ' ' + word.toLowerCase();
+      c.querySelector('span').textContent = word;
+      c.title = label;
+      const input = c.querySelector('input');
+      input.setAttribute('aria-label', label);
+      input.value = hex;
+      paintIcon(c.firstChild, 'colour', false, hex, 2);
     });
     if (t.lock) {
       t.lock.setAttribute('aria-pressed', locks[feat]);
-      paintIcon(t.lock.firstChild, locks[feat] ? 'keep' : 'roll', locks[feat]);
+      paintIcon(t.lock.firstChild, locks[feat] ? 'keep' : 'roll', locks[feat], null, 2);
     }
+    tabs[feat].kept.hidden = !locks[feat];
   }
 }
 
@@ -1328,8 +1398,11 @@ function setPaused(p) {
   clip = null;
   Object.assign(pose, REST);
   if (!paused) { waitTicks = 8; timer = setInterval(tick, TICK_MS); }
+  // the button shows what a press does: pause, or, held in, play
   const btn = document.getElementById('btn-motion');
-  btn.textContent = paused ? 'Play' : 'Pause';
+  paintIcon(btn.firstChild, paused ? 'play' : 'pause', paused);
+  btn.title = paused ? 'Play' : 'Pause';
+  btn.setAttribute('aria-label', 'Pause');
   btn.setAttribute('aria-pressed', paused);
   drawPreview();
 }
