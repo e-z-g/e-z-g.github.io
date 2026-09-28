@@ -78,18 +78,10 @@
   largest integer CSS scale that fits, and image-rendering: pixelated does
   the rest - so every source pixel stays square.
 -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Grandstander:wght@500;700;800&display=swap">
-<!-- The game's own fonts, being tried: ?font=wordla or ?font=cornerstone
-     loads them (fonts.js, from tools/export_fonts.py) and sets them. -->
-<script>
-  const FONT_TRY = new URLSearchParams(location.search).get('font');
-  if (FONT_TRY === 'wordla' || FONT_TRY === 'cornerstone') {
-    document.documentElement.classList.add('font-' + FONT_TRY);
-    document.write('<script src="fonts.js"><\/script>');
-  }
-</script>
+<!-- The game's own face, Cornerstone, which it sets its help text in:
+     fonts.js, from tools/export_fonts.py, embeds it so the page works from
+     file:// too. -->
+<script src="fonts.js"></script>
 <style>
   /* The look is the game's Zoombini Isle builder, made of its own parts
      rather than drawn from it (the scene itself stays out, as a backdrop
@@ -123,8 +115,8 @@
     --fleen: #c9ee31;
     --text: #f1dfb2;
     --rock-img: none;
-    --display: 'Chewy', 'Comic Sans MS', 'Trebuchet MS', sans-serif;
-    --ui: 'Grandstander', 'Trebuchet MS', sans-serif;
+    --display: 'Cornerstone', 'Trebuchet MS', sans-serif;   /* it has no bold */
+    --ui: 'Cornerstone', 'Trebuchet MS', sans-serif;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
@@ -269,38 +261,43 @@
 
   /* ---- the feature box: the tiles set in the builder's rock ---- */
 
-  .box { padding: 14px; width: 100%; max-width: 660px; justify-self: center; }
+  .box { padding: 14px; width: 100%; max-width: 690px; justify-self: center; }
   .rows { display: grid; gap: 10px; }
-  /* A row: the body, then each feature - its lock, the Zoombini's five
+  /* A row: the body, each feature, then the hats - the Zoombini's five
      tiles on the left and the Fleen's on the right, whichever body is
-     picked, so a tile is always where it was, then none of them. The body
-     row has one tile in each set. */
+     picked, so a tile is always where it was; then none, a tile of its own;
+     then the row's small plaques together, a colour for each of the picked
+     part's colours and the lock. The body row has one tile in each set and
+     no none, the hats one set of three and no lock. */
   .feature {
     display: flex;
     justify-content: center;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
   }
   .set {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 50px));
     gap: 4px;
   }
-  /* the lock, and at the other end the none or colour: narrow plaques with
-     a pixel icon, at 2x. The nose's none and colour share its end, stacked. */
+  .none-tile { flex: 0 1 50px; min-width: 0; }
+  .none-tile.spacer { visibility: hidden; }
+  .controls { display: flex; gap: 3px; flex: none; }
+  .colours { display: flex; flex-direction: column; gap: 3px; width: 20px; }
+  .lock { flex: none; width: 28px; }
+  .mini.lock canvas { max-height: none; height: 26px; }      /* the die-padlock at 2x */
+  /* small plaques with a pixel icon, stacked as tall as a tile */
   .mini {
-    width: 30px;
+    flex: 1 1 0;
+    min-height: 0;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     position: relative;
   }
-  .mini canvas { display: block; image-rendering: pixelated; width: 22px; height: auto; }
-  .end { display: flex; flex-direction: column; gap: 4px; width: 30px; }
-  .mini.spacer { visibility: hidden; }
-  .end .mini { flex: 1 1 0; width: auto; min-height: 0; }
-  .end .mini canvas { width: auto; height: 100%; max-height: 22px; }
+  .mini[hidden] { display: none; }
+  .mini canvas { display: block; image-rendering: pixelated; width: auto; height: 100%; max-height: 13px; }
   /* a colour: the plaque is the button, the browser's own colour picker
      under it, invisible, so a tap anywhere on it opens the picker */
   .mini input[type="color"] {
@@ -326,7 +323,7 @@
      screen allows; its name and buttons, then the tiles, down the right. */
   @media (min-width: 901px) {
     main {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 660px);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 690px);
       grid-template-areas: "window tools" "window box" "window .";
       grid-template-rows: auto auto 1fr;
       gap: 16px 22px;
@@ -362,57 +359,48 @@
     .box { padding: 6px; }
     .rows { gap: 4px; }
     /* each feature on two lines, the Zoombini's five over the Fleen's, with
-       its lock and its end down the sides - the tiles at up to 1x, as big
-       as the screen's height allows, and the window gives up the rest */
+       none at the end of the first and the small plaques at the end of the
+       second - the tiles at up to 1x, as big as the screen's height allows,
+       and the window gives up the rest */
     .box { --tile: clamp(26px, calc((100svh - 330px) / 10), 40px); }
     .feature {
       display: grid;
-      grid-template-columns: 22px auto 22px;
+      grid-template-columns: auto var(--tile);
       justify-content: center;
-      column-gap: 6px;
+      column-gap: 4px;
       row-gap: 2px;
     }
-    .feature > .mini:first-child { grid-row: 1 / span 2; grid-column: 1; }
-    .feature > .set:nth-of-type(1) { grid-row: 1; grid-column: 2; }
-    .feature > .set:nth-of-type(2) { grid-row: 2; grid-column: 2; }
-    .feature > .end { grid-row: 1 / span 2; grid-column: 3; width: 22px; }
+    .feature > .set:nth-of-type(1) { grid-row: 1; grid-column: 1; }
+    .feature > .set:nth-of-type(2) { grid-row: 2; grid-column: 1; }
+    .feature > .none-tile { grid-row: 1; grid-column: 2; }
+    .feature > .controls { grid-row: 2; grid-column: 2; gap: 2px; }
+    .colours { width: auto; flex: 1 1 0; gap: 2px; }
+    .lock { width: auto; flex: 1 1 0; }
+    .mini.lock canvas { height: 13px; }
     .set { grid-template-columns: repeat(5, var(--tile)); gap: 2px; }
-    .mini { width: 22px; flex: none; }
-    .mini canvas { width: 11px; }
-    .end .mini canvas { width: auto; max-height: 11px; }
-    /* the body's two tiles side by side on one line */
-    .feature.body { grid-template-columns: 22px auto auto 22px; }
-    .feature.body > .set:nth-of-type(1), .feature.body > .set:nth-of-type(2) { grid-row: 1; grid-column: auto; }
-    .feature.body > .end { grid-row: 1; grid-column: 4; }
+    .mini canvas { max-height: 10px; }
+    /* the body's two tiles side by side on one line, its plaques after */
+    .feature.body { grid-template-columns: var(--tile) var(--tile) var(--tile); }
+    .feature.body > .set:nth-of-type(1) { grid-row: 1; grid-column: 1; }
+    .feature.body > .set:nth-of-type(2) { grid-row: 1; grid-column: 2; }
+    .feature.body > .controls { grid-row: 1; grid-column: 3; }
+    .feature.body > .none-tile { display: none; }
     .feature.body .set { grid-template-columns: var(--tile); }
+    /* the hats on one line: the three, none, their colours */
+    .feature.hats { grid-template-columns: auto var(--tile) var(--tile); }
+    .feature.hats > .set:nth-of-type(2) { display: none; }
+    .feature.hats > .controls { grid-row: 1; grid-column: 3; }
+    /* Cornerstone is wide: smaller, so the header keeps to one line */
+    h1 { font-size: 1.3rem; }
+    .plate { font-size: 0.75rem; white-space: nowrap; }
+    .name-btn { font-size: 1.15rem; }
   }
 
   footer { margin-top: 30px; font-size: 0.9rem; opacity: 0.75; }
   footer a { color: var(--zoombini); }
-  /* ---- the game's own fonts, being tried ----
-     WordLa is the game's bitmap serif, made pixel TrueType by
-     tools/export_fonts.py: each size is crisp only at its own height in px
-     (10: 11px, 12: 13px, 14: 15px, 18: 19px, 24: 26px) or a whole multiple,
-     so each element takes the size nearest what it had. Cornerstone is the
-     face of the game's help text. Neither has a bold. */
-  html.font-wordla, html.font-cornerstone { font-synthesis: none; }
-  html.font-wordla { --display: 'WordLa 24', serif; --ui: 'WordLa 14', serif; }
-  html.font-wordla body { font-size: 15px; font-weight: 400; }
-  html.font-wordla h1 { font-family: 'WordLa 18', serif; font-size: 38px; letter-spacing: 0; }
-  html.font-wordla .name-btn { font-family: 'WordLa 14', serif; font-size: 30px; }
-  html.font-wordla .plate, html.font-wordla .status { font-weight: 400; font-size: 15px; }
-  html.font-wordla footer { font-family: 'WordLa 12', serif; font-size: 13px; }
-  html.font-cornerstone { --display: 'Cornerstone', sans-serif; --ui: 'Cornerstone', sans-serif; }
-  html.font-cornerstone body, html.font-cornerstone .plate, html.font-cornerstone .status { font-weight: 400; }
-  @media (max-width: 900px) {
-    html.font-wordla h1 { font-family: 'WordLa 24', serif; font-size: 26px; }
-    html.font-wordla .name-btn { font-family: 'WordLa 18', serif; font-size: 19px; }
-    html.font-wordla .plate, html.font-wordla .status { font-family: 'WordLa 12', serif; font-size: 13px; }
-    /* Cornerstone is wide: smaller, so the header keeps to one line */
-    html.font-cornerstone h1 { font-size: 1.3rem; }
-    html.font-cornerstone .plate { font-size: 0.75rem; white-space: nowrap; }
-    html.font-cornerstone .name-btn { font-size: 1.15rem; }
-  }
+  /* Cornerstone has one weight: shown as it is, never made bold */
+  html { font-synthesis: none; }
+  body, .plate, .status, h1, .name-btn { font-weight: 400; }
 </style>
 </head>
 <body data-kind="zoombini">
@@ -512,11 +500,12 @@ const shownName = name => name[0].toUpperCase() + name.slice(1);
 
 // A pick is {v, borrowed}: variant v of this character's part, or of the
 // other character's if borrowed - or, bar the body, none of either. A build
-// can also carry a skin colour and a nose colour (`skin`, `noseColour`, as
-// #rrggbb), picked with the browser's colour picker; without them its own.
-// The dice never picks none and leaves colours alone, keeps what is locked
-// (`locks`), and when Pure is on never borrows: a Zoombini through and
-// through, or a Fleen.
+// can also carry a skin colour (`skin`) and, for each part, a colour for each
+// of its own colours (`colours[feature][k]`, as #rrggbb, k as in the part's
+// `groups`), picked with the browser's colour picker; without them its own.
+// The dice never picks none, keeps what is locked (`locks`) with its colours,
+// gives the rest their own colours back, and when Pure is on never borrows:
+// a Zoombini through and through, or a Fleen. It leaves the hat alone.
 const NONE = { v: 0, borrowed: false, none: true };
 let pure = false;
 const randomBuild = () => Object.fromEntries(FEATURES.map(f =>
@@ -533,13 +522,17 @@ const state = {
 // The build lives in the address, so a link shows the same character:
 // #zoombini-2031-oplie is hair 2, eyes 0, nose 3, feet 1, named Oplie, and a
 // letter marks a feature borrowed from the other character - #zoombini-2d31
-// has the other's eyes number 3 (a = 0) - or x none. -s and -n with a colour
-// after the name are its skin and nose colours, and -h and a number its hat
-// (see HATS below). Links from before names keep working, with a new name.
+// has the other's eyes number 3 (a = 0) - or x none. After the name, -s and
+// a colour is its skin, -h and a number its hat (see HATS below), and -c, a
+// part's letter (COLOUR_LETTER), its colour's number and a colour is one of a
+// part's colours: -ch1ff0080 is the hair's second colour. -n and a colour, from
+// when only the nose had one, is the nose's first. Links from before names
+// keep working, with a new name.
+const COLOUR_LETTER = { hair: 'h', eyes: 'e', nose: 'n', feet: 'f', hat: 't' };
 const codeOf = build => FEATURES.map(f =>
   build[f].none ? 'x' : build[f].borrowed ? 'abcde'[build[f].v] : String(build[f].v)).join('');
 function readHash() {
-  const m = /^#(zoombini|fleen)(?:-([0-4a-ex]{4})x?)?(?:-([a-z]{1,12}))?(?:-s([0-9a-f]{6}))?(?:-n([0-9a-f]{6}))?(?:-h([0-9]))?$/.exec(location.hash);
+  const m = /^#(zoombini|fleen)(?:-([0-4a-ex]{4})x?)?(?:-([a-z]{1,12}))?((?:-[0-9a-z]+)*)$/.exec(location.hash);
   if (!m) return;
   state.kind = m[1];
   if (m[3]) state.name[m[1]] = m[3];
@@ -548,15 +541,25 @@ function readHash() {
     const c = m[2][i], letter = c >= 'a';
     state.build[m[1]][f] = c === 'x' ? { ...NONE } : { v: letter ? c.charCodeAt(0) - 97 : +c, borrowed: letter };
   });
-  state.build[m[1]].skin = m[4] ? '#' + m[4] : undefined;
-  state.build[m[1]].noseColour = m[5] ? '#' + m[5] : undefined;
-  state.build[m[1]].hat = m[6] && S.hats[+m[6]] ? +m[6] : undefined;
+  const build = state.build[m[1]];
+  Object.assign(build, { skin: undefined, colours: {}, hat: undefined });
+  for (const x of m[4].split('-').slice(1)) {
+    let c;
+    if ((c = /^s([0-9a-f]{6})$/.exec(x))) build.skin = '#' + c[1];
+    else if ((c = /^h([0-9])$/.exec(x)) && S.hats[+c[1]]) build.hat = +c[1];
+    else if ((c = /^n([0-9a-f]{6})$/.exec(x))) (build.colours.nose = build.colours.nose || [])[0] = '#' + c[1];
+    else if ((c = /^c([a-z])([01])([0-9a-f]{6})$/.exec(x))) {
+      const f = Object.keys(COLOUR_LETTER).find(k => COLOUR_LETTER[k] === c[1]);
+      if (f) (build.colours[f] = build.colours[f] || [])[+c[2]] = '#' + c[3];
+    }
+  }
 }
 function writeHash() {
   const build = state.build[state.kind];
   const hash = '#' + state.kind + '-' + codeOf(build) + '-' + state.name[state.kind]
-    + (build.skin ? '-s' + build.skin.slice(1) : '') + (build.noseColour ? '-n' + build.noseColour.slice(1) : '')
-    + (build.hat !== undefined ? '-h' + build.hat : '');
+    + (build.skin ? '-s' + build.skin.slice(1) : '') + (build.hat !== undefined ? '-h' + build.hat : '')
+    + Object.entries(COLOUR_LETTER).map(([f, l]) => ((build.colours || {})[f] || [])
+      .map((hex, k) => hex ? '-c' + l + k + hex.slice(1) : '').join('')).join('');
   if (location.hash !== hash) history.replaceState(null, '', hash);
 }
 
@@ -622,14 +625,17 @@ function skinLadder(hex) {
   return STEP_LIGHT.map((sl, k) => hslToRgb([h, s, clamp01(k < 6 ? l * sl / STEP_LIGHT[5] : l + (1 - l) * 0.35)]));
 }
 
-// A sprite recoloured: its host's skin to the `skin` ladder; and if it is a
-// nose, its own colours - neither outline, skin nor white shine - to the
-// picked hue and saturation, each pixel's lightness scaled so the nose's
-// commonest colour lands on the picked one, keeping its shading.
+// A sprite recoloured: its host's skin to the `skin` ladder; and each of its
+// part's colours (`groups`, from the exporter) that has a pick, to the picked
+// hue and saturation, each pixel's lightness scaled so the group's
+// commonest colour (`ref`) lands on the picked one, keeping its shading.
+// Outline, shine and anything else outside the groups stay as they are.
 const recolourCache = new Map();
-function recoloured(index, kind, skin, nose) {
-  if (!skin && !nose) return null;
-  const key = [index, kind, skin, nose].join();
+function recoloured(index, kind, skin, groups = [], picks = []) {
+  picks = picks || [];
+  const active = groups.map((g, k) => picks[k] ? [g, picks[k]] : null).filter(Boolean);
+  if (!skin && !active.length) return null;
+  const key = [index, kind, skin, active.map(([g, p]) => g.ref + p).join('/')].join();
   if (recolourCache.has(key)) return recolourCache.get(key);
   const [sx, sy, w, h] = rect(index);
   const c = document.createElement('canvas');
@@ -639,27 +645,20 @@ function recoloured(index, kind, skin, nose) {
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   const ladder = skin && skinLadder(skin), steps = SKIN_STEPS[kind];
   const hexAt = i => ((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]).toString(16).padStart(6, '0');
-  let noseHsl = null, ref = 0;
-  if (nose) {
-    noseHsl = rgbToHsl(hexToRgb(nose));
-    const counts = new Map();
-    for (let i = 0; i < d.length; i += 4) {
-      if (!d[i + 3] || hexAt(i) in steps) continue;
-      const [, sat, l] = rgbToHsl([d[i], d[i + 1], d[i + 2]]);
-      if (l < 0.1 || (l > 0.9 && sat < 0.3)) continue;
-      counts.set(l, (counts.get(l) || 0) + 1);
-    }
-    ref = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || 0.5;
+  const byHex = new Map();
+  for (const [g, pick] of active) {
+    const to = rgbToHsl(hexToRgb(pick)), ref = rgbToHsl(hexToRgb('#' + g.ref))[2] || 1;
+    for (const hex of g.colours) byHex.set(hex, [to, ref]);
   }
   for (let i = 0; i < d.length; i += 4) {
     if (!d[i + 3]) continue;
-    const step = steps[hexAt(i)];
+    const hex = hexAt(i), step = steps[hex];
     let rgb = null;
     if (step !== undefined) {
       if (ladder) rgb = ladder[step];
-    } else if (noseHsl) {
-      const [, sat, l] = rgbToHsl([d[i], d[i + 1], d[i + 2]]);
-      if (!(l < 0.1 || (l > 0.9 && sat < 0.3))) rgb = hslToRgb([noseHsl[0], noseHsl[1], clamp01(l * noseHsl[2] / ref)]);
+    } else if (byHex.has(hex)) {
+      const [to, ref] = byHex.get(hex), [, , l] = rgbToHsl([d[i], d[i + 1], d[i + 2]]);
+      rgb = hslToRgb([to[0], to[1], clamp01(l * to[2] / ref)]);
     }
     if (rgb) [d[i], d[i + 1], d[i + 2]] = rgb;
   }
@@ -765,7 +764,7 @@ function variantsFor(kind, build, pose = REST) {
   // above finds what it looks for, and left out only now
   const none = name => (build[name] || {}).none;
   return out.filter(p => !(p && none(p.name)))
-    .map(p => p.name === 'nose' ? Object.assign({ part: 'nose' }, p.v) : p.v)
+    .map(p => p.name === 'body' ? p.v : Object.assign({ part: p.name }, p.v))
     .concat(hatOn(out.find(p => p.name === 'body').v, build.hat,
                   build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v));
 }
@@ -791,7 +790,7 @@ function hatOn(body, hat, hair = null) {
     tops.sort((a, b) => a - b);
     cy = Math.min(crownY, tops[Math.ceil(tops.length * HAT_SOLID) - 1]);
   }
-  return h.pieces.map(p => ({ sprite: p.sprite, rx: -Math.round(cx + p.dx), ry: -Math.round(cy + h.sink + p.dy) }));
+  return h.pieces.map(p => ({ part: 'hat', sprite: p.sprite, rx: -Math.round(cx + p.dx), ry: -Math.round(cy + h.sink + p.dy) }));
 }
 let HAT_RULE = 'hair';
 
@@ -859,7 +858,8 @@ for (const [kind, bb] of Object.entries(fitBounds)) {
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
 function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST, axis = null) {
   for (const v of variantsFor(kind, build, pose)) {
-    const src = recoloured(v.sprite, kind, build.skin, v.part === 'nose' ? build.noseColour : null);
+    const src = v.part ? recoloured(v.sprite, kind, build.skin, groupsOf(kind, build, v.part), (build.colours || {})[v.part])
+      : recoloured(v.sprite, kind, build.skin);
     drawSprite(ctx, v.sprite, ox - v.rx * scale, oy + ((v.oy || 0) - v.ry) * scale, scale, axis, src);
   }
 }
@@ -941,84 +941,111 @@ function paintTile(canvas, index) {
 // ---- the feature box ---------------------------------------------------
 
 const rowsEl = document.getElementById('rows');
-let tiles = {};                          // feature -> [{b, v, borrowed}]
+let tiles = {};                          // row -> [{b, v, kind}], with its none, colours and lock
+const el = (tag, cls) => Object.assign(document.createElement(tag), cls ? { className: cls } : {});
 
-// The nose's own colour, as the picker starts from: its sprite's commonest
-// colour, not counting outline, shine or skin.
-function noseHex(build) {
-  const pick = build.nose;
-  if (pick.none) return '#808080';
-  const ch = S.characters[state.kind];
-  const v = pick.borrowed ? ch.borrowed.nose[pick.v] : ch.parts.find(p => p.name === 'nose').variants[pick.v];
-  const [sx, sy, w, h] = rect(v.sprite);
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(sheet, sx, sy, w, h, 0, 0, w, h);
-  const d = ctx.getImageData(0, 0, w, h).data, counts = new Map();
-  for (let i = 0; i < d.length; i += 4) {
-    const [, sat, l] = rgbToHsl([d[i], d[i + 1], d[i + 2]]);
-    if (!d[i + 3] || l < 0.1 || (l > 0.9 && sat < 0.3)) continue;
-    const hex = '#' + [d[i], d[i + 1], d[i + 2]].map(x => x.toString(16).padStart(2, '0')).join('');
-    if (hex.slice(1) in SKIN_STEPS[state.kind]) continue;
-    counts.set(hex, (counts.get(hex) || 0) + 1);
-  }
-  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || '#808080';
+// The part a build shows for a row: the variant entry, whose `groups` are
+// the colours its pickers change (see colour_groups() in the exporter) - or
+// null for none.
+function partOf(kind, build, feat) {
+  if (feat === 'hat') return build.hat === undefined ? null : S.hats[build.hat];
+  const pick = build[feat];
+  if (!pick || pick.none) return null;
+  const ch = S.characters[kind];
+  const part = ch.parts.find(p => p.name === feat);
+  return part.variants.length === 1 ? part.variants[0] : pick.borrowed ? ch.borrowed[feat][pick.v] : part.variants[pick.v];
+}
+const groupsOf = (kind, build, feat) => (partOf(kind, build, feat) || {}).groups || [];
+const colourPick = (build, feat, k) => feat === 'body' ? build.skin : ((build.colours || {})[feat] || [])[k];
+function setColour(feat, k, value) {
+  const build = state.build[state.kind];
+  if (feat === 'body') { build.skin = value; return; }
+  build.colours = Object.assign({}, build.colours);
+  (build.colours[feat] = (build.colours[feat] || []).slice())[k] = value;
+}
+// a new pick comes in its own colours
+function resetColours(feat) {
+  const build = state.build[state.kind];
+  if (feat === 'body') build.skin = undefined;
+  else if (build.colours) { build.colours = Object.assign({}, build.colours); delete build.colours[feat]; }
 }
 
 const nameOf = (feat, pick) => pick.none ? 'no ' + feat
   : S.characters[pick.borrowed ? OTHER[state.kind] : state.kind].names[feat][pick.v];
 
-// Built once: the body's row, then each feature's, the Zoombini's tiles on
-// the left and the Fleen's on the right. A pick is kept as {v, borrowed}
-// against the body (see state), so a tile's pick depends on the body.
+// Built once: the body's row, each feature's, then the hats'. A row is the
+// Zoombini's tiles on the left and the Fleen's on the right, then none as a
+// tile of its own, then its small plaques together: a colour for each of
+// the picked part's colours - two for a ponytail or a propeller - and the
+// lock that keeps the row when the dice rolls. A pick is kept as
+// {v, borrowed} against the body (see state), so a tile's pick depends on
+// the body.
 const ROWS = ['body'].concat(FEATURES, ['hat']);
 const KINDS = ['zoombini', 'fleen'];
-// The lock and the none, as pixel icons: '#' outline, 'o' face.
+// Pixel icons: '#' outline, 'o' face. The lock is a padlock whose body is a
+// die, shut to keep the row when the dice rolls and open to let it roll.
 const ICONS = {
-  locked: ['...........', '...........', '...#####...', '..#.....#..', '.#.......#.', '.#.......#.',
-           '.#.......#.', '###########', '#ooooooooo#', '#ooooooooo#', '#oooo#oooo#', '#oooo#oooo#',
-           '#ooooooooo#', '#ooooooooo#', '###########'],
-  unlocked: ['...#####...', '..#.....#..', '.#.......#.', '.#.......#.', '.#.......#.', '.........#.',
-             '.........#.', '###########', '#ooooooooo#', '#ooooooooo#', '#oooo#oooo#', '#oooo#oooo#',
-             '#ooooooooo#', '#ooooooooo#', '###########'],
+  keep: ['....####....', '...#....#...', '..#......#..', '..#......#..', '############', '#oooooooooo#',
+         '#o##ooooooo#', '#o##ooooooo#', '#oooo##oooo#', '#oooo##oooo#', '#ooooooo##o#', '#ooooooo##o#',
+         '############'],
+  roll: ['..####......', '.#....#.....', '.#....#.....', '.#..........', '############', '#oooooooooo#',
+         '#o##ooooooo#', '#o##ooooooo#', '#oooo##oooo#', '#oooo##oooo#', '#ooooooo##o#', '#ooooooo##o#',
+         '############'],
   none: ['##.......##', '###.....###', '.###...###.', '..###.###..', '...#####...', '....###....',
          '...#####...', '..###.###..', '.###...###.', '###.....###', '##.......##'],
   // a drop of paint: 'o' is the colour picked
   colour: ['....#....', '...#o#...', '...#o#...', '..#ooo#..', '.#ooooo#.', '#ooooooo#', '#ooooooo#',
            '#ooooooo#', '.#ooooo#.', '..#####..'],
 };
+function drawIcon(ctx, icon, on, fill, x0 = 0, y0 = 0, scale = 1) {
+  ICONS[icon].forEach((row, y) => [...row].forEach((c, x) => {
+    if (c === '.') return;
+    ctx.fillStyle = c === '#' ? (on ? '#4a1d08' : '#111') : fill || (on ? '#ce8431' : '#c0c0c0');
+    ctx.fillRect(x0 + x * scale, y0 + y * scale, scale, scale);
+  }));
+}
 function paintIcon(canvas, icon, on, fill = null) {
   const rows = ICONS[icon];
   canvas.width = rows[0].length;
   canvas.height = rows.length;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  rows.forEach((row, y) => [...row].forEach((c, x) => {
-    if (c === '.') return;
-    ctx.fillStyle = c === '#' ? (on ? '#4a1d08' : '#111') : fill || (on ? '#ce8431' : '#c0c0c0');
-    ctx.fillRect(x, y, 1, 1);
-  }));
+  drawIcon(ctx, icon, on, fill);
+}
+// None's tile: a blank one of the game's, with a cross on it at 2x, moved
+// when pressed as a figure is on the game's own tiles.
+function paintNone(canvas, on) {
+  paintTile(canvas, S.controls.blank[on ? 1 : 0]);
+  const ctx = canvas.getContext('2d');
+  const size = ICONS.none.length * 2;
+  drawIcon(ctx, 'none', on, null, Math.floor((canvas.width - size) / 2) - (on ? 2 : 0),
+           Math.floor((canvas.height - size) / 2) + (on ? 1 : 0), 2);
 }
 // A colour plaque: the paint drop in the colour it holds, over the browser's
 // colour picker.
 function colourButton(label, onPick) {
-  const b = document.createElement('label');
-  b.className = 'stone mini';
+  const b = el('label', 'stone mini');
   b.title = label;
-  const input = document.createElement('input');
+  const input = el('input');
   input.type = 'color';
   input.setAttribute('aria-label', label);
   input.addEventListener('input', () => onPick(input.value));
-  b.append(document.createElement('canvas'), input);
+  b.append(el('canvas'), input);
   return b;
 }
 function miniButton(label, onClick) {
-  const b = document.createElement('button');
-  b.className = 'stone mini';
+  const b = el('button', 'stone mini');
   b.title = label;
   b.setAttribute('aria-label', label);
-  b.appendChild(document.createElement('canvas'));
+  b.appendChild(el('canvas'));
+  b.addEventListener('click', onClick);
+  return b;
+}
+function tileButton(label, onClick) {
+  const b = el('button', 'tile');
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  b.appendChild(el('canvas'));
   b.addEventListener('click', onClick);
   return b;
 }
@@ -1027,104 +1054,84 @@ function buildTiles() {
   rowsEl.textContent = '';
   tiles = {};
   for (const feat of ROWS) {
-    if (feat === 'hat') { buildHatRow(); continue; }
-    const row = document.createElement('div');
-    row.className = 'feature' + (feat === 'body' ? ' body' : '');
+    const row = el('div', 'feature' + (feat === 'body' ? ' body' : feat === 'hat' ? ' hats' : ''));
     row.setAttribute('role', 'group');
     const Feat = feat[0].toUpperCase() + feat.slice(1);
     row.setAttribute('aria-label', Feat);
-    tiles[feat] = [];
-    const lock = miniButton('Keep this ' + feat + ' when rolling', () => {
-      locks[feat] = !locks[feat];
-      paintTiles();
-    });
-    row.appendChild(lock);
-    for (const kind of KINDS) {
-      const set = document.createElement('div');
-      set.className = 'set';
-      S.characters[kind].buttons[feat].forEach((pair, v) => {
-        const b = document.createElement('button');
-        b.className = 'tile';
-        const name = feat === 'body' ? LABEL[kind]
-          : S.characters[kind].names[feat][v] + ' (' + LABEL[kind] + ')';
-        b.title = name;
-        b.setAttribute('aria-label', name);
-        b.appendChild(document.createElement('canvas'));
-        b.addEventListener('click', () => {
-          // a tile is that part as it comes, its own colour too
-          if (feat === 'body') { setBody(kind); state.build[state.kind].skin = undefined; }
-          else state.build[state.kind][feat] = { v, borrowed: kind !== state.kind };
-          if (feat === 'nose') state.build[state.kind].noseColour = undefined;
-          endClip();
+    const t = tiles[feat] = [];
+    if (feat === 'hat') {
+      // the hats on the body that is picked, in the left-hand set
+      const set = el('div', 'set');
+      S.hats.forEach((hat, v) => {
+        const b = tileButton(hat.name[0].toUpperCase() + hat.name.slice(1) + ' (from Pizza Pass)', () => {
+          state.build[state.kind].hat = v;
+          resetColours('hat');
           update();
         });
         set.appendChild(b);
-        tiles[feat].push({ b, v, kind });
+        t.push({ b, v });
       });
-      row.appendChild(set);
+      row.append(set, el('div', 'set'));
+    } else {
+      for (const kind of KINDS) {
+        const set = el('div', 'set');
+        S.characters[kind].buttons[feat].forEach((pair, v) => {
+          const name = feat === 'body' ? LABEL[kind] : S.characters[kind].names[feat][v] + ' (' + LABEL[kind] + ')';
+          const b = tileButton(name, () => {
+            // a tile is that part as it comes, its own colours too
+            if (feat === 'body') setBody(kind);
+            else state.build[state.kind][feat] = { v, borrowed: kind !== state.kind };
+            resetColours(feat);
+            endClip();
+            update();
+          });
+          set.appendChild(b);
+          t.push({ b, v, kind });
+        });
+        row.appendChild(set);
+      }
     }
-    // the end: a none for each feature, a colour for the body and the nose
-    const end = document.createElement('div');
-    end.className = 'end';
-    if (feat !== 'body') {
-      tiles[feat].none = miniButton('No ' + feat, () => {
-        state.build[state.kind][feat] = { ...NONE };
+    // none, as a tile of its own (the body has none, and keeps the place)
+    if (feat === 'body') {
+      row.appendChild(el('div', 'tile none-tile spacer'));
+    } else {
+      t.none = tileButton(feat === 'hat' ? 'No hat' : 'No ' + feat, () => {
+        if (feat === 'hat') state.build[state.kind].hat = undefined;
+        else state.build[state.kind][feat] = { ...NONE };
+        resetColours(feat);
         endClip();
         update();
       });
-      end.appendChild(tiles[feat].none);
+      t.none.classList.add('none-tile');
+      row.appendChild(t.none);
     }
-    if (feat === 'body' || feat === 'nose') {
-      const key = feat === 'body' ? 'skin' : 'noseColour';
-      tiles[feat].colour = colourButton(feat === 'body' ? 'Skin colour' : 'Nose colour', value => {
-        state.build[state.kind][key] = value;
-        update();
+    // the small plaques: a colour for each of the part's colours, stacked,
+    // and beside them the lock, as tall as the row
+    const small = el('div', 'controls'), colours = el('div', 'colours');
+    t.colours = [0, 1].map(k => {
+      const label = feat === 'body' ? 'Skin colour' : Feat + (k ? ' colour 2' : ' colour');
+      const c = colourButton(label, value => { setColour(feat, k, value); update(); });
+      colours.appendChild(c);
+      return c;
+    });
+    small.appendChild(colours);
+    if (feat !== 'hat') {
+      // a hat is left alone when the dice rolls, and has no lock
+      t.lock = miniButton('Keep this ' + feat + ' when the dice rolls', () => {
+        locks[feat] = !locks[feat];
+        paintTiles();
       });
-      end.appendChild(tiles[feat].colour);
+      t.lock.classList.add('lock');
+      small.appendChild(t.lock);
     }
-    row.appendChild(end);
-    tiles[feat].lock = lock;
+    row.appendChild(small);
     rowsEl.appendChild(row);
   }
 }
 
-// The hats' row: no lock, as the dice leaves a hat alone; the hats on the
-// body that is picked, in the left-hand set; and none at the end.
-function buildHatRow() {
-  const row = document.createElement('div');
-  row.className = 'feature hats';
-  row.setAttribute('role', 'group');
-  row.setAttribute('aria-label', 'Hat');
-  const spacer = document.createElement('div');
-  spacer.className = 'mini spacer';
-  row.appendChild(spacer);
-  tiles.hat = [];
-  const set = document.createElement('div');
-  set.className = 'set';
-  S.hats.forEach((hat, v) => {
-    const b = document.createElement('button');
-    b.className = 'tile';
-    const name = hat.name[0].toUpperCase() + hat.name.slice(1) + ' (from Pizza Pass)';
-    b.title = name;
-    b.setAttribute('aria-label', name);
-    b.appendChild(document.createElement('canvas'));
-    b.addEventListener('click', () => { state.build[state.kind].hat = v; update(); });
-    set.appendChild(b);
-    tiles.hat.push({ b, v, hat: true });
-  });
-  row.append(set, document.createElement('div'));
-  row.lastChild.className = 'set';
-  const end = document.createElement('div');
-  end.className = 'end';
-  tiles.hat.none = miniButton('No hat', () => { state.build[state.kind].hat = undefined; update(); });
-  end.appendChild(tiles.hat.none);
-  row.appendChild(end);
-  rowsEl.appendChild(row);
-}
-
 // The whole character becomes the other one's body, every feature staying
 // what it was - a Fleen's hair on a Zoombini is that Fleen's own hair on a
-// Fleen - and so does its name.
+// Fleen - and so do its colours, its hat and its name.
 function setBody(kind) {
   if (kind === state.kind) return;
   const old = state.kind;
@@ -1133,7 +1140,7 @@ function setBody(kind) {
     return [f, pick.none ? pick : { v: pick.v, borrowed: (pick.borrowed ? OTHER[old] : old) !== kind }];
   }));
   state.build[kind].skin = state.build[old].skin;
-  state.build[kind].noseColour = state.build[old].noseColour;
+  state.build[kind].colours = state.build[old].colours;
   state.build[kind].hat = state.build[old].hat;
   state.name[kind] = state.name[old];
   state.kind = kind;
@@ -1142,33 +1149,32 @@ function setBody(kind) {
 
 function paintTiles() {
   const build = state.build[state.kind];
-  for (const t of tiles.hat) {
-    const on = build.hat === t.v;
-    t.b.setAttribute('aria-pressed', on);
-    paintTile(t.b.firstChild, S.characters[state.kind].buttons.hat[t.v][on ? 1 : 0]);
-  }
-  tiles.hat.none.setAttribute('aria-pressed', build.hat === undefined);
-  paintIcon(tiles.hat.none.firstChild, 'none', build.hat === undefined);
   for (const feat of ROWS) {
-    if (feat === 'hat') continue;
-    const pick = build[feat] || {};
-    for (const t of tiles[feat]) {
-      const on = !pick.none && (feat === 'body' ? t.kind === state.kind
-        : pick.v === t.v && (pick.borrowed ? OTHER[state.kind] : state.kind) === t.kind);
-      t.b.setAttribute('aria-pressed', on);
-      paintTile(t.b.firstChild, S.characters[t.kind].buttons[feat][t.v][on ? 1 : 0]);
+    const t = tiles[feat], pick = build[feat] || {};
+    for (const x of t) {
+      const on = feat === 'hat' ? build.hat === x.v
+        : !pick.none && (feat === 'body' ? x.kind === state.kind
+          : pick.v === x.v && (pick.borrowed ? OTHER[state.kind] : state.kind) === x.kind);
+      x.b.setAttribute('aria-pressed', on);
+      paintTile(x.b.firstChild, feat === 'hat' ? S.characters[state.kind].buttons.hat[x.v][on ? 1 : 0]
+        : S.characters[x.kind].buttons[feat][x.v][on ? 1 : 0]);
     }
-    const { lock, none, colour } = tiles[feat];
-    lock.setAttribute('aria-pressed', locks[feat]);
-    paintIcon(lock.firstChild, locks[feat] ? 'locked' : 'unlocked', locks[feat]);
-    if (none) {
-      none.setAttribute('aria-pressed', !!pick.none);
-      paintIcon(none.firstChild, 'none', !!pick.none);
+    if (t.none) {
+      const on = feat === 'hat' ? build.hat === undefined : !!pick.none;
+      t.none.setAttribute('aria-pressed', on);
+      paintNone(t.none.firstChild, on);
     }
-    if (colour) {
-      const hex = feat === 'body' ? build.skin || NATURAL_SKIN[state.kind] : build.noseColour || noseHex(build);
-      colour.querySelector('input').value = hex;
-      paintIcon(colour.firstChild, 'colour', false, hex);
+    const groups = feat === 'body' ? [{ ref: NATURAL_SKIN[state.kind].slice(1) }] : groupsOf(state.kind, build, feat);
+    t.colours.forEach((c, k) => {
+      c.hidden = k >= groups.length;
+      if (c.hidden) return;
+      const hex = colourPick(build, feat, k) || '#' + groups[k].ref;
+      c.querySelector('input').value = hex;
+      paintIcon(c.firstChild, 'colour', false, hex);
+    });
+    if (t.lock) {
+      t.lock.setAttribute('aria-pressed', locks[feat]);
+      paintIcon(t.lock.firstChild, locks[feat] ? 'keep' : 'roll', locks[feat]);
     }
   }
 }
@@ -1214,9 +1220,8 @@ dice.addEventListener('click', () => {
     setBody(KINDS[Math.floor(Math.random() * 2)]);
     state.build[state.kind].skin = undefined;
   }
-  if (!locks.nose) state.build[state.kind].noseColour = undefined;
   const fresh = randomBuild();
-  for (const f of FEATURES) if (!locks[f]) state.build[state.kind][f] = fresh[f];
+  for (const f of FEATURES) if (!locks[f]) { state.build[state.kind][f] = fresh[f]; resetColours(f); }
   state.name[state.kind] = makeName();
   endClip();
   update();
