@@ -502,6 +502,10 @@ function variantsFor(kind, build, pose = REST) {
       out.splice(out.findIndex(p => p.name === 'body'), 0, part);
     }
   }
+  // borrowed hair with a piece hanging behind the head (the horned helmet's
+  // downward braid) paints that piece before the body, which hides it
+  const hair = out.find(p => p.name === 'hair');
+  if (hair && hair.v.back) out.splice(out.findIndex(p => p.name === 'body'), 0, { name: 'hair', v: hair.v.back });
   return out.map(p => p.v);
 }
 
