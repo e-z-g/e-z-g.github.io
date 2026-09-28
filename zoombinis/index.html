@@ -255,26 +255,36 @@
   }
   .ctl canvas { display: block; image-rendering: pixelated; }
   #btn-random canvas { width: 108px; height: 78px; }
-  #btn-walk canvas { width: 76px; height: 72px; }
   .plate { padding: 8px 16px 10px; font-weight: 800; font-size: 1.05rem; min-width: 7em; }
 
   /* ---- the feature box: the tiles set in the builder's rock ---- */
 
-  .box { padding: 14px; width: 100%; max-width: 620px; justify-self: center; }
+  .box { padding: 14px; width: 100%; max-width: 660px; justify-self: center; }
   .rows { display: grid; gap: 10px; }
-  /* A row: the body, then each feature - the Zoombini's five tiles on the
-     left and the Fleen's on the right, whichever body is picked, so a tile
-     is always where it was. The body row has one tile in each. */
+  /* A row: the body, then each feature - its lock, the Zoombini's five
+     tiles on the left and the Fleen's on the right, whichever body is
+     picked, so a tile is always where it was, then none of them. The body
+     row has one tile in each set. */
   .feature {
     display: flex;
     justify-content: center;
-    gap: 14px;
+    align-items: stretch;
+    gap: 10px;
   }
   .set {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 52px));
+    grid-template-columns: repeat(5, minmax(0, 50px));
     gap: 4px;
   }
+  /* the lock and the none: narrow plaques with a pixel icon, at 2x */
+  .mini {
+    width: 30px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mini canvas { display: block; image-rendering: pixelated; width: 22px; height: auto; }
   .tile {
     padding: 0;
     border: 0;
@@ -294,7 +304,7 @@
      screen allows; its name and buttons, then the tiles, down the right. */
   @media (min-width: 901px) {
     main {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 620px);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 660px);
       grid-template-areas: "window tools" "window box" "window .";
       grid-template-rows: auto auto 1fr;
       gap: 16px 22px;
@@ -326,12 +336,13 @@
     .toolbar { flex-wrap: nowrap; gap: 8px; }
     .name-btn { font-size: 1.3rem; padding: 3px 10px 5px; min-width: 0; flex: 1 1 auto; }
     #btn-random canvas { width: 54px; height: 39px; }
-    #btn-walk canvas { width: 38px; height: 36px; }
     .plate { min-width: 0; font-size: 0.85rem; padding: 5px 9px 7px; }
     .box { padding: 6px; }
     .rows { gap: 4px; }
-    .feature { gap: 6px; }
+    .feature { gap: 4px; }
     .set { flex: 1 1 0; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
+    .mini { width: 20px; flex: none; }
+    .mini canvas { width: 11px; }
   }
 
   footer { margin-top: 30px; font-size: 0.9rem; opacity: 0.75; }
@@ -359,7 +370,6 @@
       <div class="toolbar">
         <button class="stone name-btn" id="btn-name" title="Think of a new name"><span class="name" id="name"></span><span class="again" aria-hidden="true">&#x21bb;</span></button>
         <button class="ctl" id="btn-random" title="Roll a new one" aria-label="Roll a new one"><canvas width="54" height="39"></canvas></button>
-        <button class="ctl" id="btn-walk" title="Walk" aria-label="Walk"><canvas width="38" height="36"></canvas></button>
         <button class="stone plate" id="btn-motion" aria-pressed="false">Pause</button>
       </div>
     </div>
@@ -434,9 +444,13 @@ const shownName = name => name[0].toUpperCase() + name.slice(1);
 // ---- state -------------------------------------------------------------
 
 // A pick is {v, borrowed}: variant v of this character's part, or of the
-// other character's if borrowed.
-const randomPick = () => ({ v: Math.floor(Math.random() * 5), borrowed: Math.random() < 0.5 });
-const randomBuild = () => Object.fromEntries(FEATURES.map(f => [f, randomPick()]));
+// other character's if borrowed - or none of either. The build's `body`, if
+// set, is none too: the parts float where it would be. The dice never picks
+// none, and never borrows: a roll is a Zoombini or a Fleen through and
+// through, bar the features locked (`locks`), which it leaves as they are.
+const NONE = { v: 0, borrowed: false, none: true };
+const randomBuild = () => Object.fromEntries(FEATURES.map(f => [f, { v: Math.floor(Math.random() * 5), borrowed: false }]));
+const locks = { body: false, hair: false, eyes: false, nose: false, feet: false };
 const plainBuild = () => Object.fromEntries(FEATURES.map(f => [f, { v: Math.floor(Math.random() * 5), borrowed: false }]));
 
 const state = {
@@ -451,17 +465,19 @@ const state = {
 // has the other's eyes number 3 (a = 0). Links from before names keep
 // working, with a new name.
 const codeOf = build => FEATURES.map(f =>
-  build[f].borrowed ? 'abcde'[build[f].v] : String(build[f].v)).join('');
+  build[f].none ? 'x' : build[f].borrowed ? 'abcde'[build[f].v] : String(build[f].v)).join('')
+  + (build.body && build.body.none ? 'x' : '');
 function readHash() {
-  const m = /^#(zoombini|fleen)(?:-([0-4a-e]{4}))?(?:-([a-z]{1,12}))?$/.exec(location.hash);
+  const m = /^#(zoombini|fleen)(?:-([0-4a-ex]{4}x?))?(?:-([a-z]{1,12}))?$/.exec(location.hash);
   if (!m) return;
   state.kind = m[1];
   if (m[3]) state.name[m[1]] = m[3];
   if (!m[2]) return;
   FEATURES.forEach((f, i) => {
     const c = m[2][i], letter = c >= 'a';
-    state.build[m[1]][f] = { v: letter ? c.charCodeAt(0) - 97 : +c, borrowed: letter };
+    state.build[m[1]][f] = c === 'x' ? { ...NONE } : { v: letter ? c.charCodeAt(0) - 97 : +c, borrowed: letter };
   });
+  state.build[m[1]].body = m[2][4] === 'x' ? { ...NONE } : undefined;
 }
 function writeHash() {
   const hash = '#' + state.kind + '-' + codeOf(state.build[state.kind]) + '-' + state.name[state.kind];
@@ -573,7 +589,10 @@ function variantsFor(kind, build, pose = REST) {
   // downward braid) paints that piece before the body, which hides it
   const hair = out.find(p => p.name === 'hair');
   if (hair && hair.v.back) out.splice(out.findIndex(p => p.name === 'body'), 0, { name: 'hair', v: hair.v.back });
-  return out.map(p => p.v);
+  // parts picked as none are laid out like the rest, so every reordering
+  // above finds what it looks for, and left out only now
+  const none = name => ((name === 'body' ? build.body : build[name]) || {}).none;
+  return out.filter(p => !(p && none(p.name))).map(p => p.v);
 }
 
 // A box relative to the REGS origin around the given variants.
@@ -698,14 +717,47 @@ function paintTile(canvas, index) {
 const rowsEl = document.getElementById('rows');
 let tiles = {};                          // feature -> [{b, v, borrowed}]
 
-const nameOf = (feat, pick) =>
-  S.characters[pick.borrowed ? OTHER[state.kind] : state.kind].names[feat][pick.v];
+const nameOf = (feat, pick) => pick.none ? 'no ' + feat
+  : S.characters[pick.borrowed ? OTHER[state.kind] : state.kind].names[feat][pick.v];
 
 // Built once: the body's row, then each feature's, the Zoombini's tiles on
 // the left and the Fleen's on the right. A pick is kept as {v, borrowed}
 // against the body (see state), so a tile's pick depends on the body.
 const ROWS = ['body'].concat(FEATURES);
 const KINDS = ['zoombini', 'fleen'];
+// The lock and the none, as pixel icons: '#' outline, 'o' face.
+const ICONS = {
+  locked: ['...........', '...........', '...#####...', '..#.....#..', '.#.......#.', '.#.......#.',
+           '.#.......#.', '###########', '#ooooooooo#', '#ooooooooo#', '#oooo#oooo#', '#oooo#oooo#',
+           '#ooooooooo#', '#ooooooooo#', '###########'],
+  unlocked: ['...#####...', '..#.....#..', '.#.......#.', '.#.......#.', '.#.......#.', '.........#.',
+             '.........#.', '###########', '#ooooooooo#', '#ooooooooo#', '#oooo#oooo#', '#oooo#oooo#',
+             '#ooooooooo#', '#ooooooooo#', '###########'],
+  none: ['##.......##', '###.....###', '.###...###.', '..###.###..', '...#####...', '....###....',
+         '...#####...', '..###.###..', '.###...###.', '###.....###', '##.......##'],
+};
+function paintIcon(canvas, icon, on) {
+  const rows = ICONS[icon];
+  canvas.width = rows[0].length;
+  canvas.height = rows.length;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  rows.forEach((row, y) => [...row].forEach((c, x) => {
+    if (c === '.') return;
+    ctx.fillStyle = c === '#' ? (on ? '#4a1d08' : '#111') : (on ? '#ce8431' : '#c0c0c0');
+    ctx.fillRect(x, y, 1, 1);
+  }));
+}
+function miniButton(label, onClick) {
+  const b = document.createElement('button');
+  b.className = 'stone mini';
+  b.title = label;
+  b.setAttribute('aria-label', label);
+  b.appendChild(document.createElement('canvas'));
+  b.addEventListener('click', onClick);
+  return b;
+}
+
 function buildTiles() {
   rowsEl.textContent = '';
   tiles = {};
@@ -713,8 +765,14 @@ function buildTiles() {
     const row = document.createElement('div');
     row.className = 'feature';
     row.setAttribute('role', 'group');
-    row.setAttribute('aria-label', feat[0].toUpperCase() + feat.slice(1));
+    const Feat = feat[0].toUpperCase() + feat.slice(1);
+    row.setAttribute('aria-label', Feat);
     tiles[feat] = [];
+    const lock = miniButton('Keep this ' + feat + ' when rolling', () => {
+      locks[feat] = !locks[feat];
+      paintTiles();
+    });
+    row.appendChild(lock);
     for (const kind of KINDS) {
       const set = document.createElement('div');
       set.className = 'set';
@@ -727,7 +785,7 @@ function buildTiles() {
         b.setAttribute('aria-label', name);
         b.appendChild(document.createElement('canvas'));
         b.addEventListener('click', () => {
-          if (feat === 'body') setBody(kind);
+          if (feat === 'body') { setBody(kind); state.build[state.kind].body = undefined; }
           else state.build[state.kind][feat] = { v, borrowed: kind !== state.kind };
           endClip();
           update();
@@ -737,6 +795,14 @@ function buildTiles() {
       });
       row.appendChild(set);
     }
+    const none = miniButton(feat === 'body' ? 'No body' : 'No ' + (feat === 'feet' ? 'feet' : feat), () => {
+      state.build[state.kind][feat] = { ...NONE };
+      endClip();
+      update();
+    });
+    row.appendChild(none);
+    tiles[feat].lock = lock;
+    tiles[feat].none = none;
     rowsEl.appendChild(row);
   }
 }
@@ -748,9 +814,10 @@ function setBody(kind) {
   if (kind === state.kind) return;
   const old = state.kind;
   state.build[kind] = Object.fromEntries(FEATURES.map(f => {
-    const { v, borrowed } = state.build[old][f];
-    return [f, { v, borrowed: (borrowed ? OTHER[old] : old) !== kind }];
+    const pick = state.build[old][f];
+    return [f, pick.none ? pick : { v: pick.v, borrowed: (pick.borrowed ? OTHER[old] : old) !== kind }];
   }));
+  state.build[kind].body = state.build[old].body;
   state.name[kind] = state.name[old];
   state.kind = kind;
   heading = null;
@@ -759,13 +826,18 @@ function setBody(kind) {
 function paintTiles() {
   const build = state.build[state.kind];
   for (const feat of ROWS) {
+    const pick = build[feat] || {};
     for (const t of tiles[feat]) {
-      const pick = build[feat];
-      const on = feat === 'body' ? t.kind === state.kind
-        : pick.v === t.v && (pick.borrowed ? OTHER[state.kind] : state.kind) === t.kind;
+      const on = !pick.none && (feat === 'body' ? t.kind === state.kind
+        : pick.v === t.v && (pick.borrowed ? OTHER[state.kind] : state.kind) === t.kind);
       t.b.setAttribute('aria-pressed', on);
       paintTile(t.b.firstChild, S.characters[t.kind].buttons[feat][t.v][on ? 1 : 0]);
     }
+    const { lock, none } = tiles[feat];
+    lock.setAttribute('aria-pressed', locks[feat]);
+    paintIcon(lock.firstChild, locks[feat] ? 'locked' : 'unlocked', locks[feat]);
+    none.setAttribute('aria-pressed', !!pick.none);
+    paintIcon(none.firstChild, 'none', !!pick.none);
   }
 }
 
@@ -797,15 +869,7 @@ function dressPage() {
   document.documentElement.style.setProperty('--rock-img', `url(${rockURL()})`);
 }
 
-// The dice and the go arrow, which walks, show their pressed art while held,
-// as in the game.
-const walkBtn = document.getElementById('btn-walk');
-let walkHeld = false;
-function paintWalk() { paintTile(walkBtn.firstChild, S.controls.go[walkHeld ? 1 : 0]); }
-for (const [ev, held] of [['pointerdown', true], ['pointerup', false], ['pointerleave', false],
-                          ['pointercancel', false]]) {
-  walkBtn.addEventListener(ev, () => { if (walkHeld !== held) { walkHeld = held; paintWalk(); } });
-}
+// The dice shows its pressed art while held, as in the game.
 const dice = document.getElementById('btn-random');
 let diceHeld = false;
 function paintDice() { paintTile(dice.firstChild, S.controls.random[diceHeld ? 1 : 0]); }
@@ -814,9 +878,12 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
   dice.addEventListener(ev, () => { if (diceHeld) { diceHeld = false; paintDice(); } });
 }
 dice.addEventListener('click', () => {
-  state.kind = KINDS[Math.floor(Math.random() * 2)];
-  heading = null;
-  state.build[state.kind] = randomBuild();
+  if (!locks.body) {
+    setBody(KINDS[Math.floor(Math.random() * 2)]);
+    state.build[state.kind].body = undefined;
+  }
+  const fresh = randomBuild();
+  for (const f of FEATURES) if (!locks[f]) state.build[state.kind][f] = fresh[f];
   state.name[state.kind] = makeName();
   endClip();
   update();
@@ -850,7 +917,7 @@ function clipsFor(kind) {
   const clips = kind === 'fleen' ? ch.idles.concat([PAGE_BLINK, PAGE_BLINK]) : ch.idles.slice();
   const walk = (feet.borrowed ? ch.walks.borrowedFeet : ch.walks.own)[feet.v];
   let special = null;
-  if (kind === 'zoombini' && !feet.borrowed) {
+  if (kind === 'zoombini' && !feet.borrowed && !feet.none) {
     special = ch.specials[feet.v];
   } else if (kind === 'fleen' && feet.borrowed && ch.borrowed.feet[feet.v].special) {
     // the Fleen's head stays put; the special's opening tick, which faces a
@@ -912,11 +979,6 @@ function setPaused(p) {
   drawPreview();
 }
 document.getElementById('btn-motion').addEventListener('click', () => setPaused(!paused));
-// Walks come round at random; this starts one now.
-document.getElementById('btn-walk').addEventListener('click', () => {
-  if (paused) setPaused(false);
-  startClip(clipsFor(state.kind).find(c => c.walk));
-});
 motionQuery.addEventListener('change', e => setPaused(e.matches));
 
 // ---- saving and sharing ------------------------------------------------
@@ -934,7 +996,9 @@ function say(text) {
 document.getElementById('btn-save').addEventListener('click', () => {
   const kind = state.kind, build = state.build[kind];
   const scale = 4, pad = 2 * scale;
-  const bb = boundsOf(variantsFor(kind, build));
+  const parts = variantsFor(kind, build);
+  if (!parts.length) { say('Nothing to save - every part is none.'); return; }
+  const bb = boundsOf(parts);
   const c = document.createElement('canvas');
   c.width = (bb.r - bb.l) * scale + pad * 2;
   c.height = (bb.b - bb.t) * scale + pad * 2;
@@ -983,7 +1047,6 @@ function update() {
   preview.setAttribute('aria-label', name + ', a ' + LABEL[state.kind] + ': ' + described);
   paintTiles();
   paintDice();
-  paintWalk();
   layoutPreview();
   writeHash();
 }
