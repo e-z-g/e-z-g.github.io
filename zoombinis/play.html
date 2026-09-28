@@ -29,22 +29,40 @@
   does not download it again.
 -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/js-dos.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Grandstander:wght@500;700;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/js-dos.js"></script>
 <script src="play-lib.js"></script>
 <style>
-  :root { color-scheme: dark; --bg: #0e1220; --text: #e8e2d6; --muted: #9a917f; --accent: #f0c060; }
+  /* The maker's look (index.html): the builder's night sky, cartoon
+     lettering in the Zoombini's blue, and the modes as the name bar's flat
+     stone plaques, the one playing pressed in to tan. */
+  :root { color-scheme: dark; --bg: #1c185a; --text: #f1dfb2; --tan: #e7b55a; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-               font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+               font: 500 15px/1.4 'Grandstander', 'Trebuchet MS', sans-serif; }
   body { display: flex; flex-direction: column; height: 100dvh; }
-  header { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 6px 12px; }
-  header b { font-size: 1rem; }
-  header a { color: var(--accent); }
-  header a[aria-current] { color: var(--text); text-decoration: none; font-weight: 600; }
-  #status { color: var(--muted); font-size: 0.85rem; }
-  #status.error { color: #ff8f7a; }
-  #fallback { display: none; font-size: 0.85rem; }
+  header { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 12px; }
+  header b {
+    font: 400 1.7rem/1 'Chewy', 'Comic Sans MS', sans-serif; color: #9ebfff; margin-right: 4px;
+    text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000,
+                 1px 1px #000, -1px 1px #000, 1px -1px #000, -1px -1px #000, 2px 3px 0 #000;
+  }
+  header a {
+    color: #111; background: #828282; border: 2px solid #000; padding: 3px 10px 4px;
+    font-weight: 800; font-size: 0.9rem; text-decoration: none; text-shadow: 1px 1px 0 #c0c0c0;
+    box-shadow: inset 0 2px 0 #c0c0c0, inset -2px 0 0 #c0c0c0, inset 2px 0 0 #202020, inset 0 -2px 0 #202020;
+  }
+  header a:hover { filter: brightness(1.08); }
+  header a[aria-current] {
+    background: var(--tan); color: #4a1d08; text-shadow: 1px 1px 0 #f1dfb2;
+    box-shadow: inset 0 2px 0 #844a39, inset -2px 0 0 #844a39, inset 2px 0 0 #fefefe, inset 0 -2px 0 #fefefe;
+  }
+  #status { font-size: 0.9rem; opacity: 0.85; }
+  #status.error { color: #ff8f7a; opacity: 1; }
+  #fallback { display: none; font-size: 0.9rem; }
   #fallback.shown { display: inline; }
-  #fallback label { color: var(--accent); text-decoration: underline; cursor: pointer; }
+  #fallback label { color: var(--tan); text-decoration: underline; cursor: pointer; }
   #fallback input { display: none; }
   #dos { flex: 1; min-height: 0; }
 </style>

@@ -61,7 +61,7 @@
   having no turned frames, ride along with the turning head. A Fleen on a
   Zoombini spring, wheels or propeller plays that device's special too.
   Fleen idles never blink, so the page adds a blink of its own. Motion stops for prefers-reduced-motion, and
-  the Pause button stops it anywhere; Save PNG always takes the rest pose.
+  the Pause button stops it anywhere; Save picture always takes the rest pose.
 
   Names come from the game's own generator (ZOOMBINI.EXE seg26:1f26, run for
   every Zoombini it makes), ported letter for letter - see makeName(). A new
@@ -69,117 +69,199 @@
   it. The game writes names lowercase; the page capitalises them to show.
 
   Why the sprite sheet is a data: URI inside sprites.js rather than a PNG:
-  so "Save PNG" works when the page is opened from file://. A canvas that has
+  so "Save picture" works when the page is opened from file://. A canvas that has
   drawn a file:// image is tainted and toBlob() throws.
 
   Pixel art is only ever scaled by whole numbers - the preview picks the
   largest integer CSS scale that fits, and image-rendering: pixelated does
   the rest - so every source pixel stays square.
 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Grandstander:wght@500;700;800&display=swap">
 <style>
+  /* The look is the game's Zoombini Isle builder, made of its own parts
+     rather than drawn from it (the scene itself stays out, as a backdrop
+     behind the character was tried and taken out): the night sky's blues,
+     the dark rock the builder's tiles sit in, the dice and green go arrow
+     that are its own buttons, and, for everything with words on, the flat
+     grey stone of its name bar - a bevel lit from the top right, a black
+     outline - pressed in, as a picked tile is, to the same tan. (The
+     tiles' speckled face was tried on those first; words on it were hard to
+     read.) Every edge is square and in whole source pixels at 2x, like the
+     tiles beside them. */
   :root {
     color-scheme: dark;
-    --bg: #0e1220;
-    --panel: #26221e;
-    --panel-edge: #4b4238;
-    --panel-hi: #5d5246;
-    --text: #e8e2d6;
-    --muted: #9a917f;
-    --accent: #f0c060;
+    --night: #1c185a;                    /* the builder's sky, darkest to lightest */
+    --night-deep: #101042;
+    --night-hi: #212173;
+    --cloud: #7384ce;
+    --rock: #312929;                     /* the rock round the builder's tiles */
+    --rock-lo: #211818;
+    --rock-hi: #423942;
+    --stone: #828282;                    /* a tile: face, bevel, pressed */
+    --stone-hi: #c0c0c0;
+    --stone-lo: #414141;
+    --stone-deep: #202020;
+    --tan: #e7b55a;
+    --tan-hi: #f1dfb2;
+    --tan-lo: #ce8431;
+    --tan-deep: #844a39;
+    --zoombini: #9ebfff;                 /* the two skins, for the title */
+    --fleen: #c9ee31;
+    --text: #f1dfb2;
+    --rock-img: none;
+    --display: 'Chewy', 'Comic Sans MS', 'Trebuchet MS', sans-serif;
+    --ui: 'Grandstander', 'Trebuchet MS', sans-serif;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
   body {
-    background: var(--bg);
+    background: var(--night);
     color: var(--text);
-    font-family: sans-serif;
-    line-height: 1.4;
+    font-family: var(--ui);
+    font-weight: 500;
+    line-height: 1.35;
   }
+  button { touch-action: manipulation; font: inherit; -webkit-tap-highlight-color: transparent; }
   .page {
     max-width: 1180px;
     margin: 0 auto;
-    padding: 20px 16px 40px;
+    padding: 18px 16px 36px;
   }
+
+  /* ---- materials ---- */
+
+  /* A stone plaque: the name bar's flat face, a tile's two-step bevel
+     (light on the top and right, dark on the left and bottom), a black
+     outline, and its words cut in. */
+  .stone {
+    color: #111;
+    background: var(--stone);
+    border: 2px solid #000;
+    border-radius: 0;
+    box-shadow:
+      inset 0 2px 0 var(--stone-hi), inset -2px 0 0 var(--stone-hi),
+      inset 2px 0 0 var(--stone-deep), inset 0 -2px 0 var(--stone-deep),
+      inset 0 4px 0 var(--stone), inset -4px 0 0 var(--stone),
+      inset 4px 0 0 var(--stone-lo), inset 0 -4px 0 var(--stone-lo);
+    text-shadow: 1px 1px 0 var(--stone-hi);               /* cut in */
+    cursor: pointer;
+  }
+  .stone:hover { filter: brightness(1.08); }
+  /* pressed, or picked: the tan face, the bevel turned round */
+  .stone:active, .stone[aria-selected="true"], .stone[aria-pressed="true"] {
+    background: var(--tan);
+    box-shadow:
+      inset 0 2px 0 var(--tan-deep), inset -2px 0 0 var(--tan-deep),
+      inset 2px 0 0 var(--tan-hi), inset 0 -2px 0 var(--tan-hi),
+      inset 0 4px 0 var(--tan-lo), inset -4px 0 0 var(--tan-lo),
+      inset 4px 0 0 #fefefe, inset 0 -4px 0 #fefefe;
+    color: #4a1d08;
+    text-shadow: 1px 1px 0 var(--tan-hi);
+    filter: none;
+  }
+  /* The rock the tiles and the window are set in. */
+  .rock {
+    background: var(--rock) var(--rock-img) 0 0 / 64px 64px;
+    image-rendering: pixelated;
+    border: 2px solid #000;
+    box-shadow: inset 2px 2px 0 var(--rock-hi), inset -2px -2px 0 var(--rock-lo);
+  }
+  :focus-visible { outline: 3px solid var(--tan); outline-offset: 2px; }
+
+  /* ---- header ---- */
+
   header {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 8px 20px;
-    margin-bottom: 14px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 20px;
+    margin-bottom: 16px;
   }
+  /* Cartoon lettering: the skin of whichever character is being made, in
+     the art's own black outline. */
   h1 {
-    font-size: 1.35rem;
-    font-weight: 600;
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 2.6rem;
+    line-height: 1;
+    letter-spacing: 0.02em;
     margin: 0;
-    color: #fff;
+    color: var(--zoombini);
+    text-shadow:
+      2px 0 #000, -2px 0 #000, 0 2px #000, 0 -2px #000,
+      2px 2px #000, -2px 2px #000, 2px -2px #000, -2px -2px #000,
+      4px 5px 0 #000;
   }
-  .tabs { display: flex; gap: 6px; }
+  body[data-kind="fleen"] h1 { color: var(--fleen); }
+  .tabs { display: flex; gap: 10px; }
   .tabs button {
-    font: inherit;
-    font-size: 0.95rem;
-    color: var(--muted);
-    background: transparent;
-    border: 1px solid var(--panel-edge);
-    border-radius: 999px;
-    padding: 4px 14px;
-    cursor: pointer;
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 6px 14px 8px 10px;
+    font-weight: 800;
+    font-size: 1.05rem;
   }
-  .tabs button[aria-selected="true"] {
-    color: #1b1712;
-    background: var(--accent);
-    border-color: var(--accent);
-  }
-  .tabs button:focus-visible, .tile:focus-visible, .ctl:focus-visible, .text-btn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
+  .portrait { display: block; image-rendering: pixelated; }
+
+  /* ---- the character and its controls ---- */
 
   main {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "stage box" "share box";
-    grid-template-rows: auto 1fr;
-    gap: 14px 20px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
     align-items: start;
   }
-  /* The character and the controls that act on it. */
-  .stage { grid-area: stage; display: flex; flex-direction: column; gap: 10px; }
-  .share { grid-area: share; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 12px; }
-  .share .status { flex-basis: 100%; margin: 0; }
-
+  .stage { display: flex; flex-direction: column; gap: 12px; }
+  .window { padding: 10px; }
   .preview {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 16px;
-    border-radius: 10px;
-    background: radial-gradient(ellipse at 50% 60%, #2b3350 0%, #161b2e 70%);
+    padding: 12px;
+    background: var(--night-hi);
+    border: 2px solid #000;
+    box-shadow: inset 4px 4px 0 rgba(0, 0, 0, 0.35);
     overflow: hidden;
   }
-  #preview {
-    display: block;
-    image-rendering: pixelated;
-  }
-  .toolbar {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-  }
+  #preview { display: block; image-rendering: pixelated; }
 
-  /* The feature box: a stone slab, as the game's lower-left box is. */
-  .box {
-    grid-area: box;
-    background: var(--panel);
-    border: 2px solid var(--panel-edge);
-    border-top-color: var(--panel-hi);
-    border-radius: 10px;
-    padding: 14px;
-    width: 100%;
-    max-width: 620px;
-    justify-self: center;
+  .nameplate { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+  .name-btn {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 18px 8px;
+    font-family: var(--display);
+    font-size: 1.9rem;
+    line-height: 1.1;
+    max-width: 100%;
   }
-  .rows { display: grid; gap: 8px; }
+  .name-btn .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .name-btn { min-width: 9em; justify-content: center; }
+  .name-btn .again { font-family: system-ui, sans-serif; font-size: 1.1rem; font-weight: 700; opacity: 0.6; }
+  .readout { margin: 0; text-align: center; font-size: 1rem; min-height: 1.35em; }
+
+  .toolbar { display: flex; justify-content: center; align-items: center; gap: 14px; }
+  .ctl {
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    line-height: 0;
+  }
+  .ctl canvas { display: block; image-rendering: pixelated; }
+  #btn-random canvas { width: 108px; height: 78px; }
+  #btn-walk canvas { width: 76px; height: 72px; }
+  .plate { padding: 8px 16px 10px; font-weight: 800; font-size: 1.05rem; min-width: 7em; }
+
+  /* ---- the feature box: the tiles set in the builder's rock ---- */
+
+  .box { padding: 14px; width: 100%; max-width: 620px; justify-self: center; }
+  .rows { display: grid; gap: 10px; }
   /* A feature: this character's five tiles, then the other's five - side by
      side where they fit, one set under the other where they do not. */
   .feature {
@@ -196,108 +278,115 @@
   @media (max-width: 420px) {
     .set { grid-template-columns: repeat(5, minmax(0, 1fr)); flex: 1 1 100%; }
   }
-  .tile, .ctl {
+  .tile {
     padding: 0;
     border: 0;
     background: none;
     cursor: pointer;
-    border-radius: 6px;
-    -webkit-tap-highlight-color: transparent;
   }
-  button { touch-action: manipulation; }       /* no double-tap-zoom wait */
-  .tile canvas, .ctl canvas {
+  .tile canvas {
     display: block;
     width: 100%;
     height: auto;
+    aspect-ratio: 40 / 43;
     image-rendering: pixelated;
   }
-  .tile canvas { aspect-ratio: 40 / 43; }
-  .ctl { width: 108px; }
-  .ctl canvas { aspect-ratio: 54 / 39; }
 
-  .readout {
-    margin: 0;
-    text-align: center;
-    font-size: 0.95rem;
-    min-height: 1.4em;
+  .share { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 14px; }
+  .status { flex-basis: 100%; margin: 0; text-align: center; font-size: 0.95rem; min-height: 1.35em; }
+
+  /* A desktop: the character in its window on the left, as tall as the
+     screen allows; its name, the tiles and the buttons down the right. */
+  @media (min-width: 901px) {
+    main {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 620px);
+      grid-template-areas: "window name" "window box" "window tools" "window share" "window .";
+      grid-template-rows: auto auto auto auto 1fr;
+      gap: 16px 22px;
+    }
+    .stage { display: contents; }
+    .window { grid-area: window; }
+    .nameplate { grid-area: name; }
+    .box { grid-area: box; }
+    .toolbar { grid-area: tools; }
+    .share { grid-area: share; }
   }
-  .name-btn {
-    font: inherit;
-    font-weight: 700;
-    color: var(--accent);
-    background: none;
-    border: none;
-    padding: 0 2px;
-    cursor: pointer;
-  }
-  .name-btn:hover .name { text-decoration: underline dotted; }
-  .name-btn .again { color: var(--muted); font-weight: 400; font-size: 0.85em; }
-  .text-btn {
-    font: inherit;
-    font-size: 0.85rem;
-    color: var(--text);
-    background: #3a332c;
-    border: 1px solid var(--panel-edge);
-    border-radius: 6px;
-    padding: 6px 12px;
-    cursor: pointer;
-  }
-  .text-btn:hover { background: #463d34; }
-  .status { color: var(--muted); font-size: 0.8rem; text-align: center; min-height: 1.2em; }
 
   /* A phone: the character and its controls stay pinned to the top while
-     the tiles scroll beneath, so every pick shows at once; a feature's two
-     sets of tiles group together, with room between features; saving and
-     sharing go after the tiles. */
+     the tiles scroll beneath, so every pick shows at once - its name beside
+     the dice and the arrow, to leave the window as much of that as it can;
+     saving and sharing go after the tiles. The game's buttons at 1x. */
   @media (max-width: 900px) {
     .page { padding-top: 10px; }
-    header { flex-wrap: nowrap; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    h1 { font-size: 1.1rem; white-space: nowrap; }
-    .tabs button { font-size: 0.85rem; padding: 3px 10px; }
-    main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "stage" "box" "share";
-           grid-template-rows: none; gap: 12px; }
-    .stage { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 6px 0 8px; gap: 6px; }
-    .preview { padding: 8px; }
-    .toolbar .ctl { width: 64px; }
-    .readout { font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    header { flex-wrap: nowrap; margin-bottom: 8px; }
+    h1 { font-size: 1.7rem; white-space: nowrap;
+         text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000,
+                      1px 1px #000, -1px 1px #000, 1px -1px #000, -1px -1px #000, 2px 3px 0 #000; }
+    .tabs { gap: 6px; }
+    .tabs button { font-size: 0.85rem; padding: 4px 8px 5px 6px; gap: 4px; }
+    .tabs span { display: none; }
+    .stage {
+      position: sticky; top: 0; z-index: 2;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "window window" "name tools";
+      align-items: center;
+      gap: 8px 10px;
+      background: var(--night);
+      padding: 6px 0 8px;
+    }
+    .window { grid-area: window; padding: 6px; }
+    .preview { padding: 6px; }
+    .nameplate { grid-area: name; align-items: flex-start; gap: 2px; }
+    .name-btn { font-size: 1.35rem; padding: 3px 10px 5px; min-width: 0; }
+    .readout { font-size: 0.8rem; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .toolbar { grid-area: tools; gap: 8px; }
+    #btn-random canvas { width: 54px; height: 39px; }
+    #btn-walk canvas { width: 38px; height: 36px; }
+    .toolbar .plate { min-width: 0; font-size: 0.85rem; padding: 5px 9px 7px; }
     .rows { gap: 16px; }
     .feature { gap: 4px; }
   }
 
-  footer { color: var(--muted); font-size: 0.8rem; margin-top: 28px; }
-  footer a { color: #7eb8f7; }
+  footer { margin-top: 30px; font-size: 0.9rem; opacity: 0.75; }
+  footer a { color: var(--zoombini); }
 </style>
 </head>
-<body>
+<body data-kind="zoombini">
 <div class="page">
   <header>
     <h1>Zoombini Maker</h1>
     <div class="tabs" role="tablist" aria-label="Character">
-      <button role="tab" data-kind="zoombini" aria-selected="true">Zoombinis</button>
-      <button role="tab" data-kind="fleen" aria-selected="false">Fleens</button>
+      <button class="stone" role="tab" data-kind="zoombini" aria-selected="true" aria-label="Zoombinis"><canvas class="portrait" aria-hidden="true"></canvas><span>Zoombinis</span></button>
+      <button class="stone" role="tab" data-kind="fleen" aria-selected="false" aria-label="Fleens"><canvas class="portrait" aria-hidden="true"></canvas><span>Fleens</span></button>
     </div>
   </header>
 
   <main>
     <div class="stage">
-      <div class="preview" id="preview-wrap">
-        <canvas id="preview" role="img"></canvas>
+      <div class="window rock">
+        <div class="preview" id="preview-wrap">
+          <canvas id="preview" role="img"></canvas>
+        </div>
+      </div>
+      <div class="nameplate">
+        <button class="stone name-btn" id="btn-name" title="Think of a new name"><span class="name" id="name"></span><span class="again" aria-hidden="true">&#x21bb;</span></button>
+        <p class="readout" id="readout" aria-live="polite"></p>
       </div>
       <div class="toolbar">
-        <button class="ctl" id="btn-random" title="Random features" aria-label="Random features"><canvas width="54" height="39"></canvas></button>
-        <button class="text-btn" id="btn-walk">Walk</button>
-        <button class="text-btn" id="btn-motion" aria-pressed="false">Pause</button>
+        <button class="ctl" id="btn-random" title="Roll a new one" aria-label="Roll a new one"><canvas width="54" height="39"></canvas></button>
+        <button class="ctl" id="btn-walk" title="Walk" aria-label="Walk"><canvas width="38" height="36"></canvas></button>
+        <button class="stone plate" id="btn-motion" aria-pressed="false">Pause</button>
       </div>
-      <p class="readout"><button class="name-btn" id="btn-name" title="New name"><span class="name" id="name"></span> <span class="again" aria-hidden="true">&#x21bb;</span></button> <span id="readout" aria-live="polite"></span></p>
     </div>
 
-    <section class="box" aria-label="Features">
+    <section class="box rock" aria-label="Features">
       <div class="rows" id="rows"></div>
     </section>
 
     <div class="share">
-      <button class="text-btn" id="btn-save">Save PNG</button>
-      <button class="text-btn" id="btn-link">Copy link</button>
+      <button class="stone plate" id="btn-save">Save picture</button>
+      <button class="stone plate" id="btn-link">Copy link</button>
       <p class="status" id="status" aria-live="polite"></p>
     </div>
   </main>
@@ -675,7 +764,58 @@ function paintTiles() {
   }
 }
 
-// The dice shows its pressed art while held, as in the game.
+// ---- the page's own stone -----------------------------------------------
+
+// The rock round the tiles and the window, for the stylesheet: speckled here
+// from the builder's rock colours, as its painted rock would not repeat.
+function rockURL() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#312929';
+  ctx.fillRect(0, 0, 32, 32);
+  let seed = 7;
+  const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const specks = [['#211818', 0.3], ['#393131', 0.15], ['#423942', 0.1], ['#311821', 0.1]];
+  for (let y = 0; y < 32; y++) {
+    for (let x = 0; x < 32; x++) {
+      let r = next();
+      for (const [colour, share] of specks) {
+        if (r < share) { ctx.fillStyle = colour; ctx.fillRect(x, y, 1, 1); break; }
+        r -= share;
+      }
+    }
+  }
+  return c.toDataURL();
+}
+function dressPage() {
+  document.documentElement.style.setProperty('--rock-img', `url(${rockURL()})`);
+}
+
+// Each tab shows its character as it stands now, head and shoulders.
+const PORTRAIT_H = 34;
+function paintPortraits() {
+  for (const t of tabs) {
+    const kind = t.dataset.kind, build = state.build[kind];
+    const bb = boundsOf(variantsFor(kind, build));
+    const c = t.querySelector('canvas');
+    c.width = bb.r - bb.l;
+    c.height = Math.min(bb.b - bb.t, PORTRAIT_H);
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    drawCharacter(ctx, kind, build, -bb.l, -bb.t, 1);
+  }
+}
+
+// The dice and the go arrow, which walks, show their pressed art while held,
+// as in the game.
+const walkBtn = document.getElementById('btn-walk');
+let walkHeld = false;
+function paintWalk() { paintTile(walkBtn.firstChild, S.controls.go[walkHeld ? 1 : 0]); }
+for (const [ev, held] of [['pointerdown', true], ['pointerup', false], ['pointerleave', false],
+                          ['pointercancel', false]]) {
+  walkBtn.addEventListener(ev, () => { if (walkHeld !== held) { walkHeld = held; paintWalk(); } });
+}
 const dice = document.getElementById('btn-random');
 let diceHeld = false;
 function paintDice() { paintTile(dice.firstChild, S.controls.random[diceHeld ? 1 : 0]); }
@@ -841,6 +981,7 @@ tabs.forEach(t => t.addEventListener('click', () => {
 
 function switchKind() {
   tabs.forEach(t => t.setAttribute('aria-selected', t.dataset.kind === state.kind));
+  document.body.dataset.kind = state.kind;
   const title = LABEL[state.kind] + ' Maker';
   document.title = title;
   document.querySelector('h1').textContent = title;
@@ -852,13 +993,18 @@ function switchKind() {
 
 function update() {
   const build = state.build[state.kind];
-  const described = FEATURES.map(f => nameOf(f, build[f])).join(' · ');
+  const described = FEATURES.map((f, i) => {
+    const n = nameOf(f, build[f]);
+    return i ? n.toLowerCase() : n;
+  }).join(', ');
   const name = shownName(state.name[state.kind]);
   document.getElementById('name').textContent = name;
   document.getElementById('readout').textContent = described;
   preview.setAttribute('aria-label', name + ', a ' + LABEL[state.kind] + ': ' + described);
   paintTiles();
   paintDice();
+  paintWalk();
+  paintPortraits();
   layoutPreview();
   writeHash();
 }
@@ -866,7 +1012,7 @@ function update() {
 window.addEventListener('hashchange', () => { readHash(); switchKind(); });
 
 readHash();
-sheet.onload = () => { switchKind(); setPaused(paused); };
+sheet.onload = () => { dressPage(); switchKind(); setPaused(paused); };
 sheet.src = S.sheet;
 </script>
 </body>
