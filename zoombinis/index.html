@@ -81,6 +81,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Grandstander:wght@500;700;800&display=swap">
+<!-- The game's own fonts, being tried: ?font=wordla or ?font=cornerstone
+     loads them (fonts.js, from tools/export_fonts.py) and sets them. -->
+<script>
+  const FONT_TRY = new URLSearchParams(location.search).get('font');
+  if (FONT_TRY === 'wordla' || FONT_TRY === 'cornerstone') {
+    document.documentElement.classList.add('font-' + FONT_TRY);
+    document.write('<script src="fonts.js"><\/script>');
+  }
+</script>
 <style>
   /* The look is the game's Zoombini Isle builder, made of its own parts
      rather than drawn from it (the scene itself stays out, as a backdrop
@@ -380,6 +389,30 @@
 
   footer { margin-top: 30px; font-size: 0.9rem; opacity: 0.75; }
   footer a { color: var(--zoombini); }
+  /* ---- the game's own fonts, being tried ----
+     WordLa is the game's bitmap serif, made pixel TrueType by
+     tools/export_fonts.py: each size is crisp only at its own height in px
+     (10: 11px, 12: 13px, 14: 15px, 18: 19px, 24: 26px) or a whole multiple,
+     so each element takes the size nearest what it had. Cornerstone is the
+     face of the game's help text. Neither has a bold. */
+  html.font-wordla, html.font-cornerstone { font-synthesis: none; }
+  html.font-wordla { --display: 'WordLa 24', serif; --ui: 'WordLa 14', serif; }
+  html.font-wordla body { font-size: 15px; font-weight: 400; }
+  html.font-wordla h1 { font-family: 'WordLa 18', serif; font-size: 38px; letter-spacing: 0; }
+  html.font-wordla .name-btn { font-family: 'WordLa 14', serif; font-size: 30px; }
+  html.font-wordla .plate, html.font-wordla .status { font-weight: 400; font-size: 15px; }
+  html.font-wordla footer { font-family: 'WordLa 12', serif; font-size: 13px; }
+  html.font-cornerstone { --display: 'Cornerstone', sans-serif; --ui: 'Cornerstone', sans-serif; }
+  html.font-cornerstone body, html.font-cornerstone .plate, html.font-cornerstone .status { font-weight: 400; }
+  @media (max-width: 900px) {
+    html.font-wordla h1 { font-family: 'WordLa 24', serif; font-size: 26px; }
+    html.font-wordla .name-btn { font-family: 'WordLa 18', serif; font-size: 19px; }
+    html.font-wordla .plate, html.font-wordla .status { font-family: 'WordLa 12', serif; font-size: 13px; }
+    /* Cornerstone is wide: smaller, so the header keeps to one line */
+    html.font-cornerstone h1 { font-size: 1.3rem; }
+    html.font-cornerstone .plate { font-size: 0.75rem; white-space: nowrap; }
+    html.font-cornerstone .name-btn { font-size: 1.15rem; }
+  }
 </style>
 </head>
 <body data-kind="zoombini">
