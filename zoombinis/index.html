@@ -627,15 +627,21 @@ function skinLadder(hex) {
 
 // A sprite recoloured: its host's skin to the `skin` ladder; and each of its
 // part's colours (`groups`, from the exporter) that has a pick, to the picked
-// hue and saturation, each pixel's lightness scaled so the group's
-// commonest colour (`ref`) lands on the picked one, keeping its shading.
-// Outline, shine and anything else outside the groups stay as they are.
+// hue and saturation, every shade's lightness moved by as much as the
+// group's middle shade (`ref`) moves to the picked one, keeping the shading.
+// The outline and anything else outside the groups stay as they are, and a
+// hat's pixels are never skin (the cream has the Zoombini's lightest blue).
+// With nothing picked, or only a part's own colours, the sprite is the
+// sheet's own, untouched.
 const recolourCache = new Map();
-function recoloured(index, kind, skin, groups = [], picks = []) {
+function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
   picks = picks || [];
-  const active = groups.map((g, k) => picks[k] ? [g, picks[k]] : null).filter(Boolean);
+  if (skin && skin.toLowerCase() === NATURAL_SKIN[kind]) skin = undefined;
+  const active = groups.map((g, k) => picks[k] && picks[k].toLowerCase() !== '#' + g.ref ? [g, picks[k]] : null)
+    .filter(Boolean);
   if (!skin && !active.length) return null;
-  const key = [index, kind, skin, active.map(([g, p]) => g.ref + p).join('/')].join();
+  if (part === 'hat') skin = undefined;
+  const key = [index, kind, skin, part === 'hat', active.map(([g, p]) => g.ref + p).join('/')].join();
   if (recolourCache.has(key)) return recolourCache.get(key);
   const [sx, sy, w, h] = rect(index);
   const c = document.createElement('canvas');
@@ -643,11 +649,11 @@ function recoloured(index, kind, skin, groups = [], picks = []) {
   const ctx = c.getContext('2d');
   ctx.drawImage(sheet, sx, sy, w, h, 0, 0, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
-  const ladder = skin && skinLadder(skin), steps = SKIN_STEPS[kind];
+  const ladder = skin && skinLadder(skin), steps = part === 'hat' ? {} : SKIN_STEPS[kind];
   const hexAt = i => ((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]).toString(16).padStart(6, '0');
   const byHex = new Map();
   for (const [g, pick] of active) {
-    const to = rgbToHsl(hexToRgb(pick)), ref = rgbToHsl(hexToRgb('#' + g.ref))[2] || 1;
+    const to = rgbToHsl(hexToRgb(pick)), ref = rgbToHsl(hexToRgb('#' + g.ref))[2];
     for (const hex of g.colours) byHex.set(hex, [to, ref]);
   }
   for (let i = 0; i < d.length; i += 4) {
@@ -658,7 +664,7 @@ function recoloured(index, kind, skin, groups = [], picks = []) {
       if (ladder) rgb = ladder[step];
     } else if (byHex.has(hex)) {
       const [to, ref] = byHex.get(hex), [, , l] = rgbToHsl([d[i], d[i + 1], d[i + 2]]);
-      rgb = hslToRgb([to[0], to[1], clamp01(l * to[2] / ref)]);
+      rgb = hslToRgb([to[0], to[1], clamp01(to[2] + l - ref)]);
     }
     if (rgb) [d[i], d[i + 1], d[i + 2]] = rgb;
   }
@@ -858,7 +864,7 @@ for (const [kind, bb] of Object.entries(fitBounds)) {
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
 function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST, axis = null) {
   for (const v of variantsFor(kind, build, pose)) {
-    const src = v.part ? recoloured(v.sprite, kind, build.skin, groupsOf(kind, build, v.part), (build.colours || {})[v.part])
+    const src = v.part ? recoloured(v.sprite, kind, build.skin, groupsOf(kind, build, v.part), (build.colours || {})[v.part], v.part)
       : recoloured(v.sprite, kind, build.skin);
     drawSprite(ctx, v.sprite, ox - v.rx * scale, oy + ((v.oy || 0) - v.ry) * scale, scale, axis, src);
   }
@@ -957,11 +963,15 @@ function partOf(kind, build, feat) {
 }
 const groupsOf = (kind, build, feat) => (partOf(kind, build, feat) || {}).groups || [];
 const colourPick = (build, feat, k) => feat === 'body' ? build.skin : ((build.colours || {})[feat] || [])[k];
+// A colour the same as the part's own is no colour: it is left out of the
+// build, and of the link.
 function setColour(feat, k, value) {
   const build = state.build[state.kind];
-  if (feat === 'body') { build.skin = value; return; }
+  value = value.toLowerCase();
+  if (feat === 'body') { build.skin = value === NATURAL_SKIN[state.kind] ? undefined : value; return; }
+  const own = (groupsOf(state.kind, build, feat)[k] || {}).ref;
   build.colours = Object.assign({}, build.colours);
-  (build.colours[feat] = (build.colours[feat] || []).slice())[k] = value;
+  (build.colours[feat] = (build.colours[feat] || []).slice())[k] = value === '#' + own ? undefined : value;
 }
 // a new pick comes in its own colours
 function resetColours(feat) {
