@@ -64,7 +64,8 @@
   having no turned frames, ride along with the turning head. A Fleen on a
   Zoombini spring, wheels or propeller plays that device's special too.
   Fleen idles never blink, so the page adds a blink of its own. Motion stops for prefers-reduced-motion, and
-  the Pause button stops it anywhere; Save picture always takes the rest pose.
+  the Pause button stops it anywhere. Save's picture always takes the rest
+  pose; its GIFs play one animation each (see animationsFor).
 
   Names come from the game's own generator (ZOOMBINI.EXE seg26:1f26, run for
   every Zoombini it makes), ported letter for letter - see makeName(). A new
@@ -261,8 +262,21 @@
   .name-btn .again { font-family: system-ui, sans-serif; font-size: 1.1rem; font-weight: 700; opacity: 0.6; }
 
   .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+  /* Save opens a list, set in the rock like the tiles: the picture, then
+     each animation the character has, as a GIF. */
+  .save { position: relative; }
+  .caret {
+    display: inline-block; margin-left: 9px; vertical-align: 0.15em;
+    border: 6px solid transparent; border-top-color: currentColor; border-bottom: 0;
+  }
+  .menu {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 20;
+    display: flex; flex-direction: column; gap: 6px; padding: 10px; width: max-content;
+  }
+  .menu[hidden] { display: none; }
+  .menu .item { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; text-align: left; }
+  .menu .fmt { font-size: 0.8em; opacity: 0.6; }
   .toolbar .group { display: flex; align-items: center; gap: 10px; }
-  .share .short { display: none; }
   .ctl {
     padding: 0;
     border: 0;
@@ -382,8 +396,7 @@
     .toolbar .group { gap: 6px; }
     #btn-random canvas { width: 54px; height: 39px; }
     .plate { min-width: 0; font-size: 0.8rem; padding: 6px 10px 8px; }
-    .share .long { display: none; }
-    .share .short { display: inline; }
+    .caret { margin-left: 6px; border-width: 5px; }
     .box { --set-gap: 3px; --none-gap: 8px; padding: 6px; gap: 6px; }
     .tabs { gap: 3px; }
     .tab { font-size: 0.75rem; padding: 7px 2px 9px; gap: 3px; }
@@ -421,7 +434,10 @@
           <button class="stone plate" id="btn-pure" aria-pressed="false" title="Roll only a Zoombini's parts on a Zoombini and a Fleen's on a Fleen">Pure</button>
         </div>
         <div class="group share">
-          <button class="stone plate" id="btn-save"><span class="long">Save picture</span><span class="short">Save</span></button>
+          <div class="save">
+            <button class="stone plate" id="btn-save" aria-haspopup="menu" aria-expanded="false" aria-controls="save-menu">Save<span class="caret" aria-hidden="true"></span></button>
+            <div class="menu rock" id="save-menu" role="menu" aria-label="Save as" hidden></div>
+          </div>
           <button class="stone plate" id="btn-link">Copy link</button>
         </div>
       </div>
@@ -847,10 +863,9 @@ function boundsOf(variants) {
 }
 
 // The box every standing build fits in, whatever its parts, facing or feet
-// special. The figure is scaled so this box fills the panel, and it stays put
-// while parts are picked. Walks, hops and bounces are left out: counting them
-// shrank a standing Zoombini from about 7x to 4x. They use the panel around
-// the box instead (see layoutPreview).
+// special. It stays put while parts are picked, and a walk turns about its
+// middle; the box the figure is scaled to fit also has room for its moves
+// (see moveBox).
 const fitBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
   const ch = S.characters[kind];
   const all = [];
@@ -871,6 +886,58 @@ const fitBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
 // check, and fail loudly instead of drawing nothing.
 for (const [kind, bb] of Object.entries(fitBounds)) {
   if (![bb.l, bb.t, bb.r, bb.b].every(Number.isFinite)) throw new Error('bad preview bounds for ' + kind);
+}
+
+// The box a build's parts cover in a pose, from the REGS origin, counting
+// the pose's move (dx, dy) and each part's lift.
+function drawnBounds(kind, build, pose = REST) {
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  for (const v of variantsFor(kind, build, pose)) {
+    const [, , w, h] = rect(v.sprite), x = pose.dx - v.rx, y = pose.dy + (v.oy || 0) - v.ry;
+    l = Math.min(l, x); t = Math.min(t, y); r = Math.max(r, x + w); b = Math.max(b, y + h);
+  }
+  return { l, t, r, b };
+}
+
+// The box every move fits in: the standing box grown by as far as any
+// build's walks, special or idles take it past that build's own standing
+// box - a spring's bounce 30px up, borrowed rockets' flame 42px behind -
+// and by the same on both sides, as a walk may be mirrored. Scaled to the
+// standing box alone, the figure was bigger, but bounces went out of the
+// top of the window; Sam would rather it smaller and whole. It is one box
+// per character, fitting every build, so the figure never changes size as
+// parts are picked - Sam's choice over a box per pair of feet, which kept
+// most of them bigger but resized the figure when the feet changed. Worked
+// out once per character, when first shown (every pair of feet with every
+// hair, each distinct tick once: about 25ms).
+const moveBoxes = {};
+function moveBox(kind) {
+  if (moveBoxes[kind]) return moveBoxes[kind];
+  const fb = fitBounds[kind];
+  const picks = [0, 1, 2, 3, 4].flatMap(v => [{ v, borrowed: false }, { v, borrowed: true }]);
+  let top = 0, bottom = 0, side = 0;
+  for (const feet of picks) {
+    for (const hair of picks) {
+      const build = { hair, feet, eyes: { v: 0, borrowed: false }, nose: { v: 0, borrowed: false } };
+      const own = drawnBounds(kind, build);
+      const walk = walkOf(kind, build), special = specialOf(kind, build);
+      const clips = walk.dirs.map(ticks => ({ ticks, walk: true, faces: walk.faces }))
+        .concat(idlesOf(kind).concat(special ? [special] : []).map(ticks => ({ ticks, walk: false })));
+      for (const c of clips) {
+        const seen = new Set();
+        for (const t of c.ticks) {
+          const key = t.join();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const bb = drawnBounds(kind, build, poseAt(c, t));
+          top = Math.max(top, own.t - bb.t);
+          bottom = Math.max(bottom, bb.b - own.b);
+          side = Math.max(side, own.l - bb.l, bb.r - own.r);
+        }
+      }
+    }
+  }
+  return (moveBoxes[kind] = { l: fb.l - side, r: fb.r + side, t: fb.t - top, b: fb.b + bottom });
 }
 
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
@@ -909,9 +976,9 @@ function drawPreview() {
 }
 
 // The canvas fills the panel, at the largest whole-number scale at which the
-// standing box fits, with the box in its middle - so moving figures have the
-// rest of the panel to move in, and only something travelling past the
-// panel's edge is cut off. Its height comes from the window, never from the
+// box of every move fits (moveBox), with that box in its middle - but never
+// below the game's own size, 1 CSS pixel a pixel: in a window too small for
+// that, the edges are cut off instead. Its height comes from the window, never from the
 // panel's own, which grows with the canvas and would feed back into itself:
 // on a desktop most of the window; on a phone, whatever the header, buttons
 // and tiles leave of it - everything else's height, measured without the
@@ -939,10 +1006,10 @@ function layoutPreview() {
     - preview.getBoundingClientRect().height + 10;
   const availH = narrow ? Math.max(90, viewHeight() - others)
     : Math.max(260, Math.min(560, viewHeight() - 280));
-  const bb = fitBounds[state.kind];
+  const bb = moveBox(state.kind);
   const fw = bb.r - bb.l + PAD * 2, fh = bb.b - bb.t + PAD * 2;
   const dpr = window.devicePixelRatio || 1;
-  const scale = Math.max(1, Math.floor(Math.min(availW / fw, availH / fh) * dpr)) / dpr;
+  const scale = Math.max(dpr, Math.floor(Math.min(availW / fw, availH / fh) * dpr)) / dpr;
   const w = Math.max(fw, Math.floor(availW / scale)), h = Math.max(fh, Math.floor(availH / scale));
   if (preview.width !== w || preview.height !== h) { preview.width = w; preview.height = h; }
   preview.style.width = w * scale + 'px';
@@ -1351,35 +1418,48 @@ const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 let paused = motionQuery.matches;
 let clip = null, clipAt = 0, waitTicks = 15, timer = 0;
 
-// Clips are {ticks, walk} - idle ticks [eyes, dx, dy, facing, feet] - or
-// {dirs, walk}, a walk with a clip per direction (walk ticks as described at
-// WALK_PARTS); a direction, and left or right, is picked as it starts.
-function clipsFor(kind) {
-  const ch = S.characters[kind];
-  const feet = state.build[kind].feet;
-  const clips = kind === 'fleen' ? ch.idles.concat([PAGE_BLINK, PAGE_BLINK]) : ch.idles.slice();
-  const walk = (feet.borrowed ? ch.walks.borrowedFeet : ch.walks.own)[feet.v];
-  let special = null;
-  if (kind === 'zoombini' && !feet.borrowed && !feet.none) {
-    special = ch.specials[feet.v];
-  } else if (kind === 'fleen' && feet.borrowed && ch.borrowed.feet[feet.v].special) {
+// A build's moves. Idle ticks are [eyes, dx, dy, facing, feet]; walk ticks
+// are as described at WALK_PARTS.
+const idlesOf = kind => kind === 'fleen' ? S.characters.fleen.idles.concat([PAGE_BLINK]) : S.characters[kind].idles;
+// The ticks its feet show off in, or null.
+function specialOf(kind, build) {
+  const ch = S.characters[kind], feet = build.feet;
+  if (kind === 'zoombini' && !feet.borrowed && !feet.none) return ch.specials[feet.v];
+  if (kind === 'fleen' && feet.borrowed && ch.borrowed.feet[feet.v].special) {
     // the Fleen's head stays put; the special's opening tick, which faces a
     // Zoombini (and its device) towards the viewer, is left out
-    special = S.characters.zoombini.specials[feet.v]
+    return S.characters.zoombini.specials[feet.v]
       .filter(t => t[3] !== 1).map(([, dx, dy, , f]) => [0, dx, dy, 0, f]);
   }
+  return null;
+}
+// Its walk: a clip per direction, and which way their frames face.
+function walkOf(kind, build) {
+  const ch = S.characters[kind], feet = build.feet;
+  return { dirs: (feet.borrowed ? ch.walks.borrowedFeet : ch.walks.own)[feet.v],
+           faces: ch.faces[feet.borrowed ? 'borrowedFeet' : 'own'] };
+}
+// The pose a clip's tick puts the figure in.
+const poseAt = (clip, t) => clip.walk
+  ? Object.assign({}, REST, { walk: t, dx: t[0], dy: t[1], faces: clip.faces })
+  : Object.assign({}, REST, { eyes: t[0], dx: t[1], dy: t[2], facing: t[3], feet: t[4] });
+
+// Clips are {ticks, walk} or {dirs, walk}, a walk with a clip per direction;
+// a direction, and left or right, is picked as it starts.
+function clipsFor(kind) {
+  const build = state.build[kind];
+  const clips = idlesOf(kind).concat(kind === 'fleen' ? [PAGE_BLINK] : []);
+  const special = specialOf(kind, build);
   for (let i = 0; special && i < SPECIAL_WEIGHT; i++) clips.push(special);
   const out = clips.map(ticks => ({ ticks, walk: false }));
-  const faces = ch.faces[feet.borrowed ? 'borrowedFeet' : 'own'];
-  for (let i = 0; i < WALK_WEIGHT; i++) out.push({ dirs: walk, walk: true, faces });
+  const walk = walkOf(kind, build);
+  for (let i = 0; i < WALK_WEIGHT; i++) out.push({ dirs: walk.dirs, walk: true, faces: walk.faces });
   return out;
 }
 
 function tick() {
   if (clip) {
-    const t = clip.ticks[clipAt++];
-    if (clip.walk) Object.assign(pose, REST, { walk: t, dx: t[0], dy: t[1], faces: clip.faces });
-    else Object.assign(pose, REST, { eyes: t[0], dx: t[1], dy: t[2], facing: t[3], feet: t[4] });
+    Object.assign(pose, poseAt(clip, clip.ticks[clipAt++]));
     if (clipAt >= clip.ticks.length) { clip = null; waitTicks = 15 + Math.floor(Math.random() * 30); }
   } else {
     Object.assign(pose, REST);
@@ -1437,9 +1517,19 @@ function say(text) {
   statusTimer = setTimeout(() => { statusEl.textContent = ''; }, 2500);
 }
 
+function download(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 // The character alone at rest, cropped to its own outline, at 4x on
 // transparency.
-document.getElementById('btn-save').addEventListener('click', () => {
+function savePicture() {
   const kind = state.kind, build = state.build[kind];
   const scale = 4, pad = 2 * scale;
   const parts = variantsFor(kind, build);
@@ -1453,14 +1543,222 @@ document.getElementById('btn-save').addEventListener('click', () => {
   drawCharacter(ctx, kind, build, pad - bb.l * scale, pad - bb.t * scale, scale);
   c.toBlob(blob => {
     if (!blob) { say('Could not make the PNG in this browser.'); return; }
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = state.name[kind] + '-' + kind + '.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    download(blob, state.name[kind] + '-' + kind + '.png');
   }, 'image/png');
+}
+
+// The animations a build can be saved as, each a list of poses a tick
+// apart: its idles strung together with pauses between; its feet showing
+// off, if they do; and its walk - a Zoombini's towards us, along and away
+// (three of its five directions; the other two are near copies), a Fleen's
+// hop and run away, or its ride on a Zoombini device.
+function animationsFor(kind, build) {
+  const rest = n => Array.from({ length: n }, () => REST);
+  const idle = ticks => ticks.map(t => poseAt({ walk: false }, t));
+  const out = [{ label: 'Looking around', poses: idlesOf(kind).flatMap(ticks => rest(5).concat(idle(ticks))).concat(rest(5)) }];
+  const special = specialOf(kind, build);
+  if (special) out.push({ label: 'Showing off its feet', poses: rest(5).concat(idle(special), rest(5)) });
+  const walk = walkOf(kind, build);
+  const names = kind === 'zoombini' ? { 0: 'Walking towards us', 2: 'Walking along', 3: 'Walking away' }
+    : walk.dirs.length === 1 ? { 0: 'Riding along' }
+    : { 0: build.feet.borrowed ? 'Walking along' : 'Hopping along', 1: 'Running away' };
+  for (const [d, label] of Object.entries(names)) {
+    if (walk.dirs[d]) out.push({ label, poses: walk.dirs[d].map(t => poseAt({ walk: true, faces: walk.faces }, t)) });
+  }
+  return out;
+}
+
+// ---- animated GIF ------------------------------------------------------
+
+// GIF89a, written here rather than with a library, so saving works offline
+// and from file:// like the rest of the page. One palette of the frames'
+// own colours - the art has far fewer than the 255 a GIF allows beside its
+// transparent entry 0 (past that, the rarest go to their nearest) - every
+// frame the whole picture, cleared to transparency before the next
+// (disposal 2), and looping for ever. A run of identical frames is written
+// once, held for the run's time.
+class Bytes {
+  constructor() { this.a = new Uint8Array(1 << 16); this.n = 0; }
+  push(...bs) { for (const b of bs) { if (this.n === this.a.length) this.grow(); this.a[this.n++] = b; } }
+  grow() { const a = new Uint8Array(this.a.length * 2); a.set(this.a); this.a = a; }
+  u16(v) { this.push(v & 255, v >> 8 & 255); }
+  text(s) { for (const ch of s) this.push(ch.charCodeAt(0)); }
+}
+
+// LZW as GIF has it: variable-width codes from minSize + 1 bits to 12, a
+// clear code when the table is full, packed low bit first and cut into
+// sub-blocks of up to 255 bytes. The table is two flat arrays keyed by
+// (prefix code, next index), stamped per run so a clear costs nothing.
+let lzwCode = null, lzwStamp = null, lzwRun = 0;
+function writeLZW(out, ix, minSize) {
+  if (!lzwCode) { lzwCode = new Int16Array(4096 << 8); lzwStamp = new Int32Array(4096 << 8); }
+  const clear = 1 << minSize, eoi = clear + 1;
+  let size = minSize + 1, next = eoi + 1, run = ++lzwRun;
+  const data = new Bytes();
+  let acc = 0, bits = 0;
+  const put = code => {
+    acc |= code << bits;
+    bits += size;
+    while (bits >= 8) { data.push(acc & 255); acc >>>= 8; bits -= 8; }
+  };
+  put(clear);
+  let cur = ix[0];
+  for (let i = 1; i < ix.length; i++) {
+    const k = ix[i], key = cur << 8 | k;
+    if (lzwStamp[key] === run) { cur = lzwCode[key]; continue; }
+    put(cur);
+    if (next === 4096) {
+      put(clear);
+      next = eoi + 1; size = minSize + 1; run = ++lzwRun;
+    } else {
+      if (next >= 1 << size) size++;
+      lzwCode[key] = next++;
+      lzwStamp[key] = run;
+    }
+    cur = k;
+  }
+  put(cur);
+  put(eoi);
+  if (bits > 0) data.push(acc & 255);
+  out.push(minSize);
+  for (let i = 0; i < data.n; i += 255) {
+    const len = Math.min(255, data.n - i);
+    out.push(len);
+    for (let j = 0; j < len; j++) out.push(data.a[i + j]);
+  }
+  out.push(0);
+}
+
+// frames: RGBA at 1x, w x h, `delay` hundredths of a second apart; written
+// at `scale`, each pixel a scale x scale block.
+function encodeGIF(frames, w, h, scale, delay) {
+  const rgb = (f, i) => f[i * 4] << 16 | f[i * 4 + 1] << 8 | f[i * 4 + 2];
+  const count = new Map();
+  for (const f of frames) {
+    for (let i = 0; i < w * h; i++) if (f[i * 4 + 3] >= 128) count.set(rgb(f, i), (count.get(rgb(f, i)) || 0) + 1);
+  }
+  let palette = [...count.keys()];
+  if (palette.length > 255) palette = palette.sort((a, b) => count.get(b) - count.get(a)).slice(0, 255);
+  const index = new Map(palette.map((c, k) => [c, k + 1]));
+  const nearest = c => {
+    if (index.has(c)) return index.get(c);
+    let best = 1, bestD = Infinity;
+    palette.forEach((p, k) => {
+      const d = ((p >> 16) - (c >> 16)) ** 2 + ((p >> 8 & 255) - (c >> 8 & 255)) ** 2 + ((p & 255) - (c & 255)) ** 2;
+      if (d < bestD) { bestD = d; best = k + 1; }
+    });
+    index.set(c, best);
+    return best;
+  };
+  // each frame as palette indices, a run of the same one kept once
+  const runs = [];
+  for (const f of frames) {
+    const ix = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) if (f[i * 4 + 3] >= 128) ix[i] = nearest(rgb(f, i));
+    const last = runs[runs.length - 1];
+    if (last && last.ix.every((v, i) => v === ix[i])) last.ticks++;
+    else runs.push({ ix, ticks: 1 });
+  }
+  const bitsFor = Math.max(1, Math.ceil(Math.log2(palette.length + 1)));
+  const W = w * scale, H = h * scale;
+  const out = new Bytes();
+  out.text('GIF89a');
+  out.u16(W); out.u16(H);
+  out.push(0x80 | (bitsFor - 1) << 4 | (bitsFor - 1), 0, 0);
+  for (let k = 0; k < 1 << bitsFor; k++) {
+    const c = k >= 1 && k <= palette.length ? palette[k - 1] : 0;
+    out.push(c >> 16 & 255, c >> 8 & 255, c & 255);
+  }
+  out.push(0x21, 0xff, 11); out.text('NETSCAPE2.0'); out.push(3, 1, 0, 0, 0);
+  const big = new Uint8Array(W * H);
+  for (const r of runs) {
+    out.push(0x21, 0xf9, 4, 2 << 2 | 1); out.u16(r.ticks * delay); out.push(0, 0);
+    out.push(0x2c); out.u16(0); out.u16(0); out.u16(W); out.u16(H); out.push(0);
+    for (let y = 0; y < H; y++) {
+      const src = ((y / scale) | 0) * w, row = y * W;
+      for (let x = 0; x < W; x++) big[row + x] = r.ix[src + ((x / scale) | 0)];
+    }
+    writeLZW(out, big, Math.max(2, bitsFor));
+  }
+  out.push(0x3b);
+  return new Blob([out.a.subarray(0, out.n)], { type: 'image/gif' });
+}
+
+// An animation of the build as a GIF, at 4x like the picture: the frames
+// drawn at 1x on a canvas just big enough for every one of them, facing the
+// way the game's frames do.
+function makeGIF(kind, build, anim) {
+  const pad = 2;
+  const U = { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity };
+  for (const p of anim.poses) {
+    const bb = drawnBounds(kind, build, p);
+    U.l = Math.min(U.l, bb.l); U.t = Math.min(U.t, bb.t); U.r = Math.max(U.r, bb.r); U.b = Math.max(U.b, bb.b);
+  }
+  if (!Number.isFinite(U.l)) return null;
+  const w = U.r - U.l + pad * 2, h = U.b - U.t + pad * 2;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  const frames = anim.poses.map(p => {
+    ctx.clearRect(0, 0, w, h);
+    drawCharacter(ctx, kind, build, pad - U.l + p.dx, pad - U.t + p.dy, 1, p);
+    return ctx.getImageData(0, 0, w, h).data;
+  });
+  return encodeGIF(frames, w, h, 4, Math.round(TICK_MS / 10));
+}
+
+function saveGIF(anim) {
+  const kind = state.kind, build = state.build[kind], name = state.name[kind];
+  say('Making the GIF…');
+  // let the words show before the work starts
+  setTimeout(() => {
+    const blob = makeGIF(kind, build, anim);
+    if (!blob) { say('Nothing to save - every part is none.'); return; }
+    download(blob, name + '-' + kind + '-' + anim.label.toLowerCase().replace(/[^a-z]+/g, '-') + '.gif');
+    say('GIF saved.');
+  }, 30);
+}
+
+// ---- the save menu -----------------------------------------------------
+
+const saveBtn = document.getElementById('btn-save');
+const saveMenu = document.getElementById('save-menu');
+function menuItem(label, fmt, action) {
+  const b = el('button', 'stone plate item');
+  b.setAttribute('role', 'menuitem');
+  const l = el('span'), f = el('span', 'fmt');
+  l.textContent = label;
+  f.textContent = fmt;
+  b.append(l, f);
+  b.addEventListener('click', () => { closeSaveMenu(true); action(); });
+  return b;
+}
+function openSaveMenu() {
+  saveMenu.textContent = '';
+  saveMenu.appendChild(menuItem('Picture', 'PNG', savePicture));
+  for (const anim of animationsFor(state.kind, state.build[state.kind])) {
+    saveMenu.appendChild(menuItem(anim.label, 'GIF', () => saveGIF(anim)));
+  }
+  saveMenu.hidden = false;
+  saveBtn.setAttribute('aria-expanded', 'true');
+  saveMenu.firstChild.focus();
+}
+function closeSaveMenu(refocus = false) {
+  if (saveMenu.hidden) return;
+  saveMenu.hidden = true;
+  saveBtn.setAttribute('aria-expanded', 'false');
+  if (refocus) saveBtn.focus();
+}
+saveBtn.addEventListener('click', () => (saveMenu.hidden ? openSaveMenu() : closeSaveMenu()));
+document.addEventListener('pointerdown', e => {
+  if (!saveMenu.hidden && !e.target.closest('.save')) closeSaveMenu();
+});
+saveMenu.addEventListener('keydown', e => {
+  const items = [...saveMenu.children], i = items.indexOf(document.activeElement);
+  const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
+  if (e.key === 'Escape') { e.preventDefault(); closeSaveMenu(true); }
+  else if (to !== undefined) { e.preventDefault(); items[(to + items.length) % items.length].focus(); }
 });
 
 document.getElementById('btn-link').addEventListener('click', async () => {
