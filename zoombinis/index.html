@@ -246,6 +246,21 @@
     display: flex; align-items: center; justify-content: center;
   }
   .corner canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
+  /* Four arrows in the window's other corner: the character walks that way -
+     along, towards us, away. */
+  .pad {
+    position: absolute; right: 8px; bottom: 8px; z-index: 2;
+    display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px); gap: 2px;
+  }
+  .pad button { padding: 0; display: flex; align-items: center; justify-content: center; }
+  .pad button:disabled { opacity: 0.35; cursor: default; filter: none; }
+  .pad .up { grid-area: 1 / 2; } .pad .left { grid-area: 2 / 1; }
+  .pad .right { grid-area: 2 / 3; } .pad .down { grid-area: 3 / 2; }
+  .pad .arrow { width: 0; height: 0; border: 7px solid transparent; }
+  .pad .up .arrow { border-bottom-color: currentColor; border-top: 0; }
+  .pad .down .arrow { border-top-color: currentColor; border-bottom: 0; }
+  .pad .left .arrow { border-right-color: currentColor; border-left: 0; }
+  .pad .right .arrow { border-left-color: currentColor; border-right: 0; }
   /* A GIF from the Save list plays here first, looping, over the character:
      the very file that Save GIF downloads, at the window's own scale. */
   .gif-preview {
@@ -393,6 +408,7 @@
      the header, buttons and the open tab leave (see layoutPreview). The
      game's buttons at 1x. */
   @media (max-width: 900px) {
+    .pad { grid-template-columns: repeat(3, 28px); grid-template-rows: repeat(3, 28px); }
     .page { padding: 8px 10px 24px; }
     header { margin-bottom: 8px; }
     /* Cornerstone is wide: smaller, so the title keeps to one line */
@@ -438,6 +454,12 @@
         <div class="preview" id="preview-wrap">
           <canvas id="preview" role="img"></canvas>
           <button class="stone corner" id="btn-motion" aria-pressed="false"><canvas></canvas></button>
+          <div class="pad" id="pad" role="group" aria-label="Walk">
+            <button class="stone up" data-way="up" title="Walk away" aria-label="Walk away"><span class="arrow"></span></button>
+            <button class="stone left" data-way="left" title="Walk left" aria-label="Walk left"><span class="arrow"></span></button>
+            <button class="stone right" data-way="right" title="Walk right" aria-label="Walk right"><span class="arrow"></span></button>
+            <button class="stone down" data-way="down" title="Walk towards us" aria-label="Walk towards us"><span class="arrow"></span></button>
+          </div>
           <div class="gif-preview" id="gif-preview" role="dialog" aria-labelledby="gif-title" hidden>
             <p class="title" id="gif-title"></p>
             <img id="gif-img" alt="">
@@ -488,7 +510,7 @@ const LABEL = { zoombini: 'Zoombini', fleen: 'Fleen' };
 const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
 const PAD = 3;                               // source pixels around the figure
 const TICK_MS = 100;                         // one script section per tick
-const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null, faces: null };
+const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null, faces: null, hat: null, n: 0 };
 // A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar,
 // device, away] - each part's pose (-1 rest), how far each borrowed foot
 // is lifted, the frame of a borrowed device (-1 none), and 1 when the head is
@@ -835,25 +857,44 @@ function variantsFor(kind, build, pose = REST, seat = null) {
 // on a cap or a helmet and down among thin spikes. A `flat` hat - the
 // pizza's plate - is stiff and wider than the head, so it rests instead on
 // the highest hair anywhere under it: on a Viking helmet's horns and a
-// quiff's tip, which it otherwise swallowed. A hat with `facings` - the
-// toad - shows its back while the character walks away. Its pieces as
-// sprites.
+// quiff's tip, which it otherwise swallowed. Which of its `sets` of frames
+// shows: the pose's hat tick (`pose.hat`: set, dx, dy) while the hat plays
+// one of its own animations; walking away, its `away` set (the toad's back);
+// walking, a Pizza Pass hat's wobble (`walk`, one a tick, pose.n); else the
+// first. It is seated by the first set, so the others move only as they
+// were drawn to. Its pieces as sprites.
 const HAT_SOLID = 0.6;                       // the share of columns that must reach the row
 function hatOn(body, hat, hair = null, pose = REST) {
   const h = S.hats[hat];
   if (!h || !body.crown) return [];
-  const f = h.facings || {};
-  const pieces = (pose.walk && pose.walk[10] && f.away) || h.pieces;
+  const w = pose.walk;
+  const [k, ox, oy] = pose.hat || [w && w[10] && h.away !== undefined ? h.away
+    : w && h.walk ? h.walk[(pose.n || 0) % h.walk.length] : 0, 0, 0];
+  if (k < 0) return [];                      // not yet arrived
+  const pieces = h.sets[k] || h.sets[0];
+  const [cx] = body.crown;
+  const cy = hatSeat(body, h, hair);
+  return pieces.map(p => ({ part: 'hat', sprite: p.sprite,
+                            rx: -Math.round(cx + p.dx + ox), ry: -Math.round(cy + h.sink + p.dy + oy) }));
+}
+let HAT_RULE = 'hair';
+// The row a hat's seat is on, over this body in this hair - worked out once
+// for each: moveBox asks for it for every frame of every hat on every tick.
+const seats = new WeakMap(), BALD = {};
+function hatSeat(body, h, hair) {
+  const byHair = seats.get(body) || seats.set(body, new WeakMap()).get(body);
+  const byHat = byHair.get(hair || BALD) || byHair.set(hair || BALD, new Map()).get(hair || BALD);
+  if (byHat.has(h)) return byHat.get(h);
   const [cx, crownY] = body.crown;
   let cy = crownY;
   if (hair && HAT_RULE === 'hair' && h.flat) {
-    const w = rect(pieces[0].sprite)[2];
+    const w = rect(h.sets[0][0].sprite)[2];
     for (let x = Math.round(cx - w / 2); x < Math.round(cx + w / 2); x++) {
       const t = topAt(hair, x);
       if (t !== null) cy = Math.min(cy, t);
     }
   } else if (hair && HAT_RULE === 'hair') {
-    const base = pieces[0], w = rect(base.sprite)[2];
+    const w = rect(h.sets[0][0].sprite)[2];
     const tops = [];
     for (let x = Math.round(cx - w / 4); x < Math.round(cx + w / 4); x++) {
       const t = topAt(hair, x);
@@ -862,9 +903,9 @@ function hatOn(body, hat, hair = null, pose = REST) {
     tops.sort((a, b) => a - b);
     cy = Math.min(crownY, tops[Math.ceil(tops.length * HAT_SOLID) - 1]);
   }
-  return pieces.map(p => ({ part: 'hat', sprite: p.sprite, rx: -Math.round(cx + p.dx), ry: -Math.round(cy + h.sink + p.dy) }));
+  byHat.set(h, cy);
+  return cy;
 }
-let HAT_RULE = 'hair';
 
 // The highest opaque pixel of a placed sprite in column x (origin
 // coordinates), or null: read from the sheet once, per sprite.
@@ -951,7 +992,10 @@ function drawnBounds(kind, build, pose = REST, seat = null) {
 // through every move - Sam's choice, to grow the box rather than settle a
 // tall hat lower or cut it off. Worked out once per character, when first
 // shown (every pair of feet with every hair, each distinct tick once, and
-// every hat placed on what each of those ticks puts it on).
+// every hat, in each of its frames and, standing, each tick of its own
+// idles, placed on what each of those ticks puts it on). A hat arriving -
+// mud falling, an acorn dropping - comes in from above, and is let go past
+// the top on the way.
 const moveBoxes = {};
 function moveBox(kind) {
   if (moveBoxes[kind]) return moveBoxes[kind];
@@ -959,6 +1003,12 @@ function moveBox(kind) {
   const picks = [0, 1, 2, 3, 4].flatMap(v => [{ v, borrowed: false }, { v, borrowed: true }]);
   let top = 0, bottom = 0, side = 0;
   const hatted = { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity };
+  // each hat's distinct ticks standing (at rest, and its idles) and walking
+  // (its wobble, its back)
+  const distinct = ticks => [...new Map(ticks.map(t => [t.join(), t])).values()];
+  const hatTicks = S.hats.map(h => [
+    distinct([[0, 0, 0]].concat((h.anims || []).filter(a => a.kind === 'idle').flatMap(a => a.ticks))),
+    distinct([0].concat(h.walk || [], h.away === undefined ? [] : [h.away]).map(i => [i, 0, 0]))]);
   for (const feet of picks) {
     for (const hair of picks.concat([{ ...NONE }])) {
       const build = { hair, feet, eyes: { v: 0, borrowed: false }, nose: { v: 0, borrowed: false } };
@@ -976,8 +1026,8 @@ function moveBox(kind) {
           const bb = drawnBounds(kind, build, pose, seat);
           // where each hat goes on it, a walk mirrored too
           const mid = (fb.l + fb.r) / 2;
-          S.hats.forEach((_, k) => {
-            for (const v of hatOn(seat.body, k, seat.hair, pose)) {
+          hatTicks.forEach((ticks, k) => {
+            for (const v of ticks[c.walk ? 1 : 0].flatMap(t => hatOn(seat.body, k, seat.hair, Object.assign({}, pose, { hat: t })))) {
               const [, , w, h] = rect(v.sprite), x = pose.dx - v.rx, y = pose.dy - v.ry;
               hatted.t = Math.min(hatted.t, y); hatted.b = Math.max(hatted.b, y + h);
               hatted.l = Math.min(hatted.l, x, 2 * mid - x - w); hatted.r = Math.max(hatted.r, x + w, 2 * mid - x);
@@ -1265,6 +1315,13 @@ function buildTiles() {
         const b = tileButton(titled(hat.name) + ' (from ' + hat.place + ')', () => {
           state.build[state.kind].hat = v;
           resetColours('hat');
+          // mud falls into place, an acorn drops - from its first tick, so
+          // the hat is not seen already there
+          const [arrive] = hatClips(state.build[state.kind], 'arrive');
+          if (arrive && !paused) {
+            startClip(arrive);
+            Object.assign(pose, poseAt(arrive, arrive.ticks[0]));
+          }
           update();
         });
         set.appendChild(b);
@@ -1474,6 +1531,7 @@ document.getElementById('btn-name').addEventListener('click', () => {
 const PAGE_BLINK = [[1, 0, 0, 0, -1], [1, 0, 0, 0, -1]];
 const SPECIAL_WEIGHT = 3;                    // shown off about a quarter of the time
 const WALK_WEIGHT = 3;                       // and walking about as often
+const HAT_WEIGHT = 2;                        // a hat's own idles, each
 const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 let paused = motionQuery.matches;
 let clip = null, clipAt = 0, waitTicks = 15, timer = 0;
@@ -1499,10 +1557,16 @@ function walkOf(kind, build) {
   return { dirs: (feet.borrowed ? ch.walks.borrowedFeet : ch.walks.own)[feet.v],
            faces: ch.faces[feet.borrowed ? 'borrowedFeet' : 'own'] };
 }
-// The pose a clip's tick puts the figure in.
+// The pose a clip's tick puts the figure in. A hat's own clip (`hat`) moves
+// only the hat: its ticks are [set, dx, dy].
 const poseAt = (clip, t) => clip.walk
   ? Object.assign({}, REST, { walk: t, dx: t[0], dy: t[1], faces: clip.faces })
+  : clip.hat ? Object.assign({}, REST, { hat: t })
   : Object.assign({}, REST, { eyes: t[0], dx: t[1], dy: t[2], facing: t[3], feet: t[4] });
+// A hat's animations of a kind - 'idle' (now and then) or 'arrive' (when
+// picked) - as clips.
+const hatClips = (build, kind) => ((S.hats[build.hat] || {}).anims || [])
+  .filter(a => a.kind === kind).map(a => ({ ticks: a.ticks, walk: false, hat: true }));
 
 // Clips are {ticks, walk} or {dirs, walk}, a walk with a clip per direction;
 // a direction, and left or right, is picked as it starts.
@@ -1512,6 +1576,7 @@ function clipsFor(kind) {
   const special = specialOf(kind, build);
   for (let i = 0; special && i < SPECIAL_WEIGHT; i++) clips.push(special);
   const out = clips.map(ticks => ({ ticks, walk: false }));
+  for (const c of hatClips(build, 'idle')) for (let i = 0; i < HAT_WEIGHT; i++) out.push(c);
   const walk = walkOf(kind, build);
   for (let i = 0; i < WALK_WEIGHT; i++) out.push({ dirs: walk.dirs, walk: true, faces: walk.faces });
   return out;
@@ -1519,8 +1584,13 @@ function clipsFor(kind) {
 
 function tick() {
   if (clip) {
-    Object.assign(pose, poseAt(clip, clip.ticks[clipAt++]));
-    if (clipAt >= clip.ticks.length) { clip = null; waitTicks = 15 + Math.floor(Math.random() * 30); }
+    Object.assign(pose, poseAt(clip, clip.ticks[clipAt]), { n: clipAt });
+    if (++clipAt >= clip.ticks.length) { clip = null; waitTicks = 15 + Math.floor(Math.random() * 30); }
+  } else if (paused) {
+    // paused, a walk asked for by an arrow has played: stop again
+    clearInterval(timer);
+    timer = 0;
+    Object.assign(pose, REST);
   } else {
     Object.assign(pose, REST);
     if (--waitTicks <= 0) {
@@ -1553,6 +1623,7 @@ function endClip() {
 function setPaused(p) {
   paused = p;
   clearInterval(timer);
+  timer = 0;
   clip = null;
   Object.assign(pose, REST);
   if (!paused) { waitTicks = 8; timer = setInterval(tick, TICK_MS); }
@@ -1565,6 +1636,42 @@ function setPaused(p) {
   drawPreview();
 }
 document.getElementById('btn-motion').addEventListener('click', () => setPaused(!paused));
+
+// The arrows (and the arrow keys, outside the tabs and the Save list): the
+// character walks that way now - along, left or right, and stands facing
+// that way after; towards us or away. A Zoombini walks all four; a Fleen
+// hops along and runs away but has no walk towards us, and riding a
+// Zoombini device only goes along. Paused, the walk plays once.
+function waysOf(kind, build) {
+  const n = walkOf(kind, build).dirs.length;
+  return kind === 'zoombini' ? { left: 2, right: 2, down: 0, up: 3 }
+    : n > 1 ? { left: 0, right: 0, up: 1 } : { left: 0, right: 0 };
+}
+function walkWay(way) {
+  const kind = state.kind, build = state.build[kind], walk = walkOf(kind, build);
+  const d = waysOf(kind, build)[way];
+  if (d === undefined || !walk.dirs[d]) return;
+  if (way === 'left' || way === 'right') heading = way;
+  else if (!heading) heading = S.characters[kind].faces.rest;
+  clip = { ticks: walk.dirs[d], walk: true, faces: walk.faces };
+  clipAt = 0;
+  if (paused && !timer) timer = setInterval(tick, TICK_MS);
+}
+function updatePad() {
+  const ways = waysOf(state.kind, state.build[state.kind]);
+  for (const b of document.querySelectorAll('#pad button')) b.disabled = ways[b.dataset.way] === undefined;
+}
+document.getElementById('pad').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (b) walkWay(b.dataset.way);
+});
+document.addEventListener('keydown', e => {
+  const way = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.key];
+  if (!way || e.altKey || e.ctrlKey || e.metaKey) return;
+  if (e.target instanceof Element && e.target.closest('[role=tablist], [role=menu], input, textarea, select')) return;
+  e.preventDefault();
+  walkWay(way);
+});
 motionQuery.addEventListener('change', e => setPaused(e.matches));
 
 // ---- saving and sharing ------------------------------------------------
@@ -1623,7 +1730,12 @@ function animationsFor(kind, build) {
     : walk.dirs.length === 1 ? { 0: 'Riding along' }
     : { 0: build.feet.borrowed ? 'Walking along' : 'Hopping along', 1: 'Running away' };
   for (const [d, label] of Object.entries(names)) {
-    if (walk.dirs[d]) out.push({ label, poses: walk.dirs[d].map(t => poseAt({ walk: true, faces: walk.faces }, t)) });
+    if (walk.dirs[d]) out.push({ label, poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: walk.faces }, t), { n })) });
+  }
+  // the hat's own: a woodpecker pecking, mud landing
+  for (const a of (S.hats[build.hat] || {}).anims || []) {
+    const before = a.kind === 'arrive' ? rest(5).map(p => Object.assign({}, p, { hat: [-1, 0, 0] })) : rest(5);
+    out.push({ label: a.label, poses: before.concat(a.ticks.map(t => poseAt({ hat: true }, t)), rest(a.kind === 'arrive' ? 10 : 5)) });
   }
   return out;
 }
@@ -1883,6 +1995,7 @@ function switchKind() {
 
 function update() {
   closeGIF();
+  updatePad();
   const build = state.build[state.kind];
   const described = FEATURES.map((f, i) => {
     const n = nameOf(f, build[f]);
