@@ -332,7 +332,8 @@
   .feature:not(.open) { visibility: hidden; }
   /* A feature: the Zoombini's five over the Fleen's five, whichever body is
      picked, so a tile is always where it was; none beside both. The body's
-     two tiles, and the hats' three, make one line, in the middle. */
+     two tiles make one line, in the middle; the hats are Pizza Pass's five
+     over five from along the way. */
   .tiles { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: var(--none-gap); }
   .sets { display: flex; flex-direction: column; gap: var(--set-gap); }
   .feature.body .sets { flex-direction: row; gap: var(--none-gap); }
@@ -741,7 +742,7 @@ function eyeFrame(entry, eyes) {
 // lift in turn, a Fleen's legs-and-shoes lift in turn, and a device plays its
 // own walk frames.
 const lifted = (v, up) => up ? Object.assign({}, v, { oy: -up }) : v;
-function variantsFor(kind, build, pose = REST) {
+function variantsFor(kind, build, pose = REST, seat = null) {
   const ch = S.characters[kind];
   const w = pose.walk;
   const at = n => w[2 + WALK_PARTS.indexOf(n)];
@@ -818,10 +819,13 @@ function variantsFor(kind, build, pose = REST) {
   // parts picked as none are laid out like the rest, so every reordering
   // above finds what it looks for, and left out only now
   const none = name => (build[name] || {}).none;
+  // what a hat sits on, handed back in `seat` if asked for (see moveBox)
+  const under = { body: out.find(p => p.name === 'body').v,
+                  hair: build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v };
+  if (seat) Object.assign(seat, under);
   return out.filter(p => !(p && none(p.name)))
     .map(p => p.name === 'body' ? p.v : Object.assign({ part: p.name }, p.v))
-    .concat(hatOn(out.find(p => p.name === 'body').v, build.hat,
-                  build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v));
+    .concat(hatOn(under.body, build.hat, under.hair, pose));
 }
 
 // A hat, worn as Pizza Pass's Zoombinis carry the trolls' orders: centred on
@@ -831,21 +835,25 @@ function variantsFor(kind, build, pose = REST) {
 // on a cap or a helmet and down among thin spikes. A `flat` hat - the
 // pizza's plate - is stiff and wider than the head, so it rests instead on
 // the highest hair anywhere under it: on a Viking helmet's horns and a
-// quiff's tip, which it otherwise swallowed. Its pieces as sprites.
+// quiff's tip, which it otherwise swallowed. A hat with `facings` - the
+// toad - shows its back while the character walks away. Its pieces as
+// sprites.
 const HAT_SOLID = 0.6;                       // the share of columns that must reach the row
-function hatOn(body, hat, hair = null) {
+function hatOn(body, hat, hair = null, pose = REST) {
   const h = S.hats[hat];
   if (!h || !body.crown) return [];
+  const f = h.facings || {};
+  const pieces = (pose.walk && pose.walk[10] && f.away) || h.pieces;
   const [cx, crownY] = body.crown;
   let cy = crownY;
   if (hair && HAT_RULE === 'hair' && h.flat) {
-    const w = rect(h.pieces[0].sprite)[2];
+    const w = rect(pieces[0].sprite)[2];
     for (let x = Math.round(cx - w / 2); x < Math.round(cx + w / 2); x++) {
       const t = topAt(hair, x);
       if (t !== null) cy = Math.min(cy, t);
     }
   } else if (hair && HAT_RULE === 'hair') {
-    const base = h.pieces[0], w = rect(base.sprite)[2];
+    const base = pieces[0], w = rect(base.sprite)[2];
     const tops = [];
     for (let x = Math.round(cx - w / 4); x < Math.round(cx + w / 4); x++) {
       const t = topAt(hair, x);
@@ -854,7 +862,7 @@ function hatOn(body, hat, hair = null) {
     tops.sort((a, b) => a - b);
     cy = Math.min(crownY, tops[Math.ceil(tops.length * HAT_SOLID) - 1]);
   }
-  return h.pieces.map(p => ({ part: 'hat', sprite: p.sprite, rx: -Math.round(cx + p.dx), ry: -Math.round(cy + h.sink + p.dy) }));
+  return pieces.map(p => ({ part: 'hat', sprite: p.sprite, rx: -Math.round(cx + p.dx), ry: -Math.round(cy + h.sink + p.dy) }));
 }
 let HAT_RULE = 'hair';
 
@@ -920,9 +928,9 @@ for (const [kind, bb] of Object.entries(fitBounds)) {
 
 // The box a build's parts cover in a pose, from the REGS origin, counting
 // the pose's move (dx, dy) and each part's lift.
-function drawnBounds(kind, build, pose = REST) {
+function drawnBounds(kind, build, pose = REST, seat = null) {
   let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
-  for (const v of variantsFor(kind, build, pose)) {
+  for (const v of variantsFor(kind, build, pose, seat)) {
     const [, , w, h] = rect(v.sprite), x = pose.dx - v.rx, y = pose.dy + (v.oy || 0) - v.ry;
     l = Math.min(l, x); t = Math.min(t, y); r = Math.max(r, x + w); b = Math.max(b, y + h);
   }
@@ -937,17 +945,22 @@ function drawnBounds(kind, build, pose = REST) {
 // top of the window; Sam would rather it smaller and whole. It is one box
 // per character, fitting every build, so the figure never changes size as
 // parts are picked - Sam's choice over a box per pair of feet, which kept
-// most of them bigger but resized the figure when the feet changed. Worked
-// out once per character, when first shown (every pair of feet with every
-// hair, each distinct tick once: about 25ms).
+// most of them bigger but resized the figure when the feet changed. A hat
+// sits on the hair, so a sundae on a quiff's tip stands far above any hat on
+// a bare head: the box also takes in, as they are, every hat on every hair
+// through every move - Sam's choice, to grow the box rather than settle a
+// tall hat lower or cut it off. Worked out once per character, when first
+// shown (every pair of feet with every hair, each distinct tick once, and
+// every hat placed on what each of those ticks puts it on).
 const moveBoxes = {};
 function moveBox(kind) {
   if (moveBoxes[kind]) return moveBoxes[kind];
   const fb = fitBounds[kind];
   const picks = [0, 1, 2, 3, 4].flatMap(v => [{ v, borrowed: false }, { v, borrowed: true }]);
   let top = 0, bottom = 0, side = 0;
+  const hatted = { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity };
   for (const feet of picks) {
-    for (const hair of picks) {
+    for (const hair of picks.concat([{ ...NONE }])) {
       const build = { hair, feet, eyes: { v: 0, borrowed: false }, nose: { v: 0, borrowed: false } };
       const own = drawnBounds(kind, build);
       const walk = walkOf(kind, build), special = specialOf(kind, build);
@@ -959,7 +972,18 @@ function moveBox(kind) {
           const key = t.join();
           if (seen.has(key)) continue;
           seen.add(key);
-          const bb = drawnBounds(kind, build, poseAt(c, t));
+          const pose = poseAt(c, t), seat = {};
+          const bb = drawnBounds(kind, build, pose, seat);
+          // where each hat goes on it, a walk mirrored too
+          const mid = (fb.l + fb.r) / 2;
+          S.hats.forEach((_, k) => {
+            for (const v of hatOn(seat.body, k, seat.hair, pose)) {
+              const [, , w, h] = rect(v.sprite), x = pose.dx - v.rx, y = pose.dy - v.ry;
+              hatted.t = Math.min(hatted.t, y); hatted.b = Math.max(hatted.b, y + h);
+              hatted.l = Math.min(hatted.l, x, 2 * mid - x - w); hatted.r = Math.max(hatted.r, x + w, 2 * mid - x);
+            }
+          });
+          if (hair.none) continue;
           top = Math.max(top, own.t - bb.t);
           bottom = Math.max(bottom, bb.b - own.b);
           side = Math.max(side, own.l - bb.l, bb.r - own.r);
@@ -967,7 +991,8 @@ function moveBox(kind) {
       }
     }
   }
-  return (moveBoxes[kind] = { l: fb.l - side, r: fb.r + side, t: fb.t - top, b: fb.b + bottom });
+  return (moveBoxes[kind] = { l: Math.min(fb.l - side, hatted.l), r: Math.max(fb.r + side, hatted.r),
+                              t: Math.min(fb.t - top, hatted.t), b: Math.max(fb.b + bottom, hatted.b) });
 }
 
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
@@ -1228,10 +1253,16 @@ function buildTiles() {
     t.panel = panel;
     const tilesEl = el('div', 'tiles'), sets = el('div', 'sets');
     if (feat === 'hat') {
-      // the hats on the body that is picked
-      const set = el('div', 'set');
+      // the hats on the body that is picked: Pizza Pass's on one line, the
+      // ones from elsewhere on the next
+      let set = null;
+      const pizza = hat => hat.place === 'Pizza Pass';
       S.hats.forEach((hat, v) => {
-        const b = tileButton(titled(hat.name) + ' (from Pizza Pass)', () => {
+        if (!v || pizza(hat) !== pizza(S.hats[v - 1])) {
+          set = el('div', 'set');
+          sets.appendChild(set);
+        }
+        const b = tileButton(titled(hat.name) + ' (from ' + hat.place + ')', () => {
           state.build[state.kind].hat = v;
           resetColours('hat');
           update();
@@ -1239,7 +1270,6 @@ function buildTiles() {
         set.appendChild(b);
         t.push({ b, v });
       });
-      sets.appendChild(set);
     } else {
       for (const kind of KINDS) {
         const set = el('div', 'set');
