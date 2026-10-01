@@ -246,16 +246,24 @@
     display: flex; align-items: center; justify-content: center;
   }
   .corner canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
-  /* Four arrows in the window's other corner: the character walks that way -
-     along, towards us, away. */
+  /* Arrows in the window's other corner: the character walks that way. A
+     Zoombini's four go along, towards us and away; a Fleen's hop and its
+     run away are both on the slant, so its four are the diagonals. */
   .pad {
     position: absolute; right: 8px; bottom: 8px; z-index: 2;
     display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px); gap: 2px;
   }
   .pad button { padding: 0; display: flex; align-items: center; justify-content: center; }
-  .pad button:disabled { opacity: 0.35; cursor: default; filter: none; }
+  .pad button[hidden] { display: none; }
   .pad .up { grid-area: 1 / 2; } .pad .left { grid-area: 2 / 1; }
   .pad .right { grid-area: 2 / 3; } .pad .down { grid-area: 3 / 2; }
+  .pad .upleft { grid-area: 1 / 1; } .pad .upright { grid-area: 1 / 3; }
+  .pad .downleft { grid-area: 3 / 1; } .pad .downright { grid-area: 3 / 3; }
+  .pad .upleft .arrow, .pad .upright .arrow, .pad .downleft .arrow, .pad .downright .arrow {
+    border-width: 5px 0 5px 11px; border-left-color: currentColor;
+  }
+  .pad .upright .arrow { transform: rotate(-45deg); } .pad .downright .arrow { transform: rotate(45deg); }
+  .pad .downleft .arrow { transform: rotate(135deg); } .pad .upleft .arrow { transform: rotate(-135deg); }
   .pad .arrow { width: 0; height: 0; border: 7px solid transparent; }
   .pad .up .arrow { border-bottom-color: currentColor; border-top: 0; }
   .pad .down .arrow { border-top-color: currentColor; border-bottom: 0; }
@@ -459,6 +467,10 @@
             <button class="stone left" data-way="left" title="Walk left" aria-label="Walk left"><span class="arrow"></span></button>
             <button class="stone right" data-way="right" title="Walk right" aria-label="Walk right"><span class="arrow"></span></button>
             <button class="stone down" data-way="down" title="Walk towards us" aria-label="Walk towards us"><span class="arrow"></span></button>
+            <button class="stone upleft" data-way="upleft" title="Run away to the left" aria-label="Run away to the left" hidden><span class="arrow"></span></button>
+            <button class="stone upright" data-way="upright" title="Run away to the right" aria-label="Run away to the right" hidden><span class="arrow"></span></button>
+            <button class="stone downleft" data-way="downleft" title="Hop towards us, to the left" aria-label="Hop towards us, to the left" hidden><span class="arrow"></span></button>
+            <button class="stone downright" data-way="downright" title="Hop towards us, to the right" aria-label="Hop towards us, to the right" hidden><span class="arrow"></span></button>
           </div>
           <div class="gif-preview" id="gif-preview" role="dialog" aria-labelledby="gif-title" hidden>
             <p class="title" id="gif-title"></p>
@@ -1647,28 +1659,36 @@ function setPaused(p) {
 document.getElementById('btn-motion').addEventListener('click', () => setPaused(!paused));
 
 // The arrows (and the arrow keys, outside the tabs and the Save list): the
-// character walks that way now - along, left or right, and stands facing
-// that way after; towards us or away. A Zoombini walks all four; a Fleen
-// hops along and runs away but has no walk towards us, and riding a
-// Zoombini device only goes along. Paused, the walk plays once.
+// character walks that way now, and stands facing that way after. Each way
+// is [the walk's direction, left or right or null for as it is]. A
+// Zoombini walks along, towards us and away; a Fleen hops towards us on the
+// slant and runs away on the slant, so its arrows are the four diagonals,
+// and its arrow keys hop left or right, and run away (up) or hop (down)
+// whichever way it faces; riding a Zoombini device only goes along. Paused,
+// the walk plays once.
 function waysOf(kind, build) {
   const n = walkOf(kind, build).dirs.length;
-  return kind === 'zoombini' ? { left: 2, right: 2, down: 0, up: 3 }
-    : n > 1 ? { left: 0, right: 0, up: 1 } : { left: 0, right: 0 };
+  return kind === 'zoombini' ? { left: [2, 'left'], right: [2, 'right'], down: [0, null], up: [3, null] }
+    : n > 1 ? { downleft: [0, 'left'], downright: [0, 'right'], upleft: [1, 'left'], upright: [1, 'right'],
+                left: [0, 'left'], right: [0, 'right'], down: [0, null], up: [1, null] }
+    : { left: [0, 'left'], right: [0, 'right'] };
 }
 function walkWay(way) {
   const kind = state.kind, build = state.build[kind], walk = walkOf(kind, build);
-  const d = waysOf(kind, build)[way];
+  const [d, side] = waysOf(kind, build)[way] || [];
   if (d === undefined || !walk.dirs[d]) return;
-  if (way === 'left' || way === 'right') heading = way;
-  else if (!heading) heading = S.characters[kind].faces.rest;
+  heading = side || heading || S.characters[kind].faces.rest;
   clip = walkClip(kind, walk, d);
   clipAt = 0;
   if (paused && !timer) timer = setInterval(halfTick, TICK_MS / 2);
 }
 function updatePad() {
   const ways = waysOf(state.kind, state.build[state.kind]);
-  for (const b of document.querySelectorAll('#pad button')) b.disabled = ways[b.dataset.way] === undefined;
+  const slant = 'upleft' in ways;
+  for (const b of document.querySelectorAll('#pad button')) {
+    const diagonal = /^(up|down)(left|right)$/.test(b.dataset.way);
+    b.hidden = diagonal ? !slant : slant || !(b.dataset.way in ways);
+  }
 }
 document.getElementById('pad').addEventListener('click', e => {
   const b = e.target.closest('button');
