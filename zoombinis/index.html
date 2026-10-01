@@ -357,7 +357,7 @@
   /* A feature: the Zoombini's five over the Fleen's five, whichever body is
      picked, so a tile is always where it was; none beside both. The body's
      two tiles make one line, in the middle; the hats are Pizza Pass's five
-     over five from along the way. */
+     over the ones from along the way. */
   .tiles { flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: var(--none-gap); }
   .sets { display: flex; flex-direction: column; gap: var(--set-gap); }
   .feature.body .sets { flex-direction: row; gap: var(--none-gap); }
@@ -629,7 +629,7 @@ function readHash() {
   for (const x of m[4].split('-').slice(1)) {
     let c;
     if ((c = /^s([0-9a-f]{6})$/.exec(x))) build.skin = '#' + c[1];
-    else if ((c = /^h([0-9])$/.exec(x)) && S.hats[+c[1]]) build.hat = +c[1];
+    else if ((c = /^h([0-9]{1,2})$/.exec(x)) && S.hats[+c[1]]) build.hat = +c[1];
     else if ((c = /^n([0-9a-f]{6})$/.exec(x))) (build.colours.nose = build.colours.nose || [])[0] = '#' + c[1];
     else if ((c = /^c([a-z])([01])([0-9a-f]{6})$/.exec(x))) {
       const f = Object.keys(COLOUR_LETTER).find(k => COLOUR_LETTER[k] === c[1]);
@@ -1398,7 +1398,9 @@ function buildTiles() {
         endClip();
         update();
       });
-      tilesEl.appendChild(t.none);
+      // the hats' second line is six long, so their none ends the first
+      if (feat === 'hat') sets.firstChild.appendChild(t.none);
+      else tilesEl.appendChild(t.none);
     }
     const controls = el('div', 'controls');
     t.colours = [0, 1].map(k => {
