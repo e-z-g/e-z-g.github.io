@@ -246,9 +246,10 @@
     display: flex; align-items: center; justify-content: center;
   }
   .corner canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
-  /* Arrows in the window's other corner: the character walks that way. A
-     Zoombini's four go along, towards us and away; a Fleen's hop and its
-     run away are both on the slant, so its four are the diagonals. */
+  /* Arrows in the window's other corner: the character walks that way, as
+     far as its feet go (see waysOf). A Zoombini's four go along, towards us
+     and away; a Fleen's hop and its run away are both on the slant, so it
+     has the diagonals, and left and right where it walks along. */
   .pad {
     position: absolute; right: 8px; bottom: 8px; z-index: 2;
     display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px); gap: 2px;
@@ -526,7 +527,9 @@ const TICK_MS = 100;                         // one script section per tick
 // Sam asked (30 September 2026). The timer runs at half ticks, and every
 // other clip takes every other one.
 const isFast = (kind, walk, d) => kind === 'fleen' && walk.dirs.length > 1 && d === 1;
-const walkClip = (kind, walk, d) => ({ ticks: walk.dirs[d], walk: true, faces: walk.faces, fast: isFast(kind, walk, d) });
+// which way a walk's frames face: one for a set of walks, or one a direction
+const facesAt = (faces, d) => Array.isArray(faces) ? faces[d] : faces;
+const walkClip = (kind, walk, d) => ({ ticks: walk.dirs[d], walk: true, faces: facesAt(walk.faces, d), fast: isFast(kind, walk, d) });
 let half = 0;
 function halfTick() {
   if ((clip && clip.fast) || ++half % 2 === 0) tick();
@@ -1035,7 +1038,7 @@ function moveBox(kind) {
       const build = { hair, feet, eyes: { v: 0, borrowed: false }, nose: { v: 0, borrowed: false } };
       const own = drawnBounds(kind, build);
       const walk = walkOf(kind, build), special = specialOf(kind, build);
-      const clips = walk.dirs.map(ticks => ({ ticks, walk: true, faces: walk.faces }))
+      const clips = walk.dirs.map((ticks, d) => ({ ticks, walk: true, faces: facesAt(walk.faces, d) }))
         .concat(idlesOf(kind).concat(special ? [special] : []).map(ticks => ({ ticks, walk: false })));
       for (const c of clips) {
         const seen = new Set();
@@ -1552,7 +1555,6 @@ document.getElementById('btn-name').addEventListener('click', () => {
 const PAGE_BLINK = [[1, 0, 0, 0, -1], [1, 0, 0, 0, -1]];
 const SPECIAL_WEIGHT = 3;                    // shown off about a quarter of the time
 const WALK_WEIGHT = 3;                       // and walking about as often
-const HAT_WEIGHT = 2;                        // a hat's own idles, each
 const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 let paused = motionQuery.matches;
 let clip = null, clipAt = 0, waitTicks = 15, timer = 0;
@@ -1597,10 +1599,27 @@ function clipsFor(kind) {
   const special = specialOf(kind, build);
   for (let i = 0; special && i < SPECIAL_WEIGHT; i++) clips.push(special);
   const out = clips.map(ticks => ({ ticks, walk: false }));
-  for (const c of hatClips(build, 'idle')) for (let i = 0; i < HAT_WEIGHT; i++) out.push(c);
   const walk = walkOf(kind, build);
   for (let i = 0; i < WALK_WEIGHT; i++) out.push({ dirs: walk.dirs, walk: true, faces: walk.faces });
   return out;
+}
+
+// A hat's own idles - a woodpecker pecking, a toad breathing - keep their
+// own time, every few seconds, whatever the character's idles are doing; a
+// walk, or a hat arriving, stops them. Drawn at random among the
+// character's own idles, they came round so seldom that Sam saw no pecking.
+let hatClip = null, hatAt = 0, hatWait = 10;
+function hatTick() {
+  if (clip && (clip.walk || clip.hat)) { hatClip = null; return; }
+  if (!hatClip && --hatWait <= 0) {
+    const clips = hatClips(state.build[state.kind], 'idle');
+    hatWait = 15 + Math.floor(Math.random() * 30);
+    if (clips.length) { hatClip = clips[Math.floor(Math.random() * clips.length)]; hatAt = 0; }
+  }
+  if (hatClip) {
+    pose.hat = hatClip.ticks[hatAt];
+    if (++hatAt >= hatClip.ticks.length) hatClip = null;
+  }
 }
 
 function tick() {
@@ -1619,6 +1638,7 @@ function tick() {
       startClip(clips[Math.floor(Math.random() * clips.length)]);
     }
   }
+  hatTick();
   drawPreview();
 }
 
@@ -1660,18 +1680,21 @@ document.getElementById('btn-motion').addEventListener('click', () => setPaused(
 
 // The arrows (and the arrow keys, outside the tabs and the Save list): the
 // character walks that way now, and stands facing that way after. Each way
-// is [the walk's direction, left or right or null for as it is]. A
-// Zoombini walks along, towards us and away; a Fleen hops towards us on the
-// slant and runs away on the slant, so its arrows are the four diagonals,
-// and its arrow keys hop left or right, and run away (up) or hop (down)
-// whichever way it faces; riding a Zoombini device only goes along. Paused,
-// the walk plays once.
+// is [the walk's direction, left or right or null for as it is]. What a
+// character can do is down to its feet. A Zoombini walks along, towards us
+// and away. A Fleen on its own feet hops towards us on the slant and runs
+// away on the slant, so its arrows are the four diagonals; in Zoombini
+// shoes it also walks along, so it gets left and right besides; riding a
+// Zoombini device it only goes along. A Fleen's arrow keys go left or right
+// and, whichever way it faces, away (up) or towards us (down). Paused, the
+// walk plays once.
 function waysOf(kind, build) {
   const n = walkOf(kind, build).dirs.length;
-  return kind === 'zoombini' ? { left: [2, 'left'], right: [2, 'right'], down: [0, null], up: [3, null] }
-    : n > 1 ? { downleft: [0, 'left'], downright: [0, 'right'], upleft: [1, 'left'], upright: [1, 'right'],
-                left: [0, 'left'], right: [0, 'right'], down: [0, null], up: [1, null] }
-    : { left: [0, 'left'], right: [0, 'right'] };
+  if (kind === 'zoombini') return { left: [2, 'left'], right: [2, 'right'], down: [0, null], up: [3, null] };
+  if (n === 1) return { left: [0, 'left'], right: [0, 'right'] };
+  const [along, away, towards] = n === 3 ? [0, 1, 2] : [0, 1, 0];
+  return { downleft: [towards, 'left'], downright: [towards, 'right'], upleft: [away, 'left'], upright: [away, 'right'],
+           left: [along, 'left'], right: [along, 'right'], down: [towards, null], up: [away, null] };
 }
 function walkWay(way) {
   const kind = state.kind, build = state.build[kind], walk = walkOf(kind, build);
@@ -1683,12 +1706,13 @@ function walkWay(way) {
   if (paused && !timer) timer = setInterval(halfTick, TICK_MS / 2);
 }
 function updatePad() {
-  const ways = waysOf(state.kind, state.build[state.kind]);
-  const slant = 'upleft' in ways;
-  for (const b of document.querySelectorAll('#pad button')) {
-    const diagonal = /^(up|down)(left|right)$/.test(b.dataset.way);
-    b.hidden = diagonal ? !slant : slant || !(b.dataset.way in ways);
-  }
+  const kind = state.kind, build = state.build[kind], ways = waysOf(kind, build);
+  // a Fleen's up and down are keys only; its left and right are buttons
+  // only where it walks along (in Zoombini shoes, or riding)
+  const shown = kind === 'zoombini' ? ways
+    : Object.fromEntries(Object.entries(ways).filter(([way]) => way !== 'up' && way !== 'down'
+        && !((way === 'left' || way === 'right') && walkOf(kind, build).dirs.length === 2)));
+  for (const b of document.querySelectorAll('#pad button')) b.hidden = !(b.dataset.way in shown);
 }
 document.getElementById('pad').addEventListener('click', e => {
   const b = e.target.closest('button');
@@ -1757,9 +1781,10 @@ function animationsFor(kind, build) {
   const walk = walkOf(kind, build);
   const names = kind === 'zoombini' ? { 0: 'Walking towards us', 2: 'Walking along', 3: 'Walking away' }
     : walk.dirs.length === 1 ? { 0: 'Riding along' }
-    : { 0: build.feet.borrowed ? 'Walking along' : 'Hopping along', 1: 'Running away' };
+    : walk.dirs.length === 3 ? { 0: 'Walking along', 2: 'Walking towards us', 1: 'Running away' }
+    : { 0: 'Hopping along', 1: 'Running away' };
   for (const [d, label] of Object.entries(names)) {
-    if (walk.dirs[d]) out.push({ label, fast: isFast(kind, walk, +d), poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: walk.faces }, t), { n })) });
+    if (walk.dirs[d]) out.push({ label, fast: isFast(kind, walk, +d), poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: facesAt(walk.faces, +d) }, t), { n })) });
   }
   // the hat's own: a woodpecker pecking, mud landing
   for (const a of (S.hats[build.hat] || {}).anims || []) {
@@ -2024,6 +2049,7 @@ function switchKind() {
 
 function update() {
   closeGIF();
+  hatClip = null;
   updatePad();
   const build = state.build[state.kind];
   const described = FEATURES.map((f, i) => {
