@@ -1569,8 +1569,11 @@ function specialOf(kind, build) {
   if (kind === 'fleen' && feet.borrowed && ch.borrowed.feet[feet.v].special) {
     // the Fleen's head stays put; the special's opening tick, which faces a
     // Zoombini (and its device) towards the viewer, is left out
+    // (a frame's `drop` sits the Fleen that much further down into it -
+    // into the wheels - the frame itself raised as much, so it stays put)
+    const frames = ch.borrowed.feet[feet.v].special;
     return S.characters.zoombini.specials[feet.v]
-      .filter(t => t[3] !== 1).map(([, dx, dy, , f]) => [0, dx, dy, 0, f]);
+      .filter(t => t[3] !== 1).map(([, dx, dy, , f]) => [0, dx, dy + ((frames[f] || {}).drop || 0), 0, f]);
   }
   return null;
 }
