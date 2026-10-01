@@ -864,8 +864,15 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   if (hair && hair.v.back) out.splice(out.findIndex(p => p.name === 'body'), 0, { name: 'hair', v: hair.v.back });
   // parts picked as none are laid out like the rest, so every reordering
   // above finds what it looks for, and left out only now
+  // the feet where the walk's script has them against the body (feetDx,
+  // feetDy): skating away, the body sits a pixel lower some ticks
+  if (w && (w[11] || w[12])) {
+    out.forEach((p, i) => {
+      if (p && p.name === 'feet') out[i] = { name: 'feet', v: Object.assign({}, p.v, { rx: p.v.rx - w[11], ry: p.v.ry - w[12] }) };
+    });
+  }
   const none = name => (build[name] || {}).none;
-  // what a hat sits on, handed back in `seat` if asked for (see moveBox)
+  // what a hat sits on, handed back in `seat` if asked for (see boxes)
   const under = { body: out.find(p => p.name === 'body').v,
                   hair: build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v,
                   left: framesFace(kind, pose) === 'left' };
@@ -908,7 +915,7 @@ function hatOn(body, hat, hair = null, pose = REST, left = false) {
 }
 let HAT_RULE = 'hair';
 // The row a hat's seat is on, over this body in this hair - worked out once
-// for each: moveBox asks for it for every frame of every hat on every tick.
+// for each: boxes asks for it for every frame of every hat on every tick.
 const seats = new WeakMap(), BALD = {};
 function hatSeat(body, h, hair) {
   const byHair = seats.get(body) || seats.set(body, new WeakMap()).get(body);
@@ -973,7 +980,7 @@ function boundsOf(variants) {
 // The box every standing build fits in, whatever its parts, facing or feet
 // special. It stays put while parts are picked, and a walk turns about its
 // middle; the box the figure is scaled to fit also has room for its moves
-// (see moveBox).
+// (see boxes).
 const fitBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
   const ch = S.characters[kind];
   const all = [];
@@ -1007,33 +1014,30 @@ function drawnBounds(kind, build, pose = REST, seat = null) {
   return { l, t, r, b };
 }
 
-// The box every move fits in: where each pair of feet with each hair and
-// each hat actually goes, through each walk, idle and special, turned
-// either way about the middle of its standing box, as the window turns it;
-// and every part standing. It was the standing box grown by the furthest
-// any build moved past its own - a spring's bounce up, rockets' flame
-// behind - but that added the widest part to the widest move, which no one
-// build has together, and left 6-10px no character came near (Sam: "the
-// zoombini or fleen is nowhere near the edge in any configuration"). Scaled
-// to the standing box alone, the figure was bigger, but bounces went out of
-// the top of the window; Sam would rather it smaller and whole. It is one
-// box per character, fitting every build, so the figure never changes size
-// as parts are picked - Sam's choice over a box per pair of feet. A hat sits
-// on the hair, so a sundae on a quiff's tip stands far above any hat on a
-// bare head: the box takes in every hat on every hair through every move -
-// Sam's choice, to grow the box rather than settle a tall hat lower or cut
-// it off. Worked out once per character, when first shown (each distinct
-// tick once, and every hat, in each of its frames and, standing, each tick
-// of its own idles, placed on what each of those ticks puts it on). A hat
-// arriving - mud falling, an acorn dropping - comes in from above, and is
-// let go past the top on the way.
-const moveBoxes = {};
-function moveBox(kind) {
-  if (moveBoxes[kind]) return moveBoxes[kind];
+// The boxes the window fits a character's moves in. Each pair of feet with
+// each hair and each hat goes somewhere through its walks, idles and
+// special, turned either way about the middle of its standing box, as the
+// window turns it - every hat in each of its frames and, standing, each tick
+// of its own idles, placed on what each of those ticks puts it on. The
+// `full` box takes all of them in, and every part standing. One box for
+// everything left room only a few builds use - a spring's bounce, rockets'
+// flame, a sundae on tall hair - and the usual figure small in the middle
+// of it; a box per pair of feet would resize it at every change of feet
+// (Sam: "maybe shifts in placement/zoom only happen when significantly
+// height-changing features are selected"). So there are two: the
+// `compact` box, each side as far as four builds in five go (COMPACT), and
+// the full one for a build that goes further (boxFor). A hat arriving -
+// mud falling, an acorn dropping - comes in from above, and is let go past
+// the top on the way. Worked out once per character, when first shown,
+// each distinct tick once; borrowed eyes and noses are taken at variant 0.
+const COMPACT = 0.8;
+const boxesOf = {};
+function boxes(kind) {
+  if (boxesOf[kind]) return boxesOf[kind];
   const fb = fitBounds[kind], mid = turnAxis(kind);
   const picks = [0, 1, 2, 3, 4].flatMap(v => [{ v, borrowed: false }, { v, borrowed: true }]);
-  const box = Object.assign({}, fb);
-  const take = (l, t, r, b) => {
+  const empty = () => ({ l: Infinity, t: Infinity, r: -Infinity, b: -Infinity });
+  const take = (box, l, t, r, b) => {
     // as drawn, and turned about the middle
     box.l = Math.min(box.l, l, 2 * mid - r); box.r = Math.max(box.r, r, 2 * mid - l);
     box.t = Math.min(box.t, t); box.b = Math.max(box.b, b);
@@ -1044,9 +1048,11 @@ function moveBox(kind) {
   const hatTicks = S.hats.map(h => [
     distinct([[0, 0, 0]].concat((h.anims || []).filter(a => a.kind === 'idle').flatMap(a => a.ticks))),
     distinct([0].concat(h.walk || [], h.away === undefined ? [] : [h.away]).map(i => [i, 0, 0]))]);
+  const reach = new Map();                   // buildKey -> where that build goes
   for (const feet of picks) {
     for (const hair of picks.concat([{ ...NONE }])) {
       const build = { hair, feet, eyes: { v: 0, borrowed: false }, nose: { v: 0, borrowed: false } };
+      const each = [undefined, ...S.hats.keys()].map(() => empty());   // no hat, then each hat
       const walk = walkOf(kind, build), special = specialOf(kind, build);
       const clips = walk.dirs.map((ticks, d) => ({ ticks, walk: true, faces: facesAt(walk.faces, d) }))
         .concat(idlesOf(kind).concat(special ? [special] : []).map(ticks => ({ ticks, walk: false })));
@@ -1058,19 +1064,32 @@ function moveBox(kind) {
           seen.add(key);
           const pose = poseAt(c, t), seat = {};
           const bb = drawnBounds(kind, build, pose, seat);
-          take(bb.l, bb.t, bb.r, bb.b);
-          // where each hat goes on it
+          for (const box of each) take(box, bb.l, bb.t, bb.r, bb.b);
           hatTicks.forEach((ticks, k) => {
             for (const v of ticks[c.walk ? 1 : 0].flatMap(t => hatOn(seat.body, k, seat.hair, Object.assign({}, pose, { hat: t }), seat.left))) {
               const [, , w, h] = rect(v.sprite), x = pose.dx - v.rx, y = pose.dy - v.ry;
-              take(x, y, x + w, y + h);
+              take(each[k + 1], x, y, x + w, y + h);
             }
           });
         }
       }
+      each.forEach((box, k) => reach.set(buildKey(Object.assign({}, build, { hat: k ? k - 1 : undefined })), box));
     }
   }
-  return (moveBoxes[kind] = box);
+  const all = [...reach.values()];
+  const full = Object.assign({}, fb), compact = Object.assign({}, fb);
+  for (const box of all) take(full, box.l, box.t, box.r, box.b);
+  const at = (values, sign) => sign * values.map(v => sign * v).sort((a, b) => a - b)[Math.floor(values.length * COMPACT)];
+  take(compact, at(all.map(b => b.l), -1), at(all.map(b => b.t), -1), at(all.map(b => b.r), 1), at(all.map(b => b.b), 1));
+  return (boxesOf[kind] = { full, compact, reach });
+}
+const buildKey = build => ['feet', 'hair'].map(f => build[f].none ? 'x' : (build[f].borrowed ? 'b' : '') + build[f].v)
+  .concat(build.hat === undefined ? '-' : build.hat).join('|');
+// The box the window fits this build in: the compact one if its moves stay
+// inside it, else the full one.
+function boxFor(kind, build) {
+  const { full, compact, reach } = boxes(kind), own = reach.get(buildKey(build));
+  return own && own.l >= compact.l && own.t >= compact.t && own.r <= compact.r && own.b <= compact.b ? compact : full;
 }
 
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
@@ -1121,7 +1140,7 @@ function drawPreview() {
 }
 
 // The canvas fills the panel, at the largest whole-number scale at which the
-// box of every move fits (moveBox), with that box in its middle - but never
+// box its moves fit (boxFor), with that box in its middle - but never
 // below the game's own size, 1 CSS pixel a pixel: in a window too small for
 // that, the edges are cut off instead. Its height comes from the window, never from the
 // panel's own, which grows with the canvas and would feed back into itself:
@@ -1151,7 +1170,7 @@ function layoutPreview() {
     - preview.getBoundingClientRect().height + 10;
   const availH = narrow ? Math.max(90, viewHeight() - others)
     : Math.max(260, Math.min(560, viewHeight() - 280));
-  const bb = moveBox(state.kind);
+  const bb = boxFor(state.kind, state.build[state.kind]);
   const fw = bb.r - bb.l + PAD * 2, fh = bb.b - bb.t + PAD * 2;
   const dpr = window.devicePixelRatio || 1;
   const scale = Math.max(dpr, Math.floor(Math.min(availW / fw, availH / fh) * dpr)) / dpr;
