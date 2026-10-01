@@ -1562,6 +1562,12 @@ let clip = null, clipAt = 0, waitTicks = 15, timer = 0;
 // A build's moves. Idle ticks are [eyes, dx, dy, facing, feet]; walk ticks
 // are as described at WALK_PARTS.
 const idlesOf = kind => kind === 'fleen' ? S.characters.fleen.idles.concat([PAGE_BLINK]) : S.characters[kind].idles;
+// Whether its feet show off without a break: a Fleen sat down into Zoombini
+// wheels while they turn (its special frames' `drop`) stood up on top of
+// them again at rest, a jump each time; so on them it keeps turning (Sam,
+// 30 September 2026), and stands at rest only when paused.
+const loopsSpecial = (kind, build) => kind === 'fleen' && build.feet.borrowed && !build.feet.none
+  && (S.characters.fleen.borrowed.feet[build.feet.v].special || []).some(f => f.drop);
 // The ticks its feet show off in, or null.
 function specialOf(kind, build) {
   const ch = S.characters[kind], feet = build.feet;
@@ -1634,6 +1640,11 @@ function tick() {
     clearInterval(timer);
     timer = 0;
     Object.assign(pose, REST);
+  } else if (loopsSpecial(state.kind, state.build[state.kind])) {
+    // straight into the next turn, with no rest frame between
+    startClip({ ticks: specialOf(state.kind, state.build[state.kind]), walk: false });
+    Object.assign(pose, poseAt(clip, clip.ticks[0]), { n: 0 });
+    clipAt = 1;
   } else {
     Object.assign(pose, REST);
     if (--waitTicks <= 0) {
