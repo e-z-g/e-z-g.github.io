@@ -867,11 +867,12 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   const none = name => (build[name] || {}).none;
   // what a hat sits on, handed back in `seat` if asked for (see moveBox)
   const under = { body: out.find(p => p.name === 'body').v,
-                  hair: build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v };
+                  hair: build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v,
+                  left: framesFace(kind, pose) === 'left' };
   if (seat) Object.assign(seat, under);
   return out.filter(p => !(p && none(p.name)))
     .map(p => p.name === 'body' ? p.v : Object.assign({ part: p.name }, p.v))
-    .concat(hatOn(under.body, build.hat, under.hair, pose));
+    .concat(hatOn(under.body, build.hat, under.hair, pose, under.left));
 }
 
 // A hat, worn as Pizza Pass's Zoombinis carry the trolls' orders: centred on
@@ -888,7 +889,9 @@ function variantsFor(kind, build, pose = REST, seat = null) {
 // first. It is seated by the first set, so the others move only as they
 // were drawn to. Its pieces as sprites.
 const HAT_SOLID = 0.6;                       // the share of columns that must reach the row
-function hatOn(body, hat, hair = null, pose = REST) {
+// The way the frames drawn at `pose` face, before the page turns them.
+const framesFace = (kind, pose) => pose.walk ? pose.faces : S.characters[kind].faces.rest;
+function hatOn(body, hat, hair = null, pose = REST, left = false) {
   const h = S.hats[hat];
   if (!h || !body.crown) return [];
   const w = pose.walk;
@@ -898,8 +901,10 @@ function hatOn(body, hat, hair = null, pose = REST) {
   const pieces = h.sets[k] || h.sets[0];
   const [cx] = body.crown;
   const cy = hatSeat(body, h, hair);
-  return pieces.map(p => ({ part: 'hat', sprite: p.sprite,
-                            rx: -Math.round(cx + p.dx + ox), ry: -Math.round(cy + h.sink + p.dy + oy) }));
+  // a hat faces right; on frames that face left it is turned about the crown
+  return pieces.map(p => ({ part: 'hat', sprite: p.sprite, flip: left,
+                            rx: -Math.round(left ? cx - p.dx - ox - rect(p.sprite)[2] : cx + p.dx + ox),
+                            ry: -Math.round(cy + h.sink + p.dy + oy) }));
 }
 let HAT_RULE = 'hair';
 // The row a hat's seat is on, over this body in this hair - worked out once
@@ -981,7 +986,7 @@ const fitBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
   };
   for (const p of ch.parts) p.variants.concat(ch.borrowed[p.name] || []).forEach(add);
   const body = ch.parts.find(p => p.name === 'body').variants[0];
-  for (const b of [body].concat(Object.values(body.facings || {}))) S.hats.forEach((_, k) => all.push(...hatOn(b, k)));
+  for (const b of [body].concat(Object.values(body.facings || {}))) S.hats.forEach((_, k) => all.push(...hatOn(b, k, null, REST, S.characters[kind].faces.rest === 'left')));
   return [kind, boundsOf(all)];
 }));
 
@@ -1051,7 +1056,7 @@ function moveBox(kind) {
           // where each hat goes on it, a walk mirrored too
           const mid = (fb.l + fb.r) / 2;
           hatTicks.forEach((ticks, k) => {
-            for (const v of ticks[c.walk ? 1 : 0].flatMap(t => hatOn(seat.body, k, seat.hair, Object.assign({}, pose, { hat: t })))) {
+            for (const v of ticks[c.walk ? 1 : 0].flatMap(t => hatOn(seat.body, k, seat.hair, Object.assign({}, pose, { hat: t }), seat.left))) {
               const [, , w, h] = rect(v.sprite), x = pose.dx - v.rx, y = pose.dy - v.ry;
               hatted.t = Math.min(hatted.t, y); hatted.b = Math.max(hatted.b, y + h);
               hatted.l = Math.min(hatted.l, x, 2 * mid - x - w); hatted.r = Math.max(hatted.r, x + w, 2 * mid - x);
@@ -1074,7 +1079,11 @@ function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST, axis = 
   for (const v of variantsFor(kind, build, pose)) {
     const src = v.part ? recoloured(v.sprite, kind, build.skin, groupsOf(kind, build, v.part), (build.colours || {})[v.part], v.part)
       : recoloured(v.sprite, kind, build.skin);
-    drawSprite(ctx, v.sprite, ox - v.rx * scale, oy + ((v.oy || 0) - v.ry) * scale, scale, axis, src);
+    const x = ox - v.rx * scale, y = oy + ((v.oy || 0) - v.ry) * scale;
+    if (!v.flip) drawSprite(ctx, v.sprite, x, y, scale, axis, src);
+    // a sprite turned on its own (a hat on a Fleen), and in a turned figure
+    else if (axis === null) drawSprite(ctx, v.sprite, x, y, scale, x + rect(v.sprite)[2] * scale / 2, src);
+    else drawSprite(ctx, v.sprite, 2 * axis - x - rect(v.sprite)[2] * scale, y, scale, null, src);
   }
 }
 
@@ -1083,7 +1092,11 @@ const preview = document.getElementById('preview');
 const pose = Object.assign({}, REST);       // the idle's current tick
 
 let origin = { x: 0, y: 0 };                 // where the REGS origin sits on the canvas
-let heading = null;                          // 'left' or 'right' once it has walked
+// Which way it faces on screen: right to begin with, as a Zoombini stands in
+// the game - a Fleen, which stands facing left, is turned to match (Sam, 30
+// September 2026) - then whichever way it last walked.
+const START_HEADING = 'right';
+let heading = START_HEADING;
 
 // The figure turns by being mirrored about the middle of its standing box -
 // the atlas's own mirrored frames are exact mirrors - so it stays in the same
@@ -1091,6 +1104,10 @@ let heading = null;                          // 'left' or 'right' once it has wa
 // other way from where it is heading (the character's `faces`): a Fleen
 // stands facing left but hops to the right, so it is mirrored to hop left,
 // and after hopping right it stands mirrored, facing right.
+// The line a figure is turned about, from its origin - the middle of its
+// standing box, as the window turns it - and a box turned about it.
+const turnAxis = kind => (fitBounds[kind].l + fitBounds[kind].r) / 2;
+const turnedBox = (bb, turned, mid) => turned ? Object.assign({}, bb, { l: 2 * mid - bb.r, r: 2 * mid - bb.l }) : bb;
 function drawPreview() {
   const ctx = preview.getContext('2d');
   ctx.imageSmoothingEnabled = false;
@@ -1445,7 +1462,7 @@ function setBody(kind) {
   state.build[kind].hat = state.build[old].hat;
   state.name[kind] = state.name[old];
   state.kind = kind;
-  heading = null;
+  heading = START_HEADING;
 }
 
 function paintTiles() {
@@ -1763,13 +1780,16 @@ function savePicture() {
   const scale = 4, pad = 2 * scale;
   const parts = variantsFor(kind, build);
   if (!parts.length) { say('Nothing to save - every part is none.'); return; }
-  const bb = boundsOf(parts);
+  // facing the way it faces in the window
+  const turned = heading !== framesFace(kind, REST), mid = turnAxis(kind);
+  const bb = turnedBox(boundsOf(parts), turned, mid);
   const c = document.createElement('canvas');
   c.width = (bb.r - bb.l) * scale + pad * 2;
   c.height = (bb.b - bb.t) * scale + pad * 2;
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  drawCharacter(ctx, kind, build, pad - bb.l * scale, pad - bb.t * scale, scale);
+  const x0 = pad - bb.l * scale;
+  drawCharacter(ctx, kind, build, x0, pad - bb.t * scale, scale, REST, turned ? x0 + mid * scale : null);
   c.toBlob(blob => {
     if (!blob) { say('Could not make the PNG in this browser.'); return; }
     download(blob, state.name[kind] + '-' + kind + '.png');
@@ -1926,8 +1946,10 @@ function encodeGIF(frames, w, h, scale, delay) {
 function makeGIF(kind, build, anim) {
   const pad = 2;
   const U = { l: Infinity, t: Infinity, r: -Infinity, b: -Infinity };
+  // each frame facing the way the figure in the window would at that pose
+  const mid = turnAxis(kind), turned = p => heading !== framesFace(kind, p);
   for (const p of anim.poses) {
-    const bb = drawnBounds(kind, build, p);
+    const bb = turnedBox(drawnBounds(kind, build, p), turned(p), mid);
     U.l = Math.min(U.l, bb.l); U.t = Math.min(U.t, bb.t); U.r = Math.max(U.r, bb.r); U.b = Math.max(U.b, bb.b);
   }
   if (!Number.isFinite(U.l)) return null;
@@ -1938,7 +1960,7 @@ function makeGIF(kind, build, anim) {
   ctx.imageSmoothingEnabled = false;
   const frames = anim.poses.map(p => {
     ctx.clearRect(0, 0, w, h);
-    drawCharacter(ctx, kind, build, pad - U.l + p.dx, pad - U.t + p.dy, 1, p);
+    drawCharacter(ctx, kind, build, pad - U.l + p.dx, pad - U.t + p.dy, 1, p, turned(p) ? pad - U.l + mid : null);
     return ctx.getImageData(0, 0, w, h).data;
   });
   return encodeGIF(frames, w, h, 4, Math.round((anim.fast ? TICK_MS / 2 : TICK_MS) / 10));
@@ -2053,7 +2075,7 @@ document.getElementById('btn-link').addEventListener('click', async () => {
 function switchKind() {
   document.body.dataset.kind = state.kind;
   clip = null;
-  heading = null;
+  heading = START_HEADING;
   update();
 }
 
