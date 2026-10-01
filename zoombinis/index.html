@@ -246,6 +246,10 @@
     display: flex; align-items: center; justify-content: center;
   }
   .corner canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
+  /* sound, in the other top corner: off to begin with, so a plaque that
+     says so, beside its speaker */
+  .corner.left { right: auto; left: 8px; width: auto; gap: 8px; padding: 0 12px 2px 10px; font-size: 0.85rem; }
+  .corner.left canvas { width: 24px; }
   /* Arrows in the window's other corner: the character walks that way, as
      far as its feet go (see waysOf). A Zoombini's four go along, towards us
      and away; a Fleen's hop and its run away are both on the slant, so it
@@ -258,6 +262,11 @@
   .pad button[hidden] { display: none; }
   .pad .up { grid-area: 1 / 2; } .pad .left { grid-area: 2 / 1; }
   .pad .right { grid-area: 2 / 3; } .pad .down { grid-area: 3 / 2; }
+  /* a meal's ten layers: smaller tiles, so all ten fit on the options line */
+  .tile.small { width: calc(var(--tile) * 0.56); }
+  /* in the middle of the arrows, a tumble: the dazed stars */
+  .pad .tumble { grid-area: 2 / 2; }
+  .pad .tumble canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
   .pad .upleft { grid-area: 1 / 1; } .pad .upright { grid-area: 1 / 3; }
   .pad .downleft { grid-area: 3 / 1; } .pad .downright { grid-area: 3 / 3; }
   .pad .upleft .arrow, .pad .upright .arrow, .pad .downleft .arrow, .pad .downright .arrow {
@@ -340,10 +349,12 @@
     padding: 14px; width: 100%; max-width: 560px; justify-self: center;
     display: flex; flex-direction: column; gap: 14px;
   }
-  .tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+  /* seven tabs, each as wide as its word needs and the rest shared out */
+  .tabs { display: flex; gap: 4px; }
+  .tabs > .tab { flex: 1 1 auto; }
   .tab {
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    padding: 8px 4px 10px; font-size: 1.05rem; min-width: 0; white-space: nowrap;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 8px 2px 10px; font-size: 0.92rem; min-width: 0; white-space: nowrap;
   }
   .tab canvas { flex: none; width: 12px; height: 13px; image-rendering: pixelated; }
   .tab canvas[hidden] { display: none; }
@@ -362,6 +373,22 @@
   .sets { display: flex; flex-direction: column; gap: var(--set-gap); }
   .feature.body .sets { flex-direction: row; gap: var(--none-gap); }
   .set { display: flex; gap: var(--set-gap); }
+  /* the hats' pages, all in one place so turning one never resizes the box */
+  .pages { display: grid; }
+  .pages > .hat-page { grid-area: 1 / 1; }
+  .pages > .hat-page:not(.shown) { visibility: hidden; }
+  .pager { display: flex; align-items: center; gap: 6px; }
+  .pager .ctrl { padding-left: 12px; padding-right: 12px; }
+  .pager .count { min-width: 3.2em; text-align: center; }
+  .pager .arrow { width: 0; height: 0; border: 7px solid transparent; }
+  .pager .arrow.left { border-right-color: currentColor; border-left: 0; }
+  .pager .arrow.right { border-left-color: currentColor; border-right: 0; }
+  /* a hat's options: a meal's toppings, or the game's other colours for it */
+  /* the hats' panel: its pages, then a line of a hat's options (a meal's
+     toppings, the game's colourings of it), as tall as a line of tiles
+     whether or not the hat has any, so picking one never resizes the box */
+  .tiles.stacked { flex-direction: column; gap: var(--set-gap); }
+  .set.options { justify-content: center; min-height: calc(var(--tile) * 43 / 40); }
   .tile {
     flex: none;
     width: var(--tile);
@@ -429,6 +456,10 @@
     .window { padding: 5px; gap: 5px; }
     .preview { padding: 4px; }
     .corner { top: 4px; right: 4px; width: 36px; height: 36px; }
+    .corner.left { right: auto; left: 4px; padding: 0 8px 2px 6px; gap: 5px; font-size: 0.75rem; }
+    .pager .count { display: none; }
+    .controls .keep span { display: none; }
+    .pager .ctrl { padding-left: 8px; padding-right: 8px; }
     .status { bottom: 6px; font-size: 0.85rem; }
     .name-btn { font-size: 1.15rem; padding: 3px 12px 5px; min-width: 6em; }
     .toolbar { gap: 8px; }
@@ -438,7 +469,8 @@
     .caret { margin-left: 6px; border-width: 5px; }
     .box { --set-gap: 3px; --none-gap: 8px; padding: 6px; gap: 6px; }
     .tabs { gap: 3px; }
-    .tab { font-size: 0.75rem; padding: 7px 2px 9px; gap: 3px; }
+    .tab { font-size: 0.6rem; padding: 7px 1px 9px; gap: 1px; }
+    .tab canvas { width: 9px; height: 10px; }
     .feature { gap: 6px; }
     .controls { gap: 4px; min-height: 0; }
     .ctrl { font-size: 0.8rem; padding: 4px 10px 6px; gap: 6px; }
@@ -463,10 +495,12 @@
         <div class="preview" id="preview-wrap">
           <canvas id="preview" role="img"></canvas>
           <button class="stone corner" id="btn-motion" aria-pressed="false"><canvas></canvas></button>
+          <button class="stone corner left" id="btn-sound" aria-pressed="false"><canvas></canvas><span></span></button>
           <div class="pad" id="pad" role="group" aria-label="Walk">
             <button class="stone up" data-way="up" title="Walk away" aria-label="Walk away"><span class="arrow"></span></button>
             <button class="stone left" data-way="left" title="Walk left" aria-label="Walk left"><span class="arrow"></span></button>
             <button class="stone right" data-way="right" title="Walk right" aria-label="Walk right"><span class="arrow"></span></button>
+            <button class="stone tumble" id="btn-tumble" title="Tumble" aria-label="Tumble"><canvas></canvas></button>
             <button class="stone down" data-way="down" title="Walk towards us" aria-label="Walk towards us"><span class="arrow"></span></button>
             <button class="stone upleft" data-way="upleft" title="Run away to the left" aria-label="Run away to the left" hidden><span class="arrow"></span></button>
             <button class="stone upright" data-way="upright" title="Run away to the right" aria-label="Run away to the right" hidden><span class="arrow"></span></button>
@@ -519,6 +553,17 @@
 
 const S = window.ZOOMBINI_SPRITES;
 const FEATURES = S.features;                 // ['hair', 'eyes', 'nose', 'feet']
+// A hat's family (a meal with fewer toppings, a hat in its other colours)
+// is reached from its first (`family`); hatRoot is that first, HAT_ROOTS the
+// firsts.
+const hatRoot = k => k === undefined || S.hats[k].family === undefined ? k : S.hats[k].family;
+const HAT_ROOTS = [...S.hats.keys()].filter(k => S.hats[k].family === undefined);
+// a hat's family: its first, then the hats that are it otherwise
+const familyOf = k => [k].concat([...S.hats.keys()].filter(j => S.hats[j].family === k));
+const COMPACT_HATS = 11;                     // the hats before 1 October's (see boxes)
+// the hats the window's boxes are worked out for: the firsts, and the first
+// eleven (some since in a family: the meals, the mudball)
+const BOX_HATS = [...new Set([...S.hats.keys()].filter(k => k < COMPACT_HATS).concat(HAT_ROOTS))].sort((a, b) => a - b);
 const LABEL = { zoombini: 'Zoombini', fleen: 'Fleen' };
 const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
 const PAD = 3;                               // source pixels around the figure
@@ -534,7 +579,7 @@ let half = 0;
 function halfTick() {
   if ((clip && clip.fast) || ++half % 2 === 0) tick();
 }
-const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null, faces: null, hat: null, n: 0 };
+const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null, faces: null, hat: null, n: 0, tumble: null };
 // A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar,
 // device, away] - each part's pose (-1 rest), how far each borrowed foot
 // is lifted, the frame of a borrowed device (-1 none), and 1 when the head is
@@ -593,7 +638,9 @@ const NONE = { v: 0, borrowed: false, none: true };
 let pure = false;
 const randomBuild = () => Object.fromEntries(FEATURES.map(f =>
   [f, { v: Math.floor(Math.random() * 5), borrowed: !pure && Math.random() < 0.5 }]));
-const locks = { body: false, hair: false, eyes: false, nose: false, feet: false };
+// The extras start kept (on none, so the dice adds none), and roll too once
+// their padlock is opened (Sam, 1 October 2026).
+const locks = { body: false, hair: false, eyes: false, nose: false, feet: false, extras: true };
 const plainBuild = () => Object.fromEntries(FEATURES.map(f => [f, { v: Math.floor(Math.random() * 5), borrowed: false }]));
 
 const state = {
@@ -612,10 +659,19 @@ const state = {
 // when only the nose had one, is the nose's first. Links from before names
 // keep working, with a new name.
 const COLOUR_LETTER = { hair: 'h', eyes: 'e', nose: 'n', feet: 'f', hat: 't' };
+// a borrowed part's letter: the other character's a-e, then the parts from
+// elsewhere (f on; x is none)
+const LETTERS = 'abcdefghijklmnopqrstuvw';
+const elsewhere = pick => pick.borrowed && pick.v >= 5;
 const codeOf = build => FEATURES.map(f =>
-  build[f].none ? 'x' : build[f].borrowed ? 'abcde'[build[f].v] : String(build[f].v)).join('');
+  build[f].none ? 'x' : build[f].borrowed ? LETTERS[build[f].v] : String(build[f].v)).join('');
+// the last thing worn as another of its family (o: which; m: a meal's layers)
+function wornOption(worn, o, m) {
+  const k = worn.pop(), root = hatRoot(k);
+  worn.push(m ? mealHat(mealLayers(+m), root) : familyOf(root)[+o] ?? k);
+}
 function readHash() {
-  const m = /^#(zoombini|fleen)(?:-([0-4a-ex]{4})x?)?(?:-([a-z]{1,12}))?((?:-[0-9a-z]+)*)$/.exec(location.hash);
+  const m = /^#(zoombini|fleen)(?:-([0-4a-x]{4})x?)?(?:-([a-z]{1,12}))?((?:-[0-9a-z]+)*)$/.exec(location.hash);
   if (!m) return;
   state.kind = m[1];
   if (m[3]) state.name[m[1]] = m[3];
@@ -625,23 +681,44 @@ function readHash() {
     state.build[m[1]][f] = c === 'x' ? { ...NONE } : { v: letter ? c.charCodeAt(0) - 97 : +c, borrowed: letter };
   });
   const build = state.build[m[1]];
-  Object.assign(build, { skin: undefined, colours: {}, hat: undefined });
+  Object.assign(build, { skin: undefined, colours: {}, hat: undefined, extras: [] });
+  const worn = build.extras;
+  let hatColour = null;
   for (const x of m[4].split('-').slice(1)) {
     let c;
     if ((c = /^s([0-9a-f]{6})$/.exec(x))) build.skin = '#' + c[1];
-    else if ((c = /^h([0-9]{1,2})$/.exec(x)) && S.hats[+c[1]]) build.hat = +c[1];
+    // what is worn, in order: -a and its number, then o and which of its
+    // family, or m and a meal's layers (and, from older links, -h, -o, -m)
+    else if ((c = /^[ah]([0-9]{1,3})(?:o([0-9]{1,2})|m([0-9]{1,4}))?$/.exec(x)) && S.hats[+c[1]]) {
+      worn.push(+c[1]);
+      if (c[2] || c[3]) wornOption(worn, c[2], c[3]);
+    }
+    else if ((c = /^([om])([0-9]{1,4})$/.exec(x)) && worn.length) wornOption(worn, c[1] === 'o' ? c[2] : null, c[1] === 'm' ? c[2] : null);
+    else if ((c = /^q([0-9]{1,3})_([01])([0-9a-f]{6})$/.exec(x))) (build.colours['hat:' + c[1]] = build.colours['hat:' + c[1]] || [])[+c[2]] = '#' + c[3];
     else if ((c = /^n([0-9a-f]{6})$/.exec(x))) (build.colours.nose = build.colours.nose || [])[0] = '#' + c[1];
     else if ((c = /^c([a-z])([01])([0-9a-f]{6})$/.exec(x))) {
       const f = Object.keys(COLOUR_LETTER).find(k => COLOUR_LETTER[k] === c[1]);
-      if (f) (build.colours[f] = build.colours[f] || [])[+c[2]] = '#' + c[3];
+      if (f === 'hat') hatColour = [+c[2], '#' + c[3]];
+      else if (f) (build.colours[f] = build.colours[f] || [])[+c[2]] = '#' + c[3];
     }
   }
+  if (hatColour && worn.length) (build.colours['hat:' + worn[0]] = [])[hatColour[0]] = hatColour[1];
 }
 function writeHash() {
   const build = state.build[state.kind];
   const hash = '#' + state.kind + '-' + codeOf(build) + '-' + state.name[state.kind]
-    + (build.skin ? '-s' + build.skin.slice(1) : '') + (build.hat !== undefined ? '-h' + build.hat : '')
-    + Object.entries(COLOUR_LETTER).map(([f, l]) => ((build.colours || {})[f] || [])
+    + (build.skin ? '-s' + build.skin.slice(1) : '')
+    // a hat by its first's number, and which of its family (-o) if not the first:
+    // the family's numbers move as hats are added, the firsts' do not
+    // what is worn, in order: a meal by its layers, another of a family by which
+    + (build.extras || []).map(k => {
+      const root = hatRoot(k);
+      return '-a' + root + (k === root ? '' : S.hats[k].option.layers ? 'm' + mealBits(S.hats[k].option.layers)
+        : 'o' + familyOf(root).indexOf(k));
+    }).join('')
+    + Object.entries(build.colours || {}).filter(([f]) => f.startsWith('hat:'))
+      .map(([f, picks]) => picks.map((hex, g) => hex ? '-q' + f.slice(4) + '_' + g + hex.slice(1) : '').join('')).join('')
+    + Object.entries(COLOUR_LETTER).filter(([f]) => f !== 'hat').map(([f, l]) => ((build.colours || {})[f] || [])
       .map((hex, k) => hex ? '-c' + l + k + hex.slice(1) : '').join('')).join('');
   if (location.hash !== hash) history.replaceState(null, '', hash);
 }
@@ -724,8 +801,10 @@ function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
   const active = groups.map((g, k) => picks[k] && picks[k].toLowerCase() !== '#' + g.ref ? [g, picks[k]] : null)
     .filter(Boolean);
   if (!skin && !active.length) return null;
-  if (part === 'hat') skin = undefined;
-  const key = [index, kind, skin, part === 'hat', active.map(([g, p]) => g.ref + p).join('/')].join();
+  const worn = !!part && part.startsWith('hat');
+  if (worn || part === 'effect') skin = undefined;
+  if (!skin && !active.length) return null;
+  const key = [index, kind, skin, worn, active.map(([g, p]) => g.ref + p).join('/')].join();
   if (recolourCache.has(key)) return recolourCache.get(key);
   const [sx, sy, w, h] = rect(index);
   const c = document.createElement('canvas');
@@ -733,7 +812,7 @@ function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
   const ctx = c.getContext('2d');
   ctx.drawImage(sheet, sx, sy, w, h, 0, 0, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
-  const ladder = skin && skinLadder(skin), steps = part === 'hat' ? {} : SKIN_STEPS[kind];
+  const ladder = skin && skinLadder(skin), steps = worn ? {} : SKIN_STEPS[kind];
   const hexAt = i => ((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]).toString(16).padStart(6, '0');
   const byHex = new Map();
   for (const [g, pick] of active) {
@@ -789,6 +868,7 @@ function eyeFrame(entry, eyes) {
 // own walk frames.
 const lifted = (v, up) => up ? Object.assign({}, v, { oy: -up }) : v;
 function variantsFor(kind, build, pose = REST, seat = null) {
+  if (pose.tumble) return tumbleVariants(kind, build, pose);
   const ch = S.characters[kind];
   const w = pose.walk;
   const at = n => w[2 + WALK_PARTS.indexOf(n)];
@@ -877,9 +957,64 @@ function variantsFor(kind, build, pose = REST, seat = null) {
                   hair: build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v,
                   left: framesFace(kind, pose) === 'left' };
   if (seat) Object.assign(seat, under);
-  return out.filter(p => !(p && none(p.name)))
-    .map(p => p.name === 'body' ? p.v : Object.assign({ part: p.name }, p.v))
-    .concat(hatOn(under.body, build.hat, under.hair, pose, under.left));
+  // what is worn, in the order it was put on, each where its own animation
+  // has it (pose.extraHats): hats stacked, the rest where they go
+  const hat = [];
+  let stack = [];
+  for (const k of build.extras || []) {
+    const ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[k] || null }),
+                     under.left, S.hats[k].on ? null : stack);
+    if (!S.hats[k].on) stack = stack.concat(ps);
+    hat.push(...ps);
+  }
+  return hat.filter(p => p.back).concat(out.filter(p => !(p && none(p.name)))
+    .map(p => p.name === 'body' ? p.v : Object.assign({ part: p.name }, p.v)), hat.filter(p => !p.back));
+}
+
+// A tick of the tumble (`pose.tumble`: [pose, dx, dy, effects, voice] - see
+// tumble_clip() in the exporter). Each part has its tumbling frame of that
+// pose (`tumble`): the game's own for a Zoombini's parts, the standing frame
+// turned for anything borrowed and for a Fleen, which the game never
+// tumbles; a borrowed part's piece behind the head (`tumbleBack`) goes
+// before the body. Painted in the game's tumbling order - body, eyes, nose,
+// feet, hair - or a Fleen's own, with borrowed feet behind its stalk as it
+// stands on them; the dust behind the figure, the stars and rings in front.
+// The hat has been knocked off, and is wherever the tick's flight has it
+// (`pose.hat`, [set, dx, dy] from where it sits at rest, set -1 gone).
+const TUMBLE_ORDER = { zoombini: ['body', 'eyes', 'nose', 'feet', 'hair'], fleen: ['body', 'feet', 'nose', 'eyes', 'hair'] };
+const DUST_EFFECTS = 3;                      // the first three effect sprites are the landing's dust
+function tumbleVariants(kind, build, pose) {
+  const ch = S.characters[kind], [p, dx, dy, effects] = pose.tumble;
+  // an effect at (x, y) from the rest origin, where the figure is at (dx, dy)
+  const effect = ([i, x, y]) => {
+    const e = S.tumbleEffects[i];
+    return { part: 'effect', sprite: e.sprite, rx: e.rx - (x - dx), ry: e.ry - (y - dy) };
+  };
+  const front = [], back = [], body = [];
+  for (const name of TUMBLE_ORDER[kind]) {
+    const pick = build[name] || {};
+    if (pick.none) continue;
+    const entry = name === 'body' ? ch.parts.find(q => q.name === 'body').variants[0] : partOf(kind, build, name);
+    const v = entry.tumble && entry.tumble[p], b = entry.tumbleBack && entry.tumbleBack[p];
+    if (b) back.push(Object.assign({ part: name }, b));
+    if (!v) continue;
+    const sprite = name === 'body' ? v : Object.assign({ part: name }, v);
+    (name === 'feet' && pick.borrowed && kind === 'fleen' && entry.behind ? back : body).push(sprite);
+  }
+  for (const e of effects) (e[0] < DUST_EFFECTS ? back : front).push(effect(e));
+  let hat = [];
+  if (pose.hat && pose.hat[0] >= 0) {
+    // seated as at rest; on a Fleen, whose rest frames face left, turned to
+    // face right with the tumbling frames, about the line the window turns
+    // the figure about (so its +dx is still forwards)
+    const seat = {}, mid = turnAxis(kind);
+    variantsFor(kind, build, REST, seat);
+    hat = (build.extras || []).flatMap(k => hatOn(seat.body, k, seat.hair, pose, seat.left)).map(h => {
+      const w = rect(h.sprite)[2], x = seat.left ? 2 * mid + h.rx - w : -h.rx;
+      return Object.assign({}, h, { flip: false, rx: -x + dx, ry: h.ry + dy });
+    });
+  }
+  return hat.filter(p => p.back).concat(back, body, front, hat.filter(p => !p.back));
 }
 
 // A hat, worn as Pizza Pass's Zoombinis carry the trolls' orders: centred on
@@ -897,8 +1032,8 @@ function variantsFor(kind, build, pose = REST, seat = null) {
 // were drawn to. Its pieces as sprites.
 const HAT_SOLID = 0.6;                       // the share of columns that must reach the row
 // The way the frames drawn at `pose` face, before the page turns them.
-const framesFace = (kind, pose) => pose.walk ? pose.faces : S.characters[kind].faces.rest;
-function hatOn(body, hat, hair = null, pose = REST, left = false) {
+const framesFace = (kind, pose) => pose.walk || pose.tumble ? pose.faces : S.characters[kind].faces.rest;
+function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) {
   const h = S.hats[hat];
   if (!h || !body.crown) return [];
   const w = pose.walk;
@@ -906,10 +1041,16 @@ function hatOn(body, hat, hair = null, pose = REST, left = false) {
     : w && h.walk ? h.walk[(pose.n || 0) % h.walk.length] : 0, 0, 0];
   if (k < 0) return [];                      // not yet arrived
   const pieces = h.sets[k] || h.sets[0];
-  const [cx] = body.crown;
-  const cy = hatSeat(body, h, hair);
+  // worn on the face (the crab): its middle where the face's middle is
+  const onFace = h.on === 'face' && body.face;
+  const cx = onFace ? body.face[0] : body.crown[0];
+  // worn on the body rather than the head - on the back (the wings, painted
+  // behind the body) or over it (the crab on the face, the bee on the back):
+  // placed from the head's top whatever the hair, by its sink and nudge
+  const cy = onFace ? body.face[1] : h.on ? body.crown[1]
+    : below && below.length ? stackSeat(below, h, cx) : hatSeat(body, h, hair);
   // a hat faces right; on frames that face left it is turned about the crown
-  return pieces.map(p => ({ part: 'hat', sprite: p.sprite, flip: left,
+  return pieces.map(p => ({ part: 'hat:' + hat, sprite: p.sprite, flip: left, back: h.on === 'back',
                             rx: -Math.round(left ? cx - p.dx - ox - rect(p.sprite)[2] : cx + p.dx + ox),
                             ry: -Math.round(cy + h.sink + p.dy + oy) }));
 }
@@ -941,6 +1082,27 @@ function hatSeat(body, h, hair) {
   }
   byHat.set(h, cy);
   return cy;
+}
+
+// Stacked (Sam: "make all the hats stackable"): a hat put on over others
+// sits on what is under its middle - the top most of its columns there
+// reach (HAT_SOLID), or for a stiff flat one the highest anywhere under it,
+// as on hair - whichever way they face.
+function stackSeat(below, h, cx) {
+  const w = rect(h.sets[0][0].sprite)[2];
+  const half = h.flat ? w / 2 : w / 4, tops = [];
+  for (let x = Math.round(cx - half); x < Math.round(cx + half); x++) {
+    let top = null;
+    for (const p of below) {
+      const pw = rect(p.sprite)[2];
+      const t = topAt(p, p.flip ? -2 * p.rx + pw - 1 - x : x);
+      if (t !== null && (top === null || t < top)) top = t;
+    }
+    if (top !== null) tops.push(top);
+  }
+  if (!tops.length) return Math.min(...below.map(p => -p.ry));
+  tops.sort((a, b) => a - b);
+  return h.flat ? tops[0] : tops[Math.ceil(tops.length * HAT_SOLID) - 1];
 }
 
 // The highest opaque pixel of a placed sprite in column x (origin
@@ -991,9 +1153,12 @@ const fitBounds = Object.fromEntries(Object.keys(LABEL).map(kind => {
     if (v.facings) Object.values(v.facings).forEach(add);
     for (const more of [v.special, v.units]) if (more) more.forEach(add);
   };
-  for (const p of ch.parts) p.variants.concat(ch.borrowed[p.name] || []).forEach(add);
+  // (the other character's five; the parts from elsewhere are left to boxFor)
+  for (const p of ch.parts) p.variants.concat((ch.borrowed[p.name] || []).slice(0, 5)).forEach(add);
   const body = ch.parts.find(p => p.name === 'body').variants[0];
-  for (const b of [body].concat(Object.values(body.facings || {}))) S.hats.forEach((_, k) => all.push(...hatOn(b, k, null, REST, S.characters[kind].faces.rest === 'left')));
+  // (the first eleven hats: the ones since, some far bigger, are left to
+  // boxFor, so this box and the line the figure turns about stay as they were)
+  for (const b of [body].concat(Object.values(body.facings || {}))) BOX_HATS.filter(k => k < COMPACT_HATS).forEach(k => all.push(...hatOn(b, k, null, REST, S.characters[kind].faces.rest === 'left')));
   return [kind, boundsOf(all)];
 }));
 
@@ -1031,11 +1196,18 @@ function drawnBounds(kind, build, pose = REST, seat = null) {
 // the top on the way. Worked out once per character, when first shown,
 // each distinct tick once; borrowed eyes and noses are taken at variant 0.
 const COMPACT = 0.8;
+// The compact and full boxes are worked out over the builds with no hat or
+// one of the first eleven (COMPACT_HATS, above), as they were when Sam
+// settled on them (1 October 2026), so the hats added after - some far
+// bigger - do not grow them (see boxFor). A family member (a meal with
+// fewer toppings, a hat in other colours) goes where its first does, so only
+// the first of each (HAT_ROOTS) is worked out.
 const boxesOf = {};
 function boxes(kind) {
   if (boxesOf[kind]) return boxesOf[kind];
   const fb = fitBounds[kind], mid = turnAxis(kind);
   const picks = [0, 1, 2, 3, 4].flatMap(v => [{ v, borrowed: false }, { v, borrowed: true }]);
+  const feetPicks = picks.concat(S.characters[kind].borrowed.feet.slice(5).map((_, k) => ({ v: 5 + k, borrowed: true })));
   const empty = () => ({ l: Infinity, t: Infinity, r: -Infinity, b: -Infinity });
   const take = (box, l, t, r, b) => {
     // as drawn, and turned about the middle
@@ -1045,14 +1217,15 @@ function boxes(kind) {
   // each hat's distinct ticks standing (at rest, and its idles) and walking
   // (its wobble, its back)
   const distinct = ticks => [...new Map(ticks.map(t => [t.join(), t])).values()];
-  const hatTicks = S.hats.map(h => [
+  const hatTicks = BOX_HATS.map(k => S.hats[k]).map(h => [
     distinct([[0, 0, 0]].concat((h.anims || []).filter(a => a.kind === 'idle').flatMap(a => a.ticks))),
     distinct([0].concat(h.walk || [], h.away === undefined ? [] : [h.away]).map(i => [i, 0, 0]))]);
   const reach = new Map();                   // buildKey -> where that build goes
-  for (const feet of picks) {
+  const sample = [], fullSample = [];        // the builds the compact and full boxes are worked out from
+  for (const feet of feetPicks) {
     for (const hair of picks.concat([{ ...NONE }])) {
       const build = { hair, feet, eyes: { v: 0, borrowed: false }, nose: { v: 0, borrowed: false } };
-      const each = [undefined, ...S.hats.keys()].map(() => empty());   // no hat, then each hat
+      const each = [undefined, ...BOX_HATS].map(() => empty());   // no hat, then each hat
       const walk = walkOf(kind, build), special = specialOf(kind, build);
       const clips = walk.dirs.map((ticks, d) => ({ ticks, walk: true, faces: facesAt(walk.faces, d) }))
         .concat(idlesOf(kind).concat(special ? [special] : []).map(ticks => ({ ticks, walk: false })));
@@ -1066,30 +1239,45 @@ function boxes(kind) {
           const bb = drawnBounds(kind, build, pose, seat);
           for (const box of each) take(box, bb.l, bb.t, bb.r, bb.b);
           hatTicks.forEach((ticks, k) => {
-            for (const v of ticks[c.walk ? 1 : 0].flatMap(t => hatOn(seat.body, k, seat.hair, Object.assign({}, pose, { hat: t }), seat.left))) {
+            for (const v of ticks[c.walk ? 1 : 0].flatMap(t => hatOn(seat.body, BOX_HATS[k], seat.hair, Object.assign({}, pose, { hat: t }), seat.left))) {
               const [, , w, h] = rect(v.sprite), x = pose.dx - v.rx, y = pose.dy - v.ry;
               take(each[k + 1], x, y, x + w, y + h);
             }
           });
         }
       }
-      each.forEach((box, k) => reach.set(buildKey(Object.assign({}, build, { hat: k ? k - 1 : undefined })), box));
+      each.forEach((box, k) => {
+        reach.set(buildKey(Object.assign({}, build, { hat: k ? BOX_HATS[k - 1] : undefined })), box);
+        if ((!k || BOX_HATS[k - 1] < COMPACT_HATS) && feet.v < 5) sample.push(box);
+        if ((!k || BOX_HATS[k - 1] < COMPACT_HATS) && feet.v < 5) fullSample.push(box);
+      });
     }
   }
-  const all = [...reach.values()];
+  const all = sample;
   const full = Object.assign({}, fb), compact = Object.assign({}, fb);
-  for (const box of all) take(full, box.l, box.t, box.r, box.b);
+  for (const box of fullSample) take(full, box.l, box.t, box.r, box.b);
   const at = (values, sign) => sign * values.map(v => sign * v).sort((a, b) => a - b)[Math.floor(values.length * COMPACT)];
   take(compact, at(all.map(b => b.l), -1), at(all.map(b => b.t), -1), at(all.map(b => b.r), 1), at(all.map(b => b.b), 1));
   return (boxesOf[kind] = { full, compact, reach });
 }
 const buildKey = build => ['feet', 'hair'].map(f => build[f].none ? 'x' : (build[f].borrowed ? 'b' : '') + build[f].v)
-  .concat(build.hat === undefined ? '-' : build.hat).join('|');
+  .concat(headOf(build) === undefined ? '-' : BOX_HATS.includes(headOf(build)) ? headOf(build) : hatRoot(headOf(build))).join('|');
+// the first thing worn on the head, which the boxes are worked out for
+const headOf = build => (build.extras || []).find(k => !S.hats[k].on);
 // The box the window fits this build in: the compact one if its moves stay
 // inside it, else the full one.
+// A build in one of the hats added since, or feet from elsewhere, that goes
+// further than the full box gets the full box grown to take it in.
 function boxFor(kind, build) {
+  const box = boxFor1(kind, build), bb = drawnBounds(kind, build);
+  return { l: Math.min(box.l, bb.l), t: Math.min(box.t, bb.t), r: Math.max(box.r, bb.r), b: Math.max(box.b, bb.b) };
+}
+function boxFor1(kind, build) {
   const { full, compact, reach } = boxes(kind), own = reach.get(buildKey(build));
-  return own && own.l >= compact.l && own.t >= compact.t && own.r <= compact.r && own.b <= compact.b ? compact : full;
+  const inside = box => own && own.l >= box.l && own.t >= box.t && own.r <= box.r && own.b <= box.b;
+  if (!own || inside(compact)) return own ? compact : full;
+  if (inside(full)) return full;
+  return { l: Math.min(full.l, own.l), t: Math.min(full.t, own.t), r: Math.max(full.r, own.r), b: Math.max(full.b, own.b) };
 }
 
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
@@ -1132,7 +1320,7 @@ function drawPreview() {
   ctx.clearRect(0, 0, preview.width, preview.height);
   if (sheet.complete) {
     const bb = fitBounds[state.kind];
-    const drawn = pose.walk ? pose.faces : S.characters[state.kind].faces.rest;
+    const drawn = framesFace(state.kind, pose);
     const axis = heading && heading !== drawn ? origin.x + (bb.l + bb.r) / 2 : null;
     drawCharacter(ctx, state.kind, state.build[state.kind],
                   origin.x + pose.dx, origin.y + pose.dy, 1, pose, axis);
@@ -1197,7 +1385,10 @@ function layoutTiles() {
   const gap = parseFloat(cs.getPropertyValue('--set-gap'));
   const noneGap = parseFloat(cs.getPropertyValue('--none-gap'));
   let fit = (rowsEl.clientWidth - 4 * gap - noneGap) / 6;
-  if (window.matchMedia('(max-width: 900px)').matches) fit = Math.min(fit, viewHeight() * 0.115);
+  // (a panel with the parts from elsewhere has three lines: the same share
+  // of the screen, split three ways)
+  const lines = Math.max(2, ...[...document.querySelectorAll('.feature .sets')].map(s => s.children.length));
+  if (window.matchMedia('(max-width: 900px)').matches) fit = Math.min(fit, viewHeight() * 0.23 / lines);
   const dpr = window.devicePixelRatio || 1;
   const n = Math.min(2 * dpr, Math.max(1, Math.floor(fit * dpr / 40)));
   box.style.setProperty('--tile', n * 40 / dpr + 'px');
@@ -1222,7 +1413,8 @@ const el = (tag, cls) => Object.assign(document.createElement(tag), cls ? { clas
 // the colours its pickers change (see colour_groups() in the exporter) - or
 // null for none.
 function partOf(kind, build, feat) {
-  if (feat === 'hat') return build.hat === undefined ? null : S.hats[build.hat];
+  if (feat.startsWith('hat:')) return S.hats[+feat.slice(4)] || null;
+  if (feat === 'extras' || feat === 'hat') return null;
   const pick = build[feat];
   if (!pick || pick.none) return null;
   const ch = S.characters[kind];
@@ -1257,7 +1449,10 @@ const nameOf = (feat, pick) => pick.none ? 'no ' + feat
 // the picked part's colours and the lock that keeps it when the dice rolls.
 // A pick is kept as {v, borrowed} against the body (see state), so a tile's
 // pick depends on the body.
-const ROWS = ['body'].concat(FEATURES, ['hat']);
+// The tabs: the body, the parts, then the extras - everything else, worn
+// together (Sam): the hats, stacked in the order they go on, and the crab on
+// the face, the bee and the wings on the back, the bubble round it all.
+const ROWS = ['body'].concat(FEATURES, ['extras']);
 const KINDS = ['zoombini', 'fleen'];
 // The Fleen's tiles in the order of the Zoombini's they match, each under
 // its own - Sam's pairing: Shaggy over Grass tuft, One eye over Stacked
@@ -1284,6 +1479,14 @@ const ICONS = {
           '#oo#.#oo#', '####.####'],
   play: ['##.......', '#o##.....', '#ooo##...', '#ooooo##.', '#ooooooo#', '#ooooo##.', '#ooo##...',
          '#o##.....', '##.......'],
+  // a speaker, sounding or crossed out
+  sound: ['.....##.....', '....#o#...#.', '...#oo#.#..#', '####oo#..#.#', '#oo#oo#..#.#', '#oo#oo#..#.#',
+          '#oo#oo#..#.#', '####oo#..#.#', '...#oo#.#..#', '....#o#...#.', '.....##.....'],
+  mute: ['.....##.....', '....#o#.....', '...#oo#.....', '####oo##...#', '#oo#oo#.#.#.', '#oo#oo#..#..',
+         '#oo#oo#.#.#.', '####oo##...#', '...#oo#.....', '....#o#.....', '.....##.....'],
+  // a star, as the dazed have circling them
+  tumble: ['....#....', '...#o#...', '####o####', '#ooooooo#', '.#ooooo#.', '..#ooo#..', '.#oo#oo#.',
+           '.#o#.#o#.', '.##...##.'],
 };
 function drawIcon(ctx, icon, on, fill, x0 = 0, y0 = 0, scale = 1) {
   ICONS[icon].forEach((row, y) => [...row].forEach((c, x) => {
@@ -1335,18 +1538,164 @@ const tabsEl = document.getElementById('tabs');
 const tabs = {};                          // row -> its tab, with a padlock that shows when it is kept
 let openRow = 'body';
 
+// The extras' panel: HAT_ROW tiles to a line, HAT_LINES lines to a page,
+// and under it the line of the extra's options - two lines, as the other
+// panels have, so the window keeps its height on a phone.
+const HAT_ROW = 6, HAT_LINES = 1;
+// Put hat v on: its own sound, if the game gives it one, and its arrival -
+// mud falls into place, an acorn drops - from its first tick, so the hat is
+// not seen already there. An option of the same hat (a topping, its other
+// colours) only clicks.
+// The meals: any of the whole meal's ten layers at once - the pizza, its
+// toppings, the sundae and its - each meal a hat made here the first time
+// it is asked for, from the whole meal's pieces (see the exporter's
+// MEAL_LAYERS), seated as the game seats a meal: on its plate if it has
+// one; else as the sundae sits, on its glass; else on its lowest topping.
+// The five meal hats of the game's keep their numbers.
+const MEAL_ROOT = S.hats.findIndex(h => h.options && h.options.toppings);
+const WHOLE_MEAL = S.hats.findIndex(h => h.whole);
+const MEAL_SUNDAE = S.hats.findIndex(h => h.option && h.option.layers && h.option.layers.join() === '6,7,8,9');
+const mealHats = new Map();
+function mealHat(layers, root = layers.includes(0) ? MEAL_ROOT : MEAL_SUNDAE) {
+  layers = [...layers].sort((a, b) => a - b);
+  const key = layers.join();
+  const known = [...S.hats.keys()].find(j => !S.hats[j].whole && S.hats[j].option && S.hats[j].option.layers
+    && S.hats[j].option.layers.join() === key);
+  if (known !== undefined) return known;
+  if (mealHats.has(key)) return mealHats.get(key);
+  const whole = S.hats[WHOLE_MEAL], names = Object.assign({}, S.hats[MEAL_ROOT].options.toppings, S.hats[MEAL_SUNDAE].options.toppings, { 0: 'pizza' });
+  const base = layers.includes(0) ? null : layers.includes(6) ? 6
+    : layers.reduce((a, n) => whole.boxes[n][3] > whole.boxes[a][3] ? n : a);
+  const [l, , r, b] = base === null ? [0, 0, 0, 0] : whole.boxes[base];
+  const sx = base === null ? 0 : -(l + r) / 2, sy = base === null ? 0 : -b;
+  const h = Object.assign({}, whole, {
+    name: layers.map(n => names[n]).join(', '), whole: undefined, family: root, option: { layers },
+    sets: whole.sets.map(set => layers.map(n => Object.assign({}, set[n], { dx: set[n].dx + sx, dy: set[n].dy + sy }))),
+    flat: base === null, sink: base === null ? whole.sink : base === 6 ? S.hats[MEAL_SUNDAE].sink : 3,
+    groups: (base === null ? S.hats[MEAL_ROOT] : S.hats[MEAL_SUNDAE]).groups,
+  });
+  S.hats.push(h);
+  mealHats.set(key, S.hats.length - 1);
+  return S.hats.length - 1;
+}
+const mealBits = layers => layers.reduce((m, n) => m | 1 << n, 0);
+const mealLayers = bits => [...Array(10).keys()].filter(n => bits & 1 << n);
+
+// The extras, worn together: put on with its own sound and arrival (the crab
+// leaping onto the face), taken off with the builder's click.
+function toggleExtra(v) {
+  const build = state.build[state.kind];
+  const worn = (build.extras || []).find(k => hatRoot(k) === v);
+  // worn already, with options (a meal's layers, shapes, colours) and not the
+  // one they show: it is chosen, to change; tapped again, it comes off
+  if (worn !== undefined && S.hats[v].options && focusOf(build) !== worn) {
+    build.extraFocus = worn;
+    sounds.builder('put');
+    update();
+    return;
+  }
+  const on = worn !== undefined;
+  build.extras = on ? build.extras.filter(k => k !== worn) : (build.extras || []).concat([v]);
+  if (on) resetColours('hat:' + worn);
+  build.extraFocus = on ? undefined : v;
+  sounds.builder(on ? 'off' : 'put');
+  if (!on) {
+    sounds.hat(S.hats[v], 'pick');
+    startExtraClip(v, 'arrive');
+  }
+  update();
+}
+// one extra for another of its family (the crab's tattoos)
+function swapExtra(from, to, sound) {
+  const build = state.build[state.kind];
+  build.extras = (build.extras || []).map(k => k === from ? to : k);
+  build.extraFocus = to;
+  resetColours('hat:' + from);
+  if (sound === 'put' || sound === 'off') sounds.builder(sound);
+  else sounds.play(sound);
+  update();
+}
+// The options line, under the hats, for a hat with other forms: a meal's
+// toppings, each on or off, and the other kind of meal to switch to; the
+// game's colourings of a hat, one each; or a hat's shapes (the toadstools,
+// the mud), one each, the one on stepping through its colours a tap at a
+// time, as the game's toadstools do.
+function paintHatOptions(t, build, k, put) {
+  const focused = document.activeElement && t.options.contains(document.activeElement)
+    ? document.activeElement.dataset.key : null;
+  t.options.textContent = '';
+  if (k === undefined) return;
+  const root = hatRoot(k), first = S.hats[root], now = S.hats[k], family = familyOf(root).filter(j => !S.hats[j].whole);
+  const add = (key, label, tile, pressed, click, small = false) => {
+    const b = tileButton(label, click);
+    if (small) b.classList.add('small');
+    b.dataset.key = key;
+    b.setAttribute('aria-pressed', pressed);
+    paintTile(b.firstChild, tile[pressed ? 1 : 0]);
+    t.options.appendChild(b);
+    if (key === focused) b.focus();
+  };
+  if (first.options && first.options.toppings) {
+    // its layers, each on or off: the pizza's toppings (on its plate, always),
+    // the sundae's glass and its three
+    const has = new Set(now.option.layers), whole = S.hats[WHOLE_MEAL];
+    for (const [layer, name] of Object.entries(first.options.toppings)) {
+      add('t' + layer, titled(name.replace(/^a /, '')), whole.tiles[layer], has.has(+layer), () => {
+        const want = new Set(has), on = !want.has(+layer);
+        if (on) want.add(+layer); else want.delete(+layer);
+        if (![...want].some(n => !first.options.fixed.includes(n)) && !first.options.fixed.length) return;
+        // a topping goes on with its own sound, as the game's machine adds it
+        put(mealHat(want, root), on ? first.options.sounds[layer] || 'put' : 'off');
+      });
+    }
+  } else if (first.options === 'colours') {
+    for (const j of family) {
+      add('c' + j, titled(S.hats[j].option.colours), S.hats[j].tile, j === k,
+          () => put(j, S.hats[j].variantPick || 'put'));
+    }
+  } else if (first.options === 'forms') {
+    const forms = [...new Set(family.map(j => S.hats[j].option.form))];
+    for (const form of forms) {
+      const members = family.filter(j => S.hats[j].option.form === form);
+      const on = now.option.form === form;
+      add('f' + form, titled(form), S.hats[on ? k : members[0]].tile, on, () => {
+        if (!on) { put(members[0], 'put'); return; }
+        const next = members[(members.indexOf(k) + 1) % members.length];
+        if (next !== k) put(next, S.hats[next].variantPick || 'put');
+      });
+    }
+  }
+}
+
+// An easter egg: Captain Cajun's big frog feet, which have no tile (Sam:
+// "some kind of easter egg to save space on rows"). Tapping no feet three
+// times quickly on a Zoombini puts them on, and the Captain speaks.
+let eggTaps = [];
+function eggTap() {
+  const now = Date.now();
+  eggTaps = eggTaps.filter(t => now - t < 900).concat([now]);
+  if (eggTaps.length < 3 || state.kind !== 'zoombini') return;
+  eggTaps = [];
+  const v = S.characters.zoombini.borrowed.feet.findIndex(e => e.egg);
+  if (v < 0) return;
+  state.build.zoombini.feet = { v, borrowed: true };
+  resetColours('feet');
+  sounds.play(S.sounds.egg);
+  endClip();
+  update();
+}
+
 function buildTiles() {
   rowsEl.textContent = '';
   tabsEl.textContent = '';
   tiles = {};
   for (const feat of ROWS) {
-    const Feat = titled(feat);
     const tab = tabs[feat] = el('button', 'stone tab');
     tab.id = 'tab-' + feat;
     tab.setAttribute('role', 'tab');
     tab.setAttribute('aria-controls', 'panel-' + feat);
     const word = el('span');
-    word.textContent = Feat;
+    word.textContent = titled(feat);
     tab.kept = el('canvas');
     tab.kept.title = 'Kept when the dice rolls';
     paintIcon(tab.kept, 'keep', false);
@@ -1360,41 +1709,44 @@ function buildTiles() {
     panel.setAttribute('aria-labelledby', tab.id);
     const t = tiles[feat] = [];
     t.panel = panel;
-    const tilesEl = el('div', 'tiles'), sets = el('div', 'sets');
-    if (feat === 'hat') {
-      // the hats on the body that is picked: Pizza Pass's on one line, the
-      // ones from elsewhere on the next
-      let set = null;
-      const pizza = hat => hat.place === 'Pizza Pass';
-      // in the exporter's order (hatOrder); v is still the hat's number
-      (S.hatOrder || [...S.hats.keys()]).forEach((v, i, order) => {
-        const hat = S.hats[v];
-        if (!i || pizza(hat) !== pizza(S.hats[order[i - 1]])) {
-          set = el('div', 'set');
-          sets.appendChild(set);
+    const worn = feat === 'extras';
+    const tilesEl = el('div', 'tiles'), sets = el('div', worn ? 'pages' : 'sets');
+    if (worn) {
+      // the hats (or extras) in the exporter's order (hatOrder; v is the
+      // hat's number), HAT_ROW to a line, the first ended by none -
+      // HAT_LINES lines a page, turned with the arrows in the panel's foot
+      const lines = [];
+      S.hatOrder.forEach(v => {
+        const line = lines[lines.length - 1];
+        if (!line || line.length >= (lines.length === 1 ? HAT_ROW - 1 : HAT_ROW)) lines.push([v]);
+        else line.push(v);
+      });
+      t.pages = [];
+      t.page = 0;
+      lines.forEach((line, n) => {
+        if (n % HAT_LINES === 0) {
+          const page = el('div', 'sets hat-page');
+          t.pages.push(page);
+          sets.appendChild(page);
         }
-        const b = tileButton(titled(hat.name) + ' (from ' + hat.place + ')', () => {
-          state.build[state.kind].hat = v;
-          resetColours('hat');
-          // mud falls into place, an acorn drops - from its first tick, so
-          // the hat is not seen already there
-          const [arrive] = hatClips(state.build[state.kind], 'arrive');
-          if (arrive && !paused) {
-            startClip(arrive);
-            Object.assign(pose, poseAt(arrive, arrive.ticks[0]));
-          }
-          update();
-        });
-        set.appendChild(b);
-        t.push({ b, v });
+        const set = el('div', 'set');
+        t.pages[t.pages.length - 1].appendChild(set);
+        for (const v of line) {
+          const b = tileButton(titled(S.hats[v].name) + ' (from ' + S.hats[v].place + ')',
+                               () => toggleExtra(v));
+          set.appendChild(b);
+          t.push({ b, v, page: t.pages.length - 1 });
+        }
       });
     } else {
       for (const kind of KINDS) {
         const set = el('div', 'set');
-        const order = kind === 'fleen' && FLEEN_ORDER[feat] || S.characters[kind].buttons[feat].map((_, v) => v);
+        // the character's own five (its buttons go on with the parts from elsewhere)
+        const order = kind === 'fleen' && FLEEN_ORDER[feat] || S.characters[kind].buttons[feat].slice(0, 5).map((_, v) => v);
         order.forEach(v => {
           const name = feat === 'body' ? LABEL[kind] : S.characters[kind].names[feat][v] + ' (' + LABEL[kind] + ')';
           const b = tileButton(name, () => {
+            sounds.builder('put');
             // a tile is that part as it comes, its own colours too
             if (feat === 'body') setBody(kind);
             else state.build[state.kind][feat] = { v, borrowed: kind !== state.kind };
@@ -1407,31 +1759,69 @@ function buildTiles() {
         });
         sets.appendChild(set);
       }
+      // then the parts from elsewhere (only feet have any), on whichever
+      // body, in the column with none - but not an easter egg, which has no
+      // tile (see eggTap)
+      const names = S.characters.zoombini.names[feat] || [];
+      if (names.length > 5) {
+        const set = t.side = el('div', 'sets side');
+        for (let v = 5; v < names.length; v++) {
+          if (S.characters.zoombini.borrowed[feat][v].egg) continue;
+          const b = tileButton(names[v], () => {
+            sounds.builder('put');
+            state.build[state.kind][feat] = { v, borrowed: true };
+            resetColours(feat);
+            endClip();
+            update();
+          });
+          set.appendChild(b);
+          t.push({ b, v, kind: 'elsewhere' });
+        }
+      }
     }
     tilesEl.appendChild(sets);
-    // none, as a tile of its own (the body has none)
-    if (feat !== 'body') {
-      t.none = tileButton(feat === 'hat' ? 'No hat' : 'No ' + feat, () => {
-        if (feat === 'hat') state.build[state.kind].hat = undefined;
-        else state.build[state.kind][feat] = { ...NONE };
-        resetColours(feat);
-        endClip();
-        update();
-      });
-      // the hats' second line is six long, so their none ends the first
-      if (feat === 'hat') sets.firstChild.appendChild(t.none);
-      else tilesEl.appendChild(t.none);
+    if (worn) {
+      // under the pages, what the one picked can change: a meal's layers,
+      // a hat's shapes, the colours the game also has it in (paintHatOptions)
+      t.options = el('div', 'set options');
+      tilesEl.classList.add('stacked');
+      tilesEl.appendChild(t.options);
     }
+    // none, as a tile of its own (the body has none)
+    if (feat !== 'body') t.none = tileButton(feat === 'extras' ? 'No extras' : 'No ' + feat, () => {
+      sounds.builder('off');
+      if (feat === 'extras') state.build[state.kind].extras = [];
+      else state.build[state.kind][feat] = { ...NONE };
+      resetColours(feat);
+      endClip();
+      update();
+    });
+    if (worn) (t.pages[0] ? t.pages[0].firstChild : sets).appendChild(t.none);
+    else if (t.side) { t.side.prepend(t.none); tilesEl.appendChild(t.side); }
+    else if (t.none) tilesEl.appendChild(t.none);
+    if (feat === 'feet') t.none.addEventListener('click', eggTap);
     const controls = el('div', 'controls');
     t.colours = [0, 1].map(k => {
-      const c = colourPlaque(value => { setColour(feat, k, value); update(); });
+      const c = colourPlaque(value => { setColour(colourKey(feat), k, value); update(); });
       controls.appendChild(c);
       return c;
     });
     controls.appendChild(el('div', 'spacer'));
-    if (feat !== 'hat') {
-      // a hat is left alone when the dice rolls, and has no lock
-      t.lock = el('button', 'stone ctrl');
+    if (worn && t.pages.length > 1) {
+      t.pager = el('div', 'pager');
+      const turn = d => () => { t.page = (t.page + d + t.pages.length) % t.pages.length; paintTiles(); };
+      const back = el('button', 'stone ctrl'), on = el('button', 'stone ctrl'), count = el('span', 'count');
+      back.innerHTML = '<span class="arrow left"></span>';
+      on.innerHTML = '<span class="arrow right"></span>';
+      back.title = 'The page before'; on.title = 'The next page';
+      back.setAttribute('aria-label', back.title); on.setAttribute('aria-label', on.title);
+      back.addEventListener('click', turn(-1));
+      on.addEventListener('click', turn(1));
+      t.pager.append(back, count, on);
+      controls.appendChild(t.pager);
+    }
+    {
+      t.lock = el('button', 'stone ctrl keep');
       t.lock.title = 'Keep this ' + feat + ' when the dice rolls';
       const keep = el('span');
       keep.textContent = 'Keep';
@@ -1442,7 +1832,8 @@ function buildTiles() {
       });
       controls.appendChild(t.lock);
     }
-    panel.append(tilesEl, controls);
+    panel.prepend(tilesEl);
+    panel.append(controls);
     rowsEl.appendChild(panel);
   }
   openTab(openRow);
@@ -1453,6 +1844,10 @@ function buildTiles() {
 // along with the arrow keys, as tabs are.
 function openTab(feat, focus = false) {
   openRow = feat;
+  const b = state.build[state.kind], t = tiles[feat];
+  const worn = feat === 'extras' ? (b.extras || []).map(hatRoot) : [];
+  const x = t && t.pages && t.find(x => worn.includes(x.v));
+  if (x) { t.page = x.page; paintTiles(); }
   for (const f of ROWS) {
     const on = f === feat;
     tabs[f].setAttribute('aria-selected', on);
@@ -1477,38 +1872,54 @@ function setBody(kind) {
   const old = state.kind;
   state.build[kind] = Object.fromEntries(FEATURES.map(f => {
     const pick = state.build[old][f];
+    if (elsewhere(pick)) {
+      const only = S.characters[kind].borrowed[f][pick.v].only;
+      return [f, only && only !== kind ? { v: 0, borrowed: false } : pick];
+    }
     return [f, pick.none ? pick : { v: pick.v, borrowed: (pick.borrowed ? OTHER[old] : old) !== kind }];
   }));
   state.build[kind].skin = state.build[old].skin;
   state.build[kind].colours = state.build[old].colours;
   state.build[kind].hat = state.build[old].hat;
+  state.build[kind].extras = state.build[old].extras;
   state.name[kind] = state.name[old];
   state.kind = kind;
   heading = START_HEADING;
 }
+
+// The extra the Extras tab's options and colours are for: the last put on
+// or changed, or the last worn.
+const focusOf = build => (build.extras || []).includes(build.extraFocus) ? build.extraFocus
+  : (build.extras || []).slice(-1)[0];
+const colourKey = feat => feat === 'extras' ? 'hat:' + focusOf(state.build[state.kind]) : feat;
 
 function paintTiles() {
   const build = state.build[state.kind];
   for (const feat of ROWS) {
     const t = tiles[feat], pick = build[feat] || {};
     for (const x of t) {
-      const on = feat === 'hat' ? build.hat === x.v
-        : !pick.none && (feat === 'body' ? x.kind === state.kind
-          : pick.v === x.v && (pick.borrowed ? OTHER[state.kind] : state.kind) === x.kind);
+      const on = feat === 'body' ? x.kind === state.kind
+        : feat === 'extras' ? (build.extras || []).some(k => hatRoot(k) === x.v)
+        : x.kind === 'elsewhere' ? elsewhere(pick) && pick.v === x.v
+        : !pick.none && pick.v === x.v && (pick.borrowed ? OTHER[state.kind] : state.kind) === x.kind;
       x.b.setAttribute('aria-pressed', on);
-      paintTile(x.b.firstChild, feat === 'hat' ? S.characters[state.kind].buttons.hat[x.v][on ? 1 : 0]
+      paintTile(x.b.firstChild, feat === 'extras' ? S.characters[state.kind].buttons.hat[x.v][on ? 1 : 0]
+        : x.kind === 'elsewhere' ? S.characters[state.kind].buttons[feat][x.v][on ? 1 : 0]
         : S.characters[x.kind].buttons[feat][x.v][on ? 1 : 0]);
+      // a part from elsewhere only some bodies wear (Captain Cajun's feet: a Zoombini's)
+      const only = x.kind === 'elsewhere' && S.characters[state.kind].borrowed[feat][x.v].only;
+      x.b.hidden = !!only && only !== state.kind;
     }
     if (t.none) {
-      const on = feat === 'hat' ? build.hat === undefined : !!pick.none;
-      t.none.setAttribute('aria-pressed', on);
-      paintNone(t.none.firstChild, on);
+      const none = feat === 'extras' ? !(build.extras || []).length : !!pick.none;
+      t.none.setAttribute('aria-pressed', none);
+      paintNone(t.none.firstChild, none);
     }
-    const groups = feat === 'body' ? [{ ref: NATURAL_SKIN[state.kind].slice(1) }] : groupsOf(state.kind, build, feat);
+    const groups = feat === 'body' ? [{ ref: NATURAL_SKIN[state.kind].slice(1) }] : groupsOf(state.kind, build, colourKey(feat));
     t.colours.forEach((c, k) => {
       c.hidden = k >= groups.length;
       if (c.hidden) return;
-      const hex = colourPick(build, feat, k) || '#' + groups[k].ref;
+      const hex = colourPick(build, colourKey(feat), k) || '#' + groups[k].ref;
       const word = feat === 'body' ? 'Skin' : groups.length > 1 ? 'Colour ' + (k + 1) : 'Colour';
       const label = feat === 'body' ? 'Skin colour' : titled(feat) + ' ' + word.toLowerCase();
       c.querySelector('span').textContent = word;
@@ -1518,6 +1929,12 @@ function paintTiles() {
       input.value = hex;
       paintIcon(c.firstChild, 'colour', false, hex, 2);
     });
+    if (t.pages) {
+      t.pages.forEach((page, n) => page.classList.toggle('shown', n === t.page));
+      if (t.pager) t.pager.querySelector('.count').textContent = (t.page + 1) + ' / ' + t.pages.length;
+      const focus = focusOf(build);
+      paintHatOptions(t, build, focus, (v, sound) => swapExtra(focus, v, sound));
+    }
     if (t.lock) {
       t.lock.setAttribute('aria-pressed', locks[feat]);
       paintIcon(t.lock.firstChild, locks[feat] ? 'keep' : 'roll', locks[feat], null, 2);
@@ -1563,12 +1980,19 @@ for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
   dice.addEventListener(ev, () => { if (diceHeld) { diceHeld = false; paintDice(); } });
 }
 dice.addEventListener('click', () => {
+  sounds.builder('dice');
   if (!locks.body) {
     setBody(KINDS[Math.floor(Math.random() * 2)]);
     state.build[state.kind].skin = undefined;
   }
-  const fresh = randomBuild();
-  for (const f of FEATURES) if (!locks[f]) { state.build[state.kind][f] = fresh[f]; resetColours(f); }
+  const fresh = randomBuild(), build = state.build[state.kind];
+  for (const f of FEATURES) if (!locks[f]) { build[f] = fresh[f]; resetColours(f); }
+  // a hat half the time, and each other extra about one time in three
+  if (!locks.extras) {
+    const heads = S.hatOrder.filter(v => !S.hats[v].on), rest = S.hatOrder.filter(v => S.hats[v].on);
+    build.extras = (Math.random() < 0.5 ? [heads[Math.floor(Math.random() * heads.length)]] : [])
+      .concat(rest.filter(() => Math.random() < 1 / 3));
+  }
   state.name[state.kind] = makeName();
   endClip();
   update();
@@ -1582,6 +2006,132 @@ document.getElementById('btn-name').addEventListener('click', () => {
   state.name[state.kind] = makeName();
   update();
 });
+
+// ---- sounds ------------------------------------------------------------
+
+// The game's own sounds (sounds/, from the exporter's export_sounds), each
+// fetched the first time it plays. A Zoombini has a voice that goes with its
+// looks - each of the game's kinds of thing it says is recorded 25 times, one
+// for each hair and nose - and says something when clicked, as the builder's
+// big Zoombini does, as an idle starts, and crying out landing from a
+// tumble. A Fleen chatters instead, one of the Fleens' own at random. Feet
+// sound as whose they are, on either body: a Zoombini's step as the same
+// walks do in other scenes, a Fleen's as its run does (and, running away, as
+// it leaves). Hats play what the game plays with them, put on and in their
+// animations; a topping goes on with its own. The tiles and the dice click
+// as the builder's do. Sound is on unless
+// turned on with the window's Sound plaque - it starts off (Sam, 1 October
+// 2026) - and this browser remembers which. Nothing plays until the page is
+// first clicked or a key pressed, as browsers ask.
+const SOUND_KEY = 'zoombini-maker-muted';
+const sounds = (() => {
+  let ctx = null, muted = true, feet = null;
+  try { muted = localStorage.getItem(SOUND_KEY) !== '0'; } catch (e) { muted = true; }
+  const buffers = new Map();
+  function context() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+    }
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return ctx;
+  }
+  // a sound's samples, or null if it cannot be had (opened from file://)
+  function load(file) {
+    if (!buffers.has(file)) {
+      buffers.set(file, fetch('sounds/' + file + '.wav')
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+        .then(b => new Promise((resolve, reject) => ctx.decodeAudioData(b, resolve, reject)))
+        .catch(() => { buffers.delete(file); return null; }));
+    }
+    return buffers.get(file);
+  }
+  // play a sound; stop() on what comes back fades it out
+  function play(file) {
+    const handle = { stopped: false };
+    handle.stop = () => { handle.stopped = true; };
+    if (muted || !context()) return handle;
+    load(file).then(buf => {
+      if (!buf || handle.stopped || muted) return;
+      const src = ctx.createBufferSource(), gain = ctx.createGain();
+      src.buffer = buf;
+      src.connect(gain).connect(ctx.destination);
+      src.start();
+      handle.stop = () => {
+        gain.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
+        src.stop(ctx.currentTime + 0.2);
+      };
+    });
+    return handle;
+  }
+  const pick = list => list[Math.floor(Math.random() * list.length)];
+  // what a Zoombini of these looks says, of the game's kinds; a borrowed
+  // hair or nose by its number, none as the first
+  function voice(build, kind) {
+    const V = S.sounds.voice, v = f => build[f].none || build[f].v >= 5 ? 0 : build[f].v;
+    return 'ZOOMBINI-' + (V.bases[kind] + V.hair[v('hair')] + v('nose'));
+  }
+  const chatter = () => 'FLEENS-' + pick(S.sounds.chatter);
+  function stopFeet() { if (feet) { feet.stop(); feet = null; } }
+  return {
+    get muted() { return muted; },
+    setMuted(m) {
+      muted = m;
+      if (m) stopFeet();
+      try { localStorage.setItem(SOUND_KEY, m ? '1' : '0'); } catch (e) { /* not remembered */ }
+    },
+    wake: context,
+    builder: what => play('PICKER-' + S.sounds.builder[what]),
+    play: file => play(file),
+    // a hat's own, as it is put on
+    hat(h, what) { if (h && h[what]) play(h[what]); },
+    // a clip's cues ([tick, file]) for this tick
+    cues(c, at) { for (const [t, f] of c.sounds || []) if (t === at) play(f); },
+    // clicked: something it says, or a Fleen's chatter
+    speak(kind, build) {
+      play(kind === 'zoombini' ? voice(build, Math.floor(Math.random() * S.sounds.voice.says)) : chatter());
+    },
+    // each tick of a clip: the feet walking, a word as an idle starts, a
+    // tumble's cry, a hat's own
+    onPose(p, c, at) {
+      const kind = state.kind, build = state.build[kind], f = build.feet, snd = S.sounds;
+      if (c.walk && !f.none && f.v < 5) {
+        // the feet sound as whose they are, on either body: a Fleen's run
+        // (and as it runs away, its leaving), or a Zoombini's steps
+        if ((kind === 'fleen') !== f.borrowed) {
+          if (at === 0) {
+            stopFeet();
+            if (c.fast) play('FLEENS-' + snd.fleenLeave[f.v]);
+            feet = play('FLEENS-' + snd.fleenFeet[f.v]);
+          }
+          if (f.v === snd.fleenRattle.feet && snd.fleenRattle.ticks.includes(at)) play('FLEENS-' + snd.fleenRattle.sound);
+        } else {
+          const steps = snd.zoombiniFeet[f.v];
+          for (const [t, file] of steps.cues) if (at % steps.loop === t) play(file);
+        }
+      }
+      const idle = !c.walk && !c.hat && !c.tumble ? S.characters[kind].idles.indexOf(c.ticks) : -1;
+      if (idle >= 0 && kind === 'zoombini' && at === 0) play(voice(build, pick(snd.voice.idle)));
+      if (idle >= 0 && kind === 'fleen' && snd.fleenIdleChatter[idle] === at) play(chatter());
+      if (p.tumble && p.tumble[4] >= 0) play(kind === 'zoombini' ? voice(build, p.tumble[4]) : chatter());
+      this.cues(c, at);
+    },
+    stopFeet,
+  };
+})();
+// the first click or key lets the page make sounds
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => sounds.wake(), { once: true, capture: true });
+const muteBtn = document.getElementById('btn-sound');
+function paintMute() {
+  paintIcon(muteBtn.firstChild, sounds.muted ? 'mute' : 'sound', !sounds.muted);
+  muteBtn.lastChild.textContent = sounds.muted ? 'Sound off' : 'Sound on';
+  muteBtn.title = sounds.muted ? 'Turn the sound on' : 'Turn the sound off';
+  muteBtn.setAttribute('aria-label', 'Sound');
+  muteBtn.setAttribute('aria-pressed', !sounds.muted);
+}
+muteBtn.addEventListener('click', () => { sounds.setMuted(!sounds.muted); paintMute(); });
+preview.addEventListener('click', () => sounds.speak(state.kind, state.build[state.kind]));
 
 // ---- idling ------------------------------------------------------------
 
@@ -1634,10 +2184,27 @@ const poseAt = (clip, t) => clip.walk
   ? Object.assign({}, REST, { walk: t, dx: t[0], dy: t[1], faces: clip.faces })
   : clip.hat ? Object.assign({}, REST, { hat: t })
   : Object.assign({}, REST, { eyes: t[0], dx: t[1], dy: t[2], facing: t[3], feet: t[4] });
-// A hat's animations of a kind - 'idle' (now and then) or 'arrive' (when
-// picked) - as clips.
-const hatClips = (build, kind) => ((S.hats[build.hat] || {}).anims || [])
-  .filter(a => a.kind === kind).map(a => ({ ticks: a.ticks, walk: false, hat: true }));
+// The tumble as poses: the character's ticks (tumble_clip in the exporter),
+// then standing again. Its tumbling frames face right, a Fleen's too (the
+// exporter turns it first, about its origin; the window turns figures about
+// the middle of their standing box, so its ticks move over by twice that).
+// A hat is knocked off as the spin starts, flies up and back out of sight,
+// and comes down again once the character is up: its own arrival if it has
+// one (mud, an acorn), else a drop straight down.
+const HAT_FLIGHT = [[0, -2, -6], [0, -5, -14], [0, -9, -25], [0, -13, -39]];
+const HAT_DROP = [[0, 0, -30], [0, 0, -17], [0, 0, -7], [0, 0, 0]];
+function tumblePoses(kind, build) {
+  const shift = S.characters[kind].faces.rest === 'left' ? 2 * turnAxis(kind) : 0;
+  const out = S.characters[kind].tumble.map((t, n) => Object.assign({}, REST, {
+    tumble: [t[0], t[1] + shift, t[2], t[3].map(([i, x, y]) => [i, x + shift, y]), t[4]],
+    dx: t[1] + shift, dy: t[2], faces: 'right', n,
+    hat: HAT_FLIGHT[n] || [-1, 0, 0] }));
+  if ((build.extras || []).length) {
+    const drop = HAT_DROP;
+    out.push(...drop.map(h => Object.assign({}, REST, { hat: h })));
+  }
+  return out;
+}
 
 // Clips are {ticks, walk} or {dirs, walk}, a walk with a clip per direction;
 // a direction, and left or right, is picked as it starts.
@@ -1652,28 +2219,45 @@ function clipsFor(kind) {
   return out;
 }
 
-// A hat's own idles - a woodpecker pecking, a toad breathing - keep their
-// own time, every few seconds, whatever the character's idles are doing; a
-// walk, or a hat arriving, stops them. Drawn at random among the
-// character's own idles, they came round so seldom that Sam saw no pecking.
-let hatClip = null, hatAt = 0, hatWait = 10;
-function hatTick() {
-  if (clip && (clip.walk || clip.hat)) { hatClip = null; return; }
-  if (!hatClip && --hatWait <= 0) {
-    const clips = hatClips(state.build[state.kind], 'idle');
-    hatWait = 15 + Math.floor(Math.random() * 30);
-    if (clips.length) { hatClip = clips[Math.floor(Math.random() * clips.length)]; hatAt = 0; }
+// The extras' animations - the crab leaping on, the bee buzzing in - on a
+// clock of their own: one at a time, arriving when put on and their idles
+// now and then; a walk or a tumble stops them.
+let extraClip = null, extraAt = 0, extraWait = 20;
+function startExtraClip(k, kind) {
+  const anims = (S.hats[k].anims || []).filter(a => a.kind === kind);
+  if (!anims.length || paused) return;
+  const a = anims[Math.floor(Math.random() * anims.length)];
+  extraClip = { k, ticks: a.ticks, sounds: a.sounds };
+  extraAt = 0;
+}
+function extraTick() {
+  const extras = state.build[state.kind].extras || [];
+  // a tumble's poses carry their own (a seat's throw)
+  if (clip && clip.tumble) { extraClip = null; return; }
+  pose.extraHats = {};
+  if (clip && clip.walk) { extraClip = null; return; }
+  if (!extraClip && extras.length && --extraWait <= 0) {
+    extraWait = 20 + Math.floor(Math.random() * 30);
+    startExtraClip(extras[Math.floor(Math.random() * extras.length)], 'idle');
   }
-  if (hatClip) {
-    pose.hat = hatClip.ticks[hatAt];
-    if (++hatAt >= hatClip.ticks.length) hatClip = null;
+  if (extraClip && !extras.includes(extraClip.k)) extraClip = null;
+  if (extraClip) {
+    pose.extraHats[extraClip.k] = extraClip.ticks[extraAt];
+    sounds.cues(extraClip, extraAt);
+    if (++extraAt >= extraClip.ticks.length) extraClip = null;
   }
 }
 
 function tick() {
   if (clip) {
-    Object.assign(pose, poseAt(clip, clip.ticks[clipAt]), { n: clipAt });
-    if (++clipAt >= clip.ticks.length) { clip = null; waitTicks = 15 + Math.floor(Math.random() * 30); }
+    // a clip of poses (the tumble), or of the game's ticks
+    Object.assign(pose, clip.poses ? clip.poses[clipAt] : poseAt(clip, clip.ticks[clipAt]), { n: clipAt });
+    sounds.onPose(pose, clip, clipAt);
+    if (++clipAt >= (clip.poses || clip.ticks).length) {
+      clip = null;
+      sounds.stopFeet();
+      waitTicks = 15 + Math.floor(Math.random() * 30);
+    }
   } else if (paused) {
     // paused, a walk asked for by an arrow has played: stop again
     clearInterval(timer);
@@ -1686,7 +2270,7 @@ function tick() {
       startClip(clips[Math.floor(Math.random() * clips.length)]);
     }
   }
-  hatTick();
+  extraTick();
   drawPreview();
 }
 
@@ -1703,6 +2287,7 @@ function startClip(c) {
 }
 
 function endClip() {
+  sounds.stopFeet();
   if (!clip) return;
   clip = null;
   Object.assign(pose, REST);
@@ -1714,6 +2299,7 @@ function setPaused(p) {
   clearInterval(timer);
   timer = 0;
   clip = null;
+  sounds.stopFeet();
   Object.assign(pose, REST);
   if (!paused) { waitTicks = 8; timer = setInterval(halfTick, TICK_MS / 2); }
   // the button shows what a press does: pause, or, held in, play
@@ -1749,6 +2335,7 @@ function walkWay(way) {
   const [d, side] = waysOf(kind, build)[way] || [];
   if (d === undefined || !walk.dirs[d]) return;
   heading = side || heading || S.characters[kind].faces.rest;
+  sounds.stopFeet();
   clip = walkClip(kind, walk, d);
   clipAt = 0;
   if (paused && !timer) timer = setInterval(halfTick, TICK_MS / 2);
@@ -1760,18 +2347,29 @@ function updatePad() {
   const shown = kind === 'zoombini' ? ways
     : Object.fromEntries(Object.entries(ways).filter(([way]) => way !== 'up' && way !== 'down'
         && !((way === 'left' || way === 'right') && walkOf(kind, build).dirs.length === 2)));
-  for (const b of document.querySelectorAll('#pad button')) b.hidden = !(b.dataset.way in shown);
+  for (const b of document.querySelectorAll('#pad button[data-way]')) b.hidden = !(b.dataset.way in shown);
 }
 document.getElementById('pad').addEventListener('click', e => {
   const b = e.target.closest('button');
-  if (b) walkWay(b.dataset.way);
+  if (b && b.dataset.way) walkWay(b.dataset.way);
 });
+// A tumble, now: as a rejected Zoombini goes head over heels, on the spot
+// (tumblePoses). Paused, it plays once.
+function tumbleNow() {
+  closeGIF();
+  sounds.stopFeet();
+  clip = { tumble: true, poses: tumblePoses(state.kind, state.build[state.kind]) };
+  clipAt = 0;
+  if (paused && !timer) timer = setInterval(halfTick, TICK_MS / 2);
+}
+document.getElementById('btn-tumble').addEventListener('click', tumbleNow);
 document.addEventListener('keydown', e => {
-  const way = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.key];
+  const way = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', t: 'tumble', T: 'tumble' }[e.key];
   if (!way || e.altKey || e.ctrlKey || e.metaKey) return;
   if (e.target instanceof Element && e.target.closest('[role=tablist], [role=menu], input, textarea, select')) return;
   e.preventDefault();
-  walkWay(way);
+  if (way === 'tumble') tumbleNow();
+  else walkWay(way);
 });
 motionQuery.addEventListener('change', e => setPaused(e.matches));
 
@@ -1838,10 +2436,12 @@ function animationsFor(kind, build) {
   for (const [d, label] of Object.entries(names)) {
     if (walk.dirs[d]) out.push({ label, fast: isFast(kind, walk, +d), poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: facesAt(walk.faces, +d) }, t), { n })) });
   }
+  out.push({ label: 'Tumbling', poses: rest(3).concat(tumblePoses(kind, build), rest(5)) });
   // the hat's own: a woodpecker pecking, mud landing
-  for (const a of (S.hats[build.hat] || {}).anims || []) {
-    const before = a.kind === 'arrive' ? rest(5).map(p => Object.assign({}, p, { hat: [-1, 0, 0] })) : rest(5);
-    out.push({ label: a.label, poses: before.concat(a.ticks.map(t => poseAt({ hat: true }, t)), rest(a.kind === 'arrive' ? 10 : 5)) });
+  for (const k of build.extras || []) for (const a of S.hats[k].anims || []) {
+    const at = t => Object.assign({}, REST, { extraHats: { [k]: t } });
+    const before = a.kind === 'arrive' ? rest(5).map(() => at([-1, 0, 0])) : rest(5);
+    out.push({ label: a.label, poses: before.concat(a.ticks.map(at), rest(a.kind === 'arrive' ? 10 : 5)) });
   }
   return out;
 }
@@ -2103,7 +2703,6 @@ function switchKind() {
 
 function update() {
   closeGIF();
-  hatClip = null;
   updatePad();
   const build = state.build[state.kind];
   const described = FEATURES.map((f, i) => {
@@ -2123,7 +2722,7 @@ function update() {
 window.addEventListener('hashchange', () => { readHash(); switchKind(); });
 
 readHash();
-sheet.onload = () => { dressPage(); buildTiles(); switchKind(); setPaused(paused); };
+sheet.onload = () => { dressPage(); buildTiles(); switchKind(); setPaused(paused); paintMute(); paintIcon(document.querySelector('#btn-tumble canvas'), 'tumble', false); };
 sheet.src = S.sheet;
 </script>
 </body>
