@@ -1348,8 +1348,10 @@ function buildTiles() {
       // ones from elsewhere on the next
       let set = null;
       const pizza = hat => hat.place === 'Pizza Pass';
-      S.hats.forEach((hat, v) => {
-        if (!v || pizza(hat) !== pizza(S.hats[v - 1])) {
+      // in the exporter's order (hatOrder); v is still the hat's number
+      (S.hatOrder || [...S.hats.keys()]).forEach((v, i, order) => {
+        const hat = S.hats[v];
+        if (!i || pizza(hat) !== pizza(S.hats[order[i - 1]])) {
           set = el('div', 'set');
           sets.appendChild(set);
         }
