@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Zoombini Maker</title>
+<title>Zoomfleeni Maker</title>
 <!--
-  Zoombini Maker - build a Zoombini (or a Fleen) the way the 1996 game's
+  Zoomfleeni Maker - build a Zoombini (or a Fleen) the way the 1996 game's
   Zoombini Isle screen does: a tile for each choice of each feature, and a
   dice for a random one - here one feature at a time, under tabs. It then
   stands there idling, as the game's characters do.
@@ -129,6 +129,7 @@
     font-family: var(--ui);
     font-weight: 500;
     line-height: 1.35;
+    font-size: 19.5px;
   }
   button { touch-action: manipulation; font: inherit; -webkit-tap-highlight-color: transparent; }
   .page {
@@ -185,7 +186,7 @@
   h1 {
     font-family: var(--display);
     font-weight: 400;
-    font-size: 2.6rem;
+    font-size: 39px;
     line-height: 1;
     letter-spacing: 0.02em;
     margin: 0;
@@ -248,7 +249,7 @@
   .corner canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
   /* sound, in the other top corner: off to begin with, so a plaque that
      says so, beside its speaker */
-  .corner.left { right: auto; left: 8px; width: auto; gap: 8px; padding: 0 12px 2px 10px; font-size: 0.85rem; }
+  .corner.left { right: auto; left: 8px; width: auto; gap: 8px; padding: 0 12px 2px 10px; font-size: 13px; }
   .corner.left canvas { width: 24px; }
   /* Arrows in the window's other corner: the character walks that way, as
      far as its feet go (see waysOf). A Zoombini's four go along, towards us
@@ -299,7 +300,7 @@
     gap: 10px;
     padding: 6px 18px 8px;
     font-family: var(--display);
-    font-size: 1.9rem;
+    font-size: 26px;
     line-height: 1.1;
     min-width: 7em;
     max-width: 100%;
@@ -332,7 +333,7 @@
   }
   .ctl canvas { display: block; image-rendering: pixelated; }
   #btn-random canvas { width: 108px; height: 78px; }
-  .plate { padding: 8px 16px 10px; font-size: 1.05rem; min-width: 6em; white-space: nowrap; }
+  .plate { padding: 8px 16px 10px; font-size: 19.5px; min-width: 6em; white-space: nowrap; }
 
   /* ---- the feature box: tabs, and the open one's tiles, in the builder's rock ---- */
 
@@ -354,7 +355,7 @@
   .tabs > .tab { flex: 1 1 auto; }
   .tab {
     display: flex; align-items: center; justify-content: center; gap: 4px;
-    padding: 8px 2px 10px; font-size: 0.92rem; min-width: 0; white-space: nowrap;
+    padding: 8px 2px 10px; font-size: 19.5px; min-width: 0; white-space: nowrap;
   }
   .tab canvas { flex: none; width: 12px; height: 13px; image-rendering: pixelated; }
   .tab canvas[hidden] { display: none; }
@@ -379,8 +380,14 @@
   .pages > .hat-page:not(.shown) { visibility: hidden; }
   .pager { display: flex; align-items: center; gap: 6px; }
   .pager .ctrl { padding-left: 12px; padding-right: 12px; }
-  .pager .count { min-width: 3.2em; text-align: center; }
-  .pager .arrow { width: 0; height: 0; border: 7px solid transparent; }
+  .pager .count { min-width: 4.5em; text-align: center; }
+  .pager .ctrl { min-width: 52px; justify-content: center; }
+  /* the pages' dots: the one shown filled */
+  .dots { display: flex; justify-content: center; gap: 10px; }
+  .dot { width: 14px; height: 14px; padding: 0; border: 2px solid #000; background: var(--stone-lo); cursor: pointer; }
+  .dot[aria-current="true"] { background: var(--tan); }
+  .pages { touch-action: pan-y; }
+  .pager .arrow { width: 0; height: 0; border: 10px solid transparent; }
   .pager .arrow.left { border-right-color: currentColor; border-left: 0; }
   .pager .arrow.right { border-left-color: currentColor; border-right: 0; }
   /* a hat's options: a meal's toppings, or the game's other colours for it */
@@ -412,7 +419,7 @@
   .controls .spacer { flex: 1; }
   .ctrl {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 14px 8px; position: relative; font-size: 1.05rem; white-space: nowrap;
+    padding: 6px 14px 8px; position: relative; font-size: 19.5px; white-space: nowrap;
   }
   .ctrl[hidden] { display: none; }
   .ctrl canvas { display: block; flex: none; image-rendering: pixelated; }
@@ -448,7 +455,7 @@
     .page { padding: 8px 10px 24px; }
     header { margin-bottom: 8px; }
     /* Cornerstone is wide: smaller, so the title keeps to one line */
-    h1 { font-size: 1.3rem; white-space: nowrap;
+    h1 { font-size: 26px; white-space: nowrap;
          text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000,
                       1px 1px #000, -1px 1px #000, 1px -1px #000, -1px -1px #000, 2px 3px 0 #000; }
     main { gap: 8px; }
@@ -456,29 +463,31 @@
     .window { padding: 5px; gap: 5px; }
     .preview { padding: 4px; }
     .corner { top: 4px; right: 4px; width: 36px; height: 36px; }
-    .corner.left { right: auto; left: 4px; padding: 0 8px 2px 6px; gap: 5px; font-size: 0.75rem; }
-    .pager .count { display: none; }
+    .corner.left { right: auto; left: 4px; padding: 0 8px 2px 6px; gap: 5px; font-size: 13px; }
+    .pager .count { min-width: 0; font-size: 13px; }
     .controls .keep span { display: none; }
-    .pager .ctrl { padding-left: 8px; padding-right: 8px; }
-    .status { bottom: 6px; font-size: 0.85rem; }
-    .name-btn { font-size: 1.15rem; padding: 3px 12px 5px; min-width: 6em; }
+    .pager .ctrl { padding-left: 8px; padding-right: 8px; min-width: 40px; }
+    .status { bottom: 6px; font-size: 13px; }
+    .name-btn { font-size: 19.5px; padding: 3px 12px 5px; min-width: 6em; }
     .toolbar { gap: 8px; }
     .toolbar .group { gap: 6px; }
     #btn-random canvas { width: 54px; height: 39px; }
-    .plate { min-width: 0; font-size: 0.8rem; padding: 6px 10px 8px; }
+    .plate { min-width: 0; font-size: 13px; padding: 6px 10px 8px; }
     .caret { margin-left: 6px; border-width: 5px; }
     .box { --set-gap: 3px; --none-gap: 8px; padding: 6px; gap: 6px; }
     .tabs { gap: 3px; }
-    .tab { font-size: 0.6rem; padding: 7px 1px 9px; gap: 1px; }
+    .tab { font-size: 13px; padding: 7px 1px 9px; gap: 1px; }
     .tab canvas { width: 9px; height: 10px; }
     .feature { gap: 6px; }
     .controls { gap: 4px; min-height: 0; }
-    .ctrl { font-size: 0.8rem; padding: 4px 10px 6px; gap: 6px; }
+    .ctrl { font-size: 13px; padding: 4px 10px 6px; gap: 6px; }
   }
 
-  footer { margin-top: 30px; font-size: 0.9rem; opacity: 0.75; }
+  footer { margin-top: 30px; font-size: 13px; opacity: 0.75; }
   footer a { color: var(--zoombini); }
-  /* Cornerstone has one weight: shown as it is, never made bold */
+  /* Cornerstone is drawn in pixels at 13px to the em (fonts.js, Sam: "a bit
+     pixelated like the game"): every size here is a whole or half multiple
+     of 13px, so its pixels land on whole device pixels. It has one weight: shown as it is, never made bold */
   html { font-synthesis: none; }
   body, .plate, .status, h1, .name-btn, .tab, .ctrl { font-weight: 400; }
 </style>
@@ -486,7 +495,7 @@
 <body data-kind="zoombini">
 <div class="page">
   <header>
-    <h1>Zoombini Maker</h1>
+    <h1>Zoomfleeni Maker</h1>
   </header>
 
   <main>
@@ -579,6 +588,7 @@ let half = 0;
 function halfTick() {
   if ((clip && clip.fast) || ++half % 2 === 0) tick();
 }
+let flutter = 0;                             // the wings' clock (hatOn, tick)
 const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null, faces: null, hat: null, n: 0, tumble: null };
 // A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar,
 // device, away] - each part's pose (-1 rest), how far each borrowed foot
@@ -1040,7 +1050,10 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
   const [k, ox, oy] = pose.hat || [w && w[10] && h.away !== undefined ? h.away
     : w && h.walk ? h.walk[(pose.n || 0) % h.walk.length] : 0, 0, 0];
   if (k < 0) return [];                      // not yet arrived
-  const pieces = h.sets[k] || h.sets[0];
+  // wings flutter all the time, walking too, on a clock of their own (Sam:
+  // "they should flutter better"): open and shut a tick each, as the game
+  // flaps them, rather than the odd burst of an idle
+  const pieces = h.on === 'back' && h.sets.length > 1 ? h.sets[flutter % h.sets.length] : h.sets[k] || h.sets[0];
   // worn on the face (the crab): its middle where the face's middle is
   const onFace = h.on === 'face' && body.face;
   const cx = onFace ? body.face[0] : body.crown[0];
@@ -1586,14 +1599,8 @@ const mealLayers = bits => [...Array(10).keys()].filter(n => bits & 1 << n);
 function toggleExtra(v) {
   const build = state.build[state.kind];
   const worn = (build.extras || []).find(k => hatRoot(k) === v);
-  // worn already, with options (a meal's layers, shapes, colours) and not the
-  // one they show: it is chosen, to change; tapped again, it comes off
-  if (worn !== undefined && S.hats[v].options && focusOf(build) !== worn) {
-    build.extraFocus = worn;
-    sounds.builder('put');
-    update();
-    return;
-  }
+  // worn already, it comes off at one tap, options or not (Sam: "should be
+  // easier to deselect a multi option extra" - a first tap only chose it)
   const on = worn !== undefined;
   build.extras = on ? build.extras.filter(k => k !== worn) : (build.extras || []).concat([v]);
   if (on) resetColours('hat:' + worn);
@@ -1780,6 +1787,28 @@ function buildTiles() {
       }
     }
     tilesEl.appendChild(sets);
+    if (worn && t.pages.length > 1) {
+      // a dot a page under them, so there plainly are more (Sam), each one
+      // a way to its page; and a swipe across the tiles turns the page
+      t.dots = el('div', 'dots');
+      t.pages.forEach((_, n) => {
+        const d = el('button', 'dot');
+        d.title = 'Page ' + (n + 1) + ' of ' + t.pages.length;
+        d.setAttribute('aria-label', d.title);
+        d.addEventListener('click', () => { t.page = n; sounds.builder('put'); paintTiles(); });
+        t.dots.appendChild(d);
+      });
+      tilesEl.appendChild(t.dots);
+      let x0 = null;
+      sets.addEventListener('pointerdown', e => { x0 = e.clientX; });
+      sets.addEventListener('pointerup', e => {
+        const dx = x0 === null ? 0 : e.clientX - x0;
+        x0 = null;
+        if (Math.abs(dx) < 40) return;
+        t.page = (t.page + (dx < 0 ? 1 : -1) + t.pages.length) % t.pages.length;
+        paintTiles();
+      });
+    }
     if (worn) {
       // under the pages, what the one picked can change: a meal's layers,
       // a hat's shapes, the colours the game also has it in (paintHatOptions)
@@ -1931,7 +1960,8 @@ function paintTiles() {
     });
     if (t.pages) {
       t.pages.forEach((page, n) => page.classList.toggle('shown', n === t.page));
-      if (t.pager) t.pager.querySelector('.count').textContent = (t.page + 1) + ' / ' + t.pages.length;
+      if (t.pager) t.pager.querySelector('.count').textContent = 'Page ' + (t.page + 1) + ' / ' + t.pages.length;
+      if (t.dots) [...t.dots.children].forEach((d, n) => d.setAttribute('aria-current', n === t.page));
       const focus = focusOf(build);
       paintHatOptions(t, build, focus, (v, sound) => swapExtra(focus, v, sound));
     }
@@ -2249,6 +2279,7 @@ function extraTick() {
 }
 
 function tick() {
+  flutter++;
   if (clip) {
     // a clip of poses (the tumble), or of the game's ticks
     Object.assign(pose, clip.poses ? clip.poses[clipAt] : poseAt(clip, clip.ticks[clipAt]), { n: clipAt });
