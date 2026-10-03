@@ -129,7 +129,7 @@
     font-family: var(--ui);
     font-weight: 500;
     line-height: 1.35;
-    font-size: 19.5px;
+    font-size: 13px;
   }
   button { touch-action: manipulation; font: inherit; -webkit-tap-highlight-color: transparent; }
   .page {
@@ -188,7 +188,6 @@
     font-weight: 400;
     font-size: 39px;
     line-height: 1;
-    letter-spacing: 0.02em;
     margin: 0;
     color: var(--zoombini);
     text-shadow:
@@ -333,7 +332,7 @@
   }
   .ctl canvas { display: block; image-rendering: pixelated; }
   #btn-random canvas { width: 108px; height: 78px; }
-  .plate { padding: 8px 16px 10px; font-size: 19.5px; min-width: 6em; white-space: nowrap; }
+  .plate { padding: 8px 16px 10px; font-size: 13px; min-width: 6em; white-space: nowrap; }
 
   /* ---- the feature box: tabs, and the open one's tiles, in the builder's rock ---- */
 
@@ -355,7 +354,7 @@
   .tabs > .tab { flex: 1 1 auto; }
   .tab {
     display: flex; align-items: center; justify-content: center; gap: 4px;
-    padding: 8px 2px 10px; font-size: 19.5px; min-width: 0; white-space: nowrap;
+    padding: 8px 2px 10px; font-size: 13px; min-width: 0; white-space: nowrap;
   }
   .tab canvas { flex: none; width: 12px; height: 13px; image-rendering: pixelated; }
   .tab canvas[hidden] { display: none; }
@@ -419,7 +418,7 @@
   .controls .spacer { flex: 1; }
   .ctrl {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 14px 8px; position: relative; font-size: 19.5px; white-space: nowrap;
+    padding: 6px 14px 8px; position: relative; font-size: 13px; white-space: nowrap;
   }
   .ctrl[hidden] { display: none; }
   .ctrl canvas { display: block; flex: none; image-rendering: pixelated; }
@@ -452,6 +451,7 @@
      game's buttons at 1x. */
   @media (max-width: 900px) {
     .pad { grid-template-columns: repeat(3, 28px); grid-template-rows: repeat(3, 28px); }
+    body { font-size: 13px; }
     .page { padding: 8px 10px 24px; }
     header { margin-bottom: 8px; }
     /* Cornerstone is wide: smaller, so the title keeps to one line */
@@ -468,7 +468,7 @@
     .controls .keep span { display: none; }
     .pager .ctrl { padding-left: 8px; padding-right: 8px; min-width: 40px; }
     .status { bottom: 6px; font-size: 13px; }
-    .name-btn { font-size: 19.5px; padding: 3px 12px 5px; min-width: 6em; }
+    .name-btn { font-size: 26px; padding: 3px 12px 5px; min-width: 6em; }
     .toolbar { gap: 8px; }
     .toolbar .group { gap: 6px; }
     #btn-random canvas { width: 54px; height: 39px; }
@@ -486,7 +486,7 @@
   footer { margin-top: 30px; font-size: 13px; opacity: 0.75; }
   footer a { color: var(--zoombini); }
   /* Cornerstone is drawn in pixels at 13px to the em (fonts.js, Sam: "a bit
-     pixelated like the game"): every size here is a whole or half multiple
+     pixelated like the game"): every size here is a whole multiple
      of 13px, so its pixels land on whole device pixels. It has one weight: shown as it is, never made bold */
   html { font-synthesis: none; }
   body, .plate, .status, h1, .name-btn, .tab, .ctrl { font-weight: 400; }
@@ -588,7 +588,6 @@ let half = 0;
 function halfTick() {
   if ((clip && clip.fast) || ++half % 2 === 0) tick();
 }
-let flutter = 0;                             // the wings' clock (hatOn, tick)
 const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null, faces: null, hat: null, n: 0, tumble: null };
 // A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar,
 // device, away] - each part's pose (-1 rest), how far each borrowed foot
@@ -977,8 +976,11 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     if (!S.hats[k].on) stack = stack.concat(ps);
     hat.push(...ps);
   }
-  return hat.filter(p => p.back).concat(out.filter(p => !(p && none(p.name)))
-    .map(p => p.name === 'body' ? p.v : Object.assign({ part: p.name }, p.v)), hat.filter(p => !p.back));
+  // what is worn on the back goes behind - but walking away the back is
+  // towards us, and it goes in front (Sam: the body hid the wings)
+  const away = w && w[10], behind = p => !!p.back && !away;
+  return hat.filter(behind).concat(out.filter(p => !(p && none(p.name)))
+    .map(p => p.name === 'body' ? p.v : Object.assign({ part: p.name }, p.v)), hat.filter(p => !behind(p)));
 }
 
 // A tick of the tumble (`pose.tumble`: [pose, dx, dy, effects, voice] - see
@@ -1050,10 +1052,7 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
   const [k, ox, oy] = pose.hat || [w && w[10] && h.away !== undefined ? h.away
     : w && h.walk ? h.walk[(pose.n || 0) % h.walk.length] : 0, 0, 0];
   if (k < 0) return [];                      // not yet arrived
-  // wings flutter all the time, walking too, on a clock of their own (Sam:
-  // "they should flutter better"): open and shut a tick each, as the game
-  // flaps them, rather than the odd burst of an idle
-  const pieces = h.on === 'back' && h.sets.length > 1 ? h.sets[flutter % h.sets.length] : h.sets[k] || h.sets[0];
+  const pieces = h.sets[k] || h.sets[0];
   // worn on the face (the crab): its middle where the face's middle is
   const onFace = h.on === 'face' && body.face;
   const cx = onFace ? body.face[0] : body.crown[0];
@@ -2279,7 +2278,6 @@ function extraTick() {
 }
 
 function tick() {
-  flutter++;
   if (clip) {
     // a clip of poses (the tumble), or of the game's ticks
     Object.assign(pose, clip.poses ? clip.poses[clipAt] : poseAt(clip, clip.ticks[clipAt]), { n: clipAt });
