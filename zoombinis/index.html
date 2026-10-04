@@ -203,7 +203,7 @@
   /* ---- the character and its controls ---- */
 
   /* The buttons were in two places - saving and sharing in the header, the
-     name, dice, Mix! and Pause under the window - and read as a scatter.
+     name, dice and Pause under the window - and read as a scatter.
      Now each sits with what it acts on: the name bar under the character,
      as the game's builder has it; Pause in the window's corner, as it stops
      the window; and one bar for the rest, rolling at one end and saving and
@@ -406,6 +406,7 @@
     background: none;
     cursor: pointer;
   }
+  #btn-mix { display: block; margin: 10px auto 2px; }
   .tile:disabled { filter: grayscale(1); opacity: 0.4; cursor: default; }
   .tile canvas {
     display: block;
@@ -536,7 +537,6 @@
       <div class="toolbar">
         <div class="group">
           <button class="ctl" id="btn-random" title="Roll a new one" aria-label="Roll a new one"><canvas width="54" height="39"></canvas></button>
-          <button class="stone plate" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix!</button>
         </div>
         <div class="group share">
           <div class="save">
@@ -551,6 +551,7 @@
     <section class="box rock" aria-label="Body and features">
       <div class="tabs" id="tabs" role="tablist" aria-label="Body and features"></div>
       <div class="panels" id="rows"></div>
+      <button class="stone plate mix" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix Traits!</button>
     </section>
   </main>
 
@@ -646,8 +647,8 @@ const shownName = name => name[0].toUpperCase() + name.slice(1);
 // of its own colours (`colours[feature][k]`, as #rrggbb, k as in the part's
 // `groups`), picked with the browser's colour picker; without them its own.
 // The dice never picks none, keeps what is locked (`locks`) with its colours,
-// gives the rest their own colours back, and borrows only with Mix! on. It
-// leaves the hat alone. Mix! starts off (Sam, 4 October 2026: "have it off
+// gives the rest their own colours back, and borrows only with Mix Traits! on. It
+// leaves the hat alone. Mix Traits! starts off (Sam, 4 October 2026: "have it off
 // by default"): a Zoombini through and through, or a Fleen - the other's
 // parts greyed out, and a new body turning each part into its own
 // equivalent (see setBody). A link with a mixed build turns it on.
@@ -1045,15 +1046,16 @@ function tumbleVariants(kind, build, pose) {
     hat = worn.flatMap(k => hatOn(seat.body, k, seat.hair, flies(k) ? pose : Object.assign({}, pose, { hat: [0, 0, 0] }), seat.left)
       .map((h, n) => {
         const w = rect(h.sprite)[2], x = seat.left ? 2 * mid + h.rx - w : -h.rx;
-        // wings turn with the body (Sam): their corner turned about the
-        // body's rest centre onto its tumbling one, and their frame turned
+        // wings held to the body (Sam): their corner turned about the body's
+        // rest centre onto its tumbling one - already where the figure is,
+        // so not moved by (dx, dy) as the rest are - and their frame turned
         // about that corner by the exporter
         const t = !flies(k) && S.hats[k].tumble && S.hats[k].tumble[p][n];
         if (!t) return Object.assign({}, h, { flip: false, rx: -x + dx, ry: h.ry + dy });
         const [deg, px, py, bx, by] = ch.tumbleTurns[p], a = deg * Math.PI / 180;
         const X = x - px, Y = -h.ry - py, c = Math.cos(a), s = Math.sin(a);
         const tx = c * X - s * Y + bx - t.cx, ty = s * X + c * Y + by - t.cy;
-        return Object.assign({}, h, { sprite: t.sprite, flip: false, rx: -Math.round(tx) + dx, ry: -Math.round(ty) + dy });
+        return Object.assign({}, h, { sprite: t.sprite, flip: false, rx: -Math.round(tx), ry: -Math.round(ty) });
       }));
   }
   return hat.filter(p => p.back).concat(back, body, front, hat.filter(p => !p.back));
@@ -2492,15 +2494,16 @@ function download(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-// The character alone at rest, cropped to its own outline, at 4x on
-// transparency.
+// The character alone as the window shows it now (Sam: "exactly as it
+// currently looks") - mid-move, its extras, the way it faces - cropped to its
+// own outline, at 4x on transparency.
 function savePicture() {
   const kind = state.kind, build = state.build[kind];
   const scale = 4, pad = 2 * scale;
-  const parts = variantsFor(kind, build);
+  const parts = variantsFor(kind, build, pose);
   if (!parts.length) { say('Nothing to save - every part is none.'); return; }
   // facing the way it faces in the window
-  const turned = heading !== framesFace(kind, REST), mid = turnAxis(kind);
+  const turned = heading !== framesFace(kind, pose), mid = turnAxis(kind);
   const bb = turnedBox(boundsOf(parts), turned, mid);
   const c = document.createElement('canvas');
   c.width = (bb.r - bb.l) * scale + pad * 2;
@@ -2508,7 +2511,7 @@ function savePicture() {
   const ctx = c.getContext('2d');
   ctx.imageSmoothingEnabled = false;
   const x0 = pad - bb.l * scale;
-  drawCharacter(ctx, kind, build, x0, pad - bb.t * scale, scale, REST, turned ? x0 + mid * scale : null);
+  drawCharacter(ctx, kind, build, x0, pad - bb.t * scale, scale, pose, turned ? x0 + mid * scale : null);
   c.toBlob(blob => {
     if (!blob) { say('Could not make the PNG in this browser.'); return; }
     download(blob, state.name[kind] + '-' + kind + '.png');
@@ -2520,6 +2523,17 @@ function savePicture() {
 // off, if they do; and its walk - a Zoombini's towards us, along and away
 // (three of its five directions; the other two are near copies), a Fleen's
 // hop and run away, or its ride on a Zoombini device.
+// How it gets along, by whose feet it has on and which (Sam: "appropriate
+// verb for each feet"); parts from elsewhere by name.
+const GOING = { zoombini: ['Walking', 'Skating', 'Bouncing', 'Rolling', 'Flying'],
+                fleen: ['Hopping', 'Hopping', 'Rolling', 'Trundling', 'Flying'] };
+function goingOf(build) {
+  const f = build.feet, kind = state.kind;
+  if (f.none) return kind === 'zoombini' ? 'Sliding' : 'Hopping';
+  if (stepsLike(kind, build)) return 'Walking';
+  if (f.v >= 5) return /wheel/i.test(S.characters.zoombini.names.feet[f.v]) ? 'Rolling' : 'Walking';
+  return GOING[f.borrowed ? OTHER[kind] : kind][f.v];
+}
 function animationsFor(kind, build) {
   const rest = n => Array.from({ length: n }, () => REST);
   const idle = ticks => ticks.map(t => poseAt({ walk: false }, t));
@@ -2528,10 +2542,11 @@ function animationsFor(kind, build) {
   if (special) out.push({ label: 'Showing off its feet',
                           poses: loopsSpecial(kind, build) ? idle(special) : rest(5).concat(idle(special), rest(5)) });
   const walk = walkOf(kind, build);
-  const names = kind === 'zoombini' ? { 0: 'Walking towards us', 2: 'Walking along', 3: 'Walking away' }
+  const go = goingOf(build);
+  const names = kind === 'zoombini' ? { 0: go + ' towards us', 2: go + ' along', 3: go + ' away' }
     : walk.dirs.length === 1 ? { 0: 'Riding along' }
-    : walk.dirs.length === 3 ? { 0: 'Walking along', 2: 'Walking towards us' }
-    : { 0: 'Hopping along' };
+    : walk.dirs.length === 3 ? { 0: go + ' along', 2: go + ' towards us' }
+    : { 0: go + ' along' };
   for (const [d, label] of Object.entries(names)) {
     if (walk.dirs[d]) out.push({ label, fast: isFast(kind, walk, +d), poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: facesAt(walk.faces, +d) }, t), { n })) });
   }
