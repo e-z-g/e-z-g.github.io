@@ -81,8 +81,8 @@
   largest integer CSS scale that fits, and image-rendering: pixelated does
   the rest - so every source pixel stays square.
 -->
-<!-- The game's own face, Cornerstone, which it sets its help text in:
-     fonts.js, from tools/export_fonts.py, embeds it so the page works from
+<!-- The game's own fonts, WordLa's bitmap sizes as pixel TrueType:
+     fonts.js, from tools/export_fonts.py --wordla, embeds them so the page works from
      file:// too. -->
 <script src="fonts.js"></script>
 <style>
@@ -118,8 +118,11 @@
     --fleen: #c9ee31;
     --text: #f1dfb2;
     --rock-img: none;
-    --display: 'Cornerstone', 'Trebuchet MS', sans-serif;   /* it has no bold */
-    --ui: 'Cornerstone', 'Trebuchet MS', sans-serif;
+    /* the game's own pixel serif, WordLa, each size drawn by hand and set
+       at its own height in px or twice it (fonts.js) - Sam's pick over
+       Cornerstone drawn in pixels, whose strokes came out uneven */
+    --display: 'WordLa 24', serif;
+    --ui: 'WordLa 14', serif;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
@@ -129,7 +132,7 @@
     font-family: var(--ui);
     font-weight: 500;
     line-height: 1.35;
-    font-size: 13px;
+    font-size: 15px;
   }
   button { touch-action: manipulation; font: inherit; -webkit-tap-highlight-color: transparent; }
   .page {
@@ -186,7 +189,7 @@
   h1 {
     font-family: var(--display);
     font-weight: 400;
-    font-size: 39px;
+    font-size: 52px;
     line-height: 1;
     margin: 0;
     color: var(--zoombini);
@@ -248,7 +251,7 @@
   .corner canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
   /* sound, in the other top corner: off to begin with, so a plaque that
      says so, beside its speaker */
-  .corner.left { right: auto; left: 8px; width: auto; gap: 8px; padding: 0 12px 2px 10px; font-size: 13px; }
+  .corner.left { right: auto; left: 8px; width: auto; gap: 8px; padding: 0 12px 2px 10px; font-size: 15px; }
   .corner.left canvas { width: 24px; }
   /* Arrows in the window's other corner: the character walks that way, as
      far as its feet go (see waysOf). A Zoombini's four go along, towards us
@@ -332,7 +335,7 @@
   }
   .ctl canvas { display: block; image-rendering: pixelated; }
   #btn-random canvas { width: 108px; height: 78px; }
-  .plate { padding: 8px 16px 10px; font-size: 13px; min-width: 6em; white-space: nowrap; }
+  .plate { padding: 8px 16px 10px; font-size: 15px; min-width: 6em; white-space: nowrap; }
 
   /* ---- the feature box: tabs, and the open one's tiles, in the builder's rock ---- */
 
@@ -354,7 +357,7 @@
   .tabs > .tab { flex: 1 1 auto; }
   .tab {
     display: flex; align-items: center; justify-content: center; gap: 4px;
-    padding: 8px 2px 10px; font-size: 13px; min-width: 0; white-space: nowrap;
+    padding: 8px 2px 10px; font-size: 15px; min-width: 0; white-space: nowrap;
   }
   .tab canvas { flex: none; width: 12px; height: 13px; image-rendering: pixelated; }
   .tab canvas[hidden] { display: none; }
@@ -418,7 +421,7 @@
   .controls .spacer { flex: 1; }
   .ctrl {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 14px 8px; position: relative; font-size: 13px; white-space: nowrap;
+    padding: 6px 14px 8px; position: relative; font-size: 15px; white-space: nowrap;
   }
   .ctrl[hidden] { display: none; }
   .ctrl canvas { display: block; flex: none; image-rendering: pixelated; }
@@ -451,10 +454,11 @@
      game's buttons at 1x. */
   @media (max-width: 900px) {
     .pad { grid-template-columns: repeat(3, 28px); grid-template-rows: repeat(3, 28px); }
+    :root { --ui: 'WordLa 12', serif; }
     body { font-size: 13px; }
     .page { padding: 8px 10px 24px; }
     header { margin-bottom: 8px; }
-    /* Cornerstone is wide: smaller, so the title keeps to one line */
+    /* the title at WordLa 24's own height, so it keeps to one line */
     h1 { font-size: 26px; white-space: nowrap;
          text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000,
                       1px 1px #000, -1px 1px #000, 1px -1px #000, -1px -1px #000, 2px 3px 0 #000; }
@@ -485,9 +489,9 @@
 
   footer { margin-top: 30px; font-size: 13px; opacity: 0.75; }
   footer a { color: var(--zoombini); }
-  /* Cornerstone is drawn in pixels at 13px to the em (fonts.js, Sam: "a bit
-     pixelated like the game"): every size here is a whole multiple
-     of 13px, so its pixels land on whole device pixels. It has one weight: shown as it is, never made bold */
+  /* WordLa is in pixels (fonts.js, Sam: "a bit pixelated like the game"):
+     every size here is a size's own height or twice it, so its pixels land
+     on whole device pixels. It has one weight: shown as it is, never made bold */
   html { font-synthesis: none; }
   body, .plate, .status, h1, .name-btn, .tab, .ctrl { font-weight: 400; }
 </style>
