@@ -1055,11 +1055,18 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
   const pieces = h.sets[k] || h.sets[0];
   // worn on the face (the crab): its middle where the face's middle is
   const onFace = h.on === 'face' && body.face;
-  const cx = onFace ? body.face[0] : body.crown[0];
+  // wings: on the back, not the head (Sam: "attached in the wrong place and
+  // don't move with turning") - their roots a little over halfway down the
+  // body (a Fleen's, tall, nearer its head), a fifth of its width towards whichever side is away from the face,
+  // and in the middle of it walking away, when the back is towards us
+  const [, , bw, bh] = rect(body.sprite);
+  const wings = h.on === 'back';
+  const back = wings ? (w && w[10] ? 0 : left ? 0.22 : -0.22) : 0;
+  const cx = onFace ? body.face[0] : wings ? -body.rx + bw * (0.5 + back) : body.crown[0];
   // worn on the body rather than the head - on the back (the wings, painted
   // behind the body) or over it (the crab on the face, the bee on the back):
   // placed from the head's top whatever the hair, by its sink and nudge
-  const cy = onFace ? body.face[1] : h.on ? body.crown[1]
+  const cy = onFace ? body.face[1] : wings ? -body.ry + bh * (bh > bw * 1.3 ? 0.45 : 0.6) - h.sink : h.on ? body.crown[1]
     : below && below.length ? stackSeat(below, h, cx) : hatSeat(body, h, hair);
   // a hat faces right; on frames that face left it is turned about the crown
   return pieces.map(p => ({ part: 'hat:' + hat, sprite: p.sprite, flip: left, back: h.on === 'back',
