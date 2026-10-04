@@ -1015,13 +1015,17 @@ function tumbleVariants(kind, build, pose) {
   }
   for (const e of effects) (e[0] < DUST_EFFECTS ? back : front).push(effect(e));
   let hat = [];
-  if (pose.hat && pose.hat[0] >= 0) {
+  // wings stay on through a tumble (Sam: "maybe the wings stay attached
+  // when hit"), where the figure is; a hat is knocked off and flies
+  const flies = k => S.hats[k].on !== 'back';
+  const worn = (build.extras || []).filter(k => !flies(k) ? true : pose.hat && pose.hat[0] >= 0);
+  if (worn.length) {
     // seated as at rest; on a Fleen, whose rest frames face left, turned to
     // face right with the tumbling frames, about the line the window turns
     // the figure about (so its +dx is still forwards)
     const seat = {}, mid = turnAxis(kind);
     variantsFor(kind, build, REST, seat);
-    hat = (build.extras || []).flatMap(k => hatOn(seat.body, k, seat.hair, pose, seat.left)).map(h => {
+    hat = worn.flatMap(k => hatOn(seat.body, k, seat.hair, flies(k) ? pose : Object.assign({}, pose, { hat: [0, 0, 0] }), seat.left)).map(h => {
       const w = rect(h.sprite)[2], x = seat.left ? 2 * mid + h.rx - w : -h.rx;
       return Object.assign({}, h, { flip: false, rx: -x + dx, ry: h.ry + dy });
     });
@@ -2314,7 +2318,9 @@ function tick() {
 // feet's - so a new pick ends it and returns to the rest pose.
 function startClip(c) {
   if (c.dirs) {
-    clip = walkClip(state.kind, c, Math.floor(Math.random() * c.dirs.length));
+    // any direction but a Fleen's run away (see waysOf)
+    const dirs = c.dirs.map((_, d) => d).filter(d => !(state.kind === 'fleen' && c.dirs.length > 1 && d === 1));
+    clip = walkClip(state.kind, c, dirs[Math.floor(Math.random() * dirs.length)]);
     heading = Math.random() < 0.5 ? 'left' : 'right';
   } else {
     clip = c;
@@ -2362,9 +2368,11 @@ function waysOf(kind, build) {
   const n = walkOf(kind, build).dirs.length;
   if (kind === 'zoombini') return { left: [2, 'left'], right: [2, 'right'], down: [0, null], up: [3, null] };
   if (n === 1) return { left: [0, 'left'], right: [0, 'right'] };
-  const [along, away, towards] = n === 3 ? [0, 1, 2] : [0, 1, 0];
-  return { downleft: [towards, 'left'], downright: [towards, 'right'], upleft: [away, 'left'], upright: [away, 'right'],
-           left: [along, 'left'], right: [along, 'right'], down: [towards, null], up: [away, null] };
+  // a Fleen's run away (direction 1) is gone (Sam: "do something about the
+  // way the Fleen going back looks, or remove it altogether"): no way up
+  const [along, towards] = n === 3 ? [0, 2] : [0, 0];
+  return { downleft: [towards, 'left'], downright: [towards, 'right'],
+           left: [along, 'left'], right: [along, 'right'], down: [towards, null] };
 }
 function walkWay(way) {
   const kind = state.kind, build = state.build[kind], walk = walkOf(kind, build);
@@ -2467,8 +2475,8 @@ function animationsFor(kind, build) {
   const walk = walkOf(kind, build);
   const names = kind === 'zoombini' ? { 0: 'Walking towards us', 2: 'Walking along', 3: 'Walking away' }
     : walk.dirs.length === 1 ? { 0: 'Riding along' }
-    : walk.dirs.length === 3 ? { 0: 'Walking along', 2: 'Walking towards us', 1: 'Running away' }
-    : { 0: 'Hopping along', 1: 'Running away' };
+    : walk.dirs.length === 3 ? { 0: 'Walking along', 2: 'Walking towards us' }
+    : { 0: 'Hopping along' };
   for (const [d, label] of Object.entries(names)) {
     if (walk.dirs[d]) out.push({ label, fast: isFast(kind, walk, +d), poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: facesAt(walk.faces, +d) }, t), { n })) });
   }
