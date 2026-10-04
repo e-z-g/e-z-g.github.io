@@ -203,7 +203,7 @@
   /* ---- the character and its controls ---- */
 
   /* The buttons were in two places - saving and sharing in the header, the
-     name, dice, Pure and Pause under the window - and read as a scatter.
+     name, dice, Mix! and Pause under the window - and read as a scatter.
      Now each sits with what it acts on: the name bar under the character,
      as the game's builder has it; Pause in the window's corner, as it stops
      the window; and one bar for the rest, rolling at one end and saving and
@@ -406,6 +406,7 @@
     background: none;
     cursor: pointer;
   }
+  .tile:disabled { filter: grayscale(1); opacity: 0.4; cursor: default; }
   .tile canvas {
     display: block;
     width: 100%;
@@ -535,7 +536,7 @@
       <div class="toolbar">
         <div class="group">
           <button class="ctl" id="btn-random" title="Roll a new one" aria-label="Roll a new one"><canvas width="54" height="39"></canvas></button>
-          <button class="stone plate" id="btn-pure" aria-pressed="false" title="Roll only a Zoombini's parts on a Zoombini and a Fleen's on a Fleen">Pure</button>
+          <button class="stone plate" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix!</button>
         </div>
         <div class="group share">
           <div class="save">
@@ -645,12 +646,16 @@ const shownName = name => name[0].toUpperCase() + name.slice(1);
 // of its own colours (`colours[feature][k]`, as #rrggbb, k as in the part's
 // `groups`), picked with the browser's colour picker; without them its own.
 // The dice never picks none, keeps what is locked (`locks`) with its colours,
-// gives the rest their own colours back, and when Pure is on never borrows:
-// a Zoombini through and through, or a Fleen. It leaves the hat alone.
+// gives the rest their own colours back, and borrows only with Mix! on. It
+// leaves the hat alone. Mix! starts off (Sam, 4 October 2026: "have it off
+// by default"): a Zoombini through and through, or a Fleen - the other's
+// parts greyed out, and a new body turning each part into its own
+// equivalent (see setBody). A link with a mixed build turns it on.
 const NONE = { v: 0, borrowed: false, none: true };
-let pure = false;
+let mix = false;
+const mixed = pick => pick && pick.borrowed && !elsewhere(pick);
 const randomBuild = () => Object.fromEntries(FEATURES.map(f =>
-  [f, { v: Math.floor(Math.random() * 5), borrowed: !pure && Math.random() < 0.5 }]));
+  [f, { v: Math.floor(Math.random() * 5), borrowed: mix && Math.random() < 0.5 }]));
 // The extras start kept (on none, so the dice adds none), and roll too once
 // their padlock is opened (Sam, 1 October 2026).
 const locks = { body: false, hair: false, eyes: false, nose: false, feet: false, extras: true };
@@ -693,6 +698,7 @@ function readHash() {
     const c = m[2][i], letter = c >= 'a';
     state.build[m[1]][f] = c === 'x' ? { ...NONE } : { v: letter ? c.charCodeAt(0) - 97 : +c, borrowed: letter };
   });
+  if (FEATURES.some(f => mixed(state.build[m[1]][f]))) mix = true;
   const build = state.build[m[1]];
   Object.assign(build, { skin: undefined, colours: {}, hat: undefined, extras: [] });
   const worn = build.extras;
@@ -1036,10 +1042,19 @@ function tumbleVariants(kind, build, pose) {
     // the figure about (so its +dx is still forwards)
     const seat = {}, mid = turnAxis(kind);
     variantsFor(kind, build, REST, seat);
-    hat = worn.flatMap(k => hatOn(seat.body, k, seat.hair, flies(k) ? pose : Object.assign({}, pose, { hat: [0, 0, 0] }), seat.left)).map(h => {
-      const w = rect(h.sprite)[2], x = seat.left ? 2 * mid + h.rx - w : -h.rx;
-      return Object.assign({}, h, { flip: false, rx: -x + dx, ry: h.ry + dy });
-    });
+    hat = worn.flatMap(k => hatOn(seat.body, k, seat.hair, flies(k) ? pose : Object.assign({}, pose, { hat: [0, 0, 0] }), seat.left)
+      .map((h, n) => {
+        const w = rect(h.sprite)[2], x = seat.left ? 2 * mid + h.rx - w : -h.rx;
+        // wings turn with the body (Sam): their corner turned about the
+        // body's rest centre onto its tumbling one, and their frame turned
+        // about that corner by the exporter
+        const t = !flies(k) && S.hats[k].tumble && S.hats[k].tumble[p][n];
+        if (!t) return Object.assign({}, h, { flip: false, rx: -x + dx, ry: h.ry + dy });
+        const [deg, px, py, bx, by] = ch.tumbleTurns[p], a = deg * Math.PI / 180;
+        const X = x - px, Y = -h.ry - py, c = Math.cos(a), s = Math.sin(a);
+        const tx = c * X - s * Y + bx - t.cx, ty = s * X + c * Y + by - t.cy;
+        return Object.assign({}, h, { sprite: t.sprite, flip: false, rx: -Math.round(tx) + dx, ry: -Math.round(ty) + dy });
+      }));
   }
   return hat.filter(p => p.back).concat(back, body, front, hat.filter(p => !p.back));
 }
@@ -1121,7 +1136,9 @@ function hatSeat(body, h, hair) {
 // Stacked (Sam: "make all the hats stackable"): a hat put on over others
 // sits on what is under its middle - the top most of its columns there
 // reach (HAT_SOLID), or for a stiff flat one the highest anywhere under it,
-// as on hair - whichever way they face.
+// as on hair - whichever way they face. Cargo seen from above (the barrel,
+// sack and crate) is sat on `lid` rows into its top face, so they stack
+// one on another (Sam: "less vertical padding").
 function stackSeat(below, h, cx) {
   const w = rect(h.sets[0][0].sprite)[2];
   const half = h.flat ? w / 2 : w / 4, tops = [];
@@ -1129,7 +1146,8 @@ function stackSeat(below, h, cx) {
     let top = null;
     for (const p of below) {
       const pw = rect(p.sprite)[2];
-      const t = topAt(p, p.flip ? -2 * p.rx + pw - 1 - x : x);
+      let t = topAt(p, p.flip ? -2 * p.rx + pw - 1 - x : x);
+      if (t !== null) t += S.hats[+p.part.slice(4)].lid || 0;
       if (t !== null && (top === null || t < top)) top = t;
     }
     if (top !== null) tops.push(top);
@@ -1933,10 +1951,13 @@ function setBody(kind) {
       const only = S.characters[kind].borrowed[f][pick.v].only;
       return [f, only && only !== kind ? { v: 0, borrowed: false } : pick];
     }
-    return [f, pick.none ? pick : { v: pick.v, borrowed: (pick.borrowed ? OTHER[old] : old) !== kind }];
+    // unmixed, the new body's own part in that place: its equivalent
+    return [f, pick.none ? pick : { v: pick.v, borrowed: mix && (pick.borrowed ? OTHER[old] : old) !== kind }];
   }));
   state.build[kind].skin = state.build[old].skin;
-  state.build[kind].colours = state.build[old].colours;
+  // a part turned into its equivalent has that one's colours
+  state.build[kind].colours = Object.fromEntries(Object.entries(state.build[old].colours || {})
+    .filter(([f]) => !FEATURES.includes(f) || mix || state.build[old][f].none || elsewhere(state.build[old][f])));
   state.build[kind].hat = state.build[old].hat;
   state.build[kind].extras = state.build[old].extras;
   state.name[kind] = state.name[old];
@@ -1966,6 +1987,8 @@ function paintTiles() {
       // a part from elsewhere only some bodies wear (Captain Cajun's feet: a Zoombini's)
       const only = x.kind === 'elsewhere' && S.characters[state.kind].borrowed[feat][x.v].only;
       x.b.hidden = !!only && only !== state.kind;
+      // unmixed, the other character's parts can't be picked
+      x.b.disabled = !mix && feat !== 'body' && feat !== 'extras' && x.kind === OTHER[state.kind];
     }
     if (t.none) {
       const none = feat === 'extras' ? !(build.extras || []).length : !!pick.none;
@@ -2055,10 +2078,18 @@ dice.addEventListener('click', () => {
   endClip();
   update();
 });
-const pureBtn = document.getElementById('btn-pure');
-pureBtn.addEventListener('click', () => {
-  pure = !pure;
-  pureBtn.setAttribute('aria-pressed', pure);
+const mixBtn = document.getElementById('btn-mix');
+mixBtn.setAttribute('aria-pressed', mix);
+mixBtn.addEventListener('click', () => {
+  mix = !mix;
+  mixBtn.setAttribute('aria-pressed', mix);
+  // turned off, what was the other's goes back to the body's own
+  if (!mix) {
+    const build = state.build[state.kind];
+    for (const f of FEATURES) if (mixed(build[f])) { build[f] = { v: build[f].v, borrowed: false }; resetColours(f); }
+    endClip();
+  }
+  update();
 });
 document.getElementById('btn-name').addEventListener('click', () => {
   state.name[state.kind] = makeName();
@@ -2168,6 +2199,10 @@ const sounds = (() => {
           const steps = snd.zoombiniFeet[f.v];
           for (const [t, file] of steps.cues) if (at % steps.loop === t) play(file);
         }
+      } else if (c.walk && !f.none && at === 0) {
+        // feet found elsewhere with a sound of their own (the mine cart's)
+        const e = S.characters[kind].borrowed.feet[f.v];
+        if (e && e.walkSound) { stopFeet(); feet = play(e.walkSound); }
       }
       const idle = !c.walk && !c.hat && !c.tumble ? S.characters[kind].idles.indexOf(c.ticks) : -1;
       if (idle >= 0 && kind === 'zoombini' && at === 0) play(voice(build, pick(snd.voice.idle)));
