@@ -573,8 +573,12 @@ const FEATURES = S.features;                 // ['hair', 'eyes', 'nose', 'feet']
 // firsts.
 const hatRoot = k => k === undefined || S.hats[k].family === undefined ? k : S.hats[k].family;
 const HAT_ROOTS = [...S.hats.keys()].filter(k => S.hats[k].family === undefined);
-// a hat's family: its first, then the hats that are it otherwise
-const familyOf = k => [k].concat([...S.hats.keys()].filter(j => S.hats[j].family === k));
+// a hat's family: its first, then the hats that are it otherwise - or as
+// its first's `forms` orders them (the mud's), the rest after
+const familyOf = k => {
+  const all = [k].concat([...S.hats.keys()].filter(j => S.hats[j].family === k)), order = S.hats[k]?.forms;
+  return order ? order.concat(all.filter(j => !order.includes(j))) : all;
+};
 const COMPACT_HATS = 11;                     // the hats before 1 October's (see boxes)
 // the hats the window's boxes are worked out for: the firsts, and the first
 // eleven (some since in a family: the meals, the mudball)
