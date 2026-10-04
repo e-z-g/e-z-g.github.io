@@ -876,6 +876,7 @@ function eyeFrame(entry, eyes) {
 // lift in turn, a Fleen's legs-and-shoes lift in turn, and a device plays its
 // own walk frames.
 const lifted = (v, up) => up ? Object.assign({}, v, { oy: -up }) : v;
+const FLEEN_BOB = [0, 2, 3, 1];               // px down, a tick each (see variantsFor)
 function variantsFor(kind, build, pose = REST, seat = null) {
   if (pose.tumble) return tumbleVariants(kind, build, pose);
   const ch = S.characters[kind];
@@ -979,8 +980,14 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // what is worn on the back goes behind - but walking away the back is
   // towards us, and it goes in front (Sam: the body hid the wings)
   const away = w && w[10], behind = p => !!p.back && !away;
-  return hat.filter(behind).concat(out.filter(p => !(p && none(p.name)))
+  const all = hat.filter(behind).concat(out.filter(p => !(p && none(p.name)))
     .map(p => p.name === 'body' ? p.v : Object.assign({ part: p.name }, p.v)), hat.filter(p => !behind(p)));
+  // A Fleen stepping in a Zoombini's sneakers or skates: the game only ever
+  // changes the feet, so its head stayed stock still over them (Sam: "the
+  // lack of Fleen head bobbing makes ... pink shoe walking look weird").
+  // Everything over the feet dips with each step, as a Zoombini's egg squashes.
+  const bob = kind === 'fleen' && w && build.feet.borrowed && build.feet.v <= 1 ? FLEEN_BOB[(pose.n || 0) % FLEEN_BOB.length] : 0;
+  return bob ? all.map(p => p.part === 'feet' ? p : Object.assign({}, p, { ry: p.ry - bob })) : all;
 }
 
 // A tick of the tumble (`pose.tumble`: [pose, dx, dy, effects, voice] - see
