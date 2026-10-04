@@ -1281,7 +1281,7 @@ function boxes(kind) {
         }
       }
       each.forEach((box, k) => {
-        reach.set(buildKey(Object.assign({}, build, { hat: k ? BOX_HATS[k - 1] : undefined })), box);
+        reach.set(buildKey(Object.assign({}, build, { extras: k ? [BOX_HATS[k - 1]] : [] })), box);
         if ((!k || BOX_HATS[k - 1] < COMPACT_HATS) && feet.v < 5) sample.push(box);
         if ((!k || BOX_HATS[k - 1] < COMPACT_HATS) && feet.v < 5) fullSample.push(box);
       });
@@ -1299,9 +1299,7 @@ const buildKey = build => ['feet', 'hair'].map(f => build[f].none ? 'x' : (build
 // the first thing worn on the head, which the boxes are worked out for
 const headOf = build => (build.extras || []).find(k => !S.hats[k].on);
 // The box the window fits this build in: the compact one if its moves stay
-// inside it, else the full one.
-// A build in one of the hats added since, or feet from elsewhere, that goes
-// further than the full box gets the full box grown to take it in.
+// inside it, else the compact one grown just enough to take them in.
 function boxFor(kind, build) {
   const box = boxFor1(kind, build), bb = drawnBounds(kind, build);
   return { l: Math.min(box.l, bb.l), t: Math.min(box.t, bb.t), r: Math.max(box.r, bb.r), b: Math.max(box.b, bb.b) };
@@ -1310,8 +1308,11 @@ function boxFor1(kind, build) {
   const { full, compact, reach } = boxes(kind), own = reach.get(buildKey(build));
   const inside = box => own && own.l >= box.l && own.t >= box.t && own.r <= box.r && own.b <= box.b;
   if (!own || inside(compact)) return own ? compact : full;
-  if (inside(full)) return full;
-  return { l: Math.min(full.l, own.l), t: Math.min(full.t, own.t), r: Math.max(full.r, own.r), b: Math.max(full.b, own.b) };
+  // a build that goes a little past it (the propeller's flight, the
+  // spring's bounce) gets the compact box grown only as far as it goes, not
+  // the full one: jumping to the full box shrank the character for a few
+  // pixels' reach (Sam: the propeller made it suddenly change size)
+  return { l: Math.min(compact.l, own.l), t: Math.min(compact.t, own.t), r: Math.max(compact.r, own.r), b: Math.max(compact.b, own.b) };
 }
 
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
