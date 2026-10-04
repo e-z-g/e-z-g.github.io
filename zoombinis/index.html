@@ -882,7 +882,6 @@ function eyeFrame(entry, eyes) {
 const lifted = (v, up) => up ? Object.assign({}, v, { oy: -up }) : v;
 const FLEEN_BOB = [0, 2, 3, 1];               // px down, a tick each (see variantsFor)
 function variantsFor(kind, build, pose = REST, seat = null) {
-  build = worn(kind, build);
   if (pose.tumble) return tumbleVariants(kind, build, pose);
   const ch = S.characters[kind];
   const w = pose.walk;
@@ -900,7 +899,7 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     if (noseless && !w && v.poses && v.poses[5]) {
       v = v.poses[5];
     } else if (w) {
-      if (!(borrowed && part.name === 'feet')) {
+      if (!(borrowed && part.name === 'feet' && !v.steps)) {
         const key = at(borrowed && part.name === 'hair' ? 'body' : part.name);
         if (key >= 0 && v.poses && v.poses[key]) v = v.poses[key];
       }
@@ -908,7 +907,7 @@ function variantsFor(kind, build, pose = REST, seat = null) {
       if (pose.facing && v.facings) v = v.facings[pose.facing];
       if (part.name === 'eyes') v = eyeFrame(v, pose.eyes);
       if (part.name === 'feet' && pose.feet >= 0 && v.special) {
-        v = Object.assign({}, v.special[pose.feet], { behind: v.behind, back: v.back });
+        v = Object.assign({}, v.special[pose.feet], { behind: v.behind, back: v.steps ? undefined : v.back });
       }
     }
     return { name: part.name, v };
@@ -1318,7 +1317,6 @@ function boxFor1(kind, build) {
 
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
 function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST, axis = null) {
-  build = worn(kind, build);
   for (const v of variantsFor(kind, build, pose)) {
     const src = v.part ? recoloured(v.sprite, kind, build.skin, groupsOf(kind, build, v.part), (build.colours || {})[v.part], v.part)
       : recoloured(v.sprite, kind, build.skin);
@@ -1449,22 +1447,13 @@ const el = (tag, cls) => Object.assign(document.createElement(tag), cls ? { clas
 // The part a build shows for a row: the variant entry, whose `groups` are
 // the colours its pickers change (see colour_groups() in the exporter) - or
 // null for none.
-// A Zoombini in the Fleen's red shoes wears its own sneakers in their red
-// (Sam: "couldn't you basically substitute them for the pink shoes?") - so
-// they step, tap and walk as the sneakers do, where the Fleen's heels, with
-// no frames of a Zoombini in them, stood still. The pick stays the red
-// shoes, in links too; what is drawn is the sneakers, red unless coloured.
-const RED_SHOES = 1;
-const inRedShoes = (kind, build) => kind === 'zoombini' && build.feet && build.feet.borrowed && build.feet.v === RED_SHOES;
-function worn(kind, build) {
-  if (!inRedShoes(kind, build)) return build;
-  const red = '#' + S.characters.fleen.parts.find(p => p.name === 'feet').variants[RED_SHOES].groups[0].ref;
-  const feet = ((build.colours || {}).feet || []).slice();
-  if (!feet[0]) feet[0] = red;
-  return Object.assign({}, build, { feet: { v: 0, borrowed: false }, colours: Object.assign({}, build.colours, { feet }) });
-}
+// A Zoombini in the Fleen's red shoes steps as in its sneakers (Sam: "animate
+// them like the pink shoes, keep their appearance"): the exporter makes the
+// sneakers' walk and showing-off frames again in the red shoes (`steps`),
+// and the sneakers' walks and showing off are played with them.
+const stepsLike = (kind, build) => kind === 'zoombini' && build.feet && build.feet.borrowed && !build.feet.none
+  && (S.characters.zoombini.borrowed.feet[build.feet.v] || {}).steps;
 function partOf(kind, build, feat) {
-  build = worn(kind, build);
   if (feat.startsWith('hat:')) return S.hats[+feat.slice(4)] || null;
   if (feat === 'extras' || feat === 'hat') return null;
   const pick = build[feat];
@@ -1474,7 +1463,7 @@ function partOf(kind, build, feat) {
   return part.variants.length === 1 ? part.variants[0] : pick.borrowed ? ch.borrowed[feat][pick.v] : part.variants[pick.v];
 }
 const groupsOf = (kind, build, feat) => (partOf(kind, build, feat) || {}).groups || [];
-const colourPick = (build, feat, k) => feat === 'body' ? build.skin : ((worn(state.kind, build).colours || {})[feat] || [])[k];
+const colourPick = (build, feat, k) => feat === 'body' ? build.skin : ((build.colours || {})[feat] || [])[k];
 // A colour the same as the part's own is no colour: it is left out of the
 // build, and of the link.
 function setColour(feat, k, value) {
@@ -2228,8 +2217,8 @@ const loopsSpecial = (kind, build) => kind === 'fleen' && build.feet.borrowed &&
   && (S.characters.fleen.borrowed.feet[build.feet.v].special || []).some(f => f.drop);
 // The ticks its feet show off in, or null.
 function specialOf(kind, build) {
-  build = worn(kind, build);
   const ch = S.characters[kind], feet = build.feet;
+  if (stepsLike(kind, build)) return ch.specials[0];
   if (kind === 'zoombini' && !feet.borrowed && !feet.none) return ch.specials[feet.v];
   if (kind === 'fleen' && feet.borrowed && ch.borrowed.feet[feet.v].special) {
     // the Fleen's head stays put; the special's opening tick, which faces a
@@ -2244,8 +2233,8 @@ function specialOf(kind, build) {
 }
 // Its walk: a clip per direction, and which way their frames face.
 function walkOf(kind, build) {
-  build = worn(kind, build);
   const ch = S.characters[kind], feet = build.feet;
+  if (stepsLike(kind, build)) return { dirs: ch.walks.own[0], faces: ch.faces.own };
   return { dirs: (feet.borrowed ? ch.walks.borrowedFeet : ch.walks.own)[feet.v],
            faces: ch.faces[feet.borrowed ? 'borrowedFeet' : 'own'] };
 }
