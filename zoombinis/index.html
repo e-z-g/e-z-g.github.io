@@ -407,7 +407,7 @@
     cursor: pointer;
   }
   #btn-mix { display: block; margin: 10px auto 2px; }
-  .tile:disabled { filter: grayscale(1); opacity: 0.4; cursor: default; }
+  .tile[aria-disabled="true"] { filter: grayscale(1); opacity: 0.4; }
   .tile canvas {
     display: block;
     width: 100%;
@@ -561,12 +561,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 94.
+    Version 95.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=94"></script>
+<script src="sprites.js?v=95"></script>
 <script>
 'use strict';
 
@@ -1618,7 +1618,15 @@ function tileButton(label, onClick) {
   b.title = label;
   b.setAttribute('aria-label', label);
   b.appendChild(el('canvas'));
-  b.addEventListener('click', onClick);
+  b.addEventListener('click', e => {
+    // greyed out, the other character's part: picked only once mixing is on
+    // (Sam: "give dialog prompt asking if they want to mix")
+    if (b.getAttribute('aria-disabled') === 'true') {
+      if (!confirm('Mix Zoombini and Fleen traits?')) return;
+      mixBtn.click();
+    }
+    onClick(e);
+  });
   return b;
 }
 
@@ -1656,9 +1664,19 @@ function mealHat(layers, root = layers.includes(0) ? MEAL_ROOT : MEAL_SUNDAE) {
     : layers.reduce((a, n) => whole.boxes[n][3] > whole.boxes[a][3] ? n : a);
   const [l, , r, b] = base === null ? [0, 0, 0, 0] : whole.boxes[base];
   const sx = base === null ? 0 : -(l + r) / 2, sy = base === null ? 0 : -b;
+  // on the platter, a sundae layer with the one under it left out comes down
+  // onto what is there - the platter for the glass - and does not hang in
+  // the air (Sam): by the drop from the left-out layer's bottom to its own
+  const drop = Array(10).fill(0);
+  if (base === null) {
+    for (let n = 6; n < 9; n++) {
+      if (layers.includes(n)) continue;
+      for (let m = n + 1; m <= 9; m++) drop[m] += whole.boxes[n][3] - whole.boxes[n + 1][3];
+    }
+  }
   const h = Object.assign({}, whole, {
     name: layers.map(n => names[n]).join(', '), whole: undefined, family: root, option: { layers },
-    sets: whole.sets.map(set => layers.map(n => Object.assign({}, set[n], { dx: set[n].dx + sx, dy: set[n].dy + sy }))),
+    sets: whole.sets.map(set => layers.map(n => Object.assign({}, set[n], { dx: set[n].dx + sx, dy: set[n].dy + sy + drop[n] }))),
     flat: base === null, sink: base === null ? whole.sink : base === 6 ? S.hats[MEAL_SUNDAE].sink : 3,
     groups: (base === null ? S.hats[MEAL_ROOT] : S.hats[MEAL_SUNDAE]).groups,
   });
@@ -2031,8 +2049,9 @@ function paintTiles() {
       // a part from elsewhere only some bodies wear (Captain Cajun's feet: a Zoombini's)
       const only = x.kind === 'elsewhere' && S.characters[state.kind].borrowed[feat][x.v].only;
       x.b.hidden = !!only && only !== state.kind;
-      // unmixed, the other character's parts can't be picked
-      x.b.disabled = !mix && feat !== 'body' && feat !== 'extras' && x.kind === OTHER[state.kind];
+      // unmixed, the other character's parts are greyed out; a tap asks to
+      // turn Mix Traits! on (see tileButton)
+      x.b.setAttribute('aria-disabled', !mix && feat !== 'body' && feat !== 'extras' && x.kind === OTHER[state.kind]);
     }
     if (t.none) {
       const none = feat === 'extras' ? !(build.extras || []).length : !!pick.none;
