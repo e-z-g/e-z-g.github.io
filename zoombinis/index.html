@@ -530,6 +530,14 @@
               <button class="stone plate" id="gif-back">Back</button>
             </div>
           </div>
+          <!-- a greyed-out trait tapped: mix? (see tileButton) -->
+          <div class="gif-preview" id="mix-ask" role="dialog" aria-labelledby="mix-ask-title" hidden>
+            <p class="title" id="mix-ask-title">Mix Zoombini and Fleen traits?</p>
+            <div class="buttons">
+              <button class="stone plate" id="mix-yes">Mix</button>
+              <button class="stone plate" id="mix-no">Back</button>
+            </div>
+          </div>
           <p class="status" id="status" aria-live="polite"></p>
         </div>
         <button class="stone name-btn" id="btn-name" title="Think of a new name"><span class="name" id="name"></span><span class="again" aria-hidden="true">&#x21bb;</span></button>
@@ -561,12 +569,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 95.
+    Version 96.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=95"></script>
+<script src="sprites.js?v=96"></script>
 <script>
 'use strict';
 
@@ -1168,6 +1176,9 @@ function hatSeat(body, h, hair) {
 // as on hair - whichever way they face. Cargo seen from above (the barrel,
 // sack and crate) is sat on `lid` rows into its top face, so they stack
 // one on another (Sam: "less vertical padding").
+// a pizza on its platter is sat on this many rows into its top, so a crate
+// on it sits down on it rather than back on the far rim (Sam)
+const PLATTER_LID = 3;
 function stackSeat(below, h, cx) {
   const w = rect(h.sets[0][0].sprite)[2];
   const half = h.flat ? w / 2 : w / 4, tops = [];
@@ -1176,7 +1187,8 @@ function stackSeat(below, h, cx) {
     for (const p of below) {
       const pw = rect(p.sprite)[2];
       let t = topAt(p, p.flip ? -2 * p.rx + pw - 1 - x : x);
-      if (t !== null) t += S.hats[+p.part.slice(4)].lid || 0;
+      const under = S.hats[+p.part.slice(4)];
+      if (t !== null) t += (under.lid || 0) + ((under.option || {}).layers || []).includes(0) * PLATTER_LID;
       if (t !== null && (top === null || t < top)) top = t;
     }
     if (top !== null) tops.push(top);
@@ -1613,6 +1625,21 @@ function colourPlaque(onPick) {
   b.append(el('canvas'), el('span'), input);
   return b;
 }
+// asked over the window, as a GIF is shown (Sam: "styled like the maker")
+let mixThen = null;
+const mixAsk = document.getElementById('mix-ask');
+function askMix(then) {
+  mixThen = then;
+  mixAsk.hidden = false;
+  document.getElementById('mix-yes').focus();
+}
+document.getElementById('mix-yes').addEventListener('click', () => {
+  mixAsk.hidden = true;
+  const then = mixThen;
+  mixThen = null;
+  if (then) then();
+});
+document.getElementById('mix-no').addEventListener('click', () => { mixAsk.hidden = true; mixThen = null; });
 function tileButton(label, onClick) {
   const b = el('button', 'tile');
   b.title = label;
@@ -1622,8 +1649,8 @@ function tileButton(label, onClick) {
     // greyed out, the other character's part: picked only once mixing is on
     // (Sam: "give dialog prompt asking if they want to mix")
     if (b.getAttribute('aria-disabled') === 'true') {
-      if (!confirm('Mix Zoombini and Fleen traits?')) return;
-      mixBtn.click();
+      askMix(() => { mixBtn.click(); onClick(e); });
+      return;
     }
     onClick(e);
   });
