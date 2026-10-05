@@ -561,12 +561,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 91.
+    Version 92.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=91"></script>
+<script src="sprites.js?v=92"></script>
 <script>
 'use strict';
 
@@ -990,8 +990,8 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // has it (pose.extraHats): hats stacked, the rest where they go
   const hat = [];
   let stack = [];
-  for (const k of build.extras || []) {
-    const ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[k] || null }),
+  for (const [k, was] of joinMeals(build.extras || [])) {
+    const ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null }),
                      under.left, S.hats[k].on ? null : stack);
     if (!S.hats[k].on) stack = stack.concat(ps);
     hat.push(...ps);
@@ -1656,6 +1656,21 @@ function mealHat(layers, root = layers.includes(0) ? MEAL_ROOT : MEAL_SUNDAE) {
   S.hats.push(h);
   mealHats.set(key, S.hats.length - 1);
   return S.hats.length - 1;
+}
+// A sundae put on straight over a pizza on its platter is drawn as one meal
+// with it, where the game stacks it on the platter (towards the back), not
+// stacked on the pizza's middle as other hats are (Sam). Each worn hat as
+// [what is drawn, the hat it was - whose animation it follows].
+function joinMeals(extras) {
+  const layers = k => (S.hats[k].option || {}).layers;
+  return extras.flatMap((k, i) => {
+    const below = extras[i - 1], above = extras[i + 1];
+    if (layers(k) && !layers(k).includes(0) && below !== undefined && (layers(below) || []).includes(0)) return [];
+    if ((layers(k) || []).includes(0) && above !== undefined && layers(above) && !layers(above).includes(0)) {
+      return [[mealHat(layers(k).concat(layers(above)), MEAL_ROOT), k]];
+    }
+    return [[k, k]];
+  });
 }
 const mealBits = layers => layers.reduce((m, n) => m | 1 << n, 0);
 const mealLayers = bits => [...Array(10).keys()].filter(n => bits & 1 << n);
