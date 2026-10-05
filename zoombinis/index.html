@@ -560,7 +560,7 @@
     from the game's data files. A fan-made toy, not affiliated with the game's makers.
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live -->
-    Version 81.
+    Version 82.
   </footer>
 </div>
 
@@ -2382,7 +2382,9 @@ function tick() {
 function startClip(c) {
   if (c.dirs) {
     // any direction but a Fleen's run away (see waysOf)
-    const dirs = c.dirs.map((_, d) => d).filter(d => !(state.kind === 'fleen' && c.dirs.length > 1 && d === 1));
+    // and only along in stepping Fleen shoes (see alongOnly)
+    const dirs = c.dirs.map((_, d) => d).filter(d => !(state.kind === 'fleen' && c.dirs.length > 1 && d === 1)
+      && !(alongOnly(state.kind, state.build[state.kind]) && d !== 2));
     clip = walkClip(state.kind, c, dirs[Math.floor(Math.random() * dirs.length)]);
     heading = Math.random() < 0.5 ? 'left' : 'right';
   } else {
@@ -2427,8 +2429,14 @@ document.getElementById('btn-motion').addEventListener('click', () => setPaused(
 // Zoombini device it only goes along. A Fleen's arrow keys go left or right
 // and, whichever way it faces, away (up) or towards us (down). Paused, the
 // walk plays once.
+// A Zoombini in Fleen shoes that step (the brown boots, the red shoes) only
+// walks along: towards and away the shoes stood in for tall sneakers and
+// looked "weirdly lanky" (Sam), so those directions are left out
+const alongOnly = (kind, build) => kind === 'zoombini' && build.feet.borrowed && !build.feet.none
+  && !!(S.characters.zoombini.borrowed.feet[build.feet.v] || {}).steps;
 function waysOf(kind, build) {
   const n = walkOf(kind, build).dirs.length;
+  if (alongOnly(kind, build)) return { left: [2, 'left'], right: [2, 'right'] };
   if (kind === 'zoombini') return { left: [2, 'left'], right: [2, 'right'], down: [0, null], up: [3, null] };
   if (n === 1) return { left: [0, 'left'], right: [0, 'right'] };
   // a Fleen's run away (direction 1) is gone (Sam: "do something about the
