@@ -569,12 +569,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 96.
+    Version 97.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=96"></script>
+<script src="sprites.js?v=97"></script>
 <script>
 'use strict';
 
@@ -1000,11 +1000,14 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   let stack = [];
   // a sundae joined to a pizza (joinMeals) is held back: what is put on
   // after lands on the pizza and is drawn behind the sundae (Sam)
-  let held = [];
+  let held = [], lastOn;
   for (const [k, was] of joinMeals(build.extras || [])) {
     let ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null }),
                    under.left, S.hats[k].on ? null : stack);
     if (S.hats[k].on) { hat.push(...ps); continue; }
+    const nudge = stackNudge(k, lastOn);
+    if (nudge) ps = ps.map(p => Object.assign({}, p, { rx: p.rx - (under.left ? -nudge[0] : nudge[0]), ry: p.ry - nudge[1] }));
+    lastOn = k;
     const layers = k !== was ? S.hats[k].option.layers : null;
     const sundae = layers ? ps.filter((_, i) => layers[i] >= 6) : [];
     ps = ps.filter(p => !sundae.includes(p));
@@ -1176,6 +1179,14 @@ function hatSeat(body, h, hair) {
 // as on hair - whichever way they face. Cargo seen from above (the barrel,
 // sack and crate) is sat on `lid` rows into its top face, so they stack
 // one on another (Sam: "less vertical padding").
+// One hat on another that sits wrong by the general rule, put right by eye:
+// [hat, on, forward, down] px (Sam: a crate on the bundle sat too high)
+const STACK_NUDGES = [['a crate', 'a sack', 1, 3]];
+function stackNudge(k, on) {
+  if (on === undefined) return null;
+  const n = STACK_NUDGES.find(([a, b]) => S.hats[hatRoot(k)].name === a && S.hats[hatRoot(on)].name === b);
+  return n ? n.slice(2) : null;
+}
 // a pizza on its platter is sat on this many rows into its top, so a crate
 // on it sits down on it rather than back on the far rim (Sam)
 const PLATTER_LID = 3;
