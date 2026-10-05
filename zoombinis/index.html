@@ -561,12 +561,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 92.
+    Version 93.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=92"></script>
+<script src="sprites.js?v=93"></script>
 <script>
 'use strict';
 
@@ -990,12 +990,21 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // has it (pose.extraHats): hats stacked, the rest where they go
   const hat = [];
   let stack = [];
+  // a sundae joined to a pizza (joinMeals) is held back: the next hat lands
+  // on the pizza and is drawn behind the sundae (Sam)
+  let held = [];
   for (const [k, was] of joinMeals(build.extras || [])) {
-    const ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null }),
-                     under.left, S.hats[k].on ? null : stack);
-    if (!S.hats[k].on) stack = stack.concat(ps);
-    hat.push(...ps);
+    let ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null }),
+                   under.left, S.hats[k].on ? null : stack);
+    if (S.hats[k].on) { hat.push(...ps); continue; }
+    const layers = k !== was ? S.hats[k].option.layers : null;
+    const sundae = layers ? ps.filter((_, i) => layers[i] >= 6) : [];
+    ps = ps.filter(p => !sundae.includes(p));
+    stack = stack.concat(ps);
+    hat.push(...ps, ...held);
+    held = sundae;
   }
+  hat.push(...held);
   // what is worn on the back goes behind - but walking away the back is
   // towards us, and it goes in front (Sam: the body hid the wings)
   const away = w && w[10], behind = p => !!p.back && !away;
