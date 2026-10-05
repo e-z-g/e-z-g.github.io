@@ -560,7 +560,7 @@
     from the game's data files. A fan-made toy, not affiliated with the game's makers.
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live -->
-    Version 84.
+    Version 85.
   </footer>
 </div>
 
@@ -1083,9 +1083,18 @@ function tumbleVariants(kind, build, pose) {
 const HAT_SOLID = 0.6;                       // the share of columns that must reach the row
 // The way the frames drawn at `pose` face, before the page turns them.
 const framesFace = (kind, pose) => pose.walk || pose.tumble ? pose.faces : S.characters[kind].faces.rest;
+// A Fleen's bodies, every pose and facing, for a hat placed otherwise on
+// one (`fleenDx`, the mud's)
+const FLEEN_BODIES = new WeakSet();
+(function mark(o) {
+  if (!o || typeof o !== 'object') return;
+  if (o.crown) FLEEN_BODIES.add(o);
+  Object.values(o).forEach(mark);
+})(S.characters.fleen.parts.find(p => p.name === 'body'));
 function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) {
   const h = S.hats[hat];
   if (!h || !body.crown) return [];
+  const fdx = FLEEN_BODIES.has(body) ? h.fleenDx || 0 : 0;
   const w = pose.walk;
   const [k, ox, oy] = pose.hat || [w && w[10] && h.away !== undefined ? h.away
     : w && h.walk ? h.walk[(pose.n || 0) % h.walk.length] : 0, 0, 0];
@@ -1108,7 +1117,7 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
     : below && below.length ? stackSeat(below, h, cx) : hatSeat(body, h, hair);
   // a hat faces right; on frames that face left it is turned about the crown
   return pieces.map(p => ({ part: 'hat:' + hat, sprite: p.sprite, flip: left, back: h.on === 'back',
-                            rx: -Math.round(left ? cx - p.dx - ox - rect(p.sprite)[2] : cx + p.dx + ox),
+                            rx: -Math.round(left ? cx - p.dx - fdx - ox - rect(p.sprite)[2] : cx + p.dx + fdx + ox),
                             ry: -Math.round(cy + h.sink + p.dy + oy) }));
 }
 let HAT_RULE = 'hair';
