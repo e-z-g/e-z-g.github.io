@@ -560,7 +560,7 @@
     from the game's data files. A fan-made toy, not affiliated with the game's makers.
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live -->
-    Version 83.
+    Version 84.
   </footer>
 </div>
 
@@ -1121,14 +1121,15 @@ function hatSeat(body, h, hair) {
   if (byHat.has(h)) return byHat.get(h);
   const [cx, crownY] = body.crown;
   let cy = crownY;
+  // a hat's other forms sit on the hair as its first does, whatever their
+  // width (Sam: the mud's "should all sit at the same level")
+  const w = rect(S.hats[h.family ?? -1]?.sets[0][0].sprite ?? h.sets[0][0].sprite)[2];
   if (hair && HAT_RULE === 'hair' && h.flat) {
-    const w = rect(h.sets[0][0].sprite)[2];
     for (let x = Math.round(cx - w / 2); x < Math.round(cx + w / 2); x++) {
       const t = topAt(hair, x);
       if (t !== null) cy = Math.min(cy, t);
     }
   } else if (hair && HAT_RULE === 'hair') {
-    const w = rect(h.sets[0][0].sprite)[2];
     const tops = [];
     for (let x = Math.round(cx - w / 4); x < Math.round(cx + w / 4); x++) {
       const t = topAt(hair, x);
