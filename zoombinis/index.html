@@ -569,12 +569,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 97.
+    Version 98.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=97"></script>
+<script src="sprites.js?v=98"></script>
 <script>
 'use strict';
 
@@ -993,6 +993,9 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   const under = { body: out.find(p => p.name === 'body').v,
                   hair: build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v,
                   left: framesFace(kind, pose) === 'left' };
+  // the middle of all that is drawn, across (for a hat round it all)
+  const xs = out.filter(p => p && !none(p.name)).flatMap(p => [-p.v.rx, -p.v.rx + rect(p.v.sprite)[2]]);
+  under.figure = (Math.min(...xs) + Math.max(...xs)) / 2;
   if (seat) Object.assign(seat, under);
   // what is worn, in the order it was put on, each where its own animation
   // has it (pose.extraHats): hats stacked, the rest where they go
@@ -1002,7 +1005,7 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // after lands on the pizza and is drawn behind the sundae (Sam)
   let held = [], lastOn;
   for (const [k, was] of joinMeals(build.extras || [])) {
-    let ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null }),
+    let ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null, figure: under.figure }),
                    under.left, S.hats[k].on ? null : stack);
     if (S.hats[k].on) { hat.push(...ps); continue; }
     const nudge = stackNudge(k, lastOn);
@@ -1131,7 +1134,10 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
   const [, , bw, bh] = rect(body.sprite);
   const wings = h.on === 'back';
   const back = wings ? (w && w[10] ? 0 : left ? 0.22 : -0.22) : 0;
-  const cx = onFace ? body.face[0] : wings ? -body.rx + bw * (0.5 + back) : body.crown[0];
+  // round the whole character (`centre`, the bubble): across the middle of
+  // everything drawn of it (pose.figure), else of its body
+  const cx = onFace ? body.face[0] : wings ? -body.rx + bw * (0.5 + back)
+    : h.centre ? (pose.figure !== undefined ? pose.figure : -body.rx + bw / 2) : body.crown[0];
   // worn on the body rather than the head - on the back (the wings, painted
   // behind the body) or over it (the crab on the face, the bee on the back):
   // placed from the head's top whatever the hair, by its sink and nudge
