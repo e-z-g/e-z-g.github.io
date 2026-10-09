@@ -49,8 +49,8 @@
   Zoombini has five per pair of feet, from towards the viewer round to away
   from them - to the right or, mirrored, to the left, and stays turned that
   way afterwards. A Fleen hop-steps (its hop frames face right, though it
-  stands facing left) or runs away from the viewer, in its own feet or in
-  Zoombini sneakers or skates. Borrowed Fleen wheels, treads and rockets use the
+  stands facing left), in its own feet or in Zoombini sneakers or skates
+  (its run away from the viewer was taken out). Borrowed Fleen wheels, treads and rockets use the
   Fleen's own spinning, rolling and firing frames; see
   walk_clip() and FLEEN_RIDES in the exporter for how borrowed feet walk.
 
@@ -255,8 +255,8 @@
   .corner.left canvas { width: 24px; }
   /* Arrows in the window's other corner: the character walks that way, as
      far as its feet go (see waysOf). A Zoombini's four go along, towards us
-     and away; a Fleen's hop and its run away are both on the slant, so it
-     has the diagonals, and left and right where it walks along. */
+     and away; a Fleen's hop is on the slant, so it has the two diagonals
+     towards us, and left and right where it walks along. */
   .pad {
     position: absolute; right: 8px; bottom: 8px; z-index: 2;
     display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px); gap: 2px;
@@ -270,13 +270,11 @@
   /* in the middle of the arrows, a tumble: the dazed stars */
   .pad .tumble { grid-area: 2 / 2; }
   .pad .tumble canvas { display: block; width: 18px; height: 18px; image-rendering: pixelated; }
-  .pad .upleft { grid-area: 1 / 1; } .pad .upright { grid-area: 1 / 3; }
   .pad .downleft { grid-area: 3 / 1; } .pad .downright { grid-area: 3 / 3; }
-  .pad .upleft .arrow, .pad .upright .arrow, .pad .downleft .arrow, .pad .downright .arrow {
+  .pad .downleft .arrow, .pad .downright .arrow {
     border-width: 5px 0 5px 11px; border-left-color: currentColor;
   }
-  .pad .upright .arrow { transform: rotate(-45deg); } .pad .downright .arrow { transform: rotate(45deg); }
-  .pad .downleft .arrow { transform: rotate(135deg); } .pad .upleft .arrow { transform: rotate(-135deg); }
+  .pad .downright .arrow { transform: rotate(45deg); } .pad .downleft .arrow { transform: rotate(135deg); }
   .pad .arrow { width: 0; height: 0; border: 7px solid transparent; }
   .pad .up .arrow { border-bottom-color: currentColor; border-top: 0; }
   .pad .down .arrow { border-top-color: currentColor; border-bottom: 0; }
@@ -517,8 +515,6 @@
             <button class="stone right" data-way="right" title="Walk right" aria-label="Walk right"><span class="arrow"></span></button>
             <button class="stone tumble" id="btn-tumble" title="Tumble" aria-label="Tumble"><canvas></canvas></button>
             <button class="stone down" data-way="down" title="Walk towards us" aria-label="Walk towards us"><span class="arrow"></span></button>
-            <button class="stone upleft" data-way="upleft" title="Run away to the left" aria-label="Run away to the left" hidden><span class="arrow"></span></button>
-            <button class="stone upright" data-way="upright" title="Run away to the right" aria-label="Run away to the right" hidden><span class="arrow"></span></button>
             <button class="stone downleft" data-way="downleft" title="Hop towards us, to the left" aria-label="Hop towards us, to the left" hidden><span class="arrow"></span></button>
             <button class="stone downright" data-way="downright" title="Hop towards us, to the right" aria-label="Hop towards us, to the right" hidden><span class="arrow"></span></button>
           </div>
@@ -569,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 99.
+    Version 100.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=99"></script>
+<script src="sprites.js?v=100"></script>
 <script>
 'use strict';
 
@@ -599,17 +595,9 @@ const LABEL = { zoombini: 'Zoombini', fleen: 'Fleen' };
 const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
 const PAD = 3;                               // source pixels around the figure
 const TICK_MS = 100;                         // one script section per tick
-// A Fleen running away (its walk's second direction) goes at twice that, as
-// Sam asked (30 September 2026). The timer runs at half ticks, and every
-// other clip takes every other one.
-const isFast = (kind, walk, d) => kind === 'fleen' && walk.dirs.length > 1 && d === 1;
 // which way a walk's frames face: one for a set of walks, or one a direction
 const facesAt = (faces, d) => Array.isArray(faces) ? faces[d] : faces;
-const walkClip = (kind, walk, d) => ({ ticks: walk.dirs[d], walk: true, faces: facesAt(walk.faces, d), fast: isFast(kind, walk, d) });
-let half = 0;
-function halfTick() {
-  if ((clip && clip.fast) || ++half % 2 === 0) tick();
-}
+const walkClip = (walk, d) => ({ ticks: walk.dirs[d], walk: true, faces: facesAt(walk.faces, d) });
 const REST = { eyes: 0, dx: 0, dy: 0, facing: 0, feet: -1, walk: null, faces: null, hat: null, n: 0, tumble: null };
 // A walk tick: [dx, dy, feet, body, nose, eyes, hair, liftNear, liftFar,
 // device, away] - each part's pose (-1 rest), how far each borrowed foot
@@ -688,7 +676,8 @@ const state = {
 // #zoombini-2031-oplie is hair 2, eyes 0, nose 3, feet 1, named Oplie, and a
 // letter marks a feature borrowed from the other character - #zoombini-2d31
 // has the other's eyes number 3 (a = 0) - or x none. After the name, -s and
-// a colour is its skin, -h and a number its hat (see HATS below), and -c, a
+// a colour is its skin, -a and a number each thing worn, in order (-h in older
+// links; see readHash for its options and -q, its colours), and -c, a
 // part's letter (COLOUR_LETTER), its colour's number and a colour is one of a
 // part's colours: -ch1ff0080 is the hair's second colour. -n and a colour, from
 // when only the nose had one, is the nose's first. Links from before names
@@ -703,23 +692,32 @@ const codeOf = build => FEATURES.map(f =>
 // the last thing worn as another of its family (o: which; m: a meal's layers)
 function wornOption(worn, o, m) {
   const k = worn.pop(), root = hatRoot(k);
-  worn.push(m ? mealHat(mealLayers(+m), root) : familyOf(root)[+o] ?? k);
+  // (a meal of no layers, or layers for what is no meal, is left as it is)
+  const layers = m && (S.hats[root].options || {}).toppings ? mealLayers(+m) : [];
+  worn.push(layers.length ? mealHat(layers, root) : o == null ? k : familyOf(root)[+o] ?? k);
 }
 function readHash() {
-  const m = /^#(zoombini|fleen)(?:-([0-4a-x]{4})x?)?(?:-([a-z]{1,12}))?((?:-[0-9a-z]+)*)$/.exec(location.hash);
+  const m = /^#(zoombini|fleen)(?:-([0-4a-x]{4})x?)?(?:-([a-z]{1,12}))?((?:-[0-9a-z_]+)*)$/.exec(location.hash);
   if (!m) return;
+  // a link naming a part there is none of (a letter past the borrowed
+  // parts, or one this body does not wear) is no link at all
+  const picks = m[2] && FEATURES.map((f, i) => {
+    const c = m[2][i], letter = c >= 'a', v = letter ? c.charCodeAt(0) - 97 : +c;
+    if (c === 'x') return { ...NONE };
+    const entry = letter ? S.characters[m[1]].borrowed[f][v] : {};
+    return entry && !(entry.only && entry.only !== m[1]) ? { v, borrowed: letter } : null;
+  });
+  if (picks && picks.includes(null)) return;
   state.kind = m[1];
   if (m[3]) state.name[m[1]] = m[3];
   if (!m[2]) return;
-  FEATURES.forEach((f, i) => {
-    const c = m[2][i], letter = c >= 'a';
-    state.build[m[1]][f] = c === 'x' ? { ...NONE } : { v: letter ? c.charCodeAt(0) - 97 : +c, borrowed: letter };
-  });
+  FEATURES.forEach((f, i) => { state.build[m[1]][f] = picks[i]; });
   if (FEATURES.some(f => mixed(state.build[m[1]][f]))) mix = true;
   const build = state.build[m[1]];
   Object.assign(build, { skin: undefined, colours: {}, hat: undefined, extras: [] });
   const worn = build.extras;
   let hatColour = null;
+  const wornColours = [];
   for (const x of m[4].split('-').slice(1)) {
     let c;
     if ((c = /^s([0-9a-f]{6})$/.exec(x))) build.skin = '#' + c[1];
@@ -730,7 +728,10 @@ function readHash() {
       if (c[2] || c[3]) wornOption(worn, c[2], c[3]);
     }
     else if ((c = /^([om])([0-9]{1,4})$/.exec(x)) && worn.length) wornOption(worn, c[1] === 'o' ? c[2] : null, c[1] === 'm' ? c[2] : null);
-    else if ((c = /^q([0-9]{1,3})_([01])([0-9a-f]{6})$/.exec(x))) (build.colours['hat:' + c[1]] = build.colours['hat:' + c[1]] || [])[+c[2]] = '#' + c[3];
+    // a colour of something worn: -q, its place among what is worn, _, the
+    // colour's number and the colour (not its hat's number: a meal made on
+    // the page has a different one each time)
+    else if ((c = /^q([0-9]{1,3})_([01])([0-9a-f]{6})$/.exec(x))) wornColours.push([+c[1], +c[2], '#' + c[3]]);
     else if ((c = /^n([0-9a-f]{6})$/.exec(x))) (build.colours.nose = build.colours.nose || [])[0] = '#' + c[1];
     else if ((c = /^c([a-z])([01])([0-9a-f]{6})$/.exec(x))) {
       const f = Object.keys(COLOUR_LETTER).find(k => COLOUR_LETTER[k] === c[1]);
@@ -739,6 +740,9 @@ function readHash() {
     }
   }
   if (hatColour && worn.length) (build.colours['hat:' + worn[0]] = [])[hatColour[0]] = hatColour[1];
+  for (const [i, g, hex] of wornColours) {
+    if (worn[i] !== undefined) (build.colours['hat:' + worn[i]] = build.colours['hat:' + worn[i]] || [])[g] = hex;
+  }
 }
 function writeHash() {
   const build = state.build[state.kind];
@@ -752,8 +756,8 @@ function writeHash() {
       return '-a' + root + (k === root ? '' : S.hats[k].option.layers ? 'm' + mealBits(S.hats[k].option.layers)
         : 'o' + familyOf(root).indexOf(k));
     }).join('')
-    + Object.entries(build.colours || {}).filter(([f]) => f.startsWith('hat:'))
-      .map(([f, picks]) => picks.map((hex, g) => hex ? '-q' + f.slice(4) + '_' + g + hex.slice(1) : '').join('')).join('')
+    + (build.extras || []).map((k, i) => ((build.colours || {})['hat:' + k] || [])
+      .map((hex, g) => hex ? '-q' + i + '_' + g + hex.slice(1) : '').join('')).join('')
     + Object.entries(COLOUR_LETTER).filter(([f]) => f !== 'hat').map(([f, l]) => ((build.colours || {})[f] || [])
       .map((hex, k) => hex ? '-c' + l + k + hex.slice(1) : '').join('')).join('');
   if (location.hash !== hash) history.replaceState(null, '', hash);
@@ -830,7 +834,7 @@ function skinLadder(hex) {
 // hat's pixels are never skin (the cream has the Zoombini's lightest blue).
 // With nothing picked, or only a part's own colours, the sprite is the
 // sheet's own, untouched.
-const recolourCache = new Map();
+const recolourCache = new Map(), RECOLOUR_KEPT = 2000;
 function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
   picks = picks || [];
   if (skin && skin.toLowerCase() === NATURAL_SKIN[kind]) skin = undefined;
@@ -869,6 +873,9 @@ function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
     if (rgb) [d[i], d[i + 1], d[i + 2]] = rgb;
   }
   ctx.putImageData(img, 0, 0);
+  // (a colour picker dragged about asks for a copy of every sprite at every
+  // colour it passes)
+  if (recolourCache.size >= RECOLOUR_KEPT) recolourCache.clear();
   recolourCache.set(key, c);
   return c;
 }
@@ -999,7 +1006,7 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   if (seat) Object.assign(seat, under);
   // what is worn, in the order it was put on, each where its own animation
   // has it (pose.extraHats): hats stacked, the rest where they go
-  const hat = [];
+  let hat = [];
   let stack = [];
   // a sundae joined to a pizza (joinMeals) is held back: what is put on
   // after lands on the pizza and is drawn behind the sundae (Sam)
@@ -1019,6 +1026,12 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     held = held.concat(sundae);
   }
   hat.push(...held);
+  // coming down again after a tumble (`pose.hat`, see tumblePoses): all that
+  // was knocked off, as it sits and stacks, that far from its place
+  if (pose.hat) {
+    const [, ox, oy] = pose.hat;
+    hat = hat.map(p => p.back ? p : Object.assign({}, p, { rx: p.rx - (under.left ? -ox : ox), ry: p.ry - oy }));
+  }
   // what is worn on the back goes behind - but walking away the back is
   // towards us, and it goes in front (Sam: the body hid the wings)
   const away = w && w[10], behind = p => !!p.back && !away;
@@ -1067,15 +1080,19 @@ function tumbleVariants(kind, build, pose) {
   // wings stay on through a tumble (Sam: "maybe the wings stay attached
   // when hit"), where the figure is; a hat is knocked off and flies
   const flies = k => S.hats[k].on !== 'back';
-  const worn = (build.extras || []).filter(k => !flies(k) ? true : pose.hat && pose.hat[0] >= 0);
-  if (worn.length) {
+  if ((build.extras || []).length) {
     // seated as at rest; on a Fleen, whose rest frames face left, turned to
     // face right with the tumbling frames, about the line the window turns
     // the figure about (so its +dx is still forwards)
-    const seat = {}, mid = turnAxis(kind);
-    variantsFor(kind, build, REST, seat);
-    hat = worn.flatMap(k => hatOn(seat.body, k, seat.hair, flies(k) ? pose : Object.assign({}, pose, { hat: [0, 0, 0] }), seat.left)
-      .map((h, n) => {
+    // each where it sits at rest - stacked, a sundae joined to its pizza -
+    // and what flies moved by the tick's flight
+    const seat = {}, mid = turnAxis(kind), nth = {};
+    const [, ox, oy] = pose.hat || [0, 0, 0];
+    hat = variantsFor(kind, build, REST, seat).filter(h => h.part && h.part.startsWith('hat:'))
+      .filter(h => h.back || (pose.hat && pose.hat[0] >= 0))
+      .map(h => {
+        const k = +h.part.slice(4), n = nth[k] = (nth[k] ?? -1) + 1;
+        if (flies(k)) h = Object.assign({}, h, { rx: h.rx - (seat.left ? -ox : ox), ry: h.ry - oy });
         const w = rect(h.sprite)[2], x = seat.left ? 2 * mid + h.rx - w : -h.rx;
         // wings held to the body (Sam): their corner turned about the body's
         // rest centre onto its tumbling one - already where the figure is,
@@ -1087,7 +1104,7 @@ function tumbleVariants(kind, build, pose) {
         const X = x - px, Y = -h.ry - py, c = Math.cos(a), s = Math.sin(a);
         const tx = c * X - s * Y + bx - t.cx, ty = s * X + c * Y + by - t.cy;
         return Object.assign({}, h, { sprite: t.sprite, flip: false, rx: -Math.round(tx), ry: -Math.round(ty) });
-      }));
+      });
   }
   return hat.filter(p => p.back).concat(back, body, front, hat.filter(p => !p.back));
 }
@@ -1331,7 +1348,7 @@ function boxes(kind) {
     distinct([[0, 0, 0]].concat((h.anims || []).filter(a => a.kind === 'idle').flatMap(a => a.ticks))),
     distinct([0].concat(h.walk || [], h.away === undefined ? [] : [h.away]).map(i => [i, 0, 0]))]);
   const reach = new Map();                   // buildKey -> where that build goes
-  const sample = [], fullSample = [];        // the builds the compact and full boxes are worked out from
+  const sample = [];                         // the builds the compact and full boxes are worked out from
   for (const feet of feetPicks) {
     for (const hair of picks.concat([{ ...NONE }])) {
       const build = { hair, feet, eyes: { v: 0, borrowed: false }, nose: { v: 0, borrowed: false } };
@@ -1359,13 +1376,12 @@ function boxes(kind) {
       each.forEach((box, k) => {
         reach.set(buildKey(Object.assign({}, build, { extras: k ? [BOX_HATS[k - 1]] : [] })), box);
         if ((!k || BOX_HATS[k - 1] < COMPACT_HATS) && feet.v < 5) sample.push(box);
-        if ((!k || BOX_HATS[k - 1] < COMPACT_HATS) && feet.v < 5) fullSample.push(box);
       });
     }
   }
   const all = sample;
   const full = Object.assign({}, fb), compact = Object.assign({}, fb);
-  for (const box of fullSample) take(full, box.l, box.t, box.r, box.b);
+  for (const box of sample) take(full, box.l, box.t, box.r, box.b);
   const at = (values, sign) => sign * values.map(v => sign * v).sort((a, b) => a - b)[Math.floor(values.length * COMPACT)];
   take(compact, at(all.map(b => b.l), -1), at(all.map(b => b.t), -1), at(all.map(b => b.r), 1), at(all.map(b => b.b), 1));
   return (boxesOf[kind] = { full, compact, reach });
@@ -1656,7 +1672,12 @@ document.getElementById('mix-yes').addEventListener('click', () => {
   mixThen = null;
   if (then) then();
 });
-document.getElementById('mix-no').addEventListener('click', () => { mixAsk.hidden = true; mixThen = null; });
+// Back, Escape or any change to the character takes the question away
+function closeMixAsk() { mixAsk.hidden = true; mixThen = null; }
+document.getElementById('mix-no').addEventListener('click', closeMixAsk);
+mixAsk.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); closeMixAsk(); }
+});
 function tileButton(label, onClick) {
   const b = el('button', 'tile');
   b.title = label;
@@ -1951,12 +1972,19 @@ function buildTiles() {
         t.dots.appendChild(d);
       });
       tilesEl.appendChild(t.dots);
-      let x0 = null;
+      // (with a mouse the drag ends in a click on the tile under it, which
+      // is not a pick)
+      let x0 = null, swiped = -Infinity;
       sets.addEventListener('pointerdown', e => { x0 = e.clientX; });
+      sets.addEventListener('pointercancel', () => { x0 = null; });
+      sets.addEventListener('click', e => {
+        if (performance.now() - swiped < 300) { e.stopPropagation(); e.preventDefault(); }
+      }, true);
       sets.addEventListener('pointerup', e => {
         const dx = x0 === null ? 0 : e.clientX - x0;
         x0 = null;
         if (Math.abs(dx) < 40) return;
+        swiped = performance.now();
         t.page = (t.page + (dx < 0 ? 1 : -1) + t.pages.length) % t.pages.length;
         paintTiles();
       });
@@ -2212,12 +2240,11 @@ document.getElementById('btn-name').addEventListener('click', () => {
 // big Zoombini does, as an idle starts, and crying out landing from a
 // tumble. A Fleen chatters instead, one of the Fleens' own at random. Feet
 // sound as whose they are, on either body: a Zoombini's step as the same
-// walks do in other scenes, a Fleen's as its run does (and, running away, as
-// it leaves). Hats play what the game plays with them, put on and in their
+// walks do in other scenes, a Fleen's as its run does. Hats play what the game plays with them, put on and in their
 // animations; a topping goes on with its own. The tiles and the dice click
-// as the builder's do. Sound is on unless
-// turned on with the window's Sound plaque - it starts off (Sam, 1 October
-// 2026) - and this browser remembers which. Nothing plays until the page is
+// as the builder's do. Sound is off until
+// turned on with the window's Sound plaque (Sam, 1 October 2026), and this
+// browser remembers which. Nothing plays until the page is
 // first clicked or a key pressed, as browsers ask.
 const SOUND_KEY = 'zoombini-maker-muted';
 const sounds = (() => {
@@ -2293,12 +2320,11 @@ const sounds = (() => {
     onPose(p, c, at) {
       const kind = state.kind, build = state.build[kind], f = build.feet, snd = S.sounds;
       if (c.walk && !f.none && f.v < 5) {
-        // the feet sound as whose they are, on either body: a Fleen's run
-        // (and as it runs away, its leaving), or a Zoombini's steps
+        // the feet sound as whose they are, on either body: a Fleen's run,
+        // or a Zoombini's steps
         if ((kind === 'fleen') !== f.borrowed) {
           if (at === 0) {
             stopFeet();
-            if (c.fast) play('FLEENS-' + snd.fleenLeave[f.v]);
             feet = play('FLEENS-' + snd.fleenFeet[f.v]);
           }
           if (f.v === snd.fleenRattle.feet && snd.fleenRattle.ticks.includes(at)) play('FLEENS-' + snd.fleenRattle.sound);
@@ -2391,8 +2417,7 @@ const poseAt = (clip, t) => clip.walk
 // exporter turns it first, about its origin; the window turns figures about
 // the middle of their standing box, so its ticks move over by twice that).
 // A hat is knocked off as the spin starts, flies up and back out of sight,
-// and comes down again once the character is up: its own arrival if it has
-// one (mud, an acorn), else a drop straight down.
+// and comes down again once the character is up, straight down.
 const HAT_FLIGHT = [[0, -2, -6], [0, -5, -14], [0, -9, -25], [0, -13, -39]];
 const HAT_DROP = [[0, 0, -30], [0, 0, -17], [0, 0, -7], [0, 0, 0]];
 function tumblePoses(kind, build) {
@@ -2435,8 +2460,8 @@ function startExtraClip(k, kind) {
 function extraTick() {
   const extras = state.build[state.kind].extras || [];
   // a tumble's poses carry their own (a seat's throw)
-  if (clip && clip.tumble) { extraClip = null; return; }
   pose.extraHats = {};
+  if (clip && clip.tumble) { extraClip = null; return; }
   if (clip && clip.walk) { extraClip = null; return; }
   if (!extraClip && extras.length && --extraWait <= 0) {
     extraWait = 20 + Math.floor(Math.random() * 30);
@@ -2484,7 +2509,7 @@ function startClip(c) {
     // and only along in stepping Fleen shoes (see alongOnly)
     const dirs = c.dirs.map((_, d) => d).filter(d => !(state.kind === 'fleen' && c.dirs.length > 1 && d === 1)
       && !(alongOnly(state.kind, state.build[state.kind]) && d !== 2));
-    clip = walkClip(state.kind, c, dirs[Math.floor(Math.random() * dirs.length)]);
+    clip = walkClip(c, dirs[Math.floor(Math.random() * dirs.length)]);
     heading = Math.random() < 0.5 ? 'left' : 'right';
   } else {
     clip = c;
@@ -2507,7 +2532,7 @@ function setPaused(p) {
   clip = null;
   sounds.stopFeet();
   Object.assign(pose, REST);
-  if (!paused) { waitTicks = 8; timer = setInterval(halfTick, TICK_MS / 2); }
+  if (!paused) { waitTicks = 8; timer = setInterval(tick, TICK_MS); }
   // the button shows what a press does: pause, or, held in, play
   const btn = document.getElementById('btn-motion');
   paintIcon(btn.firstChild, paused ? 'play' : 'pause', paused);
@@ -2550,9 +2575,9 @@ function walkWay(way) {
   if (d === undefined || !walk.dirs[d]) return;
   heading = side || heading || S.characters[kind].faces.rest;
   sounds.stopFeet();
-  clip = walkClip(kind, walk, d);
+  clip = walkClip(walk, d);
   clipAt = 0;
-  if (paused && !timer) timer = setInterval(halfTick, TICK_MS / 2);
+  if (paused && !timer) timer = setInterval(tick, TICK_MS);
 }
 function updatePad() {
   const kind = state.kind, build = state.build[kind], ways = waysOf(kind, build);
@@ -2574,7 +2599,7 @@ function tumbleNow() {
   sounds.stopFeet();
   clip = { tumble: true, poses: tumblePoses(state.kind, state.build[state.kind]) };
   clipAt = 0;
-  if (paused && !timer) timer = setInterval(halfTick, TICK_MS / 2);
+  if (paused && !timer) timer = setInterval(tick, TICK_MS);
 }
 document.getElementById('btn-tumble').addEventListener('click', tumbleNow);
 document.addEventListener('keydown', e => {
@@ -2661,7 +2686,7 @@ function animationsFor(kind, build) {
     : walk.dirs.length === 3 ? { 0: go + ' along', 2: go + ' towards us' }
     : { 0: go + ' along' };
   for (const [d, label] of Object.entries(names)) {
-    if (walk.dirs[d]) out.push({ label, fast: isFast(kind, walk, +d), poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: facesAt(walk.faces, +d) }, t), { n })) });
+    if (walk.dirs[d]) out.push({ label, poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: facesAt(walk.faces, +d) }, t), { n })) });
   }
   out.push({ label: 'Tumbling', poses: rest(3).concat(tumblePoses(kind, build), rest(5)) });
   // the hat's own: a woodpecker pecking, mud landing
@@ -2812,7 +2837,7 @@ function makeGIF(kind, build, anim) {
     drawCharacter(ctx, kind, build, pad - U.l + p.dx, pad - U.t + p.dy, 1, p, turned(p) ? pad - U.l + mid : null);
     return ctx.getImageData(0, 0, w, h).data;
   });
-  return encodeGIF(frames, w, h, 4, Math.round((anim.fast ? TICK_MS / 2 : TICK_MS) / 10));
+  return encodeGIF(frames, w, h, 4, Math.round(TICK_MS / 10));
 }
 
 // A GIF picked from the Save list is made at once and shown in the window,
@@ -2930,6 +2955,7 @@ function switchKind() {
 
 function update() {
   closeGIF();
+  closeMixAsk();
   updatePad();
   const build = state.build[state.kind];
   const described = FEATURES.map((f, i) => {
