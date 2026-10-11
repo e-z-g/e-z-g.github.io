@@ -564,12 +564,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 103.
+    Version 104.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=103"></script>
+<script src="sprites.js?v=104"></script>
 <script>
 'use strict';
 
@@ -1028,8 +1028,12 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // coming down again after a tumble (`pose.hat`, see tumblePoses): all that
   // was knocked off, as it sits and stacks, that far from its place
   if (pose.hat) {
-    const [, ox, oy] = pose.hat;
-    hat = hat.map(p => p.back ? p : Object.assign({}, p, { rx: p.rx - (under.left ? -ox : ox), ry: p.ry - oy }));
+    // (a meal's layers one above another, the plate landing first)
+    const [, ox, oy] = pose.hat, nth = {};
+    hat = hat.map(p => {
+      const n = nth[p.part] = (nth[p.part] ?? -1) + 1, meal = (S.hats[+p.part.slice(4)].option || {}).layers;
+      return p.back ? p : Object.assign({}, p, { rx: p.rx - (under.left ? -ox : ox), ry: p.ry - Math.round(oy * (meal ? 1 + n * 0.35 : 1)) });
+    });
   }
   // what is worn on the back goes behind - but walking away the back is
   // towards us, and it goes in front (Sam: the body hid the wings)
@@ -1086,13 +1090,27 @@ function tumbleVariants(kind, build, pose) {
     // each where it sits at rest - stacked, a sundae joined to its pizza -
     // and what flies moved by the tick's flight
     const seat = {}, mid = turnAxis(kind), nth = {};
-    const [, ox, oy] = pose.hat || [0, 0, 0];
     const own = pose.extraHats || {};          // leaving in its own way, not flying
-    hat = variantsFor(kind, build, Object.assign({}, REST, { extraHats: own }), seat).filter(h => h.part && h.part.startsWith('hat:'))
-      .filter(h => h.back || +h.part.slice(4) in own || (pose.hat && pose.hat[0] >= 0))
+    const worn = variantsFor(kind, build, Object.assign({}, REST, { extraHats: own }), seat).filter(h => h.part && h.part.startsWith('hat:'));
+    // a stack goes from the top, each hat a tick after the one on it (Sam:
+    // "topple one at a time"; `pose.fly`, the tick of the flight), and a
+    // meal's layers scatter, further apart the further they fly
+    const keyOf = h => +h.part.slice(4), count = {};
+    for (const h of worn) count[keyOf(h)] = (count[keyOf(h)] || 0) + 1;
+    const stack = [...new Set(worn.map(keyOf).filter(k => !S.hats[k].on && !(k in own)))];
+    const flight = k => {
+      if (!pose.hat || pose.fly === undefined) return pose.hat || [0, 0, 0];
+      const at = pose.fly - (stack.includes(k) ? stack.length - 1 - stack.indexOf(k) : 0);
+      return at < 0 ? [0, 0, 0] : HAT_FLIGHT[at] || [-1, 0, 0];
+    };
+    hat = worn.filter(h => h.back || keyOf(h) in own || flight(keyOf(h))[0] >= 0)
       .map(h => {
-        const k = +h.part.slice(4), n = nth[k] = (nth[k] ?? -1) + 1;
-        if (flies(k) && !(k in own)) h = Object.assign({}, h, { rx: h.rx - (seat.left ? -ox : ox), ry: h.ry - oy });
+        const k = keyOf(h), n = nth[k] = (nth[k] ?? -1) + 1;
+        if (flies(k) && !(k in own)) {
+          const [, ox, oy] = flight(k), meal = (S.hats[k].option || {}).layers;
+          const apart = meal && ox ? Math.round((n - (count[k] - 1) / 2) * -ox / 2) : 0;
+          h = Object.assign({}, h, { rx: h.rx - (seat.left ? -(ox + apart) : ox + apart), ry: h.ry - oy });
+        }
         const w = rect(h.sprite)[2], x = seat.left ? 2 * mid + h.rx - w : -h.rx;
         // wings held to the body (Sam): their corner turned about the body's
         // rest centre onto its tumbling one - already where the figure is,
@@ -1141,7 +1159,9 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
   const [k, ox, oy] = pose.hat || [w && w[10] && h.away !== undefined ? h.away
     : w && h.walk ? h.walk[(pose.n || 0) % h.walk.length] : 0, 0, 0];
   if (k < 0) return [];                      // not yet arrived
-  const pieces = h.sets[k] || h.sets[0];
+  // (a tick's fourth number: how many of its pieces are there yet - a meal
+  // being made)
+  const pieces = (h.sets[k] || h.sets[0]).slice(0, (pose.hat || [])[3]);
   // worn on the face (the crab): its middle where the face's middle is
   const onFace = h.on === 'face' && body.face;
   // wings: on the back, not the head (Sam: "attached in the wrong place and
@@ -1816,7 +1836,7 @@ function toggleExtra(v) {
   // worn already, it comes off at one tap, options or not (Sam: "should be
   // easier to deselect a multi option extra" - a first tap only chose it)
   const on = worn !== undefined;
-  const leave = on && !paused && (S.hats[worn].anims || []).find(a => a.kind === 'leave');
+  const leave = on && !paused && animsOf(worn, 'leave')[0];
   ghost = leave ? { k: worn, kind: state.kind, ticks: leave.ticks, sounds: leave.sounds, at: 0,
                     picks: (build.colours || {})['hat:' + worn] } : null;
   if (ghost) sounds.cues(ghost, 0);
@@ -2402,7 +2422,15 @@ function paintMute() {
   muteBtn.setAttribute('aria-pressed', !sounds.muted);
 }
 muteBtn.addEventListener('click', () => { sounds.setMuted(!sounds.muted); paintMute(); });
-preview.addEventListener('click', () => sounds.speak(state.kind, state.build[state.kind]));
+// Tapped, it says something, and something it wears stirs: a bubble pops
+// (and forms again), anything else plays one of its own idles.
+preview.addEventListener('click', () => {
+  const build = state.build[state.kind], extras = build.extras || [];
+  sounds.speak(state.kind, build);
+  if (extraClip || !extras.length || (clip && (clip.tumble || clip.walk))) return;
+  if (popsOf(build).length) startExtraClip(popsOf(build)[0], 'idle', /popping/);
+  else startExtraClip(extras[Math.floor(Math.random() * extras.length)], 'idle');
+});
 
 // ---- idling ------------------------------------------------------------
 
@@ -2468,8 +2496,7 @@ const poseAt = (clip, t) => clip.walk
 // and comes down again once the character is up, straight down.
 const HAT_FLIGHT = [[0, -2, -6], [0, -5, -14], [0, -9, -25], [0, -13, -39]];
 const HAT_DROP = [[0, 0, -30], [0, 0, -17], [0, 0, -7], [0, 0, 0]];
-const leavingOf = build => (build.extras || []).map(k => [k, (S.hats[k].anims || []).find(a => a.kind === 'leave')])
-  .filter(([, a]) => a);
+const leavingOf = build => (build.extras || []).map(k => [k, animsOf(k, 'leave')[0]]).filter(([, a]) => a);
 function tumblePoses(kind, build) {
   const shift = S.characters[kind].faces.rest === 'left' ? 2 * turnAxis(kind) : 0;
   // what leaves in its own way (the bubble pops) does so from the first
@@ -2478,7 +2505,7 @@ function tumblePoses(kind, build) {
   const leaving = n => Object.fromEntries(leavingOf(build).map(([k, a]) => [k, a.ticks[n] || [-1, 0, 0]]));
   const out = S.characters[kind].tumble.map((t, n) => Object.assign({}, REST, {
     tumble: [t[0], t[1] + shift, t[2], t[3].map(([i, x, y]) => [i, x + shift, y]), t[4]],
-    dx: t[1] + shift, dy: t[2], faces: 'right', n, extraHats: leaving(n),
+    dx: t[1] + shift, dy: t[2], faces: 'right', n, fly: n, extraHats: leaving(n),
     hat: HAT_FLIGHT[n] || [-1, 0, 0] }));
   if ((build.extras || []).length) {
     const drop = HAT_DROP;
@@ -2493,7 +2520,7 @@ function tumblePoses(kind, build) {
 // the way it faces, to where it stood; then what it wore comes down on it
 // and the bubble forms again (see tick). Worked out for the window as it is
 // now: how far down is out of it, and how far to the side.
-const FALL = 1.5, WALK_IN = 3, AWAY_TICKS = 4;   // px a tick a tick; px a tick; ticks out of sight
+const FALL = 1.5, WALK_IN = 3, FLY_IN = 4, AWAY_TICKS = 4;   // px a tick a tick; px a tick, twice; ticks out of sight
 function fallPoses(kind, build) {
   const leaving = leavingOf(build), ways = waysOf(kind, build), walk = walkOf(kind, build);
   const d = (ways.right || ways.downright)[0], faces = facesAt(walk.faces, d);
@@ -2502,20 +2529,36 @@ function fallPoses(kind, build) {
   const bare = Object.fromEntries((build.extras || []).filter(k => S.hats[k].on !== 'back').map(k => [k, [-1, 0, 0]]));
   const bb = drawnBounds(kind, build), spin = tumblePoses(kind, build).slice(0, 3);
   const down = preview.height - origin.y - bb.t + 24, side = Math.max(origin.x + bb.r, preview.width - origin.x - bb.l) + 4;
-  const burst = (leaving[0][1].sounds || [[0]])[0][0];
+  const burst = ((leaving.find(([k]) => k === popsOf(build)[0])[1].sounds || [])[0] || [0])[0];
   const out = [];
   for (let n = 0; n < burst; n++) out.push(Object.assign({}, REST, { extraHats: pop(n) }));
   for (let i = 0, dy = 0; dy < down; i++) {
     const p = spin[i % spin.length];
     dy = Math.round(-8 + FALL * i * i);
     out.push(Object.assign({}, p, { dy, n: i, tumble: [p.tumble[0], p.tumble[1], dy, [], i ? -1 : S.characters[kind].tumble.find(t => t[4] >= 0)[4]],
-                                    hat: HAT_FLIGHT[i] || [-1, 0, 0], extraHats: pop(burst + i) }));
+                                    hat: HAT_FLIGHT[i] || [-1, 0, 0], fly: i, extraHats: pop(burst + i) }));
   }
   for (let i = 0; i < AWAY_TICKS; i++) out.push(Object.assign({}, out[out.length - 1], { tumble: out[out.length - 1].tumble.slice(0, 4).concat([-1]), extraHats: pop(Infinity) }));
-  const steps = Math.ceil(side / WALK_IN), ticks = walk.dirs[d];
-  for (let j = 0; j < steps; j++) {
-    const t = ticks[j % ticks.length], off = Math.max(0, side - WALK_IN * (j + 1));
-    out.push(Object.assign(poseAt({ walk: true, faces }, t), { dx: t[0] + (faces === 'right' ? -off : off), n: j, extraHats: bare }));
+  // back again: with wings on, down from above, flapping; on feet that fly
+  // (a propeller, rockets), up from below; else on foot from behind
+  const wings = (build.extras || []).find(k => S.hats[k].on === 'back' && animsOf(k, 'idle').length);
+  const ticks = walk.dirs[d], up = origin.y + bb.b + 8;
+  if (wings !== undefined) {
+    const flap = animsOf(wings, 'idle')[0].ticks;
+    for (let j = 0; j < Math.ceil(up / FLY_IN); j++) {
+      out.push(Object.assign({}, REST, { dy: -Math.max(0, up - FLY_IN * (j + 1)), n: j,
+                                         extraHats: Object.assign({}, bare, { [wings]: flap[j % flap.length] }) }));
+    }
+  } else if (goingOf(build) === 'Flying') {
+    for (let j = 0; j < Math.ceil(down / FLY_IN); j++) {
+      const t = ticks[j % ticks.length];
+      out.push(Object.assign(poseAt({ walk: true, faces }, t), { dy: t[1] + Math.max(0, down - FLY_IN * (j + 1)), n: j, extraHats: bare }));
+    }
+  } else {
+    for (let j = 0; j < Math.ceil(side / WALK_IN); j++) {
+      const t = ticks[j % ticks.length], off = Math.max(0, side - WALK_IN * (j + 1));
+      out.push(Object.assign(poseAt({ walk: true, faces }, t), { dx: t[0] + (faces === 'right' ? -off : off), n: j, extraHats: bare }));
+    }
   }
   if (Object.keys(bare).length > leaving.length) out.push(...HAT_DROP.map(h => Object.assign({}, REST, { hat: h, extraHats: pop(Infinity) })));
   return out;
@@ -2538,19 +2581,87 @@ function clipsFor(kind) {
 // clock of their own: one at a time, arriving when put on and their idles
 // now and then; a walk or a tumble stops them.
 let extraClip = null, extraAt = 0, extraWait = 20;
-function startExtraClip(k, kind) {
-  const anims = (S.hats[k].anims || []).filter(a => a.kind === kind);
+// An extra's animations of a kind: the exporter's, and those made here of
+// them (Sam, 12 October 2026: "try everything"), each once.
+//  - leaving as it came: the bat, the bee, the woodpecker, the crab, the
+//    acorn and the mud go as their arrival run backwards;
+//  - the toad hops off forwards, three of its own hops and a drop, and
+//    hops on the same way;
+//  - a meal of several layers is built up as it arrives, the plate or glass
+//    first, each topping with the sound the machine adds it with (a tick's
+//    fourth number is how many of its pieces show);
+//  - the bee circles the head, on its hovering frames.
+const LEAVES_AS_IT_CAME = new Set(['a bat', 'a bee', 'a woodpecker', 'a purple crab', 'an acorn', 'a mud hat']);
+const HOPS_OFF = 3, HOP_ON = 5;              // hops; px forwards a tick
+const madeAnims = new Map();
+function animsOf(k, kind) {
+  const h = S.hats[k], own = (h.anims || []).filter(a => a.kind === kind);
+  if (!madeAnims.has(k + kind)) madeAnims.set(k + kind, makeAnims(k, kind, own));
+  return own.concat(madeAnims.get(k + kind));
+}
+function makeAnims(k, kind, own) {
+  const h = S.hats[k], name = S.hats[hatRoot(k)].name, noun = titled(name.replace(/^an? /, ''));
+  const find = (of, re) => (h.anims || []).find(a => a.kind === of && (!re || re.test(a.label)));
+  const gone = [-1, 0, 0], hop = find('idle', /hopping/), hover = find('idle', /hovering/);
+  if (hop && !own.length && kind !== 'idle') {
+    const up = hop.ticks.slice(0, -1), path = [];
+    for (let j = 0; j < HOPS_OFF; j++) up.forEach(([set, , dy], i) => path.push([set, (j * up.length + i + 1) * HOP_ON, dy]));
+    const cue = (hop.sounds || [])[0], sounds = cue ? [...Array(HOPS_OFF).keys()].map(j => [j * up.length, cue[1]]) : [];
+    return kind === 'leave'
+      ? [{ kind, label: noun + ' hopping off', sounds,
+           ticks: path.map(([set, dx, dy], i) => [set, dx, dy + Math.max(0, i - 2 * up.length) ** 2 * 2]).concat([gone]) }]
+      : [{ kind, label: noun + ' hopping on', ticks: path.slice().reverse().concat([[0, 0, 0]]), sounds }];
+  }
+  if (kind === 'leave' && !own.length && find('arrive') && LEAVES_AS_IT_CAME.has(name)) {
+    const a = find('arrive');
+    return [{ kind, label: noun + ' leaving', ticks: a.ticks.slice().reverse().concat([gone]),
+              sounds: (a.sounds || []).slice(0, 1).map(([, file]) => [0, file]) }];
+  }
+  const layers = (h.option || {}).layers;
+  if (kind === 'arrive' && !own.length && layers && layers.length > 1) {
+    const adds = (S.hats[hatRoot(k)].options || {}).sounds || {};
+    return [{ kind, label: 'Meal being made', ticks: layers.flatMap((_, i) => Array(3).fill([0, 0, 0, i + 1])).concat([[0, 0, 0]]),
+              sounds: layers.map((layer, i) => [3 * i, adds[layer]]).filter(([, file]) => file) }];
+  }
+  if (kind === 'idle' && hover && h.on === 'body') {
+    const sets = hover.ticks.map(t => t[0]), N = 24;
+    return [{ kind, label: noun + ' circling', ticks: [...Array(N).keys()].map(i => {
+      const a = 2 * Math.PI * (i + 1) / N;
+      return [sets[i % sets.length], Math.round(16 * Math.sin(a)), Math.round(-10 * (1 - Math.cos(a)))];
+    }) }];
+  }
+  return [];
+}
+// `like`: one whose name matches, if there is one
+function startExtraClip(k, kind, like = null) {
+  let anims = animsOf(k, kind);
+  if (like && anims.some(a => like.test(a.label))) anims = anims.filter(a => like.test(a.label));
   if (!anims.length || paused) return;
   const a = anims[Math.floor(Math.random() * anims.length)];
-  extraClip = { k, ticks: a.ticks, sounds: a.sounds };
+  extraClip = { k, ticks: a.ticks, sounds: a.sounds, label: a.label };
   extraAt = 0;
 }
+// What one extra's animation sets off in another worn with it: the
+// woodpecker's pecking pops a bubble, half the time, and the bee's circling
+// makes the toad hop.
+const popsOf = build => (build.extras || []).filter(k => (S.hats[k].anims || []).some(a => a.kind === 'leave'));
+function afterExtra(done, build) {
+  const worn = re => (build.extras || []).find(k => k !== done.k && animsOf(k, 'idle').some(a => re.test(a.label)));
+  if (/pecking/.test(done.label) && popsOf(build).length && Math.random() < 0.5) startExtraClip(popsOf(build)[0], 'idle', /popping/);
+  else if (/circling/.test(done.label) && worn(/hopping/) !== undefined) startExtraClip(worn(/hopping/), 'idle', /hopping/);
+}
+// Up again after a tumble, what left in its own way comes back as it
+// arrives, one after another (`arriving`), the rest not there yet.
+let arriving = [];
 function extraTick() {
   const extras = state.build[state.kind].extras || [];
   // a tumble's poses carry their own (what pops rather than flies)
   if (clip && clip.tumble) { extraClip = null; return; }
   pose.extraHats = {};
-  if (clip && clip.walk) { extraClip = null; return; }
+  if (clip && clip.walk) { extraClip = null; arriving = []; return; }
+  arriving = arriving.filter(k => extras.includes(k));
+  if (!extraClip && arriving.length) startExtraClip(arriving.shift(), 'arrive');
+  for (const k of arriving) pose.extraHats[k] = [-1, 0, 0];
   if (!extraClip && extras.length && --extraWait <= 0) {
     extraWait = 20 + Math.floor(Math.random() * 30);
     startExtraClip(extras[Math.floor(Math.random() * extras.length)], 'idle');
@@ -2559,7 +2670,11 @@ function extraTick() {
   if (extraClip) {
     pose.extraHats[extraClip.k] = extraClip.ticks[extraAt];
     sounds.cues(extraClip, extraAt);
-    if (++extraAt >= extraClip.ticks.length) extraClip = null;
+    if (++extraAt >= extraClip.ticks.length) {
+      const done = extraClip;
+      extraClip = null;
+      afterExtra(done, state.build[state.kind]);
+    }
   }
 }
 
@@ -2570,9 +2685,8 @@ function tick() {
     sounds.onPose(pose, clip, clipAt);
     if (++clipAt >= (clip.poses || clip.ticks).length) {
       // up again after a tumble, what popped forms again
-      const back = clip.tumble && leavingOf(state.build[state.kind])[0];
+      if (clip.tumble) arriving = leavingOf(state.build[state.kind]).map(([k]) => k);
       clip = null;
-      if (back) startExtraClip(back[0], 'arrive');
       sounds.stopFeet();
       waitTicks = 15 + Math.floor(Math.random() * 30);
     }
@@ -2694,7 +2808,7 @@ function tumbleNow() {
   sounds.stopFeet();
   const build = state.build[state.kind];
   ghost = null;
-  const falls = leavingOf(build).length > 0;
+  const falls = popsOf(build).length > 0;
   clip = { tumble: true, poses: falls ? fallPoses(state.kind, build) : tumblePoses(state.kind, build),
            sounds: leavingOf(build).flatMap(([, a]) => a.sounds || []) };
   clipAt = 0;
@@ -2789,7 +2903,7 @@ function animationsFor(kind, build) {
   }
   out.push({ label: 'Tumbling', poses: rest(3).concat(tumblePoses(kind, build), rest(5)) });
   // the hat's own: a woodpecker pecking, mud landing
-  for (const k of build.extras || []) for (const a of S.hats[k].anims || []) {
+  for (const k of build.extras || []) for (const a of ['arrive', 'idle', 'leave'].flatMap(kind => animsOf(k, kind))) {
     const at = t => Object.assign({}, REST, { extraHats: { [k]: t } });
     const before = a.kind === 'arrive' ? rest(5).map(() => at([-1, 0, 0])) : rest(5);
     out.push({ label: a.label, poses: before.concat(a.ticks.map(at), rest(a.kind === 'arrive' ? 10 : 5)) });
