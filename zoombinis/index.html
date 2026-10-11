@@ -564,12 +564,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 107.
+    Version 108.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=107"></script>
+<script src="sprites.js?v=108"></script>
 <script>
 'use strict';
 
@@ -1795,17 +1795,17 @@ function mealHat(layers, root = layers.includes(0) ? MEAL_ROOT : MEAL_SUNDAE) {
   const base = layers.includes(0) ? null : layers.includes(6) ? 6
     : layers.reduce((a, n) => whole.boxes[n][3] > whole.boxes[a][3] ? n : a);
   const [l, , r, b] = base === null ? [0, 0, 0, 0] : whole.boxes[base];
-  const sx = base === null ? 0 : -(l + r) / 2, sy = base === null ? 0 : -b;
-  // on the platter, a sundae layer with the one under it left out comes down
-  // onto what is there - the platter for the glass - and does not hang in
-  // the air (Sam): by the drop from the left-out layer's bottom to its own
+  // a sundae layer with the one under it left out comes down onto what is
+  // there - the platter for the glass - and does not hang in the air (Sam):
+  // by the drop from the left-out layer's bottom to its own. Off the platter
+  // too (Sam: "don't stack correctly unless all present"), where the lowest
+  // one there is the seat and the rest come down to it.
   const drop = Array(10).fill(0);
-  if (base === null) {
-    for (let n = 6; n < 9; n++) {
-      if (layers.includes(n)) continue;
-      for (let m = n + 1; m <= 9; m++) drop[m] += whole.boxes[n][3] - whole.boxes[n + 1][3];
-    }
+  for (let n = 6; n < 9; n++) {
+    if (layers.includes(n)) continue;
+    for (let m = n + 1; m <= 9; m++) drop[m] += whole.boxes[n][3] - whole.boxes[n + 1][3];
   }
+  const sx = base === null ? 0 : -(l + r) / 2, sy = base === null ? 0 : -b - drop[base];
   const h = Object.assign({}, whole, {
     name: layers.map(n => names[n]).join(', '), whole: undefined, family: root, option: { layers },
     sets: whole.sets.map(set => layers.map(n => Object.assign({}, set[n], { dx: set[n].dx + sx, dy: set[n].dy + sy + drop[n] }))),
