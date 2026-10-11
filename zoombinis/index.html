@@ -564,12 +564,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 102.
+    Version 103.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=102"></script>
+<script src="sprites.js?v=103"></script>
 <script>
 'use strict';
 
@@ -1345,7 +1345,10 @@ function boxes(kind) {
   // (its wobble, its back)
   const distinct = ticks => [...new Map(ticks.map(t => [t.join(), t])).values()];
   const hatTicks = BOX_HATS.map(k => S.hats[k]).map(h => [
-    distinct([[0, 0, 0]].concat((h.anims || []).filter(a => a.kind === 'idle').flatMap(a => a.ticks))),
+    // (not an idle it goes away in - the bubble's pop, whose drops fly wide
+    // and shrank the character to make room, Sam: they are let go past the
+    // edges, as an arrival is)
+    distinct([[0, 0, 0]].concat((h.anims || []).filter(a => a.kind === 'idle' && !a.ticks.some(t => t[0] < 0)).flatMap(a => a.ticks))),
     distinct([0].concat(h.walk || [], h.away === undefined ? [] : [h.away]).map(i => [i, 0, 0]))]);
   const reach = new Map();                   // buildKey -> where that build goes
   const sample = [];                         // the builds the compact and full boxes are worked out from
@@ -2484,6 +2487,40 @@ function tumblePoses(kind, build) {
   return out;
 }
 
+// Tumbled in a bubble (Sam: "it falls off the bottom of the frame and then
+// walks back on from side"): the bubble pops under it (its `leave`), it
+// drops spinning out of the window's foot, and walks in again from behind,
+// the way it faces, to where it stood; then what it wore comes down on it
+// and the bubble forms again (see tick). Worked out for the window as it is
+// now: how far down is out of it, and how far to the side.
+const FALL = 1.5, WALK_IN = 3, AWAY_TICKS = 4;   // px a tick a tick; px a tick; ticks out of sight
+function fallPoses(kind, build) {
+  const leaving = leavingOf(build), ways = waysOf(kind, build), walk = walkOf(kind, build);
+  const d = (ways.right || ways.downright)[0], faces = facesAt(walk.faces, d);
+  const pop = n => Object.fromEntries(leaving.map(([k, a]) => [k, a.ticks[n] || [-1, 0, 0]]));
+  // walking in, all it wore is off but what is on its back
+  const bare = Object.fromEntries((build.extras || []).filter(k => S.hats[k].on !== 'back').map(k => [k, [-1, 0, 0]]));
+  const bb = drawnBounds(kind, build), spin = tumblePoses(kind, build).slice(0, 3);
+  const down = preview.height - origin.y - bb.t + 24, side = Math.max(origin.x + bb.r, preview.width - origin.x - bb.l) + 4;
+  const burst = (leaving[0][1].sounds || [[0]])[0][0];
+  const out = [];
+  for (let n = 0; n < burst; n++) out.push(Object.assign({}, REST, { extraHats: pop(n) }));
+  for (let i = 0, dy = 0; dy < down; i++) {
+    const p = spin[i % spin.length];
+    dy = Math.round(-8 + FALL * i * i);
+    out.push(Object.assign({}, p, { dy, n: i, tumble: [p.tumble[0], p.tumble[1], dy, [], i ? -1 : S.characters[kind].tumble.find(t => t[4] >= 0)[4]],
+                                    hat: HAT_FLIGHT[i] || [-1, 0, 0], extraHats: pop(burst + i) }));
+  }
+  for (let i = 0; i < AWAY_TICKS; i++) out.push(Object.assign({}, out[out.length - 1], { tumble: out[out.length - 1].tumble.slice(0, 4).concat([-1]), extraHats: pop(Infinity) }));
+  const steps = Math.ceil(side / WALK_IN), ticks = walk.dirs[d];
+  for (let j = 0; j < steps; j++) {
+    const t = ticks[j % ticks.length], off = Math.max(0, side - WALK_IN * (j + 1));
+    out.push(Object.assign(poseAt({ walk: true, faces }, t), { dx: t[0] + (faces === 'right' ? -off : off), n: j, extraHats: bare }));
+  }
+  if (Object.keys(bare).length > leaving.length) out.push(...HAT_DROP.map(h => Object.assign({}, REST, { hat: h, extraHats: pop(Infinity) })));
+  return out;
+}
+
 // Clips are {ticks, walk} or {dirs, walk}, a walk with a clip per direction;
 // a direction, and left or right, is picked as it starts.
 function clipsFor(kind) {
@@ -2657,7 +2694,9 @@ function tumbleNow() {
   sounds.stopFeet();
   const build = state.build[state.kind];
   ghost = null;
-  clip = { tumble: true, poses: tumblePoses(state.kind, build), sounds: leavingOf(build).flatMap(([, a]) => a.sounds || []) };
+  const falls = leavingOf(build).length > 0;
+  clip = { tumble: true, poses: falls ? fallPoses(state.kind, build) : tumblePoses(state.kind, build),
+           sounds: leavingOf(build).flatMap(([, a]) => a.sounds || []) };
   clipAt = 0;
   if (paused && !timer) timer = setInterval(tick, TICK_MS);
 }
