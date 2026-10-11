@@ -564,12 +564,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 105.
+    Version 106.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=105"></script>
+<script src="sprites.js?v=106"></script>
 <script>
 'use strict';
 
@@ -1654,9 +1654,9 @@ const ICONS = {
          '#o##oooooo###', '#o##ooo##o#g#', '#oooooo##o#g#', '#ooooooooo##.', '###########..'],
   none: ['##.......##', '###.....###', '.###...###.', '..###.###..', '...#####...', '....###....',
          '...#####...', '..###.###..', '.###...###.', '###.....###', '##.......##'],
-  // a drop of paint: 'o' is the colour picked
-  colour: ['....#....', '...#o#...', '...#o#...', '..#ooo#..', '.#ooooo#.', '#ooooooo#', '#ooooooo#',
-           '#ooooooo#', '.#ooooo#.', '..#####..'],
+  // a drop of paint: 'o' is the colour picked, 'w' and 'g' it lit and shaded
+  colour: ['....#....', '...#w#...', '...#o#...', '..#woo#..', '.#wooog#.', '#wwoooog#', '#woooogg#',
+           '#ooooggg#', '.#ooggg#.', '..#####..'],
   pause: ['####.####', '#oo#.#oo#', '#oo#.#oo#', '#oo#.#oo#', '#oo#.#oo#', '#oo#.#oo#', '#oo#.#oo#',
           '#oo#.#oo#', '####.####'],
   play: ['##.......', '#o##.....', '#ooo##...', '#ooooo##.', '#ooooooo#', '#ooooo##.', '#ooo##...',
@@ -1679,11 +1679,19 @@ function shaded(icon) {
   return (shadedIcons[icon] = rows.map((row, y) => [...row].map((c, x) => c !== 'o' || drawn ? c
     : at(x, y - 1) !== 'o' ? 'w' : at(x + 1, y) !== 'o' || at(x, y + 1) !== 'o' ? 'g' : 'o')));
 }
-// `fill`: one colour for every face (the paint drop's), unshaded
+// `fill`: the colour of the face towards us (the paint drop's), the lit face
+// half way from it to white and the one turned away a third of the way to
+// black, as the dice's white and grey stand to their light grey.
+function toned(hex, c) {
+  if (c === 'o' || !/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const to = c === 'w' ? 255 : 0, by = c === 'w' ? 0.5 : 0.33;
+  return '#' + [1, 3, 5].map(i => Math.round(parseInt(hex.substr(i, 2), 16) * (1 - by) + to * by)
+    .toString(16).padStart(2, '0')).join('');
+}
 function drawIcon(ctx, icon, fill, x0 = 0, y0 = 0, scale = 1) {
   shaded(icon).forEach((row, y) => row.forEach((c, x) => {
     if (c === '.') return;
-    ctx.fillStyle = c !== '#' && fill || ICON_TONES[c];
+    ctx.fillStyle = c !== '#' && fill ? toned(fill, c) : ICON_TONES[c];
     ctx.fillRect(x0 + x * scale, y0 + y * scale, scale, scale);
   }));
 }
