@@ -564,12 +564,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 106.
+    Version 107.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=106"></script>
+<script src="sprites.js?v=107"></script>
 <script>
 'use strict';
 
@@ -2437,7 +2437,7 @@ preview.addEventListener('click', () => {
   const build = state.build[state.kind], extras = build.extras || [];
   sounds.speak(state.kind, build);
   if (extraClip || !extras.length || (clip && (clip.tumble || clip.walk))) return;
-  if (popsOf(build).length) startExtraClip(popsOf(build)[0], 'idle', /popping/);
+  if (popsOf(build).length) popAndForm(popsOf(build)[0]);
   else startExtraClip(extras[Math.floor(Math.random() * extras.length)], 'idle');
 });
 
@@ -2502,7 +2502,10 @@ const poseAt = (clip, t) => clip.walk
 // exporter turns it first, about its origin; the window turns figures about
 // the middle of their standing box, so its ticks move over by twice that).
 // A hat is knocked off as the spin starts, flies up and back out of sight,
-// and comes down again once the character is up, straight down.
+// and comes down again once the character is up, straight down. What was
+// knocked off or left comes back in order (Sam: "more orderly"): one at a
+// time, as it was put on, each landing or arriving before the next starts,
+// and what goes round it all (the bubble) last (backPoses).
 const HAT_FLIGHT = [[0, -2, -6], [0, -5, -14], [0, -9, -25], [0, -13, -39]];
 const HAT_DROP = [[0, 0, -30], [0, 0, -17], [0, 0, -7], [0, 0, 0]];
 const leavingOf = build => (build.extras || []).map(k => [k, animsOf(k, 'leave')[0]]).filter(([, a]) => a);
@@ -2516,11 +2519,24 @@ function tumblePoses(kind, build) {
     tumble: [t[0], t[1] + shift, t[2], t[3].map(([i, x, y]) => [i, x + shift, y]), t[4]],
     dx: t[1] + shift, dy: t[2], faces: 'right', n, fly: n, extraHats: leaving(n),
     hat: HAT_FLIGHT[n] || [-1, 0, 0] }));
-  if ((build.extras || []).length) {
-    const drop = HAT_DROP;
-    out.push(...drop.map(h => Object.assign({}, REST, { hat: h, extraHats: leaving(Infinity) })));
-  }
-  return out;
+  return out.concat(backPoses(build).poses);
+}
+// The poses of all that coming back, and the sounds of it, from their first.
+function backPoses(build) {
+  const off = (build.extras || []).filter(k => S.hats[k].on !== 'back'), round = popsOf(build);
+  const order = off.filter(k => !round.includes(k)).concat(off.filter(k => round.includes(k)));
+  const poses = [], cues = [];
+  order.forEach((k, i) => {
+    // what left in its own way arrives in its own; the rest drops into place
+    const a = animsOf(k, 'leave').length ? animsOf(k, 'arrive')[0] : null;
+    const file = a && (a.sounds ? null : S.hats[k].pick);
+    if (file) cues.push([poses.length, file]);
+    for (const [t, f] of (a && a.sounds) || []) cues.push([poses.length + t, f]);
+    for (const t of a ? a.ticks : HAT_DROP) {
+      poses.push(Object.assign({}, REST, { extraHats: Object.fromEntries(order.slice(i).map((x, j) => [x, j ? [-1, 0, 0] : t])) }));
+    }
+  });
+  return { poses, sounds: cues };
 }
 
 // Tumbled in a bubble (Sam: "it falls off the bottom of the frame and then
@@ -2569,8 +2585,7 @@ function fallPoses(kind, build) {
       out.push(Object.assign(poseAt({ walk: true, faces }, t), { dx: t[0] + (faces === 'right' ? -off : off), n: j, extraHats: bare }));
     }
   }
-  if (Object.keys(bare).length > leaving.length) out.push(...HAT_DROP.map(h => Object.assign({}, REST, { hat: h, extraHats: pop(Infinity) })));
-  return out;
+  return out.concat(backPoses(build).poses);
 }
 
 // Clips are {ticks, walk} or {dirs, walk}, a walk with a clip per direction;
@@ -2653,24 +2668,27 @@ function startExtraClip(k, kind, like = null) {
 // What one extra's animation sets off in another worn with it: the
 // woodpecker's pecking pops a bubble, half the time, and the bee's circling
 // makes the toad hop.
+// A bubble pops and forms again: its leaving, a moment gone, its arriving.
+function popAndForm(k) {
+  const off = animsOf(k, 'leave')[0], on = animsOf(k, 'arrive')[0];
+  if (!off || !on || paused) return;
+  const gone = Array(5).fill([-1, 0, 0]), at = off.ticks.length + gone.length;
+  extraClip = { k, label: 'Popping and forming', ticks: off.ticks.concat(gone, on.ticks),
+                sounds: (off.sounds || []).concat(S.hats[k].pick ? [[at, S.hats[k].pick]] : []) };
+  extraAt = 0;
+}
 const popsOf = build => (build.extras || []).filter(k => (S.hats[k].anims || []).some(a => a.kind === 'leave'));
 function afterExtra(done, build) {
   const worn = re => (build.extras || []).find(k => k !== done.k && animsOf(k, 'idle').some(a => re.test(a.label)));
-  if (/pecking/.test(done.label) && popsOf(build).length && Math.random() < 0.5) startExtraClip(popsOf(build)[0], 'idle', /popping/);
+  if (/pecking/.test(done.label) && popsOf(build).length && Math.random() < 0.5) popAndForm(popsOf(build)[0]);
   else if (/circling/.test(done.label) && worn(/hopping/) !== undefined) startExtraClip(worn(/hopping/), 'idle', /hopping/);
 }
-// Up again after a tumble, what left in its own way comes back as it
-// arrives, one after another (`arriving`), the rest not there yet.
-let arriving = [];
 function extraTick() {
   const extras = state.build[state.kind].extras || [];
   // a tumble's poses carry their own (what pops rather than flies)
   if (clip && clip.tumble) { extraClip = null; return; }
   pose.extraHats = {};
-  if (clip && clip.walk) { extraClip = null; arriving = []; return; }
-  arriving = arriving.filter(k => extras.includes(k));
-  if (!extraClip && arriving.length) startExtraClip(arriving.shift(), 'arrive');
-  for (const k of arriving) pose.extraHats[k] = [-1, 0, 0];
+  if (clip && clip.walk) { extraClip = null; return; }
   if (!extraClip && extras.length && --extraWait <= 0) {
     extraWait = 20 + Math.floor(Math.random() * 30);
     startExtraClip(extras[Math.floor(Math.random() * extras.length)], 'idle');
@@ -2693,8 +2711,6 @@ function tick() {
     Object.assign(pose, clip.poses ? clip.poses[clipAt] : poseAt(clip, clip.ticks[clipAt]), { n: clipAt });
     sounds.onPose(pose, clip, clipAt);
     if (++clipAt >= (clip.poses || clip.ticks).length) {
-      // up again after a tumble, what popped forms again
-      if (clip.tumble) arriving = leavingOf(state.build[state.kind]).map(([k]) => k);
       clip = null;
       sounds.stopFeet();
       waitTicks = 15 + Math.floor(Math.random() * 30);
@@ -2817,9 +2833,11 @@ function tumbleNow() {
   sounds.stopFeet();
   const build = state.build[state.kind];
   ghost = null;
-  const falls = popsOf(build).length > 0;
-  clip = { tumble: true, poses: falls ? fallPoses(state.kind, build) : tumblePoses(state.kind, build),
-           sounds: leavingOf(build).flatMap(([, a]) => a.sounds || []) };
+  const falls = popsOf(build).length > 0, back = backPoses(build);
+  const poses = falls ? fallPoses(state.kind, build) : tumblePoses(state.kind, build);
+  clip = { tumble: true, poses,
+           sounds: leavingOf(build).flatMap(([, a]) => a.sounds || [])
+             .concat(back.sounds.map(([t, f]) => [poses.length - back.poses.length + t, f])) };
   clipAt = 0;
   if (paused && !timer) timer = setInterval(tick, TICK_MS);
 }
