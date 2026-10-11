@@ -564,12 +564,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 101.
+    Version 102.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=101"></script>
+<script src="sprites.js?v=102"></script>
 <script>
 'use strict';
 
@@ -1087,11 +1087,12 @@ function tumbleVariants(kind, build, pose) {
     // and what flies moved by the tick's flight
     const seat = {}, mid = turnAxis(kind), nth = {};
     const [, ox, oy] = pose.hat || [0, 0, 0];
-    hat = variantsFor(kind, build, REST, seat).filter(h => h.part && h.part.startsWith('hat:'))
-      .filter(h => h.back || (pose.hat && pose.hat[0] >= 0))
+    const own = pose.extraHats || {};          // leaving in its own way, not flying
+    hat = variantsFor(kind, build, Object.assign({}, REST, { extraHats: own }), seat).filter(h => h.part && h.part.startsWith('hat:'))
+      .filter(h => h.back || +h.part.slice(4) in own || (pose.hat && pose.hat[0] >= 0))
       .map(h => {
         const k = +h.part.slice(4), n = nth[k] = (nth[k] ?? -1) + 1;
-        if (flies(k)) h = Object.assign({}, h, { rx: h.rx - (seat.left ? -ox : ox), ry: h.ry - oy });
+        if (flies(k) && !(k in own)) h = Object.assign({}, h, { rx: h.rx - (seat.left ? -ox : ox), ry: h.ry - oy });
         const w = rect(h.sprite)[2], x = seat.left ? 2 * mid + h.rx - w : -h.rx;
         // wings held to the body (Sam): their corner turned about the body's
         // rest centre onto its tumbling one - already where the figure is,
@@ -1448,8 +1449,13 @@ function drawPreview() {
     const bb = fitBounds[state.kind];
     const drawn = framesFace(state.kind, pose);
     const axis = heading && heading !== drawn ? origin.x + (bb.l + bb.r) / 2 : null;
-    drawCharacter(ctx, state.kind, state.build[state.kind],
-                  origin.x + pose.dx, origin.y + pose.dy, 1, pose, axis);
+    let build = state.build[state.kind], p = pose;
+    if (ghost && ghost.kind === state.kind && !pose.tumble) {
+      build = Object.assign({}, build, { extras: (build.extras || []).concat([ghost.k]),
+                                         colours: Object.assign({}, build.colours, { ['hat:' + ghost.k]: ghost.picks }) });
+      p = Object.assign({}, pose, { extraHats: Object.assign({}, pose.extraHats, { [ghost.k]: ghost.ticks[ghost.at] }) });
+    }
+    drawCharacter(ctx, state.kind, build, origin.x + pose.dx, origin.y + pose.dy, 1, p, axis);
   }
 }
 
@@ -1600,12 +1606,26 @@ const titled = s => s[0].toUpperCase() + s.slice(1);
 // grey - the same on a pressed plaque, as the dice are on their tan. An icon
 // drawn only in 'o' is shaded here: its top edge lit, its right and bottom
 // turned away (shaded). The lock is a padlock whose body is one of those
-// dice, shut to keep the part when the dice rolls and open to let it roll.
+// dice, shut to keep the part when the dice rolls and open to let it roll,
+// at the size of the words beside it: a pixel a pixel.
 const ICONS = {
-  keep: ['....#####....', '...#wwwww#...', '..#wo###og#..', '..#o#...#g#..', '..#o#...#g#..',
-         '.###########.', '#wwwwwwwww#g#', '#wwww##www#g#', '###########g#', '#ooooooooo#g#',
-         '#o##oooooo###', '#o##ooo##o#g#', '#oooooo##o#g#', '#ooooooooo##.', '###########..'],
-  roll: ['.#####.......', '#wwwww#......', '#o###og#.....', '#o#..#g#.....', '###..###.....',
+  // (the die is the dice button's own nearer one, pixel for pixel)
+  keep: ['.....................', '.....................', '........#######......', '.......#wwwwwww#.....',
+         '......#wo#####og#....', '......#o#.....#g#....', '......#o#.....#g#....', '......#o#.....#g#....',
+         '.....#############...', '....#owwwwwwwwww#g#..', '....#wwwwwwwwwwo#g#..', '...#owwwwwwwwww#gg#..',
+         '...#wwwwo##wwwo#gg#..', '..#owwww##owww#gg#...', '..#wwwwwwwwwwo#gg#...', '.#owwwwwwwwww#gggg#..',
+         '.#wwwwwwwwwwo#gggg#..', '#############gg##g#..', '#goooooooooo#gg##g#..', '.#oo##oooooog#gggggg#',
+         '.#go##ooooooo#gggggg#', '..#oooooooooog#ggggg#', '..#goooooooooo#ggggg#', '...#oooooooooog#ggg#.',
+         '...#goooooo##oo#ggg#.', '....#oooooo##oog#g#..', '....#goooooooooo#g#..', '.....#############...'],
+  roll: ['........#######......', '.......#wwwwwww#.....', '......#wo#####og#....', '......#o#.....#g#....',
+         '......#o#.....###....', '......#o#............', '......#o#............', '......#o#............',
+         '.....#############...', '....#owwwwwwwwww#g#..', '....#wwwwwwwwwwo#g#..', '...#owwwwwwwwww#gg#..',
+         '...#wwwwo##wwwo#gg#..', '..#owwww##owww#gg#...', '..#wwwwwwwwwwo#gg#...', '.#owwwwwwwwww#gggg#..',
+         '.#wwwwwwwwwwo#gggg#..', '#############gg##g#..', '#goooooooooo#gg##g#..', '.#oo##oooooog#gggggg#',
+         '.#go##ooooooo#gggggg#', '..#oooooooooog#ggggg#', '..#goooooooooo#ggggg#', '...#oooooooooog#ggg#.',
+         '...#goooooo##oo#ggg#.', '....#oooooo##oog#g#..', '....#goooooooooo#g#..', '.....#############...'],
+  // the tab's badge: a small one
+  kept: ['....#####....', '...#wwwww#...', '..#wo###og#..', '..#o#...#g#..', '..#o#...#g#..',
          '.###########.', '#wwwwwwwww#g#', '#wwww##www#g#', '###########g#', '#ooooooooo#g#',
          '#o##oooooo###', '#o##ooo##o#g#', '#oooooo##o#g#', '#ooooooooo##.', '###########..'],
   none: ['##.......##', '###.....###', '.###...###.', '..###.###..', '...#####...', '....###....',
@@ -1784,12 +1804,19 @@ const mealLayers = bits => [...Array(10).keys()].filter(n => bits & 1 << n);
 
 // The extras, worn together: put on with its own sound and arrival (the crab
 // leaping onto the face), taken off with the builder's click.
+// Taken off, an extra with a leaving animation (`leave`: the bubble's pop)
+// is drawn on through it, though the build no longer has it: `ghost`.
+let ghost = null;
 function toggleExtra(v) {
   const build = state.build[state.kind];
   const worn = (build.extras || []).find(k => hatRoot(k) === v);
   // worn already, it comes off at one tap, options or not (Sam: "should be
   // easier to deselect a multi option extra" - a first tap only chose it)
   const on = worn !== undefined;
+  const leave = on && !paused && (S.hats[worn].anims || []).find(a => a.kind === 'leave');
+  ghost = leave ? { k: worn, kind: state.kind, ticks: leave.ticks, sounds: leave.sounds, at: 0,
+                    picks: (build.colours || {})['hat:' + worn] } : null;
+  if (ghost) sounds.cues(ghost, 0);
   build.extras = on ? build.extras.filter(k => k !== worn) : (build.extras || []).concat([v]);
   if (on) resetColours('hat:' + worn);
   build.extraFocus = on ? undefined : v;
@@ -1893,7 +1920,7 @@ function buildTiles() {
     word.textContent = titled(feat);
     tab.kept = el('canvas');
     tab.kept.title = 'Kept when the dice rolls';
-    paintIcon(tab.kept, 'keep');
+    paintIcon(tab.kept, 'kept');
     tab.append(word, tab.kept);
     tab.addEventListener('click', () => openTab(feat));
     tabsEl.appendChild(tab);
@@ -2168,7 +2195,7 @@ function paintTiles() {
     }
     if (t.lock) {
       t.lock.setAttribute('aria-pressed', locks[feat]);
-      paintIcon(t.lock.firstChild, locks[feat] ? 'keep' : 'roll', null, 2);
+      paintIcon(t.lock.firstChild, locks[feat] ? 'keep' : 'roll', null, 1);
     }
     tabs[feat].kept.hidden = !locks[feat];
   }
@@ -2438,15 +2465,21 @@ const poseAt = (clip, t) => clip.walk
 // and comes down again once the character is up, straight down.
 const HAT_FLIGHT = [[0, -2, -6], [0, -5, -14], [0, -9, -25], [0, -13, -39]];
 const HAT_DROP = [[0, 0, -30], [0, 0, -17], [0, 0, -7], [0, 0, 0]];
+const leavingOf = build => (build.extras || []).map(k => [k, (S.hats[k].anims || []).find(a => a.kind === 'leave')])
+  .filter(([, a]) => a);
 function tumblePoses(kind, build) {
   const shift = S.characters[kind].faces.rest === 'left' ? 2 * turnAxis(kind) : 0;
+  // what leaves in its own way (the bubble pops) does so from the first
+  // tick, and is gone until the character is up (`extraHats`, as its own
+  // animations are given)
+  const leaving = n => Object.fromEntries(leavingOf(build).map(([k, a]) => [k, a.ticks[n] || [-1, 0, 0]]));
   const out = S.characters[kind].tumble.map((t, n) => Object.assign({}, REST, {
     tumble: [t[0], t[1] + shift, t[2], t[3].map(([i, x, y]) => [i, x + shift, y]), t[4]],
-    dx: t[1] + shift, dy: t[2], faces: 'right', n,
+    dx: t[1] + shift, dy: t[2], faces: 'right', n, extraHats: leaving(n),
     hat: HAT_FLIGHT[n] || [-1, 0, 0] }));
   if ((build.extras || []).length) {
     const drop = HAT_DROP;
-    out.push(...drop.map(h => Object.assign({}, REST, { hat: h })));
+    out.push(...drop.map(h => Object.assign({}, REST, { hat: h, extraHats: leaving(Infinity) })));
   }
   return out;
 }
@@ -2477,9 +2510,9 @@ function startExtraClip(k, kind) {
 }
 function extraTick() {
   const extras = state.build[state.kind].extras || [];
-  // a tumble's poses carry their own (a seat's throw)
-  pose.extraHats = {};
+  // a tumble's poses carry their own (what pops rather than flies)
   if (clip && clip.tumble) { extraClip = null; return; }
+  pose.extraHats = {};
   if (clip && clip.walk) { extraClip = null; return; }
   if (!extraClip && extras.length && --extraWait <= 0) {
     extraWait = 20 + Math.floor(Math.random() * 30);
@@ -2499,7 +2532,10 @@ function tick() {
     Object.assign(pose, clip.poses ? clip.poses[clipAt] : poseAt(clip, clip.ticks[clipAt]), { n: clipAt });
     sounds.onPose(pose, clip, clipAt);
     if (++clipAt >= (clip.poses || clip.ticks).length) {
+      // up again after a tumble, what popped forms again
+      const back = clip.tumble && leavingOf(state.build[state.kind])[0];
       clip = null;
+      if (back) startExtraClip(back[0], 'arrive');
       sounds.stopFeet();
       waitTicks = 15 + Math.floor(Math.random() * 30);
     }
@@ -2516,6 +2552,10 @@ function tick() {
     }
   }
   extraTick();
+  if (ghost) {
+    if (++ghost.at >= ghost.ticks.length) ghost = null;
+    else sounds.cues(ghost, ghost.at);
+  }
   drawPreview();
 }
 
@@ -2615,7 +2655,9 @@ document.getElementById('pad').addEventListener('click', e => {
 function tumbleNow() {
   closeGIF();
   sounds.stopFeet();
-  clip = { tumble: true, poses: tumblePoses(state.kind, state.build[state.kind]) };
+  const build = state.build[state.kind];
+  ghost = null;
+  clip = { tumble: true, poses: tumblePoses(state.kind, build), sounds: leavingOf(build).flatMap(([, a]) => a.sounds || []) };
   clipAt = 0;
   if (paused && !timer) timer = setInterval(tick, TICK_MS);
 }
