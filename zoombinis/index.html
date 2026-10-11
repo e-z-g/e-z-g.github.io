@@ -564,12 +564,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 104.
+    Version 105.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=104"></script>
+<script src="sprites.js?v=105"></script>
 <script>
 'use strict';
 
@@ -1632,21 +1632,22 @@ const titled = s => s[0].toUpperCase() + s.slice(1);
 // dice, shut to keep the part when the dice rolls and open to let it roll,
 // at the size of the words beside it: a pixel a pixel.
 const ICONS = {
-  // (the die is the dice button's own nearer one, pixel for pixel)
-  keep: ['.....................', '.....................', '........#######......', '.......#wwwwwww#.....',
-         '......#wo#####og#....', '......#o#.....#g#....', '......#o#.....#g#....', '......#o#.....#g#....',
-         '.....#############...', '....#owwwwwwwwww#g#..', '....#wwwwwwwwwwo#g#..', '...#owwwwwwwwww#gg#..',
-         '...#wwwwo##wwwo#gg#..', '..#owwww##owww#gg#...', '..#wwwwwwwwwwo#gg#...', '.#owwwwwwwwww#gggg#..',
-         '.#wwwwwwwwwwo#gggg#..', '#############gg##g#..', '#goooooooooo#gg##g#..', '.#oo##oooooog#gggggg#',
-         '.#go##ooooooo#gggggg#', '..#oooooooooog#ggggg#', '..#goooooooooo#ggggg#', '...#oooooooooog#ggg#.',
-         '...#goooooo##oo#ggg#.', '....#oooooo##oog#g#..', '....#goooooooooo#g#..', '.....#############...'],
-  roll: ['........#######......', '.......#wwwwwww#.....', '......#wo#####og#....', '......#o#.....#g#....',
-         '......#o#.....###....', '......#o#............', '......#o#............', '......#o#............',
-         '.....#############...', '....#owwwwwwwwww#g#..', '....#wwwwwwwwwwo#g#..', '...#owwwwwwwwww#gg#..',
-         '...#wwwwo##wwwo#gg#..', '..#owwww##owww#gg#...', '..#wwwwwwwwwwo#gg#...', '.#owwwwwwwwww#gggg#..',
-         '.#wwwwwwwwwwo#gggg#..', '#############gg##g#..', '#goooooooooo#gg##g#..', '.#oo##oooooog#gggggg#',
-         '.#go##ooooooo#gggggg#', '..#oooooooooog#ggggg#', '..#goooooooooo#ggggg#', '...#oooooooooog#ggg#.',
-         '...#goooooo##oo#ggg#.', '....#oooooo##oog#g#..', '....#goooooooooo#g#..', '.....#############...'],
+  // (the die is the dice button's own right-hand one, the whole one, pixel
+  // for pixel; 'd' is the darker grey at the corners of its side)
+  keep: ['.......................', '.......................', '........#######........', '.......#wwwwwww#.......',
+         '......#wo#####og#......', '......#o#.....#g#......', '......#o#.....#g#......', '......#o#.....#g#......',
+         '.....#############.....', '....#owwwwwwwwww#d#....', '....#o##wwwwo##o#g#....', '...#o##owwww##o#dgd#...',
+         '...#wwwo##wwwwo#ggg#...', '..#owww##owwww#dgggd#..', '..#o##wwwwo##o#ggggg#..', '.#o##owwww##o#dgggggd#.',
+         '.#wwwwwwwwwwo#ggggggg#.', '#############dggg##ggd#', '#goooooooooo#dggg##ggd#', '.#oo##ooo##og#ggggggg#.',
+         '.#go##ooo##oo#dgggggd#.', '..#oooooooooog#ggggg#..', '..#goooooooooo#dgggd#..', '...#oooooooooog#ggg#...',
+         '...#go##ooo##oo#dgd#...', '....#o##ooo##oog#g#....', '....#goooooooooo#d#....', '.....#############.....'],
+  roll: ['........#######........', '.......#wwwwwww#.......', '......#wo#####og#......', '......#o#.....#g#......',
+         '......#o#.....###......', '......#o#..............', '......#o#..............', '......#o#..............',
+         '.....#############.....', '....#owwwwwwwwww#d#....', '....#o##wwwwo##o#g#....', '...#o##owwww##o#dgd#...',
+         '...#wwwo##wwwwo#ggg#...', '..#owww##owwww#dgggd#..', '..#o##wwwwo##o#ggggg#..', '.#o##owwww##o#dgggggd#.',
+         '.#wwwwwwwwwwo#ggggggg#.', '#############dggg##ggd#', '#goooooooooo#dggg##ggd#', '.#oo##ooo##og#ggggggg#.',
+         '.#go##ooo##oo#dgggggd#.', '..#oooooooooog#ggggg#..', '..#goooooooooo#dgggd#..', '...#oooooooooog#ggg#...',
+         '...#go##ooo##oo#dgd#...', '....#o##ooo##oog#g#....', '....#goooooooooo#d#....', '.....#############.....'],
   // the tab's badge: a small one
   kept: ['....#####....', '...#wwwww#...', '..#wo###og#..', '..#o#...#g#..', '..#o#...#g#..',
          '.###########.', '#wwwwwwwww#g#', '#wwww##www#g#', '###########g#', '#ooooooooo#g#',
@@ -1669,7 +1670,7 @@ const ICONS = {
   tumble: ['....#....', '...#o#...', '####o####', '#ooooooo#', '.#ooooo#.', '..#ooo#..', '.#oo#oo#.',
            '.#o#.#o#.', '.##...##.'],
 };
-const ICON_TONES = { '#': '#000', w: '#fefefe', o: '#c0c0c0', g: '#828282' };
+const ICON_TONES = { '#': '#000', w: '#fefefe', o: '#c0c0c0', g: '#828282', d: '#414141' };
 const shadedIcons = {};
 function shaded(icon) {
   if (shadedIcons[icon]) return shadedIcons[icon];
