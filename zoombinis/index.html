@@ -564,7 +564,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 116.
+    Version 117.
   </footer>
 </div>
 
@@ -998,7 +998,8 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // what a hat sits on, handed back in `seat` if asked for (see boxes)
   const under = { body: out.find(p => p.name === 'body').v,
                   hair: build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v,
-                  left: framesFace(kind, pose) === 'left' };
+                  left: framesFace(kind, pose) === 'left',
+                  soft: !build.hair.none && SOFT_HAIR.has(S.characters[build.hair.borrowed ? OTHER[kind] : kind].names.hair[build.hair.v]) };
   // the middle of all that is drawn, across (for a hat round it all)
   const xs = out.filter(p => p && !none(p.name)).flatMap(p => [-p.v.rx, -p.v.rx + rect(p.v.sprite)[2]]);
   under.figure = (Math.min(...xs) + Math.max(...xs)) / 2;
@@ -1016,7 +1017,8 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // under it, cutting through the barrel, sack or crate
   const apart = k => S.hats[k].on || S.hats[k].centre;
   for (const [k, was, over] of joinMeals(build.extras || [])) {
-    let ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null, figure: under.figure }),
+    // cargo is heavy: it presses soft hair flat and sits on the head
+    let ps = hatOn(under.body, k, S.hats[k].lid && under.soft ? null : under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null, figure: under.figure }),
                    under.left, apart(k) ? null : stack);
     if (apart(k)) { hat.push(...ps); continue; }
     const nudge = stackNudge(k, lastOn);
@@ -1197,6 +1199,10 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
                             ry: -Math.round(cy + h.sink + p.dy + oy) }));
 }
 let HAT_RULE = 'hair';
+// Hair that cargo (a barrel, sack or crate) presses flat, sitting on the
+// head with the hair poking out at its sides (Sam: a crate sat "too high on
+// messy hair"); a cap, bandana, flat top or helmet holds it up
+const SOFT_HAIR = new Set(['Shaggy', 'Ponytail', 'Tuft', 'Blue quiff', 'Grass tuft', 'Mohawk']);
 // The row a hat's seat is on, over this body in this hair - worked out once
 // for each: boxes asks for it for every frame of every hat on every tick.
 const seats = new WeakMap(), BALD = {};
