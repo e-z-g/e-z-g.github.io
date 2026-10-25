@@ -564,7 +564,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 110.
+    Version 111.
   </footer>
 </div>
 
@@ -1280,13 +1280,17 @@ function topAt(v, x) {
   return i >= 0 && i < tops.length && tops[i] >= 0 ? tops[i] - v.ry : null;
 }
 
-// A box relative to the REGS origin around the given variants.
+// A box relative to the REGS origin around the given variants, each where
+// it is drawn, lifted foot and all (`oy`), as drawCharacter places it, so
+// Save picture's crop would take a lifted foot in. (No walk played now
+// lifts one: the walks that do are the Fleen's stepping shoes' on a
+// Zoombini, which steps as in sneakers instead; see stepsLike.)
 function boundsOf(variants) {
   let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
   for (const v of variants) {
-    const [, , w, h] = rect(v.sprite);
-    l = Math.min(l, -v.rx); t = Math.min(t, -v.ry);
-    r = Math.max(r, -v.rx + w); b = Math.max(b, -v.ry + h);
+    const [, , w, h] = rect(v.sprite), y = (v.oy || 0) - v.ry;
+    l = Math.min(l, -v.rx); t = Math.min(t, y);
+    r = Math.max(r, -v.rx + w); b = Math.max(b, y + h);
   }
   return { l, t, r, b };
 }
@@ -1869,7 +1873,16 @@ function swapExtra(from, to, sound) {
   const build = state.build[state.kind];
   build.extras = (build.extras || []).map(k => k === from ? to : k);
   build.extraFocus = to;
+  // a topping put on or taken off is the same meal: each colour picked
+  // goes to the colour of the new meal that was the same to begin with (a
+  // sundae's chocolate stays as picked when the cherry comes off); a
+  // hat's other colourings and shapes come in their own colours
+  const picks = (build.colours || {})['hat:' + from];
   resetColours('hat:' + from);
+  if (picks && (S.hats[from].option || {}).layers && (S.hats[to].option || {}).layers) {
+    const was = (S.hats[from].groups || []).map(g => g.ref);
+    build.colours['hat:' + to] = (S.hats[to].groups || []).map(g => picks[was.indexOf(g.ref)]);
+  }
   if (sound === 'put' || sound === 'off') sounds.builder(sound);
   else sounds.play(sound);
   update();
@@ -2287,6 +2300,9 @@ dice.addEventListener('click', () => {
     const heads = S.hatOrder.filter(v => !S.hats[v].on), rest = S.hatOrder.filter(v => S.hats[v].on);
     build.extras = (Math.random() < 0.5 ? [heads[Math.floor(Math.random() * heads.length)]] : [])
       .concat(rest.filter(() => Math.random() < 1 / 3));
+    // in their own colours, as the parts are: a hat rolled again kept the
+    // colour picked for it before
+    if (build.colours) build.colours = Object.fromEntries(Object.entries(build.colours).filter(([f]) => !f.startsWith('hat:')));
   }
   state.name[state.kind] = makeName();
   endClip();
@@ -2597,7 +2613,8 @@ function fallPoses(kind, build) {
 // a direction, and left or right, is picked as it starts.
 function clipsFor(kind) {
   const build = state.build[kind];
-  const clips = idlesOf(kind).concat(kind === 'fleen' ? [PAGE_BLINK] : []);
+  // (idlesOf has the Fleen's page blink in already)
+  const clips = idlesOf(kind).slice();
   const special = specialOf(kind, build);
   for (let i = 0; special && i < SPECIAL_WEIGHT; i++) clips.push(special);
   const out = clips.map(ticks => ({ ticks, walk: false }));
