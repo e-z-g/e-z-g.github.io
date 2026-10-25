@@ -564,7 +564,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 112.
+    Version 113.
   </footer>
 </div>
 
@@ -1186,8 +1186,10 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
     : h.centre ? (pose.figure !== undefined ? pose.figure : -body.rx + bw / 2) : body.crown[0];
   // worn on the body rather than the head - on the back (the wings, painted
   // behind the body) or over it (the crab on the face, the bee on the back):
-  // placed from the head's top whatever the hair, by its sink and nudge
-  const cy = onFace ? body.face[1] : wings ? -body.ry + bh * (bh > bw * 1.3 ? 0.45 : 0.6) - h.sink : h.on ? body.crown[1]
+  // placed from the head's top whatever the hair, by its sink and nudge -
+  // and so is the bubble round it all: seated on the hair, tall hair (the
+  // mohawk) lifted it until the feet stuck out of its foot
+  const cy = onFace ? body.face[1] : wings ? -body.ry + bh * (bh > bw * 1.3 ? 0.45 : 0.6) - h.sink : h.on || h.centre ? body.crown[1]
     : below && below.length ? stackSeat(below, h, cx) : hatSeat(body, h, hair);
   // a hat faces right; on frames that face left it is turned about the crown
   return pieces.map(p => ({ part: 'hat:' + hat, sprite: p.sprite, flip: left, back: h.on === 'back',
