@@ -564,7 +564,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 109.
+    Version 110.
   </footer>
 </div>
 
@@ -1010,10 +1010,15 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // a sundae joined to a pizza (joinMeals) is held back: what is put on
   // after lands on the pizza and is drawn behind the sundae (Sam)
   let held = [], lastOn;
+  // the bubble goes round the character wherever it is in the order, as
+  // what is on the face or back does, and is no part of the stack: stacked,
+  // what was put on after it sat on its top, and it sat on the top of cargo
+  // under it, cutting through the barrel, sack or crate
+  const apart = k => S.hats[k].on || S.hats[k].centre;
   for (const [k, was] of joinMeals(build.extras || [])) {
     let ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null, figure: under.figure }),
-                   under.left, S.hats[k].on ? null : stack);
-    if (S.hats[k].on) { hat.push(...ps); continue; }
+                   under.left, apart(k) ? null : stack);
+    if (apart(k)) { hat.push(...ps); continue; }
     const nudge = stackNudge(k, lastOn);
     if (nudge) ps = ps.map(p => Object.assign({}, p, { rx: p.rx - (under.left ? -nudge[0] : nudge[0]), ry: p.ry - nudge[1] }));
     lastOn = k;
@@ -1097,7 +1102,7 @@ function tumbleVariants(kind, build, pose) {
     // meal's layers scatter, further apart the further they fly
     const keyOf = h => +h.part.slice(4), count = {};
     for (const h of worn) count[keyOf(h)] = (count[keyOf(h)] || 0) + 1;
-    const stack = [...new Set(worn.map(keyOf).filter(k => !S.hats[k].on && !(k in own)))];
+    const stack = [...new Set(worn.map(keyOf).filter(k => !S.hats[k].on && !S.hats[k].centre && !(k in own)))];
     const flight = k => {
       if (!pose.hat || pose.fly === undefined) return pose.hat || [0, 0, 0];
       const at = pose.fly - (stack.includes(k) ? stack.length - 1 - stack.indexOf(k) : 0);
@@ -3196,6 +3201,9 @@ function switchKind() {
 function update() {
   closeGIF();
   closeMixAsk();
+  // (a link with a mixed build turns mixing on in readHash, after the
+  // button was first painted)
+  mixBtn.setAttribute('aria-pressed', mix);
   updatePad();
   const build = state.build[state.kind];
   const described = FEATURES.map((f, i) => {
