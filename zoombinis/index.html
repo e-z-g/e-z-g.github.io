@@ -564,7 +564,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 114.
+    Version 115.
   </footer>
 </div>
 
@@ -1504,10 +1504,17 @@ function drawPreview() {
     const drawn = framesFace(state.kind, pose);
     const axis = heading && heading !== drawn ? origin.x + (bb.l + bb.r) / 2 : null;
     let build = state.build[state.kind], p = pose;
+    // an extra just put on is drawn by its clip from the first draw: the
+    // page redraws at once, a tick before extraTick gives the clip's first
+    // frame, and it flashed in its seat until then (Sam: the toad "flashes
+    // in place for a second before entry animation begins")
+    if (extraClip && !(extraClip.k in (pose.extraHats || {})) && !pose.tumble) {
+      p = Object.assign({}, pose, { extraHats: Object.assign({}, pose.extraHats, { [extraClip.k]: extraClip.ticks[extraAt] }) });
+    }
     if (ghost && ghost.kind === state.kind && !pose.tumble) {
       build = Object.assign({}, build, { extras: (build.extras || []).concat([ghost.k]),
                                          colours: Object.assign({}, build.colours, { ['hat:' + ghost.k]: ghost.picks }) });
-      p = Object.assign({}, pose, { extraHats: Object.assign({}, pose.extraHats, { [ghost.k]: ghost.ticks[ghost.at] }) });
+      p = Object.assign({}, p, { extraHats: Object.assign({}, p.extraHats, { [ghost.k]: ghost.ticks[ghost.at] }) });
     }
     drawCharacter(ctx, state.kind, build, origin.x + pose.dx, origin.y + pose.dy, 1, p, axis);
   }
