@@ -564,7 +564,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 113.
+    Version 114.
   </footer>
 </div>
 
@@ -2664,14 +2664,17 @@ let extraClip = null, extraAt = 0, extraWait = 20;
 // them (Sam, 12 October 2026: "try everything"), each once.
 //  - leaving as it came: the bat, the bee, the woodpecker, the crab, the
 //    acorn and the mud go as their arrival run backwards;
-//  - the toad hops off forwards, three of its own hops and a drop, and
-//    hops on the same way;
+//  - the toad leaps off forwards in one leap, on its leaping frame, and
+//    falls out of the window's foot; it leaps on in one leap too, up from
+//    below and behind, so it lands facing the way it went (Sam: "a single
+//    motion, not this weird levitation" - it had hopped three times along
+//    the air at the height of the head, and on, backwards);
 //  - a meal of several layers is built up as it arrives, the plate or glass
 //    first, each topping with the sound the machine adds it with (a tick's
 //    fourth number is how many of its pieces show);
 //  - the bee circles the head, on its hovering frames.
 const LEAVES_AS_IT_CAME = new Set(['a bat', 'a bee', 'a woodpecker', 'a purple crab', 'an acorn', 'a mud hat']);
-const HOPS_OFF = 3, HOP_ON = 5;              // hops; px forwards a tick
+const LEAP = { along: 4, up: 6, fall: 1.2, down: 100 }; // px a tick; px a tick, rising; px a tick a tick; px below the seat, past either body's feet
 const madeAnims = new Map();
 function animsOf(k, kind) {
   const h = S.hats[k], own = (h.anims || []).filter(a => a.kind === kind);
@@ -2683,13 +2686,17 @@ function makeAnims(k, kind, own) {
   const find = (of, re) => (h.anims || []).find(a => a.kind === of && (!re || re.test(a.label)));
   const gone = [-1, 0, 0], hop = find('idle', /hopping/), hover = find('idle', /hovering/);
   if (hop && !own.length && kind !== 'idle') {
-    const up = hop.ticks.slice(0, -1), path = [];
-    for (let j = 0; j < HOPS_OFF; j++) up.forEach(([set, , dy], i) => path.push([set, (j * up.length + i + 1) * HOP_ON, dy]));
-    const cue = (hop.sounds || [])[0], sounds = cue ? [...Array(HOPS_OFF).keys()].map(j => [j * up.length, cue[1]]) : [];
+    // the hop's leaping frame (its highest tick's), along a parabola
+    const set = hop.ticks.reduce((a, t) => t[2] < a[2] ? t : a)[0], path = [];
+    for (let i = 1, dy = 0; dy < LEAP.down; i++) {
+      dy = Math.round(-LEAP.up * i + LEAP.fall * i * i / 2);
+      path.push([set, LEAP.along * i, dy]);
+    }
+    const cue = (hop.sounds || [])[0], sounds = cue ? [[0, cue[1]]] : [];
     return kind === 'leave'
-      ? [{ kind, label: noun + ' hopping off', sounds,
-           ticks: path.map(([set, dx, dy], i) => [set, dx, dy + Math.max(0, i - 2 * up.length) ** 2 * 2]).concat([gone]) }]
-      : [{ kind, label: noun + ' hopping on', ticks: path.slice().reverse().concat([[0, 0, 0]]), sounds }];
+      ? [{ kind, label: noun + ' hopping off', sounds, ticks: path.concat([gone]) }]
+      : [{ kind, label: noun + ' hopping on', sounds,
+           ticks: path.slice().reverse().map(([set, dx, dy]) => [set, -dx, dy]).concat([[0, 0, 0]]) }];
   }
   if (kind === 'leave' && !own.length && find('arrive') && LEAVES_AS_IT_CAME.has(name)) {
     const a = find('arrive');
