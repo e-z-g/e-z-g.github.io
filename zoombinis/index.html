@@ -564,7 +564,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 111.
+    Version 112.
   </footer>
 </div>
 
@@ -1015,7 +1015,7 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   // what was put on after it sat on its top, and it sat on the top of cargo
   // under it, cutting through the barrel, sack or crate
   const apart = k => S.hats[k].on || S.hats[k].centre;
-  for (const [k, was] of joinMeals(build.extras || [])) {
+  for (const [k, was, over] of joinMeals(build.extras || [])) {
     let ps = hatOn(under.body, k, under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null, figure: under.figure }),
                    under.left, apart(k) ? null : stack);
     if (apart(k)) { hat.push(...ps); continue; }
@@ -1023,6 +1023,10 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     if (nudge) ps = ps.map(p => Object.assign({}, p, { rx: p.rx - (under.left ? -nudge[0] : nudge[0]), ry: p.ry - nudge[1] }));
     lastOn = k;
     const layers = k !== was ? S.hats[k].option.layers : null;
+    // each layer of a joined meal in the colours picked for the pizza or
+    // the sundae it came from (`paint`): under the joined meal's own
+    // number, both had none, and their colour plaques did nothing
+    if (layers) ps = ps.map((p, i) => Object.assign({}, p, { paint: 'hat:' + (layers[i] >= 6 ? over : was) }));
     const sundae = layers ? ps.filter((_, i) => layers[i] >= 6) : [];
     ps = ps.filter(p => !sundae.includes(p));
     stack = stack.concat(ps);
@@ -1261,15 +1265,30 @@ function stackSeat(below, h, cx) {
 // coordinates), or null: read from the sheet once, per sprite.
 const columnTops = new Map();
 let sheetPixels = null;
+function pixels() {
+  if (!sheetPixels) {
+    const c = document.createElement('canvas');
+    c.width = sheet.width; c.height = sheet.height;
+    const g = c.getContext('2d');
+    g.drawImage(sheet, 0, 0);
+    sheetPixels = g.getImageData(0, 0, c.width, c.height);
+  }
+  return sheetPixels;
+}
+// The colours of a sprite's opaque pixels, as rrggbb.
+function coloursIn(sprite) {
+  const { data, width } = pixels(), [sx, sy, w, h] = rect(sprite), out = new Set();
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      const at = ((sy + j) * width + sx + i) * 4;
+      if (data[at + 3]) out.add(((data[at] << 16) | (data[at + 1] << 8) | data[at + 2]).toString(16).padStart(6, '0'));
+    }
+  }
+  return out;
+}
 function topAt(v, x) {
   if (!columnTops.has(v.sprite)) {
-    if (!sheetPixels) {
-      const c = document.createElement('canvas');
-      c.width = sheet.width; c.height = sheet.height;
-      const g = c.getContext('2d');
-      g.drawImage(sheet, 0, 0);
-      sheetPixels = g.getImageData(0, 0, c.width, c.height);
-    }
+    const sheetPixels = pixels();
     const [sx, sy, w, h] = rect(v.sprite), tops = new Int16Array(w).fill(-1);
     for (let i = 0; i < w; i++) {
       for (let j = 0; j < h; j++) if (sheetPixels.data[((sy + j) * sheetPixels.width + sx + i) * 4 + 3]) { tops[i] = j; break; }
@@ -1442,7 +1461,8 @@ function boxFor1(kind, build) {
 // Draw with the REGS origin at (ox, oy), mirrored about `axis` if set.
 function drawCharacter(ctx, kind, build, ox, oy, scale = 1, pose = REST, axis = null) {
   for (const v of variantsFor(kind, build, pose)) {
-    const src = v.part ? recoloured(v.sprite, kind, build.skin, groupsOf(kind, build, v.part), (build.colours || {})[v.part], v.part)
+    const paint = v.paint || v.part;
+    const src = v.part ? recoloured(v.sprite, kind, build.skin, groupsOf(kind, build, paint), (build.colours || {})[paint], v.part)
       : recoloured(v.sprite, kind, build.skin);
     const x = ox - v.rx * scale, y = oy + ((v.oy || 0) - v.ry) * scale;
     if (!v.flip) drawSprite(ctx, v.sprite, x, y, scale, axis, src);
@@ -1819,8 +1839,18 @@ function mealHat(layers, root = layers.includes(0) ? MEAL_ROOT : MEAL_SUNDAE) {
     name: layers.map(n => names[n]).join(', '), whole: undefined, family: root, option: { layers },
     sets: whole.sets.map(set => layers.map(n => Object.assign({}, set[n], { dx: set[n].dx + sx, dy: set[n].dy + sy + drop[n] }))),
     flat: base === null, sink: base === null ? whole.sink : base === 6 ? S.hats[MEAL_SUNDAE].sink : 3,
-    groups: (base === null ? S.hats[MEAL_ROOT] : S.hats[MEAL_SUNDAE]).groups,
   });
+  // Its colours: those of the whole pizza's or sundae's that show in the
+  // layers it has (a sundae with no cherry had the cherry's colour to
+  // pick), read from the layers' pixels - once the sheet is in, as a link
+  // makes its meals before (until then, all of them).
+  const all = (base === null ? S.hats[MEAL_ROOT] : S.hats[MEAL_SUNDAE]).groups || [];
+  let shown = null;
+  Object.defineProperty(h, 'groups', { get() {
+    if (shown || !sheet.complete || !sheet.naturalWidth) return shown || all;
+    const colours = new Set(layers.flatMap(n => [...coloursIn(whole.sets[0][n].sprite)]));
+    return (shown = all.filter(g => g.colours.some(c => colours.has(c))));
+  } });
   S.hats.push(h);
   mealHats.set(key, S.hats.length - 1);
   return S.hats.length - 1;
@@ -1828,14 +1858,15 @@ function mealHat(layers, root = layers.includes(0) ? MEAL_ROOT : MEAL_SUNDAE) {
 // A sundae put on straight over a pizza on its platter is drawn as one meal
 // with it, where the game stacks it on the platter (towards the back), not
 // stacked on the pizza's middle as other hats are (Sam). Each worn hat as
-// [what is drawn, the hat it was - whose animation it follows].
+// [what is drawn, the hat it was - whose animation it follows - and, for
+// a joined meal, the sundae worn over it].
 function joinMeals(extras) {
   const layers = k => (S.hats[k].option || {}).layers;
   return extras.flatMap((k, i) => {
     const below = extras[i - 1], above = extras[i + 1];
     if (layers(k) && !layers(k).includes(0) && below !== undefined && (layers(below) || []).includes(0)) return [];
     if ((layers(k) || []).includes(0) && above !== undefined && layers(above) && !layers(above).includes(0)) {
-      return [[mealHat(layers(k).concat(layers(above)), MEAL_ROOT), k]];
+      return [[mealHat(layers(k).concat(layers(above)), MEAL_ROOT), k, above]];
     }
     return [[k, k]];
   });
