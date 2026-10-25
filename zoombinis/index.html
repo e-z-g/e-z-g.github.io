@@ -564,7 +564,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 115.
+    Version 116.
   </footer>
 </div>
 
@@ -1244,6 +1244,11 @@ function stackNudge(k, on) {
 // a pizza on its platter is sat on this many rows into its top, so a crate
 // on it sits down on it rather than back on the far rim (Sam)
 const PLATTER_LID = 3;
+// How far into cargo's top face what is put on it sits: other cargo, its
+// bottom edge as wide as the face, to the face's front edge (`lid`); the
+// rest, standing on it, halfway in (Sam: a woodpecker sat on the front rim
+// of a barrel, "too low")
+const lidDepth = (under, h) => under.lid ? h.lid ? under.lid : Math.round(under.lid / 2) : 0;
 function stackSeat(below, h, cx) {
   const w = rect(h.sets[0][0].sprite)[2];
   const half = h.flat ? w / 2 : w / 4, tops = [];
@@ -1253,7 +1258,7 @@ function stackSeat(below, h, cx) {
       const pw = rect(p.sprite)[2];
       let t = topAt(p, p.flip ? -2 * p.rx + pw - 1 - x : x);
       const under = S.hats[+p.part.slice(4)];
-      if (t !== null) t += (under.lid || 0) + ((under.option || {}).layers || []).includes(0) * PLATTER_LID;
+      if (t !== null) t += lidDepth(under, h) + ((under.option || {}).layers || []).includes(0) * PLATTER_LID;
       if (t !== null && (top === null || t < top)) top = t;
     }
     if (top !== null) tops.push(top);
