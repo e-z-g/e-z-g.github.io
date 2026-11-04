@@ -185,7 +185,7 @@ const GLSL_HELPERS = `
 
 const GLSL_5X3 = `
   vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 5.0, (2.0 - row + localUv.y) / 3.0); }
-  vec4 sampleAtlas(sampler2D tex, int face, vec2 local) {
+  vec4 sampleAtlas(sampler2D tex, int face, vec2 local, float gutterFrac) {
     if (face == 4) return texture2D(tex, getGrid(1.0, 1.0, local));
     if (face == 0) return texture2D(tex, getGrid(2.0, 1.0, local));
     if (face == 5) return texture2D(tex, getGrid(3.0, 1.0, local));
@@ -227,15 +227,19 @@ const GLSL_5X3 = `
   }
 `;
 
-// GUTTER_FRAC is filled in per atlas, since it depends on the face size the
-// atlas was written at.
+// The gutter is GUTTER_PX pixels at whatever face size the atlas was stitched
+// at, so as a fraction of the cell it belongs to one atlas, not to a layout.
+// It is passed per call rather than read from one shared uniform: a colour
+// atlas stitched at 1024 and a depth atlas stitched at 512 have gutters of
+// 8/1024 and 8/512, and a single uniform used to inset both by the colour's
+// figure, sliding the depth a few texels off the picture near every cell edge.
+// gutterFracFor() below is the one place that turns pixels into the fraction.
 const GLSL_3X2 = `
-  uniform float uGutterFrac;
   vec2 getGrid(float col, float row, vec2 localUv) { return vec2((col + localUv.x) / 3.0, (1.0 - row + localUv.y) / 2.0); }
-  vec4 sampleAtlas(sampler2D tex, int face, vec2 local) {
+  vec4 sampleAtlas(sampler2D tex, int face, vec2 local, float gutterFrac) {
     // Inset into the cell's content area; the border is neighbour bleed.
     // Cell order is left, front, right / back, top, bottom — matching FACE_INDEX.
-    vec2 inset = mix(vec2(uGutterFrac), vec2(1.0 - uGutterFrac), local);
+    vec2 inset = mix(vec2(gutterFrac), vec2(1.0 - gutterFrac), local);
     if (face == 0) return texture2D(tex, getGrid(0.0, 0.0, inset));  // left
     if (face == 5) return texture2D(tex, getGrid(1.0, 0.0, inset));  // front
     if (face == 1) return texture2D(tex, getGrid(2.0, 0.0, inset));  // right
@@ -245,11 +249,17 @@ const GLSL_3X2 = `
   }
 `;
 
+// Both layouts take the same four arguments, so a caller never has to know
+// which one it is compiled against; the 5×3 one has no gutter and ignores it.
 export function sampleAtlasGlsl(layoutId) {
   return GLSL_HELPERS + (layoutId === '3x2' ? GLSL_3X2 : GLSL_5X3);
 }
 
-// True when the layout's shader declares a uGutterFrac uniform.
-export function layoutUsesGutter(layoutId) {
-  return layoutId === '3x2';
+// The gutter as a fraction of one cell, for an atlas `widthPx` wide *as it was
+// stitched*. That width matters: the viewer downscales an atlas wider than the
+// GPU allows, which shrinks the gutter in proportion, so the fraction must be
+// taken from the original width — the downscaled one overstates it.
+export function gutterFracFor(layout, widthPx) {
+  if (!layout || !layout.gutter || !widthPx) return 0;
+  return layout.gutter / (widthPx / layout.cols);
 }

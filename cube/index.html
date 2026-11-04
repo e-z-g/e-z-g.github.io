@@ -306,7 +306,7 @@
 
   <script type="module">
     import * as THREE from 'three';
-    import { sampleAtlasGlsl, detectLayout, layoutUsesGutter, GUTTER_PX, LAYOUTS } from './atlas-layout.js';
+    import { sampleAtlasGlsl, detectLayout, gutterFracFor, LAYOUTS } from './atlas-layout.js';
 
     // Assets live next to this page. Loading them relatively (rather than from
     // raw.githubusercontent.com) keeps them on the Pages CDN, drops a cross-origin
@@ -421,7 +421,20 @@
     // --- Handoff from the stitcher ---
     // The stitcher stashes freshly built atlases in IndexedDB and sends the user
     // here, so an atlas doesn't have to be downloaded and re-uploaded by hand.
+    //
+    // The stitcher builds one slot per stitch, so an LDI takes several round
+    // trips: colour, back, depth, back again. This page used to delete each
+    // atlas as it read it, which meant every trip arrived with only the slot
+    // just stitched — the colour was gone by the time the depth came, and the
+    // handoff could never deliver a scene with depth at all.
+    //
+    // So atlases are now left in place and tagged with an id the stitcher
+    // keeps in sessionStorage, which belongs to the browser tab and survives
+    // navigating between the two pages. This page takes only the atlases its
+    // own tab stitched: they accumulate across trips and survive a reload, and
+    // a new tab starts empty instead of inheriting yesterday's scene.
     const HANDOFF_DB = 'cubemap-handoff', HANDOFF_STORE = 'atlases';
+    const HANDOFF_SESSION_KEY = 'cubemap-handoff-session';
     const HANDOFF_SLOTS = {
       'fg-color': 'fgColor', 'fg-depth': 'fgDepth',
       'bg-color': 'bgColor', 'bg-depth': 'bgDepth',
@@ -429,6 +442,11 @@
 
     async function takeHandoffAtlases() {
       if (!window.indexedDB) return false;
+      let session = null;
+      try { session = sessionStorage.getItem(HANDOFF_SESSION_KEY); } catch (e) { /* storage blocked */ }
+      // Nothing stitched in this tab: nothing to take.
+      if (!session) return false;
+
       let db;
       try {
         db = await new Promise((resolve, reject) => {
@@ -445,7 +463,13 @@
         const store = tx.objectStore(HANDOFF_STORE);
         for (const slot of Object.keys(HANDOFF_SLOTS)) {
           const get = store.get(slot);
-          get.onsuccess = () => { if (get.result) { out[slot] = get.result; store.delete(slot); } };
+          get.onsuccess = () => {
+            const rec = get.result;
+            // A bare Blob is the old take-once format, left by a stitcher
+            // from before the session tags; it belongs to no one now.
+            if (rec instanceof Blob) { store.delete(slot); return; }
+            if (rec && rec.session === session && rec.blob) out[slot] = rec.blob;
+          };
         }
         tx.oncomplete = () => resolve(out);
         tx.onerror = () => resolve(out);
@@ -508,6 +532,12 @@
     // because playOrCrossfadeAudio bails on a falsy URL. Fade out instead.
     function fadeOutAudio() {
       audioSystem.currentUrl = null;
+      // rampVolume cancels any crossfade still running, which would otherwise
+      // leave its outgoing track playing on, part-faded, for good.
+      if (audioSystem.fading.src) {
+        audioSystem.fading.pause();
+        audioSystem.fading.removeAttribute('src');
+      }
       if (!audioSystem.active.src) return;
       const el = audioSystem.active;
       rampVolume(el, el.volume, 0, () => { el.pause(); el.removeAttribute('src'); });
@@ -712,17 +742,20 @@
     const createMaterials = (colorMode, depthMode, seamFill = false, layoutId = '5x3') => {
         const usesAtlas = colorMode === 'atlas' || depthMode === 'atlas';
         const atlasLogic = usesAtlas ? sampleAtlasGlsl(layoutId) : '';
-        const gutterUniform = (usesAtlas && layoutUsesGutter(layoutId)) ? { uGutterFrac: { value: 0.0 } } : {};
         const mats = [];
         for (let i = 0; i < 6; i++) {
-          const colorSample = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv)` : `texture2D(tColor, vUv)`;
+          // Each atlas carries its own gutter fraction (see setAtlasGutters):
+          // colour, depth and the seam-fill backdrop can each have been
+          // stitched at a different face size.
+          const colorSample = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv, uColorGutter)` : `texture2D(tColor, vUv)`;
           // One depth reader for both stages, so the vertex filter, the fg mask
           // and the tear gradient can never drift apart.
           const depthAtGlsl = `
               uniform float uDepthMin;
               uniform float uDepthInvRange;
+              uniform float uDepthGutter;
               float depthAt(vec2 uv, int face) {
-                return clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, face, uv)' : 'texture2D(tDepth, uv)'}.r, 0.0, 1.0);
+                return clamp(${depthMode === 'atlas' ? 'sampleAtlas(tDepth, face, uv, uDepthGutter)' : 'texture2D(tDepth, uv)'}.r, 0.0, 1.0);
               }
               // The mesh is driven by the map's own range, not by the range it
               // happens to be stored in. Voltaic's faces only span 0.04-0.58 of
@@ -748,7 +781,11 @@
               uIsForeground: { value: 0 },
               uTearThreshold: { value: 0.0 },
               uDepthSmooth: { value: DEPTH_SMOOTH_UV },
-              ...gutterUniform,
+              // Zero for every atlas without a gutter, including the 3x2
+              // depth atlas buildDepthAtlas() stitches, which needs none.
+              uColorGutter: { value: 0.0 },
+              uDepthGutter: { value: 0.0 },
+              uBgColorGutter: { value: 0.0 },
               ...extraUniforms
             },
             transparent: true,
@@ -817,6 +854,8 @@
               uniform int uFace;
               uniform int uIsForeground;
               uniform float uTearThreshold;
+              uniform float uColorGutter;
+              uniform float uBgColorGutter;
               ${seamFill ? 'uniform sampler2D tBgColor;' : ''}
               varying vec2 vUv;
               ${atlasLogic}
@@ -851,7 +890,7 @@
                     // substitute the bg colour at the same UV so cracks are invisible.
                     ${seamFill ? `
                     if (alpha < 0.05) {
-                      vec4 bgCol = sampleAtlas(tBgColor, uFace, vUv);
+                      vec4 bgCol = sampleAtlas(tBgColor, uFace, vUv, uBgColorGutter);
                       gl_FragColor = vec4(bgCol.rgb, 1.0);
                       #include <tonemapping_fragment>
                       #include <colorspace_fragment>
@@ -939,13 +978,56 @@
         nearRadius = SPHERE_RADIUS / (1 + fgK);
     }
 
-    // Atlases written in a gutter layout reserve a border of GUTTER_PX per cell;
-    // the shader insets its UVs by the matching fraction.
-    function setGutterFrac(mats, atlasWidth, layoutId) {
+    // The 1x1 stand-ins for a slot with nothing in it. They are not atlases of
+    // any layout, and must never be measured as if they were.
+    const isPlaceholder = (t) => !t || t === defaultCustomTex || t === dummyDepthTex || !t.image;
+
+    // The width an atlas was stitched at. fitToGpu() records it before
+    // shrinking an atlas to fit, because the gutter scales down with the
+    // picture and is only GUTTER_PX at the original size.
+    const sourceWidthOf  = (t) => (t.userData && t.userData.sourceWidth)  || t.image.width;
+    const sourceHeightOf = (t) => (t.userData && t.userData.sourceHeight) || t.image.height;
+
+    // Atlases written in a gutter layout reserve a border of GUTTER_PX per cell,
+    // and the shader insets its UVs by that border as a fraction of the cell.
+    // Each texture gets its own fraction: this used to compute one from the
+    // first image's width and apply it to every sampler, so a depth atlas
+    // stitched at a different face size than its colour — or any atlas the GPU
+    // limit had shrunk — was read a few texels off along every cell edge.
+    function setAtlasGutters(mats, layoutId, { color, depth, bgColor } = {}) {
         const l = LAYOUTS[layoutId];
-        if (!l || !l.gutter || !atlasWidth) return;
-        const frac = GUTTER_PX / (atlasWidth / l.cols);
-        mats.forEach(m => { if (m.uniforms.uGutterFrac) m.uniforms.uGutterFrac.value = frac; });
+        const frac = (t) => isPlaceholder(t) ? 0 : gutterFracFor(l, sourceWidthOf(t));
+        const c = frac(color), d = frac(depth), b = frac(bgColor);
+        mats.forEach(m => {
+            m.uniforms.uColorGutter.value = c;
+            m.uniforms.uDepthGutter.value = d;
+            m.uniforms.uBgColorGutter.value = b;
+        });
+    }
+
+    // Every atlas bound to one material has to be in the same layout, because
+    // the material compiles exactly one sampleAtlas(). A 5x3 colour atlas over
+    // a 3x2 depth atlas used to render as scrambled geometry with no message;
+    // now it is refused by name. `named` is [[label, texture], ...].
+    function agreedLayout(named) {
+        let agreed = null, agreedBy = null;
+        for (const [label, tex] of named) {
+            if (isPlaceholder(tex)) continue;
+            const w = sourceWidthOf(tex), h = sourceHeightOf(tex);
+            const l = detectLayout(w, h);
+            if (!l) {
+                throw new Error(
+                    `${label} is ${w}x${h} (${(w / h).toFixed(2)}:1). ` +
+                    `Expected a 5:3 or 3:2 cubemap atlas — stitch it with the face stitcher first.`);
+            }
+            if (agreed && l !== agreed) {
+                throw new Error(
+                    `${agreedBy} is a ${agreed.label} atlas but ${label} is ${l.label}. ` +
+                    `Stitch them in the same layout.`);
+            }
+            if (!agreed) { agreed = l; agreedBy = label; }
+        }
+        return agreed;
     }
 
     const bgCubeMesh = new THREE.Mesh(bgGeometry, getMatSet('atlasBg'));
@@ -959,10 +1041,13 @@
     // --- 3D DECAL VIDEO ENGINE ---
     document.getElementById('upload-decal').addEventListener('change', e => {
         if(e.target.files[0]) {
+            // A video is tens of MB; each replacement used to keep the last
+            // one alive behind a URL nothing could reach any more.
+            if (decalVideo.src.startsWith('blob:')) URL.revokeObjectURL(decalVideo.src);
             const url = URL.createObjectURL(e.target.files[0]);
             decalVideo.src = url;
             decalVideo.load();
-            decalVideo.play();
+            decalVideo.play().catch(err => console.warn('Decal video did not start:', err));
             
             if(!decalMesh) {
                 const dGeom = new THREE.PlaneGeometry(1, 1);
@@ -1052,7 +1137,21 @@
     container.addEventListener('mousedown', initTiltSensors, { once: true });
     document.querySelector('.ui-container').addEventListener('touchstart', initTiltSensors, { once: true });
 
-    window.addEventListener('orientationchange', () => { screenOrientation = (screen.orientation || {}).angle || window.orientation || 0; baseGamma = null; });
+    // Read at startup as well as on change. It used to be set only by the
+    // orientationchange event, so a phone that opened the page already in
+    // landscape kept 0 here and the gyroscope view was a quarter turn out
+    // until the phone was rotated away and back.
+    const readScreenOrientation = () => {
+      screenOrientation = (screen.orientation || {}).angle || window.orientation || 0;
+      baseGamma = null;
+    };
+    readScreenOrientation();
+    // orientationchange is the only one older iOS fires; screen.orientation's
+    // change event is the standard one. Either may fire, both are harmless.
+    window.addEventListener('orientationchange', readScreenOrientation);
+    if (screen.orientation && screen.orientation.addEventListener) {
+      screen.orientation.addEventListener('change', readScreenOrientation);
+    }
     
     // Recover lon/lat from wherever the camera is actually pointing, so handing
     // control back from the gyroscope doesn't snap the view.
@@ -1427,6 +1526,9 @@
 
         const fitted = new THREE.CanvasTexture(canvas);
         fitted.colorSpace = tex.colorSpace;
+        // An atlas's gutter is measured at the size it was stitched; keep that.
+        fitted.userData.sourceWidth = img.width;
+        fitted.userData.sourceHeight = img.height;
         tex.dispose();
         return fitted;
     }
@@ -1707,15 +1809,12 @@
 
             const depthTex = prepareDepthTex(rawDepth === dummyDepthTex ? rawDepth : fitToGpu(rawDepth));
 
-            // The colour and depth atlases are authored at different sizes, so
-            // the layout has to come from whichever one we actually have, and
-            // both must agree on it.
-            const layout = detectLayout(colorTex.image.width, colorTex.image.height);
-            if (!layout) {
-              throw new Error(
-                `Atlas is ${colorTex.image.width}x${colorTex.image.height} — expected a 5:3 or 3:2 cubemap atlas.`);
-            }
-            const layoutId = layout.id;
+            // The colour and depth atlases are authored at different sizes
+            // (Edanna's are 3200 and 2668 wide), so each is read on its own
+            // terms, and the two must agree on the layout.
+            const layoutId = agreedLayout([
+              ['The colour atlas', colorTex], ['The depth atlas', depthTex],
+            ]).id;
 
             hasActiveDepth = depthTex !== dummyDepthTex;
             depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
@@ -1725,7 +1824,7 @@
 
             fgCubeMesh.material = getMatSet('atlasSolo', layoutId);
             bgCubeMesh.visible = false;
-            setGutterFrac(fgCubeMesh.material, colorTex.image.width, layoutId);
+            setAtlasGutters(fgCubeMesh.material, layoutId, { color: colorTex, depth: depthTex });
 
             setDepthRange(fgCubeMesh.material,
                           hasActiveDepth ? measureDepthRange([depthTex.image]) : null);
@@ -1769,32 +1868,28 @@
                 return tex;
             };
 
+            // Depth goes through the same GPU fit as colour. It used to skip
+            // it, and the stitcher's 5x3 output at its default 1024px face is
+            // 5120 wide — over the 4096 limit of most phones, where the depth
+            // upload failed and the scene stayed flat.
             const fgC = processAtlasTex(loaded[0], true);
-            let fgD = loaded[1];
+            const fgD = processAtlasTex(loaded[1], false);
             const bgC = processAtlasTex(loaded[2], true);
-            let bgD = loaded[3];
-
-            fgD = prepareDepthTex(fgD);
-            bgD = prepareDepthTex(bgD);
+            const bgD = processAtlasTex(loaded[3], false);
 
             if (loadId !== currentLoadId) return;
 
-            // Which atlas layout is this? Read it off the aspect ratio of the
-            // first real image we have; a mis-shaped upload used to render as
-            // garbage with no explanation.
-            const shapeSource = [fgC, bgC, fgD, bgD]
-              .find(t => t !== defaultCustomTex && t !== dummyDepthTex && t.image);
-            const atlasW = shapeSource ? shapeSource.image.width : 0;
-            const atlasH = shapeSource ? shapeSource.image.height : 0;
-            const detected = shapeSource ? detectLayout(atlasW, atlasH) : LAYOUTS['5x3'];
-            if (!detected) {
-              throw new Error(
-                `Atlas is ${atlasW}x${atlasH} (${(atlasW / atlasH).toFixed(2)}:1). ` +
-                `Expected 5:3 or 3:2 — stitch it with the face stitcher first.`);
-            }
-            const layoutId = detected.id;
+            // Which atlas layout is this? Every uploaded atlas is read off its
+            // own aspect ratio, and they must all agree; a mis-shaped or
+            // mismatched upload used to render as garbage with no explanation.
+            const layoutId = (agreedLayout([
+              ['FG Color', fgC], ['FG Depth', fgD],
+              ['BG Color', isDualLayer ? bgC : null], ['BG Depth', isDualLayer ? bgD : null],
+            ]) || LAYOUTS['5x3']).id;
 
-            hasActiveDepth = !!customMaps.fgDepth || !!customMaps.bgDepth;
+            // A BG Depth with no BG Color is never drawn, so it alone must not
+            // bring up a depth slider that moves nothing.
+            hasActiveDepth = !isPlaceholder(fgD) || (isDualLayer && !isPlaceholder(bgD));
             depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
             tearControls.style.display = isDualLayer ? 'flex' : 'none';
             
@@ -1804,8 +1899,8 @@
             fgCubeMesh.material = getMatSet('atlasFg', layoutId);
             bgCubeMesh.material = getMatSet('atlasBg', layoutId);
             bgCubeMesh.visible = isDualLayer;
-            setGutterFrac(fgCubeMesh.material, atlasW, layoutId);
-            setGutterFrac(bgCubeMesh.material, atlasW, layoutId);
+            setAtlasGutters(fgCubeMesh.material, layoutId, { color: fgC, depth: fgD, bgColor: bgC });
+            setAtlasGutters(bgCubeMesh.material, layoutId, { color: bgC, depth: bgD });
 
             // Both layers share one range, so the backdrop keeps sitting behind
             // the foreground instead of being stretched onto a different scale.
@@ -1902,6 +1997,8 @@
 
       } catch (err) {
           console.error("Failed to load panorama:", err);
+          // A load that a newer one has replaced has nothing left to report.
+          if (loadId !== currentLoadId) return;
           // Our own validation errors carry a message worth showing verbatim.
           showLoadError(currentLocation.name, () => loadPanorama(mode),
                         err instanceof Error && err.message ? err.message : null);
@@ -1910,8 +2007,17 @@
           // Every exit path clears the spinner. isTransitioning is only left set
           // when the tween below has taken ownership of it — previously a stale-load
           // return skipped both and locked the viewer permanently.
-          endProgress();
-          if (!handedOffToTween) isTransitioning = false;
+          //
+          // But only for the load that is still current. An upload starts a new
+          // load while the previous one is still fetching; when the old one
+          // then bailed out here, it hid the new load's spinner and cleared
+          // isTransitioning under it — so the new scene cut in with no
+          // transition, and a location change could start a third load
+          // alongside it.
+          if (loadId === currentLoadId) {
+            endProgress();
+            if (!handedOffToTween) isTransitioning = false;
+          }
       }
 
       if (mode === 'block' && pendingTransitionDepth) {
@@ -2181,10 +2287,13 @@
     render();
 
     // Arriving from the stitcher (or with #custom) opens straight into the
-    // custom slot, with any handed-off atlases already filled in.
+    // custom slot, with any handed-off atlases already filled in. Atlases this
+    // tab stitched are filled in on every visit, but only #custom opens on
+    // them — they are no longer used up by reading, so finding some is not a
+    // sign the user has just come from the stitcher.
     (async () => {
-      const handedOff = await takeHandoffAtlases();
-      if (handedOff || location.hash === '#custom') forceCustomSelection();
+      await takeHandoffAtlases();
+      if (location.hash === '#custom') forceCustomSelection();
       loadPanorama('block');
     })();
 

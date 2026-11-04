@@ -317,9 +317,12 @@ const WORD_PATTERNS = [
   { name: 'face names', map: { left: /(^|[^a-z])(left|lf)([^a-z]|$)/i, right: /(^|[^a-z])(right|rt)([^a-z]|$)/i,
       top: /(^|[^a-z])(top|up)([^a-z]|$)/i, bottom: /(^|[^a-z])(bottom|bot|down|dn)([^a-z]|$)/i,
       front: /(^|[^a-z])(front|ft)([^a-z]|$)/i, back: /(^|[^a-z])(back|bk)([^a-z]|$)/i } },
-  { name: 'axis codes', map: { right: /(^|[^a-z])(pos)?x([^a-z]|$)/i, left: /(^|[^a-z])n(eg)?x([^a-z]|$)/i,
-      top: /(^|[^a-z])(pos)?y([^a-z]|$)/i, bottom: /(^|[^a-z])n(eg)?y([^a-z]|$)/i,
-      front: /(^|[^a-z])(pos)?z([^a-z]|$)/i, back: /(^|[^a-z])n(eg)?z([^a-z]|$)/i } },
+  // posx/negx and the short px/nx are the same convention; the short form
+  // (three.js's own sample cubemaps use it) used to match only the three
+  // negative faces, so the rule never assigned all six and fell through.
+  { name: 'axis codes', map: { right: /(^|[^a-z])(pos|p)?x([^a-z]|$)/i, left: /(^|[^a-z])n(eg)?x([^a-z]|$)/i,
+      top: /(^|[^a-z])(pos|p)?y([^a-z]|$)/i, bottom: /(^|[^a-z])n(eg)?y([^a-z]|$)/i,
+      front: /(^|[^a-z])(pos|p)?z([^a-z]|$)/i, back: /(^|[^a-z])n(eg)?z([^a-z]|$)/i } },
 ];
 
 // Every built-in dataset in this repo numbers its faces in the same order —
@@ -602,6 +605,8 @@ function checkAlignment() {
     el.className = 'align ok';
     el.textContent = `Alignment looks right (seam mismatch ${currentScore.toFixed(1)}).`;
     pendingFix = null;
+    // Fixing the placement by hand used to leave the button up, doing nothing.
+    document.getElementById('align-fix').style.display = 'none';
     return;
   }
 
@@ -747,8 +752,7 @@ function stitch() {
       return;
     }
 
-    document.getElementById('output-title').textContent =
-      `Output Atlas (${layout.cols}×${layout.rows}) — ${SLOT_LABELS[document.getElementById('slot-select').value]}`;
+    document.getElementById('output-title').textContent = outputTitle();
     document.getElementById('output-wrap').style.display = 'flex';
     setStatus(`Done — ${canvas.width}×${canvas.height} px`);
   }, 20);
@@ -792,7 +796,23 @@ document.getElementById('dl-btn').addEventListener('click', async () => {
 // ── Handoff to the viewer ────────────────────────────────────────
 // Atlases run to several MB and there can be four of them, so sessionStorage
 // (~5MB, strings only) is not an option. IndexedDB takes the blobs directly.
+//
+// Each record is tagged with an id kept in sessionStorage, which is per tab
+// and survives the trip to the viewer and back. The viewer reads the atlases
+// this tab stitched and leaves them in place, so stitching colour, looking,
+// coming back and stitching depth ends with both in the viewer — it used to
+// delete each atlas as it read it, so only the latest slot ever arrived.
 const DB_NAME = 'cubemap-handoff', STORE = 'atlases';
+const SESSION_KEY = 'cubemap-handoff-session';
+
+function handoffSession() {
+  let id = sessionStorage.getItem(SESSION_KEY);   // throws if storage is blocked
+  if (!id) {
+    id = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    sessionStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
+}
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -804,10 +824,11 @@ function openDb() {
 }
 
 async function stashAtlas(slot, blob) {
+  const session = handoffSession();
   const db = await openDb();
   await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
-    tx.objectStore(STORE).put(blob, slot);
+    tx.objectStore(STORE).put({ session, blob }, slot);
     tx.oncomplete = resolve;
     tx.onerror = () => reject(tx.error);
   });
@@ -851,7 +872,17 @@ function applySlot() {
   document.getElementById('quality').disabled = depth || document.getElementById('fmt-select').value === 'image/png';
   document.getElementById('slot-hint').textContent = depth
     ? 'Depth maps export as lossless PNG — JPEG/WEBP band the gradients.'
-    : 'Names the download and the viewer slot this atlas fills.';
+    : 'Names the download and the viewer slot it fills. Sent slots stay filled — send colour, then depth.';
+  // The slot only names the output, so a stitched atlas can be relabelled
+  // after the fact — but the heading used to keep the slot it was stitched
+  // under, while Download and Open in viewer went by the new one.
+  if (document.getElementById('output-wrap').style.display === 'flex') {
+    document.getElementById('output-title').textContent = outputTitle();
+  }
+}
+
+function outputTitle() {
+  return `Output Atlas (${layout.cols}×${layout.rows}) — ${SLOT_LABELS[document.getElementById('slot-select').value]}`;
 }
 document.getElementById('slot-select').addEventListener('change', applySlot);
 

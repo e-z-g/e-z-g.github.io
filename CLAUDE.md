@@ -139,7 +139,7 @@ Playwright installed into a scratch directory (never into the repo — see "Do n
 add tooling"). Serve the repo with `python3 -m http.server`, then:
 
 - Launch the pre-installed browser at
-  `/opt/pw-browsers/chromium-*/chrome-linux/chrome` with
+  `/opt/pw-browsers/chromium-*/chrome-linux64/chrome` with
   `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`. There is
   no GPU; SwiftShader is the renderer and it is slow.
 - **CDN imports fail inside the browser** even though `curl` reaches them, because

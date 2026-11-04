@@ -195,6 +195,16 @@ layout for both its samplers, which is the constraint behind the one gap below.
 | `atlasBg` | atlas | same atlas | custom LDI backdrop; displaces at a lower rate |
 | `atlasStandard` | 5×3 atlas | six images | video panoramas |
 
+Every atlas bound to one material must therefore be in the same layout, and
+`agreedLayout()` refuses a mismatch by name rather than rendering it scrambled.
+Within a layout, each atlas carries **its own gutter fraction**
+(`uColorGutter`, `uDepthGutter`, `uBgColorGutter`, passed into
+`sampleAtlas()` per call): the 3×2 gutter is 8px at the face size the atlas was
+stitched at, so a colour atlas stitched at 1024 and a depth atlas at 512 inset
+by different fractions. `gutterFracFor()` takes the width *as stitched* —
+`fitToGpu()` records it in `userData.sourceWidth` before shrinking an atlas to
+the GPU limit, since the shrunk width overstates the fraction.
+
 **Known gap:** the video path's colour is a 5×3 atlas, so it cannot borrow the
 3×2 depth stitch and keeps its six per-face depth textures — which means the
 vertex stage there can still only see the face it is drawing, and the seam
@@ -213,7 +223,7 @@ container. Serve the repo root with
 directory — never into the repo — and expect five non-obvious things:
 
 1. **Software GL.** Launch the pre-installed browser at
-   `/opt/pw-browsers/chromium-*/chrome-linux/chrome` with
+   `/opt/pw-browsers/chromium-*/chrome-linux64/chrome` with
    `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`. There
    is no GPU here, and SwiftShader renders this mesh at roughly one frame per
    second.
