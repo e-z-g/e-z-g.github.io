@@ -98,25 +98,28 @@ stretching that floor would break the transparency mask.
 
 ### 1½. Shaping the map for a mesh
 
-A depth map can hold detail a single bent sheet cannot show, and two kinds
-of it went wrong on Voltaic's walkway once head tracking moved the eye far
-enough. Its slatted side channels show the canyon floor between the slats, so
-the map put each gap far behind its slat; the mesh averaged them, the channel
-sank into a trough behind the beam, and the slat texture slid along under the
-beam's edge. And where the sheet stretches at a near/far edge, the vertex
-low-pass spread the stretch across the edge, so half of it was drawn with the
-near object's own border pixels.
+A depth map can hold detail a single bent sheet cannot show. Voltaic's walkway
+has slatted side channels with the canyon floor showing between the slats, so
+the map put each gap behind its slat; the mesh averaged them, the channel sank
+into a trough behind the beam, and the slat texture slid along under the
+beam's edge.
 
-`shapeDepthPixels()` therefore runs once per map at load, per atlas cell: a
-morphological **closing** on nearness, radius `DEPTH_CLOSE_FRAC` (0.8%) of a
-face, which fills far gaps under ~1.5° inside nearer surfaces without moving
-any outline, plus a **net growth of one mesh quad**, which puts each edge's
-stretch just outside the near object, in background colour. Measured on the
-walkway: the left channel read 108–120 between its slats against the beam's
-130–136 and now reads 123–124. Running-window maxima make it independent of
-radius: ~25 ms for a 512 px face, ~300 ms for Edanna's whole 2668×1600 atlas
-on a desktop. A two-layer (LDI) upload is left alone, since its foreground
-depth is also its transparency mask.
+`shapeDepthPixels()` runs once per map at load, per atlas cell: a
+morphological **closing** on nearness, radius `DEPTH_CLOSE_FRAC` (2%) of a
+face, which fills narrow far gaps inside nearer surfaces without moving any
+outline — **but only where the fill is shallower than `DEPTH_FILL_MAX` (25%)
+of the map's own range**. The walkway's gaps are shallow (the map is blurry at
+that scale); rock seen past a real silhouette is far deeper, and is left as
+drawn.
+
+The first version had no depth limit and also grew every near object by one
+mesh quad, to push each edge's stretch into the background. On Voltaic that
+pulled a rim of rock forward around every near outline — 10.3% of each map
+changed, some of it by 121 levels. Now 2.7% changes, by at most 32, and the
+slat channel still rises from 108 to 115 against the beam's 125 (the first
+version reached 117). Running-window maxima keep the cost independent of the
+radius. A two-layer (LDI) upload is left alone, since its foreground depth is
+also its transparency mask.
 
 ### 2. Reciprocal radius
 
@@ -191,6 +194,13 @@ ceiling of `TRACK_REACH` (1.5) budgets rather than stopping dead.
   screen* — what parallax depends on. The raw front-camera stream is not
   mirrored, hence the sign flips. Rest settles over `HEAD_SETTLE_S` (10 s);
   with a face in view it drives the eye alone (no drift, dolly or tilt).
+  It also turns the screen into a **window**: an off-axis frustum cut through
+  fixed glass at the nearest surface (`HEAD_WINDOW_AT` × `nearRadius`), so the
+  frame stays pinned to the glass and the distance slides with the head,
+  rather than the distance staying put while near things swing. Near-to-far
+  parallax is unchanged; only the anchor moves. Leaning in widens the view.
+  `camera.updateProjectionMatrix()` restores the symmetric frustum the frame
+  tracking stops.
 - **AR** (Android Chrome only; the button appears when
   `isSessionSupported('immersive-ar')`). WebXR tracks the phone's full pose.
   Rotation is used as is; for position, the `world` group holding the meshes

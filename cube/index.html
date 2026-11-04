@@ -1756,36 +1756,43 @@
     // --- Shaping depth for a mesh ---
     //
     // A depth map is a picture of distances; the mesh is one continuous sheet
-    // bent to match it. Two kinds of detail survive the first and not the
-    // second, and both showed up on Voltaic's walkway once head tracking moved
-    // the eye far enough to see them:
+    // bent to match it, and some detail survives the first and not the
+    // second. On Voltaic's walkway the side channels are slatted, and the
+    // canyon floor shows between the slats, so the map has each gap behind
+    // its slat (107 against 130 at the near end). The mesh is too coarse to
+    // follow a slat; it averaged them, and the whole channel sank into a
+    // trough behind the beam beside it. Moving the eye then slid the slat
+    // texture along under the beam's edge — "the pathway sliding around
+    // inside a slot". One sheet cannot show a floor moving separately behind
+    // a grating, so the grating is treated as solid: a morphological closing
+    // on nearness (grow near, shrink back by the same radius) fills far gaps
+    // narrower than about 2 * DEPTH_CLOSE_FRAC of a face, some 3.5° — wide
+    // enough for the nearest slats, whose gaps perspective makes the
+    // largest — without moving any outline.
     //
-    //  - See-through gaps. The walkway's side channels are slatted, and the
-    //    canyon floor shows between the slats, so the map has each gap a
-    //    long way behind its slats (107 against 130 at the near end). The
-    //    mesh is too coarse to follow a slat; it averages them, and the whole
-    //    channel sank into a trough behind the beam beside it. Moving the eye
-    //    then slid the slat texture along under the beam's edge — "the
-    //    pathway sliding around inside a slot". One sheet cannot show a floor
-    //    moving separately behind a grating at all, so the honest choice is to
-    //    treat the grating as solid. A morphological closing on nearness
-    //    (grow near, then shrink back by the same radius) fills far gaps
-    //    narrower than about 2 * DEPTH_CLOSE_FRAC of a face — some 1.5° —
-    //    inside nearer surfaces, and leaves every outline where it was.
-    //
-    //  - Edges. Where a near object meets a far one the sheet has to stretch,
-    //    and the vertex low-pass spreads that stretch across the edge, so half
-    //    of it was drawn with the near object's own border pixels — the
-    //    object's edge smeared out behind it, as down the walkway's left side.
-    //    Growing nearness by one more mesh quad puts the whole stretch just
-    //    outside the object, where it carries the background's colour, which
-    //    the eye forgives far more readily.
+    // But only shallow ones. The first version filled every narrow gap and
+    // also grew near things outward by one mesh quad (to put the stretch at
+    // each edge into the background). On Voltaic that pulled bits of rock
+    // forward wherever rock showed between or beside near structures — a
+    // coarser, lumpier map than the one drawn. The walkway's gaps are shallow
+    // because the map is blurry at that scale: 10-25 levels in a map that
+    // spans ~120. Rock behind a real silhouette sits 80 and more behind it.
+    // So a gap is filled only where filling it moves the depth by less than
+    // DEPTH_FILL_MAX of the map's own range, and nothing grows: a deep gap is
+    // a real view through, and is left exactly as drawn. Measured over
+    // Voltaic's six faces: the first version changed 10.3% of each map and
+    // pulled some of it forward by 121 levels; this one changes 2.7%, by at
+    // most 32, and lifts the walkway's slat channel nearly as far (108 to
+    // 115, against the beam's 125; the first version reached 117). The price
+    // is the edge growth's one real win: a near object's border smears a
+    // little across the stretch at its edge again, as it always had.
     //
     // Run once per map at load, cell by cell so an atlas never mixes faces,
     // with running-window maxima so the cost does not grow with the radius.
     // Not applied to a two-layer (LDI) upload, whose foreground depth is also
     // its transparency mask: growing it would grow the mask.
-    const DEPTH_CLOSE_FRAC = 0.008;
+    const DEPTH_CLOSE_FRAC = 0.02;
+    const DEPTH_FILL_MAX = 0.25;
 
     // Running maximum over [i - r, i + r] along one line, edges clamped.
     function slideMax(src, dst, start, stride, n, r, q) {
@@ -1808,14 +1815,18 @@
       const v = new Uint8Array(W * H), tmp = new Uint8Array(W * H);
       const q = new Int32Array(Math.max(W, H));
       for (let i = 0; i < v.length; i++) v[i] = d[i * 4];
+      const orig = v.slice();
+      // The map's own range, by the same percentiles measureDepthRange uses.
+      const hist = new Uint32Array(256);
+      for (let i = 0; i < v.length; i++) hist[v[i]]++;
+      const pct = (f) => { let acc = 0; for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= v.length * f) return i; } return 255; };
+      const maxFill = Math.max(1, (pct(0.995) - pct(0.005)) * DEPTH_FILL_MAX);
       const cells = [];
       for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
         const x0 = Math.round(c * W / cols), x1 = Math.round((c + 1) * W / cols);
         const y0 = Math.round(r * H / rows), y1 = Math.round((r + 1) * H / rows);
         const size = Math.min(x1 - x0, y1 - y0);
-        cells.push({ x0, y0, w: x1 - x0, h: y1 - y0,
-                     close: Math.round(size * DEPTH_CLOSE_FRAC),
-                     edge: Math.max(1, Math.round(size / CUBE_SEGMENTS)) });
+        cells.push({ x0, y0, w: x1 - x0, h: y1 - y0, close: Math.round(size * DEPTH_CLOSE_FRAC) });
       }
       const dilate = (cell, radius) => {
         if (radius <= 0) return;
@@ -1824,13 +1835,16 @@
         for (let x = x0; x < x0 + w; x++) slideMax(tmp, v, y0 * W + x, W, h, radius, q);
       };
       const invert = () => { for (let i = 0; i < v.length; i++) v[i] = 255 - v[i]; };
-      // Grow nearness by close + edge, then shrink by close: a closing, plus
-      // a net growth of one quad. Shrinking is growing the inverse.
-      cells.forEach(cell => dilate(cell, cell.close + cell.edge));
+      // Grow nearness, then shrink it back: a closing. Shrinking is growing
+      // the inverse. Then keep only the shallow fills.
+      cells.forEach(cell => dilate(cell, cell.close));
       invert();
       cells.forEach(cell => dilate(cell, cell.close));
       invert();
-      for (let i = 0; i < v.length; i++) { d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v[i]; d[i * 4 + 3] = 255; }
+      for (let i = 0; i < v.length; i++) {
+        const out = v[i] - orig[i] <= maxFill ? v[i] : orig[i];
+        d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = out; d[i * 4 + 3] = 255;
+      }
     }
 
     function shapeDepthCanvas(canvas, cols, rows) {
@@ -2585,6 +2599,41 @@
       return true;
     }
 
+    // ── The window ──
+    //
+    // Moving the camera alone makes head tracking a peephole that slides:
+    // the distance stays put on screen and near things swing the other way,
+    // so the screen's frame reads as glued to the background. A head-tracked
+    // display is convincing when the screen is a pane of glass instead —
+    // fixed in the room, the scene behind it — and then the frame is pinned
+    // to the glass: lean right and you see further round the left of what is
+    // in front, while the distance slides along with your head, as through a
+    // real window. Lean in, and more of the scene comes into the frame.
+    //
+    // That is an off-axis frustum: the eye moves, the window does not, so the
+    // projection is cut through the window's fixed corners from wherever the
+    // eye now is. Near-against-far parallax is exactly what it was; only the
+    // anchor moves, from the far field to the glass. The glass stands at the
+    // nearest surface in the scene, nearRadius, so nothing ever sits in front
+    // of it; at rest, the frustum is the ordinary symmetric one at the
+    // current zoom.
+    const HEAD_WINDOW_AT = 1.0;   // the glass's distance, in units of nearRadius
+    let windowActive = false;
+
+    function applyWindowFrustum(eye, windowDist) {
+      const n = camera.near;
+      // Leaning in can never bring the eye up to the glass; the cap on the
+      // tracked offset keeps it far short, and this keeps the maths safe.
+      const d = Math.max(windowDist + eye.z, windowDist * 0.25);
+      const hh = windowDist * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+      const hw = hh * camera.aspect;
+      camera.projectionMatrix.makePerspective(
+        n * (-hw - eye.x) / d, n * (hw - eye.x) / d,
+        n * (hh - eye.y) / d, n * (-hh - eye.y) / d, n, camera.far);
+      camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+      windowActive = true;
+    }
+
     // ── WebXR (AR session) ──
     //
     // The session tracks the phone's full pose. Its rotation is used as is —
@@ -2684,7 +2733,7 @@
     // second. It moves into the AR overlay during a session, since that is
     // the only page content an AR session shows.
     const DEBUG = new URLSearchParams(location.search).has('debug');
-    const dbg = { excursion: 0, eye: [0, 0, 0], xr: null };
+    const dbg = { excursion: 0, eye: [0, 0, 0], xr: null, window: 0 };
     let dbgEl = null, dbgAt = -Infinity;
     if (DEBUG) {
       dbgEl = document.createElement('pre');
@@ -2707,7 +2756,7 @@
             `  ${(head.raw.z * 100).toFixed(0)} cm away  ${head.detectMs.toFixed(0)} ms` : ''),
         `ar     ${xrSession ? `on  phone ${dbg.xr ? dbg.xr.map(cm).join('') : '  –'} cm`
                  : xrBtn.style.display === 'inline-flex' ? 'available' : 'not offered here'}`,
-        `eye    ${n3(dbg.eye)}`,
+        `eye    ${n3(dbg.eye)}` + (dbg.window ? `   window at ${dbg.window.toFixed(2)}` : ''),
       ].join('\n');
     }
 
@@ -2773,6 +2822,7 @@
       let orbitRadius = 0.0;
       let swayX = 0, swayY = 0;
       let parallaxStrength = 0.0;
+      let windowDist = 0;   // set when head tracking turns the screen into a window
 
       if (hasActiveDepth) {
           // How far the camera is allowed to leave the centre of the panorama.
@@ -2822,6 +2872,7 @@
             trackedOffset(_eye, head.offset.x, head.offset.y, head.offset.z, excursion);
             swayX = _eye.x; swayY = _eye.y; orbitRadius = _eye.z;
             parallaxStrength = 0;
+            windowDist = nearRadius * HEAD_WINDOW_AT;
           } else if (nudge.hasLinear) {
             // The nudge rides on top of everything else. It is brief by
             // construction, so it may lift the total past the drift's budget
@@ -2841,8 +2892,14 @@
       camera.translateZ(orbitRadius);
       camera.translateX(swayX + lookX * parallaxStrength);
       camera.translateY(swayY + lookY * parallaxStrength);
+      // The projection is the window's while a face is tracked, and goes
+      // back to the camera's own the frame it is not (zoom and resize also
+      // rebuild it; this simply cuts it again each frame on top).
+      if (windowDist) applyWindowFrustum(_eye, windowDist);
+      else if (windowActive) { camera.updateProjectionMatrix(); windowActive = false; }
       if (dbgEl) {
         dbg.eye = [swayX + lookX * parallaxStrength, swayY + lookY * parallaxStrength, orbitRadius];
+        dbg.window = windowDist;
         updateDebug(tiltNow);
       }
 
