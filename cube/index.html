@@ -697,34 +697,97 @@
 
     // --- SPHEREIFIED CUBE GEOMETRY ---
     // The mesh is what bends, so a depth edge can only turn where there is a
-    // vertex. At 128 segments a quad spans 0.7 degrees — about 17 screen pixels
-    // at the default field of view on a 1080p display — which is exactly the
-    // staircase that appears along every object edge once the depth slider goes
-    // up. 256 quarters the step, and is about where the ~300px-per-face depth
-    // maps stop having anything more to say.
-    const CUBE_SEGMENTS = isLowPower ? 128 : 256;
+    // vertex, and anything in the depth map finer than the vertex grid is
+    // averaged into whatever the grid can hold. At 128 segments a quad spans
+    // 0.7 degrees, and that was the phone default: the slatted channels on
+    // Voltaic's walkway averaged into a trough behind the beam beside them,
+    // so their texture slid about under the beam's edge as the eye moved.
+    //
+    // Smoothing the depth map to suit a coarse mesh was tried — a closing to
+    // fill the gaps between slats, and a growth of near things to tidy edges
+    // — and rejected: it pulled rims of rock forward round every near outline
+    // and threw away detail the map really has. The mesh is what was too
+    // coarse, so the mesh is what is finer now: 256 segments on phones and
+    // 512 elsewhere, four times the vertices each. ?mesh=N overrides it, to
+    // compare densities on the device itself; ?debug shows the frame rate.
+    const MESH_PARAM = parseInt(new URLSearchParams(location.search).get('mesh'), 10);
+    const CUBE_SEGMENTS = Number.isFinite(MESH_PARAM)
+      ? THREE.MathUtils.clamp(MESH_PARAM, 16, 1024)
+      : (isLowPower ? 256 : 512);
     // Radius of the vertex-shader depth filter, in face UV — one quad wide, so
     // it always tracks the mesh it is smoothing.
     const DEPTH_SMOOTH_UV = 1.0 / CUBE_SEGMENTS;
-    const geometry = new THREE.BoxGeometry(100, 100, 100, CUBE_SEGMENTS, CUBE_SEGMENTS, CUBE_SEGMENTS);
-    geometry.scale(-1, 1, 1);
-    const pos = geometry.attributes.position;
-    const vTemp = new THREE.Vector3();
-    for(let i=0; i<pos.count; i++) {
-        vTemp.fromBufferAttribute(pos, i);
-        vTemp.normalize().multiplyScalar(50);
-        pos.setXYZ(i, vTemp.x, vTemp.y, vTemp.z);
+
+    // Built straight into typed arrays. BoxGeometry at 512 segments assembles
+    // positions, normals and uvs in plain JS arrays first — about 100MB of
+    // garbage on the way to a mesh that uses only positions — which a phone
+    // can't spare. This writes positions and indices and nothing else.
+    //
+    // It keeps BoxGeometry's contract with the rest of the viewer: six
+    // material groups in slot order (-X, +X, +Y, -Y, +Z, -Z, as the scaled
+    // box had them), triangles facing inward, and — the seam invariant —
+    // every vertex on a shared edge bit-for-bit equal in both of the faces
+    // that carry a copy of it. That last holds because every coordinate comes
+    // from the same integer formula, coord(k) = (2k - n) / n, never from two
+    // different expressions that only agree on paper; equal inputs to the
+    // same normalisation give equal floats, and the vertex shader's own
+    // normalize() then agrees with itself.
+    function buildSphereCube(n, radius) {
+      const coord = (k) => (2 * k - n) / n;
+      // For each slot: outward axis, and two in-plane axes a, b with
+      // a x b = -outward, so (i, j) -> (i+1, j) -> (i+1, j+1) winds
+      // counter-clockwise seen from the centre, i.e. faces inward.
+      const faces = [
+        { o: [-1, 0, 0], a: [0, 1, 0], b: [0, 0, 1] },
+        { o: [ 1, 0, 0], a: [0, 0, 1], b: [0, 1, 0] },
+        { o: [ 0, 1, 0], a: [1, 0, 0], b: [0, 0, 1] },
+        { o: [ 0,-1, 0], a: [0, 0, 1], b: [1, 0, 0] },
+        { o: [ 0, 0, 1], a: [0, 1, 0], b: [1, 0, 0] },
+        { o: [ 0, 0,-1], a: [1, 0, 0], b: [0, 1, 0] },
+      ];
+      const per = (n + 1) * (n + 1);
+      const positions = new Float32Array(6 * per * 3);
+      const indices = new Uint32Array(6 * n * n * 6);
+      const g = new THREE.BufferGeometry();
+      let pi = 0, ii = 0;
+      faces.forEach(({ o, a, b }, f) => {
+        const base = f * per;
+        for (let j = 0; j <= n; j++) {
+          const v = coord(j);
+          for (let i = 0; i <= n; i++) {
+            const u = coord(i);
+            const x = o[0] + u * a[0] + v * b[0];
+            const y = o[1] + u * a[1] + v * b[1];
+            const z = o[2] + u * a[2] + v * b[2];
+            const k = radius / Math.sqrt(x * x + y * y + z * z);
+            positions[pi++] = x * k; positions[pi++] = y * k; positions[pi++] = z * k;
+          }
+        }
+        const start = ii;
+        for (let j = 0; j < n; j++) {
+          for (let i = 0; i < n; i++) {
+            const p0 = base + j * (n + 1) + i, p1 = p0 + 1, p2 = p0 + n + 2, p3 = p0 + n + 1;
+            indices[ii++] = p0; indices[ii++] = p1; indices[ii++] = p2;
+            indices[ii++] = p0; indices[ii++] = p2; indices[ii++] = p3;
+          }
+        }
+        g.addGroup(start, ii - start, f);
+      });
+      g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      g.setIndex(new THREE.BufferAttribute(indices, 1));
+      return g;
     }
-    // The shaders read neither normals nor the built-in uv (vUv is derived from
-    // position via gnomonicUV), so both are dead weight on ~99k vertices per mesh.
-    geometry.deleteAttribute('normal');
-    geometry.deleteAttribute('uv');
+
+    const geometry = buildSphereCube(CUBE_SEGMENTS, 50);
 
     // BG sphere at radius 56 — well outside max fg displacement so there is always
-    // solid bg geometry visible behind any fg tear or displacement gap.
-    // Cloning and scaling beats re-running the sphereification loop on the CPU.
-    const bgGeometry = geometry.clone();
-    bgGeometry.scale(56 / 50, 56 / 50, 56 / 50);
+    // solid bg geometry visible behind any fg tear or displacement gap. Only a
+    // two-layer upload ever shows it, so it is built the first time one does:
+    // at these densities a second copy is tens of megabytes nobody else needs.
+    let bgGeometry = null;
+    const ensureBgGeometry = () => {
+      if (!bgGeometry) { bgGeometry = buildSphereCube(CUBE_SEGMENTS, 56); bgCubeMesh.geometry = bgGeometry; }
+    };
     
     const dummyDepthData = new Uint8Array([0, 0, 0, 255]); 
     const dummyDepthTex = new THREE.DataTexture(dummyDepthData, 1, 1, THREE.RGBAFormat);
@@ -1077,7 +1140,7 @@
     const world = new THREE.Group();
     scene.add(world);
 
-    const bgCubeMesh = new THREE.Mesh(bgGeometry, getMatSet('atlasBg'));
+    const bgCubeMesh = new THREE.Mesh(new THREE.BufferGeometry(), getMatSet('atlasBg'));
     bgCubeMesh.renderOrder = 0;
     world.add(bgCubeMesh);
 
@@ -1753,129 +1816,6 @@
     // a bigger atlas only costs memory.
     const DEPTH_CELL_MIN = 512, DEPTH_CELL_MAX = 1024;
 
-    // --- Shaping depth for a mesh ---
-    //
-    // A depth map is a picture of distances; the mesh is one continuous sheet
-    // bent to match it, and some detail survives the first and not the
-    // second. On Voltaic's walkway the side channels are slatted, and the
-    // canyon floor shows between the slats, so the map has each gap behind
-    // its slat (107 against 130 at the near end). The mesh is too coarse to
-    // follow a slat; it averaged them, and the whole channel sank into a
-    // trough behind the beam beside it. Moving the eye then slid the slat
-    // texture along under the beam's edge — "the pathway sliding around
-    // inside a slot". One sheet cannot show a floor moving separately behind
-    // a grating, so the grating is treated as solid: a morphological closing
-    // on nearness (grow near, shrink back by the same radius) fills far gaps
-    // narrower than about 2 * DEPTH_CLOSE_FRAC of a face, some 3.5° — wide
-    // enough for the nearest slats, whose gaps perspective makes the
-    // largest — without moving any outline.
-    //
-    // But only shallow ones. The first version filled every narrow gap and
-    // also grew near things outward by one mesh quad (to put the stretch at
-    // each edge into the background). On Voltaic that pulled bits of rock
-    // forward wherever rock showed between or beside near structures — a
-    // coarser, lumpier map than the one drawn. The walkway's gaps are shallow
-    // because the map is blurry at that scale: 10-25 levels in a map that
-    // spans ~120. Rock behind a real silhouette sits 80 and more behind it.
-    // So a gap is filled only where filling it moves the depth by less than
-    // DEPTH_FILL_MAX of the map's own range, and nothing grows: a deep gap is
-    // a real view through, and is left exactly as drawn. Measured over
-    // Voltaic's six faces: the first version changed 10.3% of each map and
-    // pulled some of it forward by 121 levels; this one changes 2.7%, by at
-    // most 32, and lifts the walkway's slat channel nearly as far (108 to
-    // 115, against the beam's 125; the first version reached 117). The price
-    // is the edge growth's one real win: a near object's border smears a
-    // little across the stretch at its edge again, as it always had.
-    //
-    // Run once per map at load, cell by cell so an atlas never mixes faces,
-    // with running-window maxima so the cost does not grow with the radius.
-    // Not applied to a two-layer (LDI) upload, whose foreground depth is also
-    // its transparency mask: growing it would grow the mask.
-    const DEPTH_CLOSE_FRAC = 0.02;
-    const DEPTH_FILL_MAX = 0.25;
-
-    // Running maximum over [i - r, i + r] along one line, edges clamped.
-    function slideMax(src, dst, start, stride, n, r, q) {
-      let head = 0, tail = 0, next = 0;
-      for (let i = 0; i < n; i++) {
-        const hi = Math.min(n - 1, i + r);
-        while (next <= hi) {
-          const v = src[start + next * stride];
-          while (tail > head && src[start + q[tail - 1] * stride] <= v) tail--;
-          q[tail++] = next++;
-        }
-        while (q[head] < i - r) head++;
-        dst[start + i * stride] = src[start + q[head] * stride];
-      }
-    }
-
-    // Shape a depth image in place, cell by cell (cols x rows cells).
-    function shapeDepthPixels(img, cols, rows) {
-      const W = img.width, H = img.height, d = img.data;
-      const v = new Uint8Array(W * H), tmp = new Uint8Array(W * H);
-      const q = new Int32Array(Math.max(W, H));
-      for (let i = 0; i < v.length; i++) v[i] = d[i * 4];
-      const orig = v.slice();
-      // The map's own range, by the same percentiles measureDepthRange uses.
-      const hist = new Uint32Array(256);
-      for (let i = 0; i < v.length; i++) hist[v[i]]++;
-      const pct = (f) => { let acc = 0; for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc >= v.length * f) return i; } return 255; };
-      const maxFill = Math.max(1, (pct(0.995) - pct(0.005)) * DEPTH_FILL_MAX);
-      const cells = [];
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-        const x0 = Math.round(c * W / cols), x1 = Math.round((c + 1) * W / cols);
-        const y0 = Math.round(r * H / rows), y1 = Math.round((r + 1) * H / rows);
-        const size = Math.min(x1 - x0, y1 - y0);
-        cells.push({ x0, y0, w: x1 - x0, h: y1 - y0, close: Math.round(size * DEPTH_CLOSE_FRAC) });
-      }
-      const dilate = (cell, radius) => {
-        if (radius <= 0) return;
-        const { x0, y0, w, h } = cell;
-        for (let y = y0; y < y0 + h; y++) slideMax(v, tmp, y * W + x0, 1, w, radius, q);
-        for (let x = x0; x < x0 + w; x++) slideMax(tmp, v, y0 * W + x, W, h, radius, q);
-      };
-      const invert = () => { for (let i = 0; i < v.length; i++) v[i] = 255 - v[i]; };
-      // Grow nearness, then shrink it back: a closing. Shrinking is growing
-      // the inverse. Then keep only the shallow fills.
-      cells.forEach(cell => dilate(cell, cell.close));
-      invert();
-      cells.forEach(cell => dilate(cell, cell.close));
-      invert();
-      for (let i = 0; i < v.length; i++) {
-        const out = v[i] - orig[i] <= maxFill ? v[i] : orig[i];
-        d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = out; d[i * 4 + 3] = 255;
-      }
-    }
-
-    function shapeDepthCanvas(canvas, cols, rows) {
-      try {
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        shapeDepthPixels(img, cols, rows);
-        ctx.putImageData(img, 0, 0);
-      } catch (e) {
-        // A tainted canvas can't be read; the raw map still works.
-        console.warn('Depth shaping skipped:', e);
-      }
-    }
-
-    // The same for an atlas that arrived as an image: redraw it to a canvas,
-    // shape it in the layout's cells, and hand back a texture carrying the
-    // original's stitched width (the gutter is measured against it).
-    function shapeDepthAtlasTex(tex, layout) {
-      if (!tex || tex === dummyDepthTex || !isDrawable(tex.image) || !layout) return tex;
-      const img = tex.image;
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width; canvas.height = img.height;
-      canvas.getContext('2d').drawImage(img, 0, 0);
-      shapeDepthCanvas(canvas, layout.cols, layout.rows);
-      const out = prepareDepthTex(new THREE.CanvasTexture(canvas));
-      out.userData.sourceWidth = sourceWidthOf(tex);
-      out.userData.sourceHeight = sourceHeightOf(tex);
-      tex.dispose();
-      return out;
-    }
-
     function buildDepthAtlas(images) {
         if (!images.some(isDrawable)) return null;
         const largest = Math.max(...images.filter(isDrawable).map(i => Math.max(i.width, i.height)));
@@ -1897,7 +1837,6 @@
             const c = DEPTH_CELL_OF_FACE[face];
             ctx.drawImage(img, (c % 3) * cell, Math.floor(c / 3) * cell, cell, cell);
         });
-        shapeDepthCanvas(canvas, 3, 2);
 
         const tex = new THREE.CanvasTexture(canvas);
         tex.colorSpace = THREE.NoColorSpace;
@@ -2122,7 +2061,7 @@
             colorTex.wrapS = THREE.ClampToEdgeWrapping; colorTex.wrapT = THREE.ClampToEdgeWrapping;
             colorTex.needsUpdate = true;
 
-            let depthTex = prepareDepthTex(rawDepth === dummyDepthTex ? rawDepth : fitToGpu(rawDepth));
+            const depthTex = prepareDepthTex(rawDepth === dummyDepthTex ? rawDepth : fitToGpu(rawDepth));
 
             // The colour and depth atlases are authored at different sizes
             // (Edanna's are 3200 and 2668 wide), so each is read on its own
@@ -2130,7 +2069,6 @@
             const layoutId = agreedLayout([
               ['The colour atlas', colorTex], ['The depth atlas', depthTex],
             ]).id;
-            depthTex = shapeDepthAtlasTex(depthTex, LAYOUTS[layoutId]);
 
             hasActiveDepth = depthTex !== dummyDepthTex;
             depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
@@ -2189,7 +2127,7 @@
             // 5120 wide — over the 4096 limit of most phones, where the depth
             // upload failed and the scene stayed flat.
             const fgC = processAtlasTex(loaded[0], true);
-            let fgD = processAtlasTex(loaded[1], false);
+            const fgD = processAtlasTex(loaded[1], false);
             const bgC = processAtlasTex(loaded[2], true);
             const bgD = processAtlasTex(loaded[3], false);
 
@@ -2202,9 +2140,6 @@
               ['FG Color', fgC], ['FG Depth', fgD],
               ['BG Color', isDualLayer ? bgC : null], ['BG Depth', isDualLayer ? bgD : null],
             ]) || LAYOUTS['5x3']).id;
-            // A single layer is shaped like any other map; a two-layer
-            // foreground's depth is also its mask, and is left as drawn.
-            if (!isDualLayer) fgD = shapeDepthAtlasTex(fgD, LAYOUTS[layoutId]);
 
             // A BG Depth with no BG Color is never drawn, so it alone must not
             // bring up a depth slider that moves nothing.
@@ -2217,6 +2152,7 @@
 
             fgCubeMesh.material = getMatSet('atlasFg', layoutId);
             bgCubeMesh.material = getMatSet('atlasBg', layoutId);
+            if (isDualLayer) ensureBgGeometry();
             bgCubeMesh.visible = isDualLayer;
             setAtlasGutters(fgCubeMesh.material, layoutId, { color: fgC, depth: fgD, bgColor: bgC });
             setAtlasGutters(bgCubeMesh.material, layoutId, { color: bgC, depth: bgD });
@@ -2733,7 +2669,7 @@
     // second. It moves into the AR overlay during a session, since that is
     // the only page content an AR session shows.
     const DEBUG = new URLSearchParams(location.search).has('debug');
-    const dbg = { excursion: 0, eye: [0, 0, 0], xr: null, window: 0 };
+    const dbg = { excursion: 0, eye: [0, 0, 0], xr: null, window: 0, frameMs: 0 };
     let dbgEl = null, dbgAt = -Infinity;
     if (DEBUG) {
       dbgEl = document.createElement('pre');
@@ -2748,6 +2684,8 @@
       const o = deviceOrientation;
       const f = (v) => (v == null ? '–' : v.toFixed(0)).padStart(4);
       dbgEl.textContent = [
+        `mesh   ${CUBE_SEGMENTS}  (${(6 * CUBE_SEGMENTS * CUBE_SEGMENTS * 2 / 1e6).toFixed(1)}M triangles)  ` +
+          `${dbg.frameMs ? (1000 / dbg.frameMs).toFixed(0) : '–'} fps  render scale ${renderRatio.toFixed(2)}`,
         `screen ${screenOrientation}°  depth ${hasActiveDepth ? 'on' : 'off'}  budget ${dbg.excursion.toFixed(3)}  gyro ${gyroActive ? 'on' : 'off'}`,
         `tilt   ${hasMotion() ? `β${f(o.beta)} γ${f(o.gamma)} α${f(o.alpha)}  → ${tiltX.toFixed(2)} ${tiltY.toFixed(2)}` : 'no data'}  permission ${motionPermission}`,
         `motion ${nudge.hasLinear === null ? 'no events' : nudge.hasLinear ? `nudge ${cm(nudge.p.x)}${cm(nudge.p.y)}${cm(nudge.p.z)} cm` : 'no linear acceleration on this device'}`,
@@ -2898,6 +2836,7 @@
       if (windowDist) applyWindowFrustum(_eye, windowDist);
       else if (windowActive) { camera.updateProjectionMatrix(); windowActive = false; }
       if (dbgEl) {
+        if (tiltDt > 0) dbg.frameMs += (tiltDt * 1000 - dbg.frameMs) * 0.05;
         dbg.eye = [swayX + lookX * parallaxStrength, swayY + lookY * parallaxStrength, orbitRadius];
         dbg.window = windowDist;
         updateDebug(tiltNow);

@@ -104,7 +104,7 @@ browser. Read it before editing `cube/index.html`. Two rules from it are worth
 repeating here, because both fail *silently and only at certain camera angles*:
 
 - **The vertex stage must pick its depth face from the direction, not from
-  `uFace`.** A `BoxGeometry` keeps a separate copy of every cube-edge vertex per
+  `uFace`.** The cube mesh keeps a separate copy of every cube-edge vertex per
   adjoining face. If each copy reads its own face's depth map, the two disagree
   by whatever the maps disagree by at that seam, the copies displace to
   different radii, and the mesh pulls apart — a black tear the length of the

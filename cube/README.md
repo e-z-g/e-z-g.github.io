@@ -28,17 +28,36 @@ that assumption; change one side alone and the poles smear without an error.
 
 ## The scene
 
-The camera sits at the origin of a **sphereified cube**: a `BoxGeometry` scaled
-by `(-1, 1, 1)` so we see its inside, with every vertex normalised onto a sphere
-of radius 50. `CUBE_SEGMENTS` is 256 per face (128 on low-power devices), which
-is ~790k triangles — the mesh is what bends, so a depth edge can only turn where
-there is a vertex, and a coarser grid turns every object edge into a staircase.
+The camera sits at the origin of a **sphereified cube**: six grids, one per
+face, with every vertex normalised onto a sphere of radius 50, built by
+`buildSphereCube()` straight into typed arrays (positions and indices only), in
+material-slot order, facing inward. `CUBE_SEGMENTS` is **512** per face edge
+(3.1M triangles), **256** on low-power devices (0.8M); `?mesh=N` overrides it,
+and `?debug` reports it with the frame rate. The mesh is what bends, so a depth
+edge can only turn where there is a vertex, and detail in the map finer than
+the grid is averaged away: at the old phone default of 128, Voltaic's slatted
+walkway channels averaged into a trough whose texture slid about under the
+beam beside it.
+
+Smoothing the *map* to suit a coarse mesh was tried instead — a morphological
+closing to fill the gaps between slats, and growing near things by a quad —
+and rejected: it pulled rims of rock forward around every near outline on
+Voltaic and threw away detail the map really has. The map is used as drawn;
+the mesh is what got finer.
+
+It used to be a `BoxGeometry` scaled by `(-1, 1, 1)`. At 512 that assembles
+positions, normals and uvs in plain JS arrays — about 100 MB of garbage for a
+mesh that only reads positions. `buildSphereCube()` builds the same point set
+(checked identical to the old one at 128 and 256: 6n²+2 distinct points, every
+group on its face, every triangle inward) in ~80 ms and 54 MB at 512.
 
 Two meshes:
 
 - `fgCubeMesh` — radius 50, `renderOrder` 1. The picture.
 - `bgCubeMesh` — radius 56, `renderOrder` 0. Only visible for dual-layer (LDI)
-  custom uploads, where it is the backdrop behind the foreground's tears.
+  custom uploads, where it is the backdrop behind the foreground's tears. Its
+  geometry is built the first time one is shown (`ensureBgGeometry()`), not
+  at startup.
 
 Camera is 80° FOV, near 0.1, far 500. Pixel ratio is capped at 2 and then driven
 by an adaptive supersampling governor (`RENDER_SCALES`, 0.75×–2×) that measures
@@ -95,31 +114,6 @@ The *raw* value still drives the fragment stage. `depthAt()` is raw;
 `depthNorm()` is stretched, and only the vertex stage calls it. This matters:
 in a dual-layer LDI foreground a literal zero means "nothing here", and
 stretching that floor would break the transparency mask.
-
-### 1½. Shaping the map for a mesh
-
-A depth map can hold detail a single bent sheet cannot show. Voltaic's walkway
-has slatted side channels with the canyon floor showing between the slats, so
-the map put each gap behind its slat; the mesh averaged them, the channel sank
-into a trough behind the beam, and the slat texture slid along under the
-beam's edge.
-
-`shapeDepthPixels()` runs once per map at load, per atlas cell: a
-morphological **closing** on nearness, radius `DEPTH_CLOSE_FRAC` (2%) of a
-face, which fills narrow far gaps inside nearer surfaces without moving any
-outline — **but only where the fill is shallower than `DEPTH_FILL_MAX` (25%)
-of the map's own range**. The walkway's gaps are shallow (the map is blurry at
-that scale); rock seen past a real silhouette is far deeper, and is left as
-drawn.
-
-The first version had no depth limit and also grew every near object by one
-mesh quad, to push each edge's stretch into the background. On Voltaic that
-pulled a rim of rock forward around every near outline — 10.3% of each map
-changed, some of it by 121 levels. Now 2.7% changes, by at most 32, and the
-slat channel still rises from 108 to 115 against the beam's 125 (the first
-version reached 117). Running-window maxima keep the cost independent of the
-radius. A two-layer (LDI) upload is left alone, since its foreground depth is
-also its transparency mask.
 
 ### 2. Reciprocal radius
 
@@ -235,7 +229,7 @@ during a session.
 
 **This is the rule most likely to be broken by accident.**
 
-A `BoxGeometry` keeps a **separate copy of every cube-edge vertex** for each of
+The cube mesh keeps a **separate copy of every cube-edge vertex** for each of
 the two faces that meet there, and the two copies are drawn in different
 material groups with different `uFace`. If each copy reads its own face's depth
 map, the two disagree by however much the maps disagree at that seam — across
@@ -251,10 +245,12 @@ int dFace = faceOfDir(dir);                              // major axis, with >= 
 vec2 dUv  = clamp(gnomonicUV(dir, dFace), 0.001, 0.999);
 ```
 
-Both copies of an edge vertex share a position bit for bit — `BoxGeometry`
-generates the same grid coordinates for both faces, and `normalize()` of equal
-inputs gives equal outputs — so both pick the same face, the same UV and the
-same depth. `gl_Position` comes out identical and the rasteriser fills the
+Both copies of an edge vertex share a position bit for bit —
+`buildSphereCube()` derives every coordinate from the one integer formula
+`(2k − n) / n`, never from two expressions that only agree on paper, and
+normalising equal inputs gives equal outputs — so both pick the same face, the
+same UV and the same depth. (Count the distinct positions: a closed cube of n
+segments has exactly 6n² + 2. More means an edge copy drifted.) `gl_Position` comes out identical and the rasteriser fills the
 shared edge with no gap. The seam closes **by construction**, not by tuning.
 
 Two consequences to preserve:
