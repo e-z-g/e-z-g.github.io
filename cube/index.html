@@ -306,7 +306,14 @@
 
   <script type="module">
     import * as THREE from 'three';
-    import { sampleAtlasGlsl, detectLayout, gutterFracFor, LAYOUTS } from './atlas-layout.js';
+    // The ?v= is part of the contract, not decoration. Pages lets a browser
+    // keep atlas-layout.js for ten minutes, and a reload fetches this page
+    // fresh but takes the module from cache — so when the contract changed,
+    // the new page met the old module, the import failed on a missing export,
+    // and the viewer never started: a black screen and an empty location list.
+    // A new query string is a new URL, which no cache can answer with the old
+    // file. Bump it here and in stitcher.html whenever atlas-layout.js changes.
+    import { sampleAtlasGlsl, detectLayout, gutterFracFor, LAYOUTS } from './atlas-layout.js?v=20261104';
 
     // Assets live next to this page. Loading them relatively (rather than from
     // raw.githubusercontent.com) keeps them on the Pages CDN, drops a cross-origin

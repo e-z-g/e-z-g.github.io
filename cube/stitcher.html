@@ -171,10 +171,12 @@
 </div>
 
 <script type="module">
+// Versioned so a cached copy of an older contract can never be paired with
+// this page; see the import in index.html. Bump both whenever it changes.
 import {
   FACES, FACE_LABELS, FACE_INDEX, INDEX_FACE, LAYOUTS, GUTTER_PX,
   faceUvToDir, dirToFaceUv, projectOntoFace,
-} from './atlas-layout.js';
+} from './atlas-layout.js?v=20261104';
 
 // ── State ────────────────────────────────────────────────────────
 const faceImages = {};

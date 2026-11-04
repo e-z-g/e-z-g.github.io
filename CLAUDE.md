@@ -187,4 +187,11 @@ root tools do, or write it by hand.
 - `cube/` assets are loaded *relatively* on purpose (Pages CDN, no cross-origin
   handshake, no raw.githubusercontent throttling). Do not switch them to raw
   URLs.
+- **Bump the `?v=` on `atlas-layout.js` whenever you change it**, in both
+  `cube/index.html` and `cube/stitcher.html`. Pages serves it with
+  `max-age=600`, and a reload fetches the page fresh but takes the module from
+  cache, so a new page meets the old module. When the contract's exports
+  changed without the bump, the import failed and the live viewer was a black
+  screen until the cache expired. A fresh-profile browser test cannot see this;
+  prime the cache with the old files first.
 - `repomix_output.md` and `.DS_Store` are gitignored.

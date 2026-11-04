@@ -16,6 +16,12 @@ you have not broken them.
 Both pages import `./atlas-layout.js` relatively, so they must be **served over
 HTTP** — `file://` gives an opaque origin and the module fetch fails CORS.
 
+The import carries a `?v=` version. **Bump it in both pages whenever
+`atlas-layout.js` changes.** Pages lets browsers cache the module for ten
+minutes, and a reload refetches the page but not the module, so without a new
+URL an updated page runs against the old contract — once already that was a
+missing export and a viewer that never started.
+
 Read the header comment in `atlas-layout.js` before touching either page. The
 stitcher writes cells at particular rotations and the viewer reads them back on
 that assumption; change one side alone and the poles smear without an error.
