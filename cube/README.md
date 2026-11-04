@@ -152,6 +152,31 @@ the whole share. Before this, a held 10° tilt moved the camera 0.05 units for a
 quarter of a second and nothing after a second; now it is 0.26, and still 0.14
 three seconds on.
 
+### Positional tracking: head and AR
+
+Tilt only knows how the phone is turned. Raising or lowering it without turning
+reads the same, and nothing a page can reach measures centimetres of travel
+(GPS altitude is metres out; the barometer is not exposed). Two opt-in modes
+do measure position, both in metres, both mapped through `trackedOffset()`:
+linear around rest, `TRACK_FULL_M` (15 cm) spends one budget, easing into a
+ceiling of `TRACK_REACH` (1.5) budgets rather than stopping dead.
+
+- **Head tracking** (face button, <kbd>T</kbd>; anywhere with a camera). The
+  front camera through MediaPipe's BlazeFace detector, loaded from the CDN only
+  when switched on — its WebAssembly runtime is ~11 MB. The eye midpoint gives
+  the head's position across the frame and the eye spacing (~63 mm) gives scale
+  and distance, so it yields right, up and toward/away *relative to the
+  screen* — what parallax depends on. The raw front-camera stream is not
+  mirrored, hence the sign flips. Rest settles over `HEAD_SETTLE_S` (10 s);
+  with a face in view it drives the eye alone (no drift, dolly or tilt).
+- **AR** (Android Chrome only; the button appears when
+  `isSessionSupported('immersive-ar')`). WebXR tracks the phone's full pose.
+  Rotation is used as is; for position, the `world` group holding the meshes
+  is moved to the camera's position less the scaled offset, which leaves the
+  eye exactly that offset from the panorama's centre. The page's own rAF loop
+  stands down while the session's loop draws, and three.js's copy of the
+  headset field of view into the camera is undone on exit.
+
 ## The seam invariant
 
 **This is the rule most likely to be broken by accident.**
@@ -276,6 +301,20 @@ recorded before the page is listening; Playwright's landscape devices leave
 'landscapePrimary', angle: 90 } })`; and to measure the camera rather than
 pixels, serve a copy of three.js whose `render()` records the camera and can
 skip drawing — SwiftShader cannot draw hundreds of stepped frames in time.
+
+**Testing head tracking.** Chromium plays a file as the webcam:
+`--use-fake-ui-for-media-stream --use-fake-device-for-media-stream
+--use-file-for-fake-video-capture=face.y4m`. Build the `.y4m` from a portrait
+cropped so the face moves by known amounts in phases (MediaPipe's own test
+image at `storage.googleapis.com/mediapipe-assets/portrait.jpg` works), route
+the jsDelivr and `storage.googleapis.com` URLs to local copies, and read the
+phase from the video element's `currentTime`.
+
+**Testing AR.** Meta's IWER emulates a WebXR device in the page: inject
+`iwer@2.2.1/build/iwer.min.js` with `addInitScript`, then
+`new IWER.XRDevice(IWER.metaQuest3).installRuntime()` and move it with
+`device.position.set()`. Its canvas covers the page, so click the exit button
+with `element.click()`.
 
 Two measurements worth reusing, because they turn "looks better" into a number:
 

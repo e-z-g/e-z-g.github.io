@@ -121,6 +121,19 @@
     #fullscreen-toggle, #help-toggle {
       display: inline-flex; align-items: center; justify-content: center; padding: 6px 10px;
     }
+    /* Shown only where they can work: see setUpTracking(). */
+    #face-toggle, #xr-toggle { display: none; align-items: center; justify-content: center; padding: 6px 10px; }
+    #xr-toggle { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+    #face-toggle.busy { animation: busy 1s ease-in-out infinite; }
+    @keyframes busy { 50% { opacity: 0.35; } }
+
+    /* The DOM overlay an AR session shows over the scene; only its button. */
+    #xr-overlay { display: none; }
+    #xr-exit {
+      position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); right: 14px;
+      background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 6px; padding: 8px 14px; font-size: 13px;
+    }
     #help-toggle { font-weight: 700; }
 
     /* A disclosure control, not a peer of the version buttons. */
@@ -236,6 +249,13 @@
           <ellipse cx="12" cy="12" rx="8" ry="3" transform="rotate(-45 12 12)"></ellipse>
         </svg>
       </button>
+      <button id="face-toggle" title="Head tracking: move your head to look around objects. Uses the front camera; nothing leaves the device." aria-label="Toggle head tracking" aria-pressed="false">
+        <svg viewBox="0 0 24 24" style="width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; vertical-align:middle;">
+          <circle cx="12" cy="12" r="8"></circle>
+          <path d="M9 10h.01M15 10h.01M9 15c1.7 1.4 4.3 1.4 6 0"></path>
+        </svg>
+      </button>
+      <button id="xr-toggle" title="AR: walk the phone around to move through the scene" aria-label="Enter AR">AR</button>
       <button id="fullscreen-toggle" title="Fullscreen (F)" aria-label="Toggle fullscreen">
         <svg viewBox="0 0 24 24" style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; vertical-align:middle;">
           <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"></path>
@@ -289,12 +309,16 @@
         <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next age</td></tr>
         <tr><td><kbd>F</kbd></td><td>Fullscreen</td></tr>
         <tr><td><kbd>G</kbd></td><td>Gyroscope</td></tr>
+        <tr><td><kbd>T</kbd></td><td>Head tracking (front camera)</td></tr>
         <tr><td><kbd>M</kbd></td><td>Mute / unmute</td></tr>
         <tr><td><kbd>R</kbd></td><td>Reset view</td></tr>
         <tr><td><kbd>?</kbd> / <kbd>Esc</kbd></td><td>Show / hide this panel</td></tr>
       </table>
     </div>
   </div>
+
+  <div id="xr-overlay"><button id="xr-exit" type="button">Exit AR</button></div>
+  <video id="face-video" playsinline muted style="display:none;"></video>
 
   <div id="caption">
     <div id="close-caption" title="Hide caption">&times;</div>
@@ -1037,13 +1061,21 @@
         return agreed;
     }
 
+    // Everything the viewer looks at hangs off one group. Outside AR it never
+    // moves. In an AR session the camera is placed by the phone's real
+    // position in metres, which is far too much travel for a displaced mesh;
+    // the group is moved against it so the eye only gets a scaled share (see
+    // placeWorldForXr()).
+    const world = new THREE.Group();
+    scene.add(world);
+
     const bgCubeMesh = new THREE.Mesh(bgGeometry, getMatSet('atlasBg'));
     bgCubeMesh.renderOrder = 0;
-    scene.add(bgCubeMesh);
+    world.add(bgCubeMesh);
 
     const fgCubeMesh = new THREE.Mesh(geometry, getMatSet('standard'));
     fgCubeMesh.renderOrder = 1;
-    scene.add(fgCubeMesh);
+    world.add(fgCubeMesh);
 
     // --- 3D DECAL VIDEO ENGINE ---
     document.getElementById('upload-decal').addEventListener('change', e => {
@@ -1069,7 +1101,7 @@
                 decalMesh = new THREE.Mesh(dGeom, dMat);
                 decalMesh.renderOrder = 2;
                 decalMesh.position.set(0, 0, -40); 
-                scene.add(decalMesh);
+                world.add(decalMesh);
             } else {
                 const oldTex = decalMesh.material.map;
                 decalMesh.material.map = new THREE.VideoTexture(decalVideo);
@@ -1418,6 +1450,7 @@
         case '?': case '/': case 'h': e.preventDefault(); toggleHelp(); return;
         case 'f': toggleFullscreen(); return;
         case 'g': document.getElementById('gyro-toggle').click(); return;
+        case 't': if (faceBtn.style.display !== 'none') faceBtn.click(); return;
         case 'm': audioToggleBtn.click(); return;
         case 'r':
           lon = 225; lat = 0; panLon = 0; panLat = 0;
@@ -2182,8 +2215,262 @@
       else if (median > framePeriod * 1.4) tryScale(scaleStep - 1);
     }
 
+    // --- Positional tracking: the head (front camera) and the phone (WebXR) ---
+    //
+    // Tilt can only say how the phone is turned, never where it is: a phone
+    // raised or lowered without turning reads exactly the same, and browsers
+    // offer nothing that measures a few centimetres of travel (GPS altitude is
+    // metres out; the barometer is not exposed to pages at all). Two things
+    // can. Face tracking finds the viewer's eyes in the front camera, which
+    // gives the head's position *relative to the screen* — what parallax
+    // actually depends on, and on any phone with a camera. WebXR's AR session
+    // tracks the phone itself in space to about a centimetre, on Android
+    // Chrome only.
+    //
+    // Both report metres, and the mesh cannot take metres: the camera budget
+    // is a few tenths of a unit, so a real 15cm move has to be scaled down.
+    // TRACK_FULL_M is the movement that spends the normal budget, with the
+    // response linear around rest and easing into a ceiling of TRACK_REACH
+    // budgets rather than stopping dead. The ceiling is above the drift's,
+    // deliberately: when the motion is the viewer's own, the scene answering
+    // all of it matters more than staying inside the idle drift's margin, and
+    // 15% of the way to the nearest surface is still nowhere near passing
+    // through it.
+    const TRACK_FULL_M = 0.15;
+    const TRACK_REACH = 1.5;
+
+    // How far the camera may leave the centre; see the render loop.
+    const cameraExcursion = () => Math.min(SPHERE_RADIUS * 0.025, nearRadius * 0.10);
+
+    function trackedOffset(out, x, y, z, excursion) {
+      const m = Math.hypot(x, y, z);
+      if (!m || !excursion) return out.set(0, 0, 0);
+      const cap = TRACK_REACH * excursion;
+      const s = cap * Math.tanh(m * (excursion / TRACK_FULL_M) / cap) / m;
+      return out.set(x * s, y * s, z * s);
+    }
+    const _eye = new THREE.Vector3();
+
+    // ── Head tracking ──
+    //
+    // MediaPipe's BlazeFace detector, loaded from the CDN only when asked for
+    // (the WebAssembly runtime is ~11MB, which nobody should pay for just by
+    // opening the page). Frames stay on the device: the detector runs in the
+    // page. It gives two eye positions per frame, which is enough: the
+    // midpoint is where the head is across the image, and the eyes' spacing —
+    // about 63mm on most adults — fixes both the scale and the distance.
+    //
+    // The raw front-camera stream is not mirrored, so a viewer moving to their
+    // right appears to move left in it; hence the sign flips below. The
+    // camera is above the screen, not behind its middle, and nobody holds a
+    // phone dead centre, so "centred" is wherever the head has been lately:
+    // the rest position settles over HEAD_SETTLE_S, slowly enough that leaning
+    // to look around something holds.
+    const MEDIAPIPE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35';
+    const FACE_MODEL = 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
+    const IPD_M = 0.063;
+    const FRONT_CAMERA_HFOV = THREE.MathUtils.degToRad(60);   // typical; only scales the distance
+    const HEAD_SETTLE_S = 10;
+    const HEAD_LOST_MS = 1000;   // after this long without a face, ease back to centre
+
+    const faceBtn = document.getElementById('face-toggle');
+    const faceVideo = document.getElementById('face-video');
+    const head = {
+      state: 'off',                 // off | loading | on
+      resumeOnShow: false,
+      detector: null, stream: null,
+      lastVideoTime: -1, lastTs: 0, seenAt: -Infinity,
+      raw: new THREE.Vector3(),     // metres: right, up, distance from the camera
+      rest: new THREE.Vector3(), restSet: false,
+      offset: new THREE.Vector3(),  // smoothed raw - rest
+    };
+
+    function setFaceButton() {
+      faceBtn.classList.toggle('active', head.state === 'on');
+      faceBtn.classList.toggle('busy', head.state === 'loading');
+      faceBtn.setAttribute('aria-pressed', String(head.state !== 'off'));
+    }
+
+    function stopHeadTracking() {
+      head.state = 'off';
+      if (head.stream) head.stream.getTracks().forEach(t => t.stop());
+      head.stream = null;
+      faceVideo.srcObject = null;
+      setFaceButton();
+    }
+
+    async function startHeadTracking() {
+      if (head.state !== 'off') return;
+      head.state = 'loading';
+      setFaceButton();
+      // Turning it off mid-load must win; every await below re-checks.
+      const cancelled = () => head.state !== 'loading';
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+        if (cancelled()) { stream.getTracks().forEach(t => t.stop()); return; }
+        head.stream = stream;
+        faceVideo.srcObject = stream;
+        await faceVideo.play();
+
+        if (!head.detector) {
+          const { FilesetResolver, FaceDetector } = await import(`${MEDIAPIPE}/vision_bundle.mjs`);
+          const fileset = await FilesetResolver.forVisionTasks(`${MEDIAPIPE}/wasm`);
+          const make = (delegate) => FaceDetector.createFromOptions(fileset, {
+            baseOptions: { modelAssetPath: FACE_MODEL, delegate },
+            runningMode: 'VIDEO', minDetectionConfidence: 0.5 });
+          // The GPU path is several times faster where it works; some
+          // browsers cannot give it a context, and the CPU path always runs.
+          head.detector = await make('GPU').catch(() => make('CPU'));
+        }
+        if (cancelled()) return;
+        head.state = 'on';
+        head.restSet = false;
+        head.seenAt = -Infinity;
+        head.lastVideoTime = -1;
+        setFaceButton();
+      } catch (e) {
+        const wasCancelled = cancelled();
+        stopHeadTracking();
+        if (wasCancelled) return;
+        showLoadError('Head tracking', startHeadTracking,
+          e && e.name === 'NotAllowedError' ? 'camera access was refused.'
+          : e && e.name === 'NotFoundError' ? 'no front camera found.'
+          : `couldn't start (${(e && (e.message || e.name)) || 'unknown error'}).`);
+      }
+    }
+
+    faceBtn.addEventListener('click', () => head.state === 'off' ? startHeadTracking() : stopHeadTracking());
+
+    // A hidden tab draws nothing, so the camera would run for no one.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && head.state !== 'off') { head.resumeOnShow = true; stopHeadTracking(); }
+      else if (!document.hidden && head.resumeOnShow) { head.resumeOnShow = false; startHeadTracking(); }
+    });
+
+    function updateHeadTracking(now, dt) {
+      if (head.state !== 'on') return false;
+      if (faceVideo.readyState >= 2 && faceVideo.currentTime !== head.lastVideoTime) {
+        head.lastVideoTime = faceVideo.currentTime;
+        head.lastTs = Math.max(head.lastTs + 1, now);   // the detector needs strictly rising stamps
+        const found = head.detector.detectForVideo(faceVideo, head.lastTs).detections || [];
+        // Nearest face, if there are several: the largest box.
+        const det = found.filter(d => d.keypoints && d.keypoints.length >= 2)
+          .sort((a, b) => (b.boundingBox ? b.boundingBox.width : 0) - (a.boundingBox ? a.boundingBox.width : 0))[0];
+        const W = faceVideo.videoWidth, H = faceVideo.videoHeight;
+        if (det && W && H) {
+          const [a, b] = det.keypoints;   // the two eyes, in [0,1] of the frame
+          const spacing = Math.hypot(a.x - b.x, (a.y - b.y) * H / W);   // in frame widths
+          if (spacing > 0.01) {
+            const mPerWidth = IPD_M / spacing;   // metres across the frame, at the face
+            head.raw.set(
+              -((a.x + b.x) / 2 - 0.5) * mPerWidth,
+              -((a.y + b.y) / 2 - 0.5) * (H / W) * mPerWidth,
+              mPerWidth / (2 * Math.tan(FRONT_CAMERA_HFOV / 2)));
+            if (!head.restSet) { head.rest.copy(head.raw); head.restSet = true; }
+            head.seenAt = now;
+          }
+        }
+      }
+      const live = now - head.seenAt < HEAD_LOST_MS;
+      if (live) head.rest.lerp(head.raw, 1 - Math.exp(-dt / HEAD_SETTLE_S));
+      const tx = live ? head.raw.x - head.rest.x : 0;
+      const ty = live ? head.raw.y - head.rest.y : 0;
+      const tz = live ? head.raw.z - head.rest.z : 0;
+      // Detection jitters by a pixel or two; a short low-pass hides it.
+      const k = 1 - Math.exp(-dt / 0.1);
+      head.offset.x += (tx - head.offset.x) * k;
+      head.offset.y += (ty - head.offset.y) * k;
+      head.offset.z += (tz - head.offset.z) * k;
+      return true;
+    }
+
+    // ── WebXR (AR session) ──
+    //
+    // The session tracks the phone's full pose. Its rotation is used as is —
+    // turning the phone looks around, as the gyroscope does. Its position is
+    // in metres, so the camera cannot simply be left where the session puts
+    // it: the world group is moved instead, to the camera's position less a
+    // scaled offset, which leaves the eye exactly that offset from the centre
+    // of the panorama. The panorama is opaque and surrounds the viewer, so the
+    // camera passthrough an AR session draws behind it is never seen.
+    //
+    // The session's forward is wherever the phone pointed when it began; the
+    // world is turned to put the current view there, so entering AR doesn't
+    // swing the scene round.
+    const xrBtn = document.getElementById('xr-toggle');
+    const xrOverlay = document.getElementById('xr-overlay');
+    let xrSession = null, fovBeforeXr = camera.fov;
+    const _xrPos = new THREE.Vector3();
+
+    async function enterXr() {
+      if (xrSession) return;
+      if (head.state !== 'off') stopHeadTracking();   // the session needs the camera
+      try {
+        xrOverlay.style.display = 'block';
+        const session = await navigator.xr.requestSession('immersive-ar', {
+          optionalFeatures: ['dom-overlay'], domOverlay: { root: xrOverlay } });
+        if (gyroActive) adoptCameraAngles();
+        fovBeforeXr = camera.fov;
+        xrSession = session;
+        renderer.xr.enabled = true;
+        renderer.xr.setReferenceSpaceType('local');
+        await renderer.xr.setSession(session);
+        world.rotation.set(0, THREE.MathUtils.degToRad(lon + 90), 0);
+        session.addEventListener('end', onXrEnd);
+        renderer.setAnimationLoop(xrFrame);
+      } catch (e) {
+        if (xrSession) { try { await xrSession.end(); } catch (_) { /* already over */ } }
+        onXrEnd();
+        showLoadError('AR', enterXr, `couldn't start (${(e && (e.message || e.name)) || 'unknown error'}).`);
+      }
+    }
+
+    function onXrEnd() {
+      const wasActive = !!xrSession;
+      xrSession = null;
+      renderer.setAnimationLoop(null);
+      renderer.xr.enabled = false;
+      world.position.set(0, 0, 0);
+      world.rotation.set(0, 0, 0);
+      xrOverlay.style.display = 'none';
+      // three.js copies the headset's field of view into the camera.
+      camera.fov = fovBeforeXr;
+      camera.updateProjectionMatrix();
+      if (wasActive) {
+        window.dispatchEvent(new Event('resize'));
+        requestAnimationFrame(render);   // the page's own loop stood down for the session
+      }
+    }
+
+    function xrFrame(time, frame) {
+      const ref = renderer.xr.getReferenceSpace();
+      const pose = frame && ref ? frame.getViewerPose(ref) : null;
+      if (pose) {
+        const p = pose.transform.position;
+        _xrPos.set(p.x, p.y, p.z);
+        if (hasActiveDepth) trackedOffset(_eye, p.x, p.y, p.z, cameraExcursion());
+        else _eye.set(0, 0, 0);
+        world.position.copy(_xrPos).sub(_eye);
+      }
+      renderer.render(scene, camera);
+    }
+
+    xrBtn.addEventListener('click', enterXr);
+    document.getElementById('xr-exit').addEventListener('click', () => { if (xrSession) xrSession.end(); });
+
+    // Offer each only where it can work.
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) faceBtn.style.display = 'inline-flex';
+    if (navigator.xr && navigator.xr.isSessionSupported) {
+      navigator.xr.isSessionSupported('immersive-ar')
+        .then(ok => { if (ok) xrBtn.style.display = 'inline-flex'; })
+        .catch(() => { /* no AR here */ });
+    }
+
     // --- Main Render Loop ---
     function render(now) {
+      // While AR is on, the session's own frame loop draws (xrFrame).
+      if (xrSession) return;
       requestAnimationFrame(render);
       governRenderScale(now || performance.now());
       applyKeyboardLook();
@@ -2222,6 +2509,9 @@
       tiltX += (tiltTargetX - tiltX) * tiltK;
       tiltY += (tiltTargetY - tiltY) * tiltK;
 
+      updateHeadTracking(tiltNow, tiltDt);
+      const headLed = head.state === 'on' && tiltNow - head.seenAt < HEAD_LOST_MS;
+
       if (gyroActive && deviceOrientation) {
         const qGyro = deviceQuaternion(_qDevice);
 
@@ -2258,7 +2548,7 @@
           // never fly the viewer through the geometry in front of them — which
           // the old fixed 3.5-unit dolly could, once the near end came inside
           // that radius.
-          const excursion = Math.min(SPHERE_RADIUS * 0.025, nearRadius * 0.10);
+          const excursion = cameraExcursion();
 
           orbitRadius = -0.35 * excursion;
 
@@ -2277,6 +2567,17 @@
           swayY = (Math.cos(floatTime * 1.1) * 0.25 + Math.sin(floatTime * 0.8) * 0.10) * excursion * driftShare;
 
           parallaxStrength = (gyroActive ? 0.2 : tiltLed ? 0.8 : 0.5) * excursion;
+
+          // A tracked head is the real thing all of the above stands in for,
+          // so while a face is in view it drives the eye alone: no drift, no
+          // dolly, and no tilt — tilting the phone moves the face across the
+          // camera anyway, which is the same parallax arrived at honestly.
+          // The axes are the screen's: right, up, and away from it.
+          if (headLed) {
+            trackedOffset(_eye, head.offset.x, head.offset.y, head.offset.z, excursion);
+            swayX = _eye.x; swayY = _eye.y; orbitRadius = _eye.z;
+            parallaxStrength = 0;
+          }
       }
 
       // Pointer and tilt share one allowance. Summed unclamped, a finger at
