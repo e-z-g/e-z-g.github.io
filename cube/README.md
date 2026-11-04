@@ -177,6 +177,28 @@ ceiling of `TRACK_REACH` (1.5) budgets rather than stopping dead.
   stands down while the session's loop draws, and three.js's copy of the
   headset field of view into the camera is undone on exit.
 
+### The motion nudge
+
+Without either mode, a quick move of the phone still registers. The
+accelerometer's gravity-free `acceleration` (device axes, rotated into the
+screen's) is integrated twice in the `devicemotion` handler, at the sensor's own
+rate. Position leaks home over `NUDGE_POS_S`; velocity is cleared by a
+zero-velocity update once readings have sat inside `NUDGE_DEADBAND` for
+`NUDGE_STILL_S`. A steady velocity leak was tried first and swung the view a
+quarter of the peak back past centre a second later. Eye moves opposite to the
+phone, the same window as tilt. A simulated 10 cm raise in 0.4 s peaks at 0.19
+units at 0.3 s and is back under 0.02 by 1.5 s. Head tracking, when it sees a
+face, supersedes it.
+
+### `?debug`
+
+`index.html?debug` puts a readout in the corner: screen angle, the depth
+budget, raw orientation and the tilt it becomes, motion permission, the nudge,
+head-tracking state (face seen or lost, offset, distance, detection time), AR
+state and the phone's position in the session, and the final eye offset. It is
+how to test on a phone, which has no console; it moves into the AR overlay
+during a session.
+
 ## The seam invariant
 
 **This is the rule most likely to be broken by accident.**

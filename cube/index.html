@@ -127,6 +127,14 @@
     #face-toggle.busy { animation: busy 1s ease-in-out infinite; }
     @keyframes busy { 50% { opacity: 0.35; } }
 
+    /* ?debug: what every input is reporting, for phones with no console. */
+    #debug-hud {
+      position: fixed; left: 8px; bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); z-index: 10001;
+      margin: 0; padding: 6px 8px; max-width: calc(100vw - 32px); overflow: hidden;
+      font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; color: #9f9;
+      background: rgba(0,0,0,0.65); border-radius: 6px; pointer-events: none; white-space: pre;
+    }
+
     /* The DOM overlay an AR session shows over the scene; only its button. */
     #xr-overlay { display: none; }
     #xr-exit {
@@ -1219,12 +1227,88 @@
       if (motionPermission !== 'unasked') return;
       motionPermission = 'asking';
       DeviceOrientationEvent.requestPermission().then(
-        state => { motionPermission = (state === 'granted' || state === 'denied') ? state : 'unasked'; },
+        state => {
+          motionPermission = (state === 'granted' || state === 'denied') ? state : 'unasked';
+          // iOS asks once for "motion and orientation"; once that is granted
+          // the accelerometer's own request resolves without a prompt.
+          if (state === 'granted' && typeof DeviceMotionEvent !== 'undefined'
+              && typeof DeviceMotionEvent.requestPermission === 'function') {
+            DeviceMotionEvent.requestPermission().catch(() => {});
+          }
+        },
         () => { motionPermission = 'unasked'; });   // not a gesture after all: try the next one
     };
     // Capture phase, so a tap on the controls counts as much as one on the scene.
     window.addEventListener('touchend', initTiltSensors, true);
     window.addEventListener('click', initTiltSensors, true);
+
+    // --- Motion nudge ---
+    //
+    // Orientation cannot see the phone being raised, lowered or pushed
+    // sideways, and nothing in a browser can measure where it is. What the
+    // accelerometer can see is the push at the start of a movement and the
+    // brake at the end. Integrated twice that is position, in principle; in
+    // practice the integral of sensor noise wanders off within a second. So
+    // position leaks back to centre over NUDGE_POS_S: a quick move registers
+    // and the view follows it, and a held position then drifts home, which
+    // is the honest limit of what this sensor can tell. A dead band below
+    // NUDGE_DEADBAND keeps resting noise and bias from moving anything.
+    //
+    // Velocity is the delicate one. A steady leak on it (the first version
+    // forgot it over 0.4s) eats into the push while the phone is still
+    // moving, so the brake then drives it negative and the view swings back
+    // past centre — a quarter of the peak, a second later, which reads as a
+    // wobble. Never leaking it is worse: push and brake never measure exactly
+    // equal, and the difference would park the view off-centre for good. So
+    // it is cleared the way step counters do it, by a zero-velocity update:
+    // barely any leak while the phone is accelerating, and once it has read
+    // as still for NUDGE_STILL_S, velocity is known to be zero and is dropped
+    // within a few frames.
+    //
+    // Same window as tilt: raise the phone and you are now looking through it
+    // from lower down, so the eye moves opposite to the phone. The integration
+    // happens in the event, at the sensor's own rate, so a slow frame cannot
+    // drop the peak of a short push; axes are the screen's, so it turns with
+    // the screen.
+    const NUDGE_POS_S = 0.5, NUDGE_DEADBAND = 0.15, NUDGE_STILL_S = 0.1;   // s, m/s², s
+    const NUDGE_VEL_MOVING_S = 3.0, NUDGE_VEL_STILL_S = 0.03;            // velocity leak, s
+    const nudge = {
+      v: new THREE.Vector3(), p: new THREE.Vector3(),   // m/s, m, screen axes
+      still: 0,         // seconds the readings have sat inside the dead band
+      fresh: false,     // a sample arrived since the last frame
+      idle: 0,          // seconds of frames without one
+      hasLinear: null,  // null until the first event says
+    };
+    window.addEventListener('devicemotion', e => {
+      const a = e.acceleration;   // gravity already removed, device axes, m/s²
+      nudge.hasLinear = !!(a && a.x != null);
+      if (!nudge.hasLinear) return;
+      const dt = Math.min(e.interval > 0 ? e.interval / 1000 : 0.016, 0.1);
+      const th = THREE.MathUtils.degToRad(screenOrientation);
+      const c = Math.cos(th), s = Math.sin(th);
+      let ax = a.x * c - a.y * s, ay = a.x * s + a.y * c, az = a.z || 0;
+      if (Math.hypot(ax, ay, az) < NUDGE_DEADBAND) { ax = ay = az = 0; nudge.still += dt; }
+      else nudge.still = 0;
+      const vLeak = nudge.still > NUDGE_STILL_S ? NUDGE_VEL_STILL_S : NUDGE_VEL_MOVING_S;
+      nudge.v.x += (ax - nudge.v.x / vLeak) * dt;
+      nudge.v.y += (ay - nudge.v.y / vLeak) * dt;
+      nudge.v.z += (az - nudge.v.z / vLeak) * dt;
+      nudge.p.x += (nudge.v.x - nudge.p.x / NUDGE_POS_S) * dt;
+      nudge.p.y += (nudge.v.y - nudge.p.y / NUDGE_POS_S) * dt;
+      nudge.p.z += (nudge.v.z - nudge.p.z / NUDGE_POS_S) * dt;
+      nudge.fresh = true;
+    });
+
+    // Per frame: if the sensor has gone quiet (a stopped stream, a page that
+    // lost focus), let the leaks finish the job the events would have.
+    function settleNudge(dt) {
+      if (nudge.fresh) { nudge.fresh = false; nudge.idle = 0; return; }
+      nudge.idle += dt;
+      if (nudge.idle > 0.25) {
+        const k = Math.exp(-dt / NUDGE_POS_S);
+        nudge.v.multiplyScalar(k); nudge.p.multiplyScalar(k);
+      }
+    }
 
     // Read at startup as well as on change. It used to be set only by the
     // orientationchange event, so a phone that opened the page already in
@@ -1450,7 +1534,7 @@
         case '?': case '/': case 'h': e.preventDefault(); toggleHelp(); return;
         case 'f': toggleFullscreen(); return;
         case 'g': document.getElementById('gyro-toggle').click(); return;
-        case 't': if (faceBtn.style.display !== 'none') faceBtn.click(); return;
+        case 't': if (faceBtn.style.display === 'inline-flex') faceBtn.click(); return;
         case 'm': audioToggleBtn.click(); return;
         case 'r':
           lon = 225; lat = 0; panLon = 0; panLat = 0;
@@ -2278,7 +2362,7 @@
     const head = {
       state: 'off',                 // off | loading | on
       resumeOnShow: false,
-      detector: null, stream: null,
+      detector: null, stream: null, detectMs: 0,
       lastVideoTime: -1, lastTs: 0, seenAt: -Infinity,
       raw: new THREE.Vector3(),     // metres: right, up, distance from the camera
       rest: new THREE.Vector3(), restSet: false,
@@ -2353,7 +2437,9 @@
       if (faceVideo.readyState >= 2 && faceVideo.currentTime !== head.lastVideoTime) {
         head.lastVideoTime = faceVideo.currentTime;
         head.lastTs = Math.max(head.lastTs + 1, now);   // the detector needs strictly rising stamps
+        const t0 = performance.now();
         const found = head.detector.detectForVideo(faceVideo, head.lastTs).detections || [];
+        head.detectMs += (performance.now() - t0 - head.detectMs) * 0.1;
         // Nearest face, if there are several: the largest box.
         const det = found.filter(d => d.keypoints && d.keypoints.length >= 2)
           .sort((a, b) => (b.boundingBox ? b.boundingBox.width : 0) - (a.boundingBox ? a.boundingBox.width : 0))[0];
@@ -2408,6 +2494,7 @@
       if (head.state !== 'off') stopHeadTracking();   // the session needs the camera
       try {
         xrOverlay.style.display = 'block';
+        if (dbgEl) xrOverlay.appendChild(dbgEl);
         const session = await navigator.xr.requestSession('immersive-ar', {
           optionalFeatures: ['dom-overlay'], domOverlay: { root: xrOverlay } });
         if (gyroActive) adoptCameraAngles();
@@ -2434,6 +2521,7 @@
       world.position.set(0, 0, 0);
       world.rotation.set(0, 0, 0);
       xrOverlay.style.display = 'none';
+      if (dbgEl) document.body.appendChild(dbgEl);
       // three.js copies the headset's field of view into the camera.
       camera.fov = fovBeforeXr;
       camera.updateProjectionMatrix();
@@ -2452,7 +2540,13 @@
         if (hasActiveDepth) trackedOffset(_eye, p.x, p.y, p.z, cameraExcursion());
         else _eye.set(0, 0, 0);
         world.position.copy(_xrPos).sub(_eye);
+        if (dbgEl) {
+          dbg.xr = [p.x, p.y, p.z];
+          dbg.eye = [_eye.x, _eye.y, _eye.z];
+          if (hasActiveDepth) dbg.excursion = cameraExcursion();
+        }
       }
+      updateDebug(time);
       renderer.render(scene, camera);
     }
 
@@ -2465,6 +2559,42 @@
       navigator.xr.isSessionSupported('immersive-ar')
         .then(ok => { if (ok) xrBtn.style.display = 'inline-flex'; })
         .catch(() => { /* no AR here */ });
+    }
+
+    // --- ?debug readout ---
+    //
+    // Testing this on a phone means testing blind: no console, and every
+    // input here fails silently — a sensor that never reports, a permission
+    // never granted, a face never found all look like "nothing happens". With
+    // ?debug in the URL, each one says what it is seeing, a few times a
+    // second. It moves into the AR overlay during a session, since that is
+    // the only page content an AR session shows.
+    const DEBUG = new URLSearchParams(location.search).has('debug');
+    const dbg = { excursion: 0, eye: [0, 0, 0], xr: null };
+    let dbgEl = null, dbgAt = -Infinity;
+    if (DEBUG) {
+      dbgEl = document.createElement('pre');
+      dbgEl.id = 'debug-hud';
+      document.body.appendChild(dbgEl);
+    }
+    const cm = (v) => (v * 100).toFixed(1).padStart(5);
+    const n3 = (a) => a.map(v => v.toFixed(3).padStart(6)).join(' ');
+    function updateDebug(now) {
+      if (!dbgEl || now - dbgAt < 200) return;
+      dbgAt = now;
+      const o = deviceOrientation;
+      const f = (v) => (v == null ? '–' : v.toFixed(0)).padStart(4);
+      dbgEl.textContent = [
+        `screen ${screenOrientation}°  depth ${hasActiveDepth ? 'on' : 'off'}  budget ${dbg.excursion.toFixed(3)}  gyro ${gyroActive ? 'on' : 'off'}`,
+        `tilt   ${hasMotion() ? `β${f(o.beta)} γ${f(o.gamma)} α${f(o.alpha)}  → ${tiltX.toFixed(2)} ${tiltY.toFixed(2)}` : 'no data'}  permission ${motionPermission}`,
+        `motion ${nudge.hasLinear === null ? 'no events' : nudge.hasLinear ? `nudge ${cm(nudge.p.x)}${cm(nudge.p.y)}${cm(nudge.p.z)} cm` : 'no linear acceleration on this device'}`,
+        `head   ${head.state}` + (head.state === 'on'
+          ? `  face ${now - head.seenAt < HEAD_LOST_MS ? 'seen' : 'LOST'}  ${cm(head.offset.x)}${cm(head.offset.y)}${cm(head.offset.z)} cm` +
+            `  ${(head.raw.z * 100).toFixed(0)} cm away  ${head.detectMs.toFixed(0)} ms` : ''),
+        `ar     ${xrSession ? `on  phone ${dbg.xr ? dbg.xr.map(cm).join('') : '  –'} cm`
+                 : xrBtn.style.display === 'inline-flex' ? 'available' : 'not offered here'}`,
+        `eye    ${n3(dbg.eye)}`,
+      ].join('\n');
     }
 
     // --- Main Render Loop ---
@@ -2510,6 +2640,7 @@
       tiltY += (tiltTargetY - tiltY) * tiltK;
 
       updateHeadTracking(tiltNow, tiltDt);
+      settleNudge(tiltDt);
       const headLed = head.state === 'on' && tiltNow - head.seenAt < HEAD_LOST_MS;
 
       if (gyroActive && deviceOrientation) {
@@ -2577,7 +2708,15 @@
             trackedOffset(_eye, head.offset.x, head.offset.y, head.offset.z, excursion);
             swayX = _eye.x; swayY = _eye.y; orbitRadius = _eye.z;
             parallaxStrength = 0;
+          } else if (nudge.hasLinear) {
+            // The nudge rides on top of everything else. It is brief by
+            // construction, so it may lift the total past the drift's budget
+            // for a moment, but trackedOffset() still caps it on its own.
+            // Opposite to the phone's travel: see the Motion nudge comment.
+            trackedOffset(_eye, -nudge.p.x, -nudge.p.y, -nudge.p.z, excursion);
+            swayX += _eye.x; swayY += _eye.y; orbitRadius += _eye.z;
           }
+          dbg.excursion = excursion;
       }
 
       // Pointer and tilt share one allowance. Summed unclamped, a finger at
@@ -2588,6 +2727,10 @@
       camera.translateZ(orbitRadius);
       camera.translateX(swayX + lookX * parallaxStrength);
       camera.translateY(swayY + lookY * parallaxStrength);
+      if (dbgEl) {
+        dbg.eye = [swayX + lookX * parallaxStrength, swayY + lookY * parallaxStrength, orbitRadius];
+        updateDebug(tiltNow);
+      }
 
       if (isTransitioning) {
         renderer.setRenderTarget(rtNew);
