@@ -372,7 +372,26 @@
         hasDepth: true,
         depthSuffix: '-depth.jpeg',
         versions: [
-          { label: 'Original', suffix: '_orig.jpeg' }
+          { label: 'Original', suffix: '_orig.jpeg' },
+          // The same capture as two layers, so the canyon floor seen through
+          // wire mesh — between the walkway's slats, through the floor
+          // grate's panels — moves as floor rather than with the mesh. One
+          // depth map can't: its estimate put that floor just behind the
+          // mesh, and setting it to the floor's real depth instead sank pits
+          // into the mesh whose walls streaked across the view.
+          //
+          // Foreground: the original faces; depth unchanged in red, and in
+          // green 0 wherever the floor shows between the netting's wires
+          // (the wires stay solid, so the netting moves with the grate).
+          // Backdrop: the floor with the netting closed out of it and filled
+          // in under the slats and spokes, ~48px around every hole — about
+          // as far as the floor slides at full head-tracking range — at the
+          // open floor's depth (~20 beside the walkway, 30 straight down).
+          // Built as face images and stitched 3x2 with stitcher.html at
+          // 656px a cell (640 of picture, the captures' own size).
+          { label: 'Layered', layers: {
+              fgColor: 'voltaic-layered-fg-color.webp', fgDepth: 'voltaic-layered-fg-depth.png',
+              bgColor: 'voltaic-layered-bg-color.webp', bgDepth: 'voltaic-layered-bg-depth.png' } }
         ]
       },
       {
@@ -865,6 +884,13 @@
               // travel doing nothing and the whole scene stayed on one shell.
               // The raw value is still what the fragment stage masks and tears
               // on, where a literal zero means "nothing here".
+              // A two-layer foreground says where it is see-through in its
+              // depth image's green channel; see the fragment stage. A
+              // greyscale map has green equal to red, so for it this is the
+              // old rule, "depth near zero means nothing here".
+              float maskAt(vec2 uv, int face) {
+                return ${depthMode === 'atlas' ? 'sampleAtlas(tDepth, face, uv, uDepthGutter)' : 'texture2D(tDepth, uv)'}.g;
+              }
               float depthNorm(vec2 uv, int face) {
                 return clamp((depthAt(uv, face) - uDepthMin) * uDepthInvRange, 0.0, 1.0);
               }`;
@@ -967,8 +993,23 @@
                 float alpha = 1.0;
                 
                 if (uIsForeground == 1) {
-                    if (texDepth < 0.03) alpha = 0.0; 
-                    
+                    // A hole in the foreground is cut through, so the
+                    // backdrop layer shows at its own depth and moves with
+                    // its own parallax. It used to be painted over with the
+                    // backdrop's colour at this same spot on the foreground
+                    // (the seam fill below), which glued whatever was seen
+                    // through a hole to the hole — the floor under Voltaic's
+                    // wire mesh moved with the mesh, the one thing a second
+                    // layer is for.
+                    //
+                    // And the hole is read from green, not from the depth in
+                    // red, so that marking one need not move the mesh: with
+                    // a single channel a hole was depth zero, which also sank
+                    // the foreground's own surface into a pit there, and its
+                    // walls stretched across everything seen past them.
+                    if (maskAt(vUv, uFace) < 0.03) discard;
+
+
                     if (uTearThreshold > 0.0) {
                         vec2 stepX = vec2(0.002, 0.0);
                         vec2 stepY = vec2(0.0, 0.002);
@@ -988,8 +1029,9 @@
                         alpha *= 1.0 - smoothstep(thresh * 0.5, thresh, texGrad);
                     }
 
-                    // Seam fill: instead of discarding torn/masked fg pixels to black,
-                    // substitute the bg colour at the same UV so cracks are invisible.
+                    // Seam fill, for tears only: a crack ripped at a steep
+                    // depth edge takes the backdrop's colour at the same UV,
+                    // so it reads as continuous picture rather than a gap.
                     ${seamFill ? `
                     if (alpha < 0.05) {
                       vec4 bgCol = sampleAtlas(tBgColor, uFace, vUv, uBgColorGutter);
@@ -1987,7 +2029,9 @@
 
       const targetVersion = currentLocation.versions[currentVersionIndex];
       const isVideo = targetVersion.type === 'video-5x3';
-      const isCustom = currentLocation.type === 'custom';
+      // A version can carry its own two layers (`layers`: four atlas files
+      // beside it), loaded exactly as a custom upload is.
+      const isCustom = currentLocation.type === 'custom' || !!targetVersion.layers;
       const isAtlas = currentLocation.type === 'atlas';
 
       try {
@@ -2098,18 +2142,22 @@
             videoToggleBtn.style.display = 'none';
             sourceVideo.pause();
 
-            const isDualLayer = !!customMaps.bgColor;
+            const src = targetVersion.layers
+              ? Object.fromEntries(Object.entries(targetVersion.layers)
+                  .map(([slot, file]) => [slot, currentLocation.baseUrl + file]))
+              : customMaps;
+            const isDualLayer = !!src.bgColor;
             
-            loadTotal = [customMaps.fgColor, customMaps.fgDepth,
-                         isDualLayer && customMaps.bgColor,
-                         isDualLayer && customMaps.bgDepth].filter(Boolean).length;
+            loadTotal = [src.fgColor, src.fgDepth,
+                         isDualLayer && src.bgColor,
+                         isDualLayer && src.bgDepth].filter(Boolean).length;
             renderProgress();
 
             const loaded = await Promise.all([
-                customMaps.fgColor ? trackedLoad(customMaps.fgColor) : Promise.resolve(defaultCustomTex),
-                customMaps.fgDepth ? trackedLoad(customMaps.fgDepth) : Promise.resolve(dummyDepthTex),
-                isDualLayer ? trackedLoad(customMaps.bgColor) : Promise.resolve(defaultCustomTex),
-                (isDualLayer && customMaps.bgDepth) ? trackedLoad(customMaps.bgDepth) : Promise.resolve(dummyDepthTex)
+                src.fgColor ? trackedLoad(src.fgColor) : Promise.resolve(defaultCustomTex),
+                src.fgDepth ? trackedLoad(src.fgDepth) : Promise.resolve(dummyDepthTex),
+                isDualLayer ? trackedLoad(src.bgColor) : Promise.resolve(defaultCustomTex),
+                (isDualLayer && src.bgDepth) ? trackedLoad(src.bgDepth) : Promise.resolve(dummyDepthTex)
             ]);
             
             const processAtlasTex = (tex, isColor) => {

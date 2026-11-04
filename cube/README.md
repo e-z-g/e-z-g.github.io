@@ -283,7 +283,7 @@ layout for both its samplers, which is the constraint behind the one gap below.
 | `standard` | six images | none | depthless ages (Amateria, J'nanin) |
 | `standardDepth` | six images | 3×2 atlas | ages with six depth faces (Voltaic) |
 | `atlasSolo` | atlas | same atlas | pre-stitched ages (Edanna) |
-| `atlasFg` | atlas | same atlas | custom LDI foreground; `seamFill` on |
+| `atlasFg` | atlas | same atlas | LDI foreground (custom uploads, Voltaic *Layered*); `seamFill` on, for tears |
 | `atlasBg` | atlas | same atlas | custom LDI backdrop; displaces at a lower rate |
 | `atlasStandard` | 5×3 atlas | six images | video panoramas |
 
@@ -296,6 +296,39 @@ stitched at, so a colour atlas stitched at 1024 and a depth atlas at 512 inset
 by different fractions. `gutterFracFor()` takes the width *as stitched* —
 `fitToGpu()` records it in `userData.sourceWidth` before shrinking an atlas to
 the GPU limit, since the shrunk width overstates the fraction.
+
+### Two layers: holes and tears
+
+A two-layer scene (custom upload with BG colour, or a version with `layers`)
+draws the backdrop sphere first and the foreground over it. The foreground
+says where it is see-through in its depth image's **green** channel (`maskAt()`
+< 0.03); red stays the depth that shapes the mesh. A greyscale map has green
+equal to red, so for it this is the old rule, "depth near zero is nothing".
+
+- A **hole** is discarded, so the backdrop mesh shows through at its own depth
+  and parallax. It used to be painted with the backdrop's colour at the same
+  UV on the foreground (`seamFill`), which glued whatever was seen through a
+  hole to the hole.
+- Keeping holes out of red means marking one need not move the mesh. With one
+  channel a hole was depth 0, which also sank the foreground into a pit there,
+  and the pit's walls stretched across the view.
+- A **tear** (`uTearThreshold`, at steep depth gradients) still takes the
+  backdrop's colour at the same UV, so a crack reads as continuous picture.
+
+Voltaic's *Layered* version is built this way, from the same capture: the
+estimated depth could not see through the walkway's slat gaps or the floor
+grate's panels, putting the canyon floor just behind the mesh. Its foreground
+is the original faces with depth filled flat across the holes (from the metal
+around, so no slope to stretch) and green 0 where floor shows between the
+wires; wires are kept solid only where they are dark lines over lit floor —
+over dark floor they are fainter than it, and a dark-line test only caught
+spoke edges. Its backdrop is that floor, reconstructed under the metal by a
+pyramid (push-pull) fill ~64 px around every hole — about as far as the floor
+slides at full head-tracking range — at the open floor's depth (~20 by the
+walkway, 30 straight down), blending back to the estimate over 64 px more so
+the backdrop has no step of its own. Built as face images, stitched 3×2 with
+`stitcher.html` at 656 px (640 of picture), exactly — the green mask survives
+the stitcher bit for bit.
 
 **Known gap:** the video path's colour is a 5×3 atlas, so it cannot borrow the
 3×2 depth stitch and keeps its six per-face depth textures — which means the
