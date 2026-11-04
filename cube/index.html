@@ -1121,28 +1121,78 @@
     let targetMouseX = 0, targetMouseY = 0;
     let currentMouseX = 0, currentMouseY = 0;
 
+    // --- Tilt parallax ---
+    //
+    // On a phone, tilting it is the only continuous way to move the eye: a
+    // finger on the screen is busy turning the view, and the idle drift is
+    // slow and small. So tilt has to carry the depth effect there, and it
+    // used to carry almost none of it. Measured on an emulated phone, holding
+    // it 10 degrees off rest moved the camera 0.05 units for a quarter of a
+    // second and nothing after a second — about five pixels on the nearest
+    // surface, out of a 0.43-unit budget. Three things were wrong:
+    //
+    //  - The rest pose chased the phone at 5% a frame, a third of a second, so
+    //    a held tilt was forgotten before it could be seen. It now settles
+    //    over TILT_SETTLE_S, long enough to look around an object, short
+    //    enough that changing grip doesn't leave the view parked off-centre.
+    //
+    //  - It read raw gamma and beta. Those are Euler angles about the
+    //    device's natural axes, so in landscape the two axes traded places,
+    //    and near upright gamma wraps. It now takes the rotation since rest
+    //    as a quaternion in the screen's own frame, which has neither problem.
+    //
+    //  - Sideways ran backwards. The phone is treated as a window onto the
+    //    scene: tilt its right edge away and you are looking at it from its
+    //    left, so the eye moves left and near things slide right past far
+    //    ones. Vertical already worked that way; horizontal did the opposite.
+    //
+    // TILT_FULL_DEG is the tilt that spends the whole of tilt's share of the
+    // camera budget; ten or twelve degrees is a comfortable wrist movement.
+    const TILT_FULL_RAD = THREE.MathUtils.degToRad(12);
+    const TILT_SETTLE_S = 4;
+    const tiltRest = new THREE.Quaternion(), _qDevice = new THREE.Quaternion(), _qTilt = new THREE.Quaternion();
+    let tiltRestSet = false, lastTiltAt = 0;
     let tiltX = 0, tiltY = 0;
-    let baseGamma = null, baseBeta = null;
-    let sensorsInitialized = false;
 
+    // The device's orientation as a camera quaternion, screen rotation
+    // included — the standard mapping, shared by tilt and gyro look.
+    function deviceQuaternion(out) {
+      const rad = THREE.MathUtils.degToRad;
+      gyroEuler.set(rad(deviceOrientation.beta || 0), rad(deviceOrientation.alpha || 0),
+                    -rad(deviceOrientation.gamma || 0), 'YXZ');
+      return out.setFromEuler(gyroEuler).multiply(gyroQ1)
+                .multiply(gyroQ0.setFromAxisAngle(zee, -rad(screenOrientation)));
+    }
+
+    // A browser with no motion sensor still fires one deviceorientation event,
+    // with every angle null. That is not a reading.
+    const hasMotion = () => !!deviceOrientation && deviceOrientation.beta != null;
+
+    // Listen from the start. Events only arrive where the browser allows them,
+    // so subscribing costs nothing, and it no longer depends on the outcome of
+    // a permission request in a browser that does not need one.
+    window.addEventListener('deviceorientation', e => { deviceOrientation = e; });
+
+    // iOS (and now some Chromium builds) hand out motion data only after
+    // DeviceOrientationEvent.requestPermission(), which must be called from a
+    // user gesture. It was called from touchstart, once. Safari, as far as I
+    // know, does not count touchstart as a gesture, so the request failed,
+    // `once` meant it was never made again, and an iPhone got no tilt at all
+    // unless the gyro button was pressed. Now it is asked on touchend and
+    // click, which every browser counts, and asked again on the next gesture
+    // until there is a definite answer.
+    let motionPermission = (typeof DeviceOrientationEvent !== 'undefined'
+      && typeof DeviceOrientationEvent.requestPermission === 'function') ? 'unasked' : 'not-needed';
     const initTiltSensors = () => {
-      if (sensorsInitialized) return;
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission().then(state => {
-          if (state === 'granted') {
-              window.addEventListener('deviceorientation', e => deviceOrientation = e);
-              sensorsInitialized = true;
-          }
-        }).catch(console.error);
-      } else {
-        window.addEventListener('deviceorientation', e => deviceOrientation = e);
-        sensorsInitialized = true;
-      }
+      if (motionPermission !== 'unasked') return;
+      motionPermission = 'asking';
+      DeviceOrientationEvent.requestPermission().then(
+        state => { motionPermission = (state === 'granted' || state === 'denied') ? state : 'unasked'; },
+        () => { motionPermission = 'unasked'; });   // not a gesture after all: try the next one
     };
-    
-    container.addEventListener('touchstart', initTiltSensors, { once: true });
-    container.addEventListener('mousedown', initTiltSensors, { once: true });
-    document.querySelector('.ui-container').addEventListener('touchstart', initTiltSensors, { once: true });
+    // Capture phase, so a tap on the controls counts as much as one on the scene.
+    window.addEventListener('touchend', initTiltSensors, true);
+    window.addEventListener('click', initTiltSensors, true);
 
     // Read at startup as well as on change. It used to be set only by the
     // orientationchange event, so a phone that opened the page already in
@@ -1150,7 +1200,8 @@
     // until the phone was rotated away and back.
     const readScreenOrientation = () => {
       screenOrientation = (screen.orientation || {}).angle || window.orientation || 0;
-      baseGamma = null;
+      // The screen's frame just turned under the rest pose; start afresh.
+      tiltRestSet = false;
     };
     readScreenOrientation();
     // orientationchange is the only one older iOS fires; screen.orientation's
@@ -1216,7 +1267,18 @@
 
     renderer.domElement.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
     
+    // Phones follow every tap with imitation mouse events, a mousemove to the
+    // tap point among them. Taken at face value, that re-parked the parallax
+    // wherever the finger had just lifted — undoing the release below. Event
+    // timestamps, not performance.now(), so a frozen test clock can't hide it.
+    let lastTouchStamp = -Infinity;
+    const isCompatMouse = (e) => e.timeStamp - lastTouchStamp < 1000;
+    for (const t of ['touchstart', 'touchend']) {
+      document.addEventListener(t, e => { lastTouchStamp = e.timeStamp; }, { capture: true, passive: true });
+    }
+
     document.addEventListener('mousemove', e => {
+      if (isCompatMouse(e)) return;
       updateTouchParallax(e.clientX, e.clientY);
       onPointerMove(e.clientX, e.clientY, false);
     });
@@ -1251,7 +1313,12 @@
     }, {passive: false});
     
     document.addEventListener('touchend', e => {
-      if (e.touches.length === 0) { isDragging = false; initialPinchDistance = null; } 
+      // A mouse that stops still points somewhere; a finger that lifts points
+      // nowhere. Leaving the parallax where the last touch ended parked the
+      // eye off-centre for good, and since pointer and tilt share one
+      // allowance, a drag that ended near an edge used up tilt's range on
+      // that side. Let it drift back to centre instead.
+      if (e.touches.length === 0) { isDragging = false; initialPinchDistance = null; targetMouseX = 0; targetMouseY = 0; }
       else if (e.touches.length === 1) { initialPinchDistance = null; onPointerDown(e.touches[0].clientX, e.touches[0].clientY); }
     });
 
@@ -2126,40 +2193,41 @@
 
       camera.position.set(0, 0, 0);
 
-      if (deviceOrientation && !isDragging) {
-        if (baseGamma === null) { 
-           baseGamma = deviceOrientation.gamma || 0; 
-           baseBeta = deviceOrientation.beta || 0; 
-        } else {
-           baseGamma += ((deviceOrientation.gamma || 0) - baseGamma) * 0.05;
-           baseBeta += ((deviceOrientation.beta || 0) - baseBeta) * 0.05;
+      // Tilt: the phone's rotation since its rest pose, as an eye offset in
+      // screen axes. Times come from the rAF stamp, so the settling and the
+      // smoothing run at the same speed on a 60Hz and a 120Hz screen.
+      const tiltNow = now || performance.now();
+      const tiltDt = lastTiltAt ? Math.min((tiltNow - lastTiltAt) / 1000, 0.1) : 0;
+      lastTiltAt = tiltNow;
+      const tiltLive = hasMotion();
+      let tiltTargetX = 0, tiltTargetY = 0;
+      if (tiltLive) {
+        deviceQuaternion(_qDevice);
+        if (!tiltRestSet) { tiltRest.copy(_qDevice); tiltRestSet = true; }
+        else tiltRest.slerp(_qDevice, 1 - Math.exp(-tiltDt / TILT_SETTLE_S));
+
+        // Rotation from rest to now, in the rest pose's own (screen) frame.
+        // For angles this small its vector part is half the rotation axis
+        // times the angle. Looking at a screen from in front, a turn about
+        // its vertical axis by w.y puts the eye at -w.y across it, and a turn
+        // about its horizontal axis by w.x puts the eye at +w.x up it.
+        _qTilt.copy(tiltRest).invert().multiply(_qDevice);
+        const s = _qTilt.w < 0 ? -2 : 2;   // same rotation, shorter way round
+        if (!isDragging) {
+          tiltTargetX = THREE.MathUtils.clamp(-s * _qTilt.y / TILT_FULL_RAD, -1, 1);
+          tiltTargetY = THREE.MathUtils.clamp( s * _qTilt.x / TILT_FULL_RAD, -1, 1);
         }
-        
-        let dGamma = (deviceOrientation.gamma || 0) - baseGamma;
-        let dBeta = (deviceOrientation.beta || 0) - baseBeta;
-
-        if (dGamma > 180) dGamma -= 360; else if (dGamma < -180) dGamma += 360;
-        if (dBeta > 180) dBeta -= 360; else if (dBeta < -180) dBeta += 360;
-
-        tiltX = THREE.MathUtils.lerp(tiltX, THREE.MathUtils.clamp(dGamma * 0.05, -1, 1), 0.1);
-        tiltY = THREE.MathUtils.lerp(tiltY, THREE.MathUtils.clamp(dBeta * 0.05, -1, 1), 0.1);
-      } else {
-        tiltX = THREE.MathUtils.lerp(tiltX, 0, 0.1);
-        tiltY = THREE.MathUtils.lerp(tiltY, 0, 0.1);
       }
+      const tiltK = 1 - Math.exp(-tiltDt / 0.08);   // a light low-pass against sensor jitter
+      tiltX += (tiltTargetX - tiltX) * tiltK;
+      tiltY += (tiltTargetY - tiltY) * tiltK;
 
       if (gyroActive && deviceOrientation) {
-        const alpha = deviceOrientation.alpha ? THREE.MathUtils.degToRad(deviceOrientation.alpha) : 0;
-        const beta = deviceOrientation.beta ? THREE.MathUtils.degToRad(deviceOrientation.beta) : 0;
-        const gamma = deviceOrientation.gamma ? THREE.MathUtils.degToRad(deviceOrientation.gamma) : 0;
-        const orient = screenOrientation ? THREE.MathUtils.degToRad(screenOrientation) : 0;
-        gyroEuler.set(beta, alpha, -gamma, 'YXZ');
-        
-        const qGyro = new THREE.Quaternion().setFromEuler(gyroEuler).multiply(gyroQ1).multiply(gyroQ0.setFromAxisAngle(zee, -orient));
-        
+        const qGyro = deviceQuaternion(_qDevice);
+
         panEuler.set(THREE.MathUtils.degToRad(panLat), THREE.MathUtils.degToRad(panLon), 0, 'YXZ');
         panOffset.setFromEuler(panEuler);
-        
+
         camera.quaternion.copy(panOffset).multiply(qGyro);
       } else {
         phi = THREE.MathUtils.degToRad(90 - lat); 
@@ -2194,16 +2262,31 @@
 
           orbitRadius = -0.35 * excursion;
 
+          // How the sideways budget is split. With a mouse, pointer parallax
+          // and the idle drift take half each. A phone with live tilt and the
+          // gyroscope not steering hands most of it to tilt, its one
+          // continuous input, and quiets the drift to make room — the two
+          // still sum to the same ceiling, so nothing can be pushed past it.
+          // With gyro look on, tilt is turning the view as well, and a large
+          // eye offset on top of that swims, so it keeps a small share.
+          const tiltLed = tiltLive && !gyroActive;
+          const driftShare = tiltLed ? 0.4 : 1.0;
+
           const floatTime = performance.now() * 0.0006;
-          swayX = (Math.sin(floatTime) * 0.35 + Math.cos(floatTime * 0.7) * 0.15) * excursion;
-          swayY = (Math.cos(floatTime * 1.1) * 0.25 + Math.sin(floatTime * 0.8) * 0.10) * excursion;
+          swayX = (Math.sin(floatTime) * 0.35 + Math.cos(floatTime * 0.7) * 0.15) * excursion * driftShare;
+          swayY = (Math.cos(floatTime * 1.1) * 0.25 + Math.sin(floatTime * 0.8) * 0.10) * excursion * driftShare;
 
-          parallaxStrength = (gyroActive ? 0.2 : 0.5) * excursion;
-      } 
+          parallaxStrength = (gyroActive ? 0.2 : tiltLed ? 0.8 : 0.5) * excursion;
+      }
 
-      camera.translateZ(orbitRadius); 
-      camera.translateX(swayX + (currentMouseX + tiltX) * parallaxStrength);
-      camera.translateY(swayY + (currentMouseY + tiltY) * parallaxStrength);
+      // Pointer and tilt share one allowance. Summed unclamped, a finger at
+      // the edge of the screen plus a full tilt came to twice the share.
+      const lookX = THREE.MathUtils.clamp(currentMouseX + tiltX, -1, 1);
+      const lookY = THREE.MathUtils.clamp(currentMouseY + tiltY, -1, 1);
+
+      camera.translateZ(orbitRadius);
+      camera.translateX(swayX + lookX * parallaxStrength);
+      camera.translateY(swayY + lookY * parallaxStrength);
 
       if (isTransitioning) {
         renderer.setRenderTarget(rtNew);

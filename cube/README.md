@@ -141,6 +141,17 @@ and gyro tilt are all fractions of that one budget, so they cannot sum past it.
 `nearRadius` is recomputed by `setDisplacement()`, so the budget tracks the
 slider live.
 
+How the sideways budget is split depends on the input. With a mouse, pointer
+parallax and the idle drift take half each. A phone has no hovering pointer —
+a finger is busy turning the view — so when tilt data is live and gyro look is
+off, **tilt takes 0.8 and the drift is cut to 0.2**. Tilt is the phone's
+rotation since a rest pose that settles over `TILT_SETTLE_S` (4 s), taken as a
+quaternion in the screen's frame so landscape works, and treated as a window:
+tilt the right edge away and the eye moves left. `TILT_FULL_DEG` (12°) spends
+the whole share. Before this, a held 10° tilt moved the camera 0.05 units for a
+quarter of a second and nothing after a second; now it is 0.26, and still 0.14
+three seconds on.
+
 ## The seam invariant
 
 **This is the rule most likely to be broken by accident.**
@@ -252,6 +263,19 @@ directory — never into the repo — and expect five non-obvious things:
 points 3–5, in that order of likelihood — not a rendering bug. `FRAG_BLOCK` is a
 50-column block wipe, so a transition caught mid-reveal looks exactly like a
 partial raster.
+
+**Testing tilt.** Emulate a phone, step rAF by hand, and dispatch
+`new DeviceOrientationEvent('deviceorientation', {alpha, beta, gamma})`. Four
+traps: this Chromium has `DeviceOrientationEvent.requestPermission()` and
+answers `prompt` unless the context calls
+`grantPermissions(['accelerometer', 'gyroscope', 'magnetometer'])`; the grant
+resolves asynchronously, so wait after the first tap or your "rest" pose is
+recorded before the page is listening; Playwright's landscape devices leave
+`screen.orientation.angle` at 0, so set it with CDP
+`Emulation.setDeviceMetricsOverride({ screenOrientation: { type:
+'landscapePrimary', angle: 90 } })`; and to measure the camera rather than
+pixels, serve a copy of three.js whose `render()` records the camera and can
+skip drawing — SwiftShader cannot draw hundreds of stepped frames in time.
 
 Two measurements worth reusing, because they turn "looks better" into a number:
 
