@@ -1753,6 +1753,115 @@
     // a bigger atlas only costs memory.
     const DEPTH_CELL_MIN = 512, DEPTH_CELL_MAX = 1024;
 
+    // --- Shaping depth for a mesh ---
+    //
+    // A depth map is a picture of distances; the mesh is one continuous sheet
+    // bent to match it. Two kinds of detail survive the first and not the
+    // second, and both showed up on Voltaic's walkway once head tracking moved
+    // the eye far enough to see them:
+    //
+    //  - See-through gaps. The walkway's side channels are slatted, and the
+    //    canyon floor shows between the slats, so the map has each gap a
+    //    long way behind its slats (107 against 130 at the near end). The
+    //    mesh is too coarse to follow a slat; it averages them, and the whole
+    //    channel sank into a trough behind the beam beside it. Moving the eye
+    //    then slid the slat texture along under the beam's edge — "the
+    //    pathway sliding around inside a slot". One sheet cannot show a floor
+    //    moving separately behind a grating at all, so the honest choice is to
+    //    treat the grating as solid. A morphological closing on nearness
+    //    (grow near, then shrink back by the same radius) fills far gaps
+    //    narrower than about 2 * DEPTH_CLOSE_FRAC of a face — some 1.5° —
+    //    inside nearer surfaces, and leaves every outline where it was.
+    //
+    //  - Edges. Where a near object meets a far one the sheet has to stretch,
+    //    and the vertex low-pass spreads that stretch across the edge, so half
+    //    of it was drawn with the near object's own border pixels — the
+    //    object's edge smeared out behind it, as down the walkway's left side.
+    //    Growing nearness by one more mesh quad puts the whole stretch just
+    //    outside the object, where it carries the background's colour, which
+    //    the eye forgives far more readily.
+    //
+    // Run once per map at load, cell by cell so an atlas never mixes faces,
+    // with running-window maxima so the cost does not grow with the radius.
+    // Not applied to a two-layer (LDI) upload, whose foreground depth is also
+    // its transparency mask: growing it would grow the mask.
+    const DEPTH_CLOSE_FRAC = 0.008;
+
+    // Running maximum over [i - r, i + r] along one line, edges clamped.
+    function slideMax(src, dst, start, stride, n, r, q) {
+      let head = 0, tail = 0, next = 0;
+      for (let i = 0; i < n; i++) {
+        const hi = Math.min(n - 1, i + r);
+        while (next <= hi) {
+          const v = src[start + next * stride];
+          while (tail > head && src[start + q[tail - 1] * stride] <= v) tail--;
+          q[tail++] = next++;
+        }
+        while (q[head] < i - r) head++;
+        dst[start + i * stride] = src[start + q[head] * stride];
+      }
+    }
+
+    // Shape a depth image in place, cell by cell (cols x rows cells).
+    function shapeDepthPixels(img, cols, rows) {
+      const W = img.width, H = img.height, d = img.data;
+      const v = new Uint8Array(W * H), tmp = new Uint8Array(W * H);
+      const q = new Int32Array(Math.max(W, H));
+      for (let i = 0; i < v.length; i++) v[i] = d[i * 4];
+      const cells = [];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        const x0 = Math.round(c * W / cols), x1 = Math.round((c + 1) * W / cols);
+        const y0 = Math.round(r * H / rows), y1 = Math.round((r + 1) * H / rows);
+        const size = Math.min(x1 - x0, y1 - y0);
+        cells.push({ x0, y0, w: x1 - x0, h: y1 - y0,
+                     close: Math.round(size * DEPTH_CLOSE_FRAC),
+                     edge: Math.max(1, Math.round(size / CUBE_SEGMENTS)) });
+      }
+      const dilate = (cell, radius) => {
+        if (radius <= 0) return;
+        const { x0, y0, w, h } = cell;
+        for (let y = y0; y < y0 + h; y++) slideMax(v, tmp, y * W + x0, 1, w, radius, q);
+        for (let x = x0; x < x0 + w; x++) slideMax(tmp, v, y0 * W + x, W, h, radius, q);
+      };
+      const invert = () => { for (let i = 0; i < v.length; i++) v[i] = 255 - v[i]; };
+      // Grow nearness by close + edge, then shrink by close: a closing, plus
+      // a net growth of one quad. Shrinking is growing the inverse.
+      cells.forEach(cell => dilate(cell, cell.close + cell.edge));
+      invert();
+      cells.forEach(cell => dilate(cell, cell.close));
+      invert();
+      for (let i = 0; i < v.length; i++) { d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v[i]; d[i * 4 + 3] = 255; }
+    }
+
+    function shapeDepthCanvas(canvas, cols, rows) {
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        shapeDepthPixels(img, cols, rows);
+        ctx.putImageData(img, 0, 0);
+      } catch (e) {
+        // A tainted canvas can't be read; the raw map still works.
+        console.warn('Depth shaping skipped:', e);
+      }
+    }
+
+    // The same for an atlas that arrived as an image: redraw it to a canvas,
+    // shape it in the layout's cells, and hand back a texture carrying the
+    // original's stitched width (the gutter is measured against it).
+    function shapeDepthAtlasTex(tex, layout) {
+      if (!tex || tex === dummyDepthTex || !isDrawable(tex.image) || !layout) return tex;
+      const img = tex.image;
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      shapeDepthCanvas(canvas, layout.cols, layout.rows);
+      const out = prepareDepthTex(new THREE.CanvasTexture(canvas));
+      out.userData.sourceWidth = sourceWidthOf(tex);
+      out.userData.sourceHeight = sourceHeightOf(tex);
+      tex.dispose();
+      return out;
+    }
+
     function buildDepthAtlas(images) {
         if (!images.some(isDrawable)) return null;
         const largest = Math.max(...images.filter(isDrawable).map(i => Math.max(i.width, i.height)));
@@ -1774,6 +1883,7 @@
             const c = DEPTH_CELL_OF_FACE[face];
             ctx.drawImage(img, (c % 3) * cell, Math.floor(c / 3) * cell, cell, cell);
         });
+        shapeDepthCanvas(canvas, 3, 2);
 
         const tex = new THREE.CanvasTexture(canvas);
         tex.colorSpace = THREE.NoColorSpace;
@@ -1998,7 +2108,7 @@
             colorTex.wrapS = THREE.ClampToEdgeWrapping; colorTex.wrapT = THREE.ClampToEdgeWrapping;
             colorTex.needsUpdate = true;
 
-            const depthTex = prepareDepthTex(rawDepth === dummyDepthTex ? rawDepth : fitToGpu(rawDepth));
+            let depthTex = prepareDepthTex(rawDepth === dummyDepthTex ? rawDepth : fitToGpu(rawDepth));
 
             // The colour and depth atlases are authored at different sizes
             // (Edanna's are 3200 and 2668 wide), so each is read on its own
@@ -2006,6 +2116,7 @@
             const layoutId = agreedLayout([
               ['The colour atlas', colorTex], ['The depth atlas', depthTex],
             ]).id;
+            depthTex = shapeDepthAtlasTex(depthTex, LAYOUTS[layoutId]);
 
             hasActiveDepth = depthTex !== dummyDepthTex;
             depthControlsContainer.style.display = hasActiveDepth ? 'flex' : 'none';
@@ -2064,7 +2175,7 @@
             // 5120 wide — over the 4096 limit of most phones, where the depth
             // upload failed and the scene stayed flat.
             const fgC = processAtlasTex(loaded[0], true);
-            const fgD = processAtlasTex(loaded[1], false);
+            let fgD = processAtlasTex(loaded[1], false);
             const bgC = processAtlasTex(loaded[2], true);
             const bgD = processAtlasTex(loaded[3], false);
 
@@ -2077,6 +2188,9 @@
               ['FG Color', fgC], ['FG Depth', fgD],
               ['BG Color', isDualLayer ? bgC : null], ['BG Depth', isDualLayer ? bgD : null],
             ]) || LAYOUTS['5x3']).id;
+            // A single layer is shaped like any other map; a two-layer
+            // foreground's depth is also its mask, and is left as drawn.
+            if (!isDualLayer) fgD = shapeDepthAtlasTex(fgD, LAYOUTS[layoutId]);
 
             // A BG Depth with no BG Color is never drawn, so it alone must not
             // bring up a depth slider that moves nothing.

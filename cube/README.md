@@ -96,6 +96,28 @@ The *raw* value still drives the fragment stage. `depthAt()` is raw;
 in a dual-layer LDI foreground a literal zero means "nothing here", and
 stretching that floor would break the transparency mask.
 
+### 1½. Shaping the map for a mesh
+
+A depth map can hold detail a single bent sheet cannot show, and two kinds
+of it went wrong on Voltaic's walkway once head tracking moved the eye far
+enough. Its slatted side channels show the canyon floor between the slats, so
+the map put each gap far behind its slat; the mesh averaged them, the channel
+sank into a trough behind the beam, and the slat texture slid along under the
+beam's edge. And where the sheet stretches at a near/far edge, the vertex
+low-pass spread the stretch across the edge, so half of it was drawn with the
+near object's own border pixels.
+
+`shapeDepthPixels()` therefore runs once per map at load, per atlas cell: a
+morphological **closing** on nearness, radius `DEPTH_CLOSE_FRAC` (0.8%) of a
+face, which fills far gaps under ~1.5° inside nearer surfaces without moving
+any outline, plus a **net growth of one mesh quad**, which puts each edge's
+stretch just outside the near object, in background colour. Measured on the
+walkway: the left channel read 108–120 between its slats against the beam's
+130–136 and now reads 123–124. Running-window maxima make it independent of
+radius: ~25 ms for a 512 px face, ~300 ms for Edanna's whole 2668×1600 atlas
+on a desktop. A two-layer (LDI) upload is left alone, since its foreground
+depth is also its transparency mask.
+
 ### 2. Reciprocal radius
 
 A monocular depth map stores **disparity** — roughly 1/z — so distance has to
