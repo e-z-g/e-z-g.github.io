@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 131.
+    Version 132.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=131"></script>
+<script src="sprites.js?v=132"></script>
 <script>
 'use strict';
 
@@ -953,9 +953,9 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     let f = feet.v;
     const nearUp = w ? w[7] : 0, farUp = w ? w[8] : 0;
     // walking away, a Fleen device under a Zoombini is seen from behind
-    // (walkAway), its two frames in turn
+    // (walkAway), the tick's device index picking one of its two frames
     if (w && w[9] >= 0 && f.walk) f = Object.assign({ behind: f.behind },
-      w[10] && f.walkAway ? f.walkAway[w[9] % f.walkAway.length] : f.walk[w[9]]);
+      w[10] && f.walkAway ? f.walkAway[w[9] % f.walkAway.length] : f.walk[w[9] % f.walk.length]);
     const layers = w && f.units ? [lifted(f.units[0], farUp), lifted(f.units[1], nearUp)]
       : [lifted(f, f.back ? nearUp : 0)];
     const body = out.findIndex(p => p.name === 'body');
