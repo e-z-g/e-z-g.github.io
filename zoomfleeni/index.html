@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 139.
+    Version 140.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=139"></script>
+<script src="sprites.js?v=140"></script>
 <script>
 'use strict';
 
@@ -927,8 +927,9 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     // instead, which is the same size and has none.
     const noseless = kind === 'zoombini' && part.name === 'body' && (build.nose.borrowed || build.nose.none);
     // A Fleen's body has its snout in it, under its own nose, whose tip
-    // showed past a Zoombini nose; standing, it takes the body without it
-    // (snoutless in the exporter). Hopping, the snout is not past the nose.
+    // showed past a Zoombini nose; it takes the body without it (snoutless
+    // in the exporter), standing and in each frame that has one past the
+    // nose (not hopping).
     const snoutless = kind === 'fleen' && part.name === 'body' && build.nose.borrowed && !build.nose.none;
     if (noseless && !w && v.poses && v.poses[5]) {
       v = v.poses[5];
@@ -940,6 +941,7 @@ function variantsFor(kind, build, pose = REST, seat = null) {
         // borrowed hair with the head turned away: its back view (awayPoses)
         if (w[10] && v.awayPoses && v.awayPoses[key]) v = v.awayPoses[key];
         else if (key >= 0 && v.poses && v.poses[key]) v = v.poses[key];
+        if (snoutless && v.snoutless) v = v.snoutless;
       }
     } else {
       if (pose.facing && v.facings) v = v.facings[pose.facing];
