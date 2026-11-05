@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zoombinis Player</title>
+<!--
+  Logical Journey of the Zoombinis (1996), in the browser, with the Fleens'
+  hair, eyes, noses and feet on the Zoombinis - lemon-lime as well, with ?green;
+  whole Fleens in their place, with ?fleens - or as it shipped, with ?original.
+
+  None of the game is in this repository. The page fetches the Zomb's Lair
+  installer from archive.org through its /cors/ path (the one that sends a
+  CORS header), unpacks its Game folder - Windows 3.1 with the game
+  installed, and the game's CD image - with 7-Zip compiled to WebAssembly,
+  applies fleen-parts.json, fleen-green.json or fleens.json (only what the
+  mod changes: made by tools/make_web_patch.py in the zoombinis extraction
+  project), and runs the result under js-dos, DOSBox compiled to
+  WebAssembly. play-lib.js does the
+  unpacking, patching and bundling; the project checks it against its own
+  Python tools, and its archives come out byte for byte the same.
+
+  js-dos keeps each bundle it loads in the browser's storage, keyed by the
+  URL it fetched it from, and keys saved games the same way. So the page
+  gives the bundle a fixed name - with a checksum of the patch in it, so a
+  new patch builds a new one - and answers js-dos's fetch of that name by
+  building it. Later visits start from storage, saves and all. The page
+  keeps the 245 MB installer too (Cache Storage), so trying another mode
+  does not download it again.
+-->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/js-dos.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Grandstander:wght@500;700;800&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/js-dos.js"></script>
+<script src="play-lib.js"></script>
+<style>
+  /* The maker's look (index.html): the builder's night sky, cartoon
+     lettering in the Zoombini's blue, and the modes as the name bar's flat
+     stone plaques, the one playing pressed in to tan. */
+  :root { color-scheme: dark; --bg: #1c185a; --text: #f1dfb2; --tan: #e7b55a; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 500 15px/1.4 'Grandstander', 'Trebuchet MS', sans-serif; }
+  body { display: flex; flex-direction: column; height: 100dvh; }
+  header { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 12px; }
+  header b {
+    font: 400 1.7rem/1 'Chewy', 'Comic Sans MS', sans-serif; color: #9ebfff; margin-right: 4px;
+    text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000,
+                 1px 1px #000, -1px 1px #000, 1px -1px #000, -1px -1px #000, 2px 3px 0 #000;
+  }
+  header a {
+    color: #111; background: #828282; border: 2px solid #000; padding: 3px 10px 4px;
+    font-weight: 800; font-size: 0.9rem; text-decoration: none; text-shadow: 1px 1px 0 #c0c0c0;
+    box-shadow: inset 0 2px 0 #c0c0c0, inset -2px 0 0 #c0c0c0, inset 2px 0 0 #202020, inset 0 -2px 0 #202020;
+  }
+  header a:hover { filter: brightness(1.08); }
+  header a[aria-current] {
+    background: var(--tan); color: #4a1d08; text-shadow: 1px 1px 0 #f1dfb2;
+    box-shadow: inset 0 2px 0 #844a39, inset -2px 0 0 #844a39, inset 2px 0 0 #fefefe, inset 0 -2px 0 #fefefe;
+  }
+  #status { font-size: 0.9rem; opacity: 0.85; }
+  #status.error { color: #ff8f7a; opacity: 1; }
+  #fallback { display: none; font-size: 0.9rem; }
+  #fallback.shown { display: inline; }
+  #fallback label { color: var(--tan); text-decoration: underline; cursor: pointer; }
+  #fallback input { display: none; }
+  #dos { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<header>
+  <b>Zoombinis</b>
+  <a href="?" id="parts">Fleen parts</a>
+  <a href="?green" id="green">Green</a>
+  <a href="?fleens" id="fleens">Fleens</a>
+  <a href="?original" id="original">Original</a>
+  <span id="status">Starting…</span>
+  <span id="fallback">- or <label>use the installer on this device<input type="file" id="file"></label>
+    (<i>Logical Journey of the Zoombinis.exe</i>, from archive.org's Zomb's Lair item)</span>
+</header>
+<div id="dos"></div>
+<script>
+'use strict';
+
+const INSTALLER = 'https://archive.org/cors/LogicalJourneyOfTheZoombinis-ZombsLair/Logical%20Journey%20of%20the%20Zoombinis.exe';
+const ITEM = 'https://archive.org/details/LogicalJourneyOfTheZoombinis-ZombsLair';
+const JSDOS = 'https://cdn.jsdelivr.net/npm/js-dos@8.4.1/dist/';
+const PATCHES = { parts: 'fleen-parts.json', green: 'fleen-green.json', fleens: 'fleens.json', original: null };
+const params = new URLSearchParams(location.search);
+const mode = Object.keys(PATCHES).find(k => params.has(k)) || 'parts';
+document.getElementById(mode).setAttribute('aria-current', 'page');
+
+const statusEl = document.getElementById('status');
+function say(text, error = false) {
+  statusEl.textContent = text;
+  statusEl.classList.toggle('error', error);
+}
+const MB = n => (n / 1e6).toFixed(0) + ' MB';
+const TOUCH = matchMedia('(pointer: coarse)').matches;
+
+// The installer: a file chosen here if there is one, otherwise the copy kept
+// from an earlier visit, otherwise archive.org.
+let chosen = null;
+async function installer() {
+  if (chosen) return chosen;
+  let cache = null;
+  try {
+    cache = await caches.open('zoombinis-installer');
+    const kept = await cache.match(INSTALLER);
+    if (kept) {
+      say('Using the game downloaded earlier…');
+      return await kept.blob();
+    }
+  } catch (e) {}
+  say('Downloading the game from archive.org… (once; about 245 MB)');
+  const res = await realFetch(INSTALLER);
+  if (!res.ok) throw new Error(`archive.org answered ${res.status}`);
+  const total = Number(res.headers.get('Content-Length')) || 245577757;
+  const reader = res.body.getReader(), chunks = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    say(`Downloading the game from archive.org: ${MB(got)} of ${MB(total)} (once)`);
+  }
+  const blob = new Blob(chunks);
+  if (cache) try { await cache.put(INSTALLER, new Response(blob)); } catch (e) {}   // no room: next time downloads again
+  return blob;
+}
+
+// Build the js-dos bundle: download, unpack, patch, zip.
+async function build(patch) {
+  const exe = await installer();
+  say('Unpacking Windows 3.1 and the game…');
+  const game = await ZoombiniPlay.unpack(exe);
+  say(patch ? 'Turning the Zoombinis into Fleens…' : 'Packing the game for js-dos…');
+  await new Promise(r => setTimeout(r, 30));             // let the message paint
+  const blob = new Blob(ZoombiniPlay.bundle(game, patch));
+  say('Starting Windows 3.1…');
+  return new Response(blob, { status: 200, headers: { 'Content-Length': String(blob.size) } });
+}
+
+// js-dos fetches the bundle by name after looking in its own storage; that
+// one name is answered by building it, anything else goes out as usual.
+const realFetch = window.fetch.bind(window);
+let bundleName = null, patchData = null;
+window.fetch = (input, init) => {
+  const url = typeof input === 'string' ? input : input.url;
+  if (bundleName && url === bundleName) {
+    return build(patchData).catch(e => {
+      say(`Could not get the game: ${e.message}. `, true);
+      document.getElementById('fallback').classList.add('shown');
+      throw e;
+    });
+  }
+  return realFetch(input, init);
+};
+
+let dos = null;
+async function start() {
+  if (dos && dos.stop) { try { await dos.stop(); } catch (e) {} }
+  document.getElementById('dos').innerHTML = '';
+  let tag = 'original';
+  patchData = null;
+  if (PATCHES[mode]) {
+    const text = await (await realFetch(PATCHES[mode])).text();
+    patchData = JSON.parse(text);
+    tag = PATCHES[mode].replace('.json', '-') + ZoombiniPlay.crc32(new TextEncoder().encode(text)).toString(16);
+  }
+  bundleName = `zoombinis-${tag}.jsdos`;
+  say(chosen ? 'Using the installer from this device…' : 'Looking for the game in this browser…');
+  dos = Dos(document.getElementById('dos'), {
+    url: bundleName,
+    pathPrefix: JSDOS + 'emulators/',
+    autoStart: true,
+    // Windows 3.1 only understands a mouse that moves, not one that jumps to
+    // where the finger is: js-dos's default turns each touch into a move
+    // towards that spot, Windows accelerates it, and the pointer falls short
+    // of the edges (the builder's tiles, at the bottom, were out of reach).
+    // Captured, a touch screen is a trackpad - drag to move, tap to click -
+    // and a mouse is locked to the game, as Windows expects.
+    mouseCapture: true,
+    onEvent: event => {
+      if (event === 'ci-ready') say(TOUCH
+        ? 'Running. Drag anywhere to move the pointer, like a trackpad; tap to click.'
+        : 'Running. Click the game to use the mouse; Esc gives it back.');
+    },
+  });
+}
+
+document.getElementById('file').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  chosen = f;
+  document.getElementById('fallback').classList.remove('shown');
+  start().catch(err => say('Could not start: ' + err.message, true));
+});
+
+start().catch(err => say('Could not start: ' + err.message, true));
+</script>
+</body>
+</html>

@@ -46,7 +46,7 @@ cube/                 cubemap VR viewer + face stitcher (ES modules, three.js)
 ev/                   star/planet viewer
 fpqr/                 Fancy-Pants QR encoder (index.html + css/ + js/)
 wine/                 VinoVision inventory/AR tool
-zoombinis/            Zoombini (and Fleen) maker, classic scripts, opens from file://
+zoomfleeni/           Zoomfleeni Maker (Zoombinis and Fleens), classic scripts, opens from file://
   index.html            the page
   sprites.js            GENERATED from the 1996 game's data by tools/export_web.py
                         in the zoombinis extraction project; re-run that rather
@@ -62,6 +62,8 @@ zoombinis/            Zoombini (and Fleen) maker, classic scripts, opens from fi
   fleen-parts.json      GENERATED: only what the mod changes, by tools/make_web_patch.py
   fleen-green.json      in the zoombinis extraction project (tools/mod_fleen_parts.py
   fleens.json           without and with --green; tools/mod_fleens.py)
+zoombinis/            where the maker was until 4 November 2026: index.html and
+                      play.html forward to zoomfleeni/, keeping a link's # and ?
 ```
 
 ## The two code regimes
