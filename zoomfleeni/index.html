@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 137.
+    Version 138.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=137"></script>
+<script src="sprites.js?v=138"></script>
 <script>
 'use strict';
 
@@ -1445,7 +1445,10 @@ function boxes(kind) {
         const seen = new Set();
         for (const t of c.ticks) {
           const key = t.join();
-          if (seen.has(key)) continue;
+          // (a Fleen's travel, its dash, and its jump go past the box: its
+          // wheels' dust and rockets' flames, and the jump's height, had it
+          // drawn smaller, Sam)
+          if (seen.has(key) || t[14]) continue;
           seen.add(key);
           const pose = poseAt(c, t), seat = {};
           const bb = drawnBounds(kind, build, pose, seat);
@@ -3067,6 +3070,7 @@ function animationsFor(kind, build) {
   const go = goingOf(build);
   const names = kind === 'zoombini' ? { 0: go + ' towards us', 2: go + ' along', 3: go + ' away' }
     : walk.dirs.length === 1 ? { 0: 'Riding along' }
+    : !build.feet.borrowed && !build.feet.none ? { 0: 'Dashing along', 2: go + ' towards us' }
     : walk.dirs.length === 3 ? { 0: go + ' along', 2: go + ' towards us' }
     : { 0: go + ' along' };
   for (const [d, label] of Object.entries(names)) {
