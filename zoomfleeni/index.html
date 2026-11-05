@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 153.
+    Version 154.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=153"></script>
+<script src="sprites.js?v=154"></script>
 <script>
 'use strict';
 
@@ -2491,15 +2491,42 @@ const sounds = (() => {
   let ctx = null, muted = true, feet = null;
   try { muted = localStorage.getItem(SOUND_KEY) !== '0'; } catch (e) { muted = true; }
   const buffers = new Map();
+  // Nothing sounds while the page is out of sight or out of focus: another
+  // tab, another app, the phone locked. The animation's timer goes on
+  // ticking there (a phone only slows it), so on a phone the feet and the
+  // chatter went on playing from a tab no one was looking at (Sam, 5
+  // November 2026). Going away stops what is playing and suspends the
+  // context, and nothing new starts until the page is back.
+  let away = document.hidden || !document.hasFocus();
+  const live = new Set();
   function context() {
+    if (away) return null;
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       ctx = new AC();
     }
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
     return ctx;
   }
+  function setAway(a) {
+    if (a === away) return;
+    away = a;
+    if (!ctx) return;
+    if (away) {
+      for (const h of [...live]) h.halt();
+      feet = null;
+      ctx.suspend().catch(() => {});
+    } else if (!muted) {
+      ctx.resume().catch(() => {});
+    }
+  }
+  const check = () => setAway(document.hidden || !document.hasFocus());
+  document.addEventListener('visibilitychange', check);
+  window.addEventListener('blur', () => setAway(true));
+  window.addEventListener('focus', check);
+  window.addEventListener('pagehide', () => setAway(true));
+  window.addEventListener('pageshow', check);
   // a sound's samples, or null if it cannot be had (opened from file://)
   function load(file) {
     if (!buffers.has(file)) {
@@ -2516,14 +2543,21 @@ const sounds = (() => {
     handle.stop = () => { handle.stopped = true; };
     if (muted || !context()) return handle;
     load(file).then(buf => {
-      if (!buf || handle.stopped || muted) return;
+      if (!buf || handle.stopped || muted || away) return;
       const src = ctx.createBufferSource(), gain = ctx.createGain();
       src.buffer = buf;
       src.connect(gain).connect(ctx.destination);
+      src.onended = () => live.delete(handle);
+      live.add(handle);
       src.start();
       handle.stop = () => {
         gain.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
         src.stop(ctx.currentTime + 0.2);
+      };
+      // at once, for going away: a fade would wait on a suspended clock
+      handle.halt = () => {
+        live.delete(handle);
+        try { src.stop(); } catch (e) { /* already stopped */ }
       };
     });
     return handle;
@@ -2544,7 +2578,9 @@ const sounds = (() => {
       if (m) stopFeet();
       try { localStorage.setItem(SOUND_KEY, m ? '1' : '0'); } catch (e) { /* not remembered */ }
     },
-    wake: context,
+    // a click or a key means the page is in use, even before its focus
+    // event: Safari lets a context start only inside such a gesture
+    wake() { if (!document.hidden) setAway(false); return context(); },
     builder: what => play('PICKER-' + S.sounds.builder[what]),
     play: file => play(file),
     // a hat's own, as it is put on
