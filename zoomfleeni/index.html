@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 133.
+    Version 134.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=133"></script>
+<script src="sprites.js?v=134"></script>
 <script>
 'use strict';
 
@@ -1437,7 +1437,8 @@ function boxes(kind) {
       const each = [undefined, ...BOX_HATS].map(() => empty());   // no hat, then each hat
       const walk = walkOf(kind, build), special = specialOf(kind, build);
       const clips = walk.dirs.map((ticks, d) => ({ ticks, walk: true, faces: facesAt(walk.faces, d) }))
-        .concat(idlesOf(kind).concat(special ? [special] : []).map(ticks => ({ ticks, walk: false })));
+        .concat(idlesOf(kind).concat(special ? [special] : []).map(ticks => ({ ticks, walk: false })))
+        .concat(stillsOf(kind, build));
       for (const c of clips) {
         const seen = new Set();
         for (const t of c.ticks) {
@@ -2483,7 +2484,7 @@ const sounds = (() => {
     // tumble's cry, a hat's own
     onPose(p, c, at) {
       const kind = state.kind, build = state.build[kind], f = build.feet, snd = S.sounds;
-      if (c.walk && !f.none && f.v < 5) {
+      if (c.walk && !c.still && !f.none && f.v < 5) {
         // the feet sound as whose they are, on either body: a Fleen's run,
         // or a Zoombini's steps
         if ((kind === 'fleen') !== f.borrowed) {
@@ -2496,7 +2497,7 @@ const sounds = (() => {
           const steps = snd.zoombiniFeet[f.v];
           for (const [t, file] of steps.cues) if (at % steps.loop === t) play(file);
         }
-      } else if (c.walk && !f.none && at === 0) {
+      } else if (c.walk && !c.still && !f.none && at === 0) {
         // feet found elsewhere with a sound of their own (the mine cart's)
         const e = S.characters[kind].borrowed.feet[f.v];
         if (e && e.walkSound) { stopFeet(); feet = play(e.walkSound); }
@@ -2680,6 +2681,14 @@ function fallPoses(kind, build) {
 
 // Clips are {ticks, walk} or {dirs, walk}, a walk with a clip per direction;
 // a direction, and left or right, is picked as it starts.
+// Standing still in poses the idles cannot show (stills in the exporter): a
+// Zoombini's idles turned further, feet and all, and a Fleen's jump on the
+// spot, in its own feet only (its frames are its feet's). Played as walks
+// are, a tick setting every part's pose, but in the standing frames'
+// facing, and making no walking sounds.
+const stillsOf = (kind, build) => (S.characters[kind].stills || [])
+  .filter(s => s.feet === undefined || (!build.feet.borrowed && !build.feet.none && build.feet.v === s.feet))
+  .map(s => ({ ticks: s.ticks, walk: true, still: true, faces: S.characters[kind].faces.rest, sounds: s.sounds }));
 function clipsFor(kind) {
   const build = state.build[kind];
   // (idlesOf has the Fleen's page blink in already)
@@ -2689,7 +2698,7 @@ function clipsFor(kind) {
   const out = clips.map(ticks => ({ ticks, walk: false }));
   const walk = walkOf(kind, build);
   for (let i = 0; i < WALK_WEIGHT; i++) out.push({ dirs: walk.dirs, walk: true, faces: walk.faces });
-  return out;
+  return out.concat(stillsOf(kind, build));
 }
 
 // The extras' animations - the crab leaping on, the bee buzzing in - on a
