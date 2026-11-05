@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 143.
+    Version 144.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=143"></script>
+<script src="sprites.js?v=144"></script>
 <script>
 'use strict';
 
@@ -923,16 +923,18 @@ function variantsFor(kind, build, pose = REST, seat = null) {
       : borrowed ? ch.borrowed[part.name][pick.v] : part.variants[pick.v];
     // A Zoombini's body has its own nose's shape in it - a round socket
     // facing the viewer, a bump in profile - which showed round a borrowed
-    // nose, or with none; standing, it takes the egg of its walk's bob
-    // instead, which is the same size and has none.
+    // nose, or with none; standing, it takes its body with the socket taken
+    // out (noseless), and turned, the egg of its walk's bob, which has none.
     const noseless = kind === 'zoombini' && part.name === 'body' && (build.nose.borrowed || build.nose.none);
     // A Fleen's body has its snout in it, under its own nose, whose tip
     // showed past a Zoombini nose; it takes the body without it (snoutless
     // in the exporter), standing and in each frame that has one past the
     // nose (not hopping).
     const snoutless = kind === 'fleen' && part.name === 'body' && build.nose.borrowed && !build.nose.none;
-    if (noseless && !w && v.poses && v.poses[5]) {
-      v = v.poses[5];
+    // (standing, its own body with the socket taken out, `noseless`, so its
+    // shape stays as the nose changes, Sam; turned, the egg)
+    if (noseless && !w && (v.noseless || (v.poses && v.poses[5]))) {
+      v = !pose.facing && v.noseless ? v.noseless : v.poses[5];
     } else if (snoutless && !w && v.snoutless) {
       v = v.snoutless;
     } else if (w) {
@@ -958,8 +960,10 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     const nearUp = w ? w[7] : 0, farUp = w ? w[8] : 0;
     // walking away, a Fleen device under a Zoombini is seen from behind
     // (walkAway), the tick's device index picking one of its two frames
+    // (the treads walking away: their walk's frames turned, `flipAway`)
     if (w && w[9] >= 0 && f.walk) f = Object.assign({ behind: f.behind },
-      w[10] && f.walkAway ? f.walkAway[w[9] % f.walkAway.length] : f.walk[w[9] % f.walk.length]);
+      w[10] && f.walkAway ? f.walkAway[w[9] % f.walkAway.length] : f.walk[w[9] % f.walk.length],
+      w[10] && f.flipAway ? { flip: true } : {});
     const layers = w && f.units ? [lifted(f.units[0], farUp), lifted(f.units[1], nearUp)]
       : [lifted(f, f.back ? nearUp : 0)];
     const body = out.findIndex(p => p.name === 'body');
