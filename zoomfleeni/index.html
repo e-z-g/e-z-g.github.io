@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 135.
+    Version 136.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=135"></script>
+<script src="sprites.js?v=136"></script>
 <script>
 'use strict';
 
@@ -937,7 +937,9 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     } else if (w) {
       if (!(borrowed && part.name === 'feet' && !v.steps)) {
         const key = at(borrowed && part.name === 'hair' ? 'body' : part.name);
-        if (key >= 0 && v.poses && v.poses[key]) v = v.poses[key];
+        // borrowed hair with the head turned away: its back view (awayPoses)
+        if (w[10] && v.awayPoses && v.awayPoses[key]) v = v.awayPoses[key];
+        else if (key >= 0 && v.poses && v.poses[key]) v = v.poses[key];
       }
     } else {
       if (pose.facing && v.facings) v = v.facings[pose.facing];
@@ -1438,7 +1440,7 @@ function boxes(kind) {
       const walk = walkOf(kind, build), special = specialOf(kind, build);
       const clips = walk.dirs.map((ticks, d) => ({ ticks, walk: true, faces: facesAt(walk.faces, d) }))
         .concat(idlesOf(kind).concat(special ? [special] : []).map(ticks => ({ ticks, walk: false })))
-        .concat(stillsOf(kind, build));
+        .concat(stillsOf(kind, build), showOffOf(kind, build) || []);
       for (const c of clips) {
         const seen = new Set();
         for (const t of c.ticks) {
@@ -2557,6 +2559,15 @@ const idlesOf = kind => kind === 'fleen' ? S.characters.fleen.idles.concat([PAGE
 const loopsSpecial = (kind, build) => kind === 'fleen' && build.feet.borrowed && !build.feet.none
   && (S.characters.fleen.borrowed.feet[build.feet.v].special || []).some(f => f.drop);
 // The ticks its feet show off in, or null.
+// A Fleen in its own feet shows them off as the game has it shudder and
+// dash, on the spot (showOff in the exporter): a still whose dashing ticks
+// face as it hops.
+function showOffOf(kind, build) {
+  const ch = S.characters[kind], f = build.feet;
+  if (kind !== 'fleen' || f.borrowed || f.none || !ch.showOff || !ch.showOff[f.v]) return null;
+  const s = ch.showOff[f.v];
+  return { ticks: s.ticks, walk: true, still: true, faces: ch.faces.rest, turnFaces: ch.faces.own, sounds: s.sounds };
+}
 function specialOf(kind, build) {
   const ch = S.characters[kind], feet = build.feet;
   // (none in the Fleen's stepping shoes: the sneakers' showing off is seen
@@ -2584,8 +2595,10 @@ function walkOf(kind, build) {
 }
 // The pose a clip's tick puts the figure in. A hat's own clip (`hat`) moves
 // only the hat: its ticks are [set, dx, dy].
+// (a still's tick may face otherwise: a 14th number of 1 has its frames
+// facing as the walk's do, `turnFaces`, as a Fleen dashes showing off)
 const poseAt = (clip, t) => clip.walk
-  ? Object.assign({}, REST, { walk: t, dx: t[0], dy: t[1], faces: clip.faces })
+  ? Object.assign({}, REST, { walk: t, dx: t[0], dy: t[1], faces: t[13] && clip.turnFaces ? clip.turnFaces : clip.faces })
   : clip.hat ? Object.assign({}, REST, { hat: t })
   : Object.assign({}, REST, { eyes: t[0], dx: t[1], dy: t[2], facing: t[3], feet: t[4] });
 // The tumble as poses: the character's ticks (tumble_clip in the exporter),
@@ -2695,9 +2708,11 @@ function clipsFor(kind) {
   const clips = idlesOf(kind).slice();
   const special = specialOf(kind, build);
   for (let i = 0; special && i < SPECIAL_WEIGHT; i++) clips.push(special);
+  const showOff = showOffOf(kind, build);
   const out = clips.map(ticks => ({ ticks, walk: false }));
   const walk = walkOf(kind, build);
   for (let i = 0; i < WALK_WEIGHT; i++) out.push({ dirs: walk.dirs, walk: true, faces: walk.faces });
+  for (let i = 0; showOff && i < SPECIAL_WEIGHT; i++) out.push(showOff);
   return out.concat(stillsOf(kind, build));
 }
 
@@ -2938,6 +2953,7 @@ function updatePad() {
   const shown = Object.fromEntries(Object.entries(ways).filter(([way]) => way !== 'up' && way !== 'down'
         && !(kind === 'fleen' && (way === 'left' || way === 'right') && walkOf(kind, build).dirs.length === 2)));
   for (const b of document.querySelectorAll('#pad button[data-way]')) b.hidden = !(b.dataset.way in shown);
+  document.getElementById('btn-tumble').hidden = kind !== 'zoombini';
 }
 document.getElementById('pad').addEventListener('click', e => {
   const b = e.target.closest('button');
@@ -2946,6 +2962,9 @@ document.getElementById('pad').addEventListener('click', e => {
 // A tumble, now: as a rejected Zoombini goes head over heels, on the spot
 // (tumblePoses). Paused, it plays once.
 function tumbleNow() {
+  // only a Zoombini tumbles, as in the game (Sam, 5 November 2026: "maybe
+  // we remove the fleen tumble"); its star is hidden for a Fleen (updatePad)
+  if (state.kind !== 'zoombini') return;
   closeGIF();
   sounds.stopFeet();
   const build = state.build[state.kind];
@@ -3036,6 +3055,14 @@ function animationsFor(kind, build) {
   const special = specialOf(kind, build);
   if (special) out.push({ label: 'Showing off its feet',
                           poses: loopsSpecial(kind, build) ? idle(special) : rest(5).concat(idle(special), rest(5)) });
+  // the stills, each played whole: a Fleen's showing off and jump, a
+  // Zoombini's idles turned further
+  const played = c => c.ticks.map((t, n) => Object.assign(poseAt(c, t), { n }));
+  const showOff = showOffOf(kind, build);
+  if (showOff) out.push({ label: 'Showing off its feet', poses: rest(5).concat(played(showOff), rest(5)) });
+  const stills = stillsOf(kind, build);
+  if (stills.length) out.push({ label: kind === 'fleen' ? 'Jumping' : 'Looking around, turned',
+                                poses: stills.flatMap(c => rest(5).concat(played(c))).concat(rest(5)) });
   const walk = walkOf(kind, build);
   const go = goingOf(build);
   const names = kind === 'zoombini' ? { 0: go + ' towards us', 2: go + ' along', 3: go + ' away' }
@@ -3045,7 +3072,8 @@ function animationsFor(kind, build) {
   for (const [d, label] of Object.entries(names)) {
     if (walk.dirs[d]) out.push({ label, poses: walk.dirs[d].map((t, n) => Object.assign(poseAt({ walk: true, faces: facesAt(walk.faces, +d) }, t), { n })) });
   }
-  out.push({ label: 'Tumbling', poses: rest(3).concat(tumblePoses(kind, build), rest(5)) });
+  // (a Fleen does not tumble: see tumbleNow)
+  if (kind === 'zoombini') out.push({ label: 'Tumbling', poses: rest(3).concat(tumblePoses(kind, build), rest(5)) });
   // the hat's own: a woodpecker pecking, mud landing
   for (const k of build.extras || []) for (const a of ['arrive', 'idle', 'leave'].flatMap(kind => animsOf(k, kind))) {
     const at = t => Object.assign({}, REST, { extraHats: { [k]: t } });
