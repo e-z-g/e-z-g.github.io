@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 150.
+    Version 151.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=150"></script>
+<script src="sprites.js?v=151"></script>
 <script>
 'use strict';
 
@@ -1230,8 +1230,8 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
   const placed = pieces.map(p => ({ part: 'hat:' + hat, sprite: p.sprite, flip: left, back: h.on === 'back',
                                     rx: -Math.round(left ? cx - p.dx - fdx - ox - rect(p.sprite)[2] : cx + p.dx + fdx + ox),
                                     ry: -Math.round(cy + h.sink + p.dy + oy) }));
-  // each wing on the body: one that touches none of it moves toward the
-  // body's middle a pixel at a time until it does (Sam: "a wing or two is
+  // each wing on the body: one whose root is not on it moves toward the
+  // body's middle a pixel at a time until it is (Sam: "a wing or two is
   // still completely disconnected" on a thin or lying body)
   return wings ? placed.map(v => attached(v, body)) : placed;
 }
@@ -1256,15 +1256,30 @@ function overlapWith(v, body) {
   }
   return n;
 }
-const WING_HOLD = 4;                         // pixels a wing must have on the body
+// Whether most of a wing's root, its bottom WING_ROOT_ROWS rows, is on the body:
+// touching it only at a corner, it looked loose (Sam).
+const WING_ROOT_ROWS = 2;
+function rooted(v, body) {
+  const [w, h, m] = maskOf(v.sprite), [bw, bh, bm] = maskOf(body.sprite);
+  let bottom = -1;
+  for (let j = h - 1; j >= 0 && bottom < 0; j--) for (let i = 0; i < w; i++) if (m[j * w + i]) { bottom = j; break; }
+  let on = 0, all = 0;
+  for (let j = Math.max(0, bottom - WING_ROOT_ROWS + 1); j <= bottom; j++) for (let i = 0; i < w; i++) {
+    if (!m[j * w + (v.flip ? w - 1 - i : i)]) continue;
+    all++;
+    const x = i - v.rx + body.rx, y = j - v.ry + body.ry;
+    if (x >= 0 && x < bw && y >= 0 && y < bh && bm[y * bw + x]) on++;
+  }
+  return all > 0 && on * 2 > all;
+}
 function attached(v, body) {
-  if (overlapWith(v, body) >= WING_HOLD) return v;
+  if (rooted(v, body)) return v;
   const [w, h] = rect(v.sprite), [bw, bh] = rect(body.sprite);
   const mx = -v.rx + w / 2, my = -v.ry + h / 2, tx = -body.rx + bw / 2, ty = -body.ry + bh / 2;
   const len = Math.hypot(tx - mx, ty - my) || 1;
   for (let k = 1; k <= 30; k++) {
     const u = Object.assign({}, v, { rx: v.rx - Math.round((tx - mx) / len * k), ry: v.ry - Math.round((ty - my) / len * k) });
-    if (overlapWith(u, body) >= WING_HOLD) return u;
+    if (rooted(u, body)) return u;
   }
   return v;
 }
