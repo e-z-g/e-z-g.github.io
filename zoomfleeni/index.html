@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 144.
+    Version 145.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=144"></script>
+<script src="sprites.js?v=145"></script>
 <script>
 'use strict';
 
@@ -929,8 +929,8 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     // A Fleen's body has its snout in it, under its own nose, whose tip
     // showed past a Zoombini nose; it takes the body without it (snoutless
     // in the exporter), standing and in each frame that has one past the
-    // nose (not hopping).
-    const snoutless = kind === 'fleen' && part.name === 'body' && build.nose.borrowed && !build.nose.none;
+    // nose (not hopping), and with no nose (Sam).
+    const snoutless = kind === 'fleen' && part.name === 'body' && (build.nose.borrowed || build.nose.none);
     // (standing, its own body with the socket taken out, `noseless`, so its
     // shape stays as the nose changes, Sam; turned, the egg)
     if (noseless && !w && (v.noseless || (v.poses && v.poses[5]))) {
@@ -1103,7 +1103,7 @@ function tumbleVariants(kind, build, pose) {
     const pick = build[name] || {};
     if (pick.none) continue;
     const entry = name === 'body' ? ch.parts.find(q => q.name === 'body').variants[0] : partOf(kind, build, name);
-    const snout = name === 'body' && kind === 'fleen' && build.nose.borrowed && !build.nose.none && entry.tumbleSnoutless;
+    const snout = name === 'body' && kind === 'fleen' && (build.nose.borrowed || build.nose.none) && entry.tumbleSnoutless;
     const v = snout ? entry.tumbleSnoutless[p] : entry.tumble && entry.tumble[p], b = entry.tumbleBack && entry.tumbleBack[p];
     if (b) back.push(Object.assign({ part: name }, b));
     if (!v) continue;
