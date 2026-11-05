@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 130.
+    Version 131.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=130"></script>
+<script src="sprites.js?v=131"></script>
 <script>
 'use strict';
 
@@ -926,8 +926,14 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     // nose, or with none; standing, it takes the egg of its walk's bob
     // instead, which is the same size and has none.
     const noseless = kind === 'zoombini' && part.name === 'body' && (build.nose.borrowed || build.nose.none);
+    // A Fleen's body has its snout in it, under its own nose, whose tip
+    // showed past a Zoombini nose; standing, it takes the body without it
+    // (snoutless in the exporter). Hopping, the snout is not past the nose.
+    const snoutless = kind === 'fleen' && part.name === 'body' && build.nose.borrowed && !build.nose.none;
     if (noseless && !w && v.poses && v.poses[5]) {
       v = v.poses[5];
+    } else if (snoutless && !w && v.snoutless) {
+      v = v.snoutless;
     } else if (w) {
       if (!(borrowed && part.name === 'feet' && !v.steps)) {
         const key = at(borrowed && part.name === 'hair' ? 'body' : part.name);
@@ -946,7 +952,10 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     const [feet] = out.splice(out.findIndex(p => p.name === 'feet'), 1);
     let f = feet.v;
     const nearUp = w ? w[7] : 0, farUp = w ? w[8] : 0;
-    if (w && w[9] >= 0 && f.walk) f = Object.assign({ behind: f.behind }, f.walk[w[9]]);
+    // walking away, a Fleen device under a Zoombini is seen from behind
+    // (walkAway), its two frames in turn
+    if (w && w[9] >= 0 && f.walk) f = Object.assign({ behind: f.behind },
+      w[10] && f.walkAway ? f.walkAway[w[9] % f.walkAway.length] : f.walk[w[9]]);
     const layers = w && f.units ? [lifted(f.units[0], farUp), lifted(f.units[1], nearUp)]
       : [lifted(f, f.back ? nearUp : 0)];
     const body = out.findIndex(p => p.name === 'body');
@@ -1086,7 +1095,8 @@ function tumbleVariants(kind, build, pose) {
     const pick = build[name] || {};
     if (pick.none) continue;
     const entry = name === 'body' ? ch.parts.find(q => q.name === 'body').variants[0] : partOf(kind, build, name);
-    const v = entry.tumble && entry.tumble[p], b = entry.tumbleBack && entry.tumbleBack[p];
+    const snout = name === 'body' && kind === 'fleen' && build.nose.borrowed && !build.nose.none && entry.tumbleSnoutless;
+    const v = snout ? entry.tumbleSnoutless[p] : entry.tumble && entry.tumble[p], b = entry.tumbleBack && entry.tumbleBack[p];
     if (b) back.push(Object.assign({ part: name }, b));
     if (!v) continue;
     const sprite = name === 'body' ? v : Object.assign({ part: name }, v);
