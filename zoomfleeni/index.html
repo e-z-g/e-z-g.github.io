@@ -565,12 +565,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 146.
+    Version 147.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=146"></script>
+<script src="sprites.js?v=147"></script>
 <script>
 'use strict';
 
@@ -933,17 +933,19 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     const snoutless = kind === 'fleen' && part.name === 'body' && (build.nose.borrowed || build.nose.none);
     // (standing, its own body with the socket taken out, `noseless`, so its
     // shape stays as the nose changes, Sam; turned, the egg)
+    // (the cut bodies keep the whole one's crown and face, which a hat is
+    // seated by: without them nothing worn showed at rest, Sam)
     if (noseless && !w && (v.noseless || (v.poses && v.poses[5]))) {
-      v = !pose.facing && v.noseless ? v.noseless : v.poses[5];
+      v = !pose.facing && v.noseless ? Object.assign({}, v, v.noseless) : v.poses[5];
     } else if (snoutless && !w && v.snoutless) {
-      v = v.snoutless;
+      v = Object.assign({}, v, v.snoutless);
     } else if (w) {
       if (!(borrowed && part.name === 'feet' && !v.steps)) {
         const key = at(borrowed && part.name === 'hair' ? 'body' : part.name);
         // borrowed hair with the head turned away: its back view (awayPoses)
         if (w[10] && v.awayPoses && v.awayPoses[key]) v = v.awayPoses[key];
         else if (key >= 0 && v.poses && v.poses[key]) v = v.poses[key];
-        if (snoutless && v.snoutless) v = v.snoutless;
+        if (snoutless && v.snoutless) v = Object.assign({}, v, v.snoutless);
       }
     } else {
       if (pose.facing && v.facings) v = v.facings[pose.facing];
