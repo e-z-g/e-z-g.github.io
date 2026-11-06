@@ -559,7 +559,7 @@
         <button class="stone plate mix" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix Traits!</button>
         <button class="stone plate mix" id="btn-hues" aria-pressed="false" title="Roll new colors with the dice">Mix Colors!</button>
       </div>
-      <datalist id="tones"><option value="#9ebfff"></option><option value="#c9ee31"></option><option value="#ce5555"></option><option value="#ce9155"></option><option value="#cece55"></option><option value="#91ce55"></option><option value="#55ce55"></option><option value="#55ce91"></option><option value="#55cece"></option><option value="#5591ce"></option><option value="#5555ce"></option><option value="#9155ce"></option><option value="#ce55ce"></option><option value="#ce5591"></option><option value="#d09c8b"></option><option value="#bfd08b"></option><option value="#8bd09c"></option><option value="#8bbfd0"></option><option value="#9c8bd0"></option><option value="#d08bbf"></option><option value="#8a732e"></option><option value="#458a2e"></option><option value="#2e8a73"></option><option value="#2e458a"></option><option value="#732e8a"></option><option value="#8a2e45"></option><option value="#e6dfcf"></option><option value="#8f8a82"></option><option value="#4a4540"></option></datalist>
+      <datalist id="tones"><option value="#9ebfff"></option><option value="#c9ee31"></option><option value="#e02929"></option><option value="#e07e29"></option><option value="#e0c829"></option><option value="#29e038"></option><option value="#2975e0"></option><option value="#a329e0"></option><option value="#ce5555"></option><option value="#ce9155"></option><option value="#cece55"></option><option value="#91ce55"></option><option value="#55ce55"></option><option value="#55ce91"></option><option value="#55cece"></option><option value="#5591ce"></option><option value="#5555ce"></option><option value="#9155ce"></option><option value="#ce55ce"></option><option value="#ce5591"></option><option value="#d09c8b"></option><option value="#bfd08b"></option><option value="#8bd09c"></option><option value="#8bbfd0"></option><option value="#9c8bd0"></option><option value="#d08bbf"></option><option value="#8a732e"></option><option value="#458a2e"></option><option value="#2e8a73"></option><option value="#2e458a"></option><option value="#732e8a"></option><option value="#8a2e45"></option><option value="#e6dfcf"></option><option value="#8f8a82"></option><option value="#4a4540"></option></datalist>
     </section>
   </main>
 
@@ -569,12 +569,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 161.
+    Version 162.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=161"></script>
+<script src="sprites.js?v=162"></script>
 <script>
 'use strict';
 
@@ -1897,7 +1897,9 @@ function colourPlaque(onPick) {
   const input = el('input');
   input.type = 'color';
   // the picker's swatches (a phone's offers a row of its own, all fully
-  // saturated): the skins' blue and green; twelve hues at HSL saturation
+  // saturated): the skins' blue and green; six vivid primaries and
+  // secondaries at saturation 0.75 and lightness 0.52 (Sam liked "some of
+  // the primary color more vibrant ones"); twelve hues at HSL saturation
   // 0.55 and lightness 0.57, six soft (0.42, 0.68) and six deep (0.5,
   // 0.36); and three neutrals. A part's shades keep their lightness steps
   // from the pick, so a pick near the middle keeps them. The first set, as
