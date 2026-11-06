@@ -346,6 +346,7 @@
      window has the rest.
      --tile is set by layoutTiles(); the two gaps are read by it too. */
   .box {
+    position: relative;
     --tile: 80px; --set-gap: 6px; --none-gap: 14px;
     padding: 14px; width: 100%; max-width: 560px; justify-self: center;
     display: flex; flex-direction: column; gap: 14px;
@@ -429,11 +430,18 @@
      the one Mac OS X had): its crayons standing in rows, the one picked
      raised, its name over them,, and a color wheel
      for any other (the picker's own other page), its brightness under it. */
+  /* (over the features, not the window, so the character is seen taking
+     each color as it is picked: Sam) */
   .crayons {
-    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 30;
+    position: absolute; left: 50%; top: 8px; transform: translateX(-50%); z-index: 30;
     display: flex; flex-direction: column; align-items: center; gap: 8px;
-    padding: 12px 14px; max-height: 94vh; overflow: auto;
+    padding: 12px 14px;
   }
+  .crayons .hex {
+    width: 7.5em; padding: 4px 6px; font: 15px ui-monospace, Menlo, monospace; text-align: center;
+    color: #111; background: var(--tan-hi); border: 2px solid #000;
+  }
+  .crayons .hex[aria-invalid="true"] { background: #f2b8a8; }
   .crayons[hidden] { display: none; }
   .crayons .crayon-name { margin: 0; min-height: 1.3em; text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000; }
   .crayons .box-of { display: grid; grid-template-columns: repeat(8, auto); gap: 2px 4px; }
@@ -572,20 +580,21 @@
         <button class="stone plate mix" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix Traits!</button>
         <button class="stone plate mix" id="btn-hues" aria-pressed="false" title="Roll new colors with the dice">Mix Colors!</button>
       </div>
+      <div class="crayons rock" id="crayons" role="dialog" aria-label="Crayons" hidden>
+        <p class="crayon-name" id="crayon-name"></p>
+        <div class="box-of" id="crayon-box"></div>
+        <div class="wheel" id="crayon-wheel" hidden>
+          <canvas id="wheel-disc" width="200" height="200" aria-label="Color wheel: hue around it, strength out from its middle"></canvas>
+          <input type="range" id="wheel-bright" min="0" max="100" value="100" aria-label="Brightness">
+        </div>
+        <input type="text" class="hex" id="crayon-hex" maxlength="7" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Hex color">
+        <div class="buttons">
+          <button class="stone plate" id="crayon-view">Color wheel</button>
+          <button class="stone plate" id="crayon-done">Done</button>
+        </div>
     </section>
   </main>
 
-  <div class="crayons rock" id="crayons" role="dialog" aria-label="Crayons" hidden>
-    <p class="crayon-name" id="crayon-name"></p>
-    <div class="box-of" id="crayon-box"></div>
-    <div class="wheel" id="crayon-wheel" hidden>
-      <canvas id="wheel-disc" width="200" height="200" aria-label="Color wheel: hue around it, strength out from its middle"></canvas>
-      <input type="range" id="wheel-bright" min="0" max="100" value="100" aria-label="Brightness">
-    </div>
-    <div class="buttons">
-      <button class="stone plate" id="crayon-view">Color wheel</button>
-      <button class="stone plate" id="crayon-done">Done</button>
-    </div>
   </div>
 
   <footer>
@@ -594,12 +603,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 164.
+    Version 165.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=164"></script>
+<script src="sprites.js?v=165"></script>
 <script>
 'use strict';
 
@@ -1982,11 +1991,31 @@ const crayonButtons = CRAYONS.map(([name, hex]) => {
   return b;
 });
 // the name of the crayon the part is colored with, if it is one
+// A hex color typed (#rgb or #rrggbb, the # optional) is picked as it is
+// typed in full (Sam: "allow hex input"); it shows the part's color
+// otherwise, whichever way that was picked.
+const hexInput = document.getElementById('crayon-hex');
+function typedHex() {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hexInput.value.trim());
+  if (!m) return null;
+  const h = m[1].toLowerCase();
+  return '#' + (h.length === 3 ? [...h].map(c => c + c).join('') : h);
+}
+hexInput.addEventListener('input', () => {
+  const hex = typedHex();
+  hexInput.setAttribute('aria-invalid', !hex && hexInput.value.trim().length >= 3);
+  if (!hex || !crayonPick) return;
+  crayonPick(hex);
+  if (!wheelView.hidden) { wheelHsv = hexToHsv(hex); bright.value = Math.round(wheelHsv[2] * 100); paintWheel(); }
+});
+hexInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); hexInput.blur(); } });
+hexInput.addEventListener('blur', () => { hexInput.setAttribute('aria-invalid', false); showCrayon(); });
 function showCrayon() {
   const hex = crayonsFor ? crayonsFor.dataset.hex : '';
   const i = CRAYONS.findIndex(([, h]) => '#' + h === hex);
   crayonButtons.forEach((b, k) => b.setAttribute('aria-pressed', k === i));
   crayonName.textContent = i >= 0 ? CRAYONS[i][0] : crayonsFor ? crayonsFor.title : '';
+  if (document.activeElement !== hexInput) hexInput.value = hex;
 }
 function openCrayons(plaque, onPick) {
   crayonsFor = plaque;
