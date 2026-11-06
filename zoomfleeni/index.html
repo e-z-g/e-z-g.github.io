@@ -506,6 +506,13 @@
     .feature { gap: 6px; }
     .controls { gap: 4px; min-height: 0; }
     .ctrl { font-size: 13px; padding: 4px 10px 6px; gap: 6px; }
+    /* the crayon box, between the window and the screen's foot */
+    .crayons { padding: 8px 10px; gap: 6px; }
+    .crayons .crayon { padding-top: 4px; }
+    .crayons .crayon[aria-pressed="true"] { padding: 0 0 4px; }
+    .crayons .crayon canvas { width: 15px; height: 36px; }
+    .crayons .wheel canvas { width: 170px; height: 170px; }
+    .crayons .wheel input[type="range"] { width: 170px; }
   }
 
   footer { margin-top: 30px; font-size: 13px; opacity: 0.75; }
@@ -603,12 +610,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 165.
+    Version 166.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=165"></script>
+<script src="sprites.js?v=166"></script>
 <script>
 'use strict';
 
@@ -2022,6 +2029,12 @@ function openCrayons(plaque, onPick) {
   crayonPick = onPick;
   plaque.setAttribute('aria-expanded', 'true');
   crayonsEl.hidden = false;
+  // on a phone, where the features are under the window, as high as the
+  // window's bottom, over the name and the dice (Sam: "too low, you can
+  // put it high enough to even obscure the name"); beside it, at the top
+  // of the features
+  const under = crayonsEl.parentElement.getBoundingClientRect(), view = document.getElementById('preview-wrap').getBoundingClientRect();
+  crayonsEl.style.top = (view.bottom <= under.top ? Math.round(view.bottom - under.top) + 4 : 8) + 'px';
   showView(false);
   showCrayon();
   (crayonButtons.find(b => b.getAttribute('aria-pressed') === 'true') || crayonButtons[0]).focus();
