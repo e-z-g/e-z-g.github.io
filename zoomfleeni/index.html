@@ -427,8 +427,8 @@
   .ctrl canvas { display: block; flex: none; image-rendering: pixelated; }
   /* The crayon box a color plaque opens (Sam: "the crayon picker of old",
      the one Mac OS X had): its crayons standing in rows, the one picked
-     raised, its name over them, and More colors... over the browser's own
-     picker, invisible, so a tap anywhere on it opens that. */
+     raised, its name over them,, and a color wheel
+     for any other (the picker's own other page), its brightness under it. */
   .crayons {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 30;
     display: flex; flex-direction: column; align-items: center; gap: 8px;
@@ -441,13 +441,11 @@
   .crayons .crayon canvas { display: block; width: 20px; height: 48px; image-rendering: pixelated; }
   .crayons .crayon[aria-pressed="true"] { padding: 0 0 6px; }
   .crayons .buttons { display: flex; gap: 10px; }
-  .crayons .more { position: relative; }
-  .crayons .more input[type="color"] {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    opacity: 0; border: 0; padding: 0; cursor: pointer;
-  }
-  .more:has(input:focus-visible) { outline: 3px solid var(--tan); outline-offset: 2px; }
-
+  .crayons .wheel { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .crayons .wheel[hidden], .crayons .box-of[hidden] { display: none; }
+  .crayons .wheel canvas { display: block; width: 200px; height: 200px; touch-action: none; cursor: crosshair; }
+  .crayons .wheel input[type="range"] { width: 200px; accent-color: var(--tan); }
+  
 
   /* A desktop: the character in its window on the left, as tall as the
      screen allows; the buttons, then the tiles, down the right. */
@@ -574,15 +572,18 @@
         <button class="stone plate mix" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix Traits!</button>
         <button class="stone plate mix" id="btn-hues" aria-pressed="false" title="Roll new colors with the dice">Mix Colors!</button>
       </div>
-      <datalist id="tones"><option value="#9ebfff"></option><option value="#c9ee31"></option><option value="#e02929"></option><option value="#e07e29"></option><option value="#e0c829"></option><option value="#29e038"></option><option value="#2975e0"></option><option value="#a329e0"></option><option value="#ce5555"></option><option value="#ce9155"></option><option value="#cece55"></option><option value="#91ce55"></option><option value="#55ce55"></option><option value="#55ce91"></option><option value="#55cece"></option><option value="#5591ce"></option><option value="#5555ce"></option><option value="#9155ce"></option><option value="#ce55ce"></option><option value="#ce5591"></option><option value="#d09c8b"></option><option value="#bfd08b"></option><option value="#8bd09c"></option><option value="#8bbfd0"></option><option value="#9c8bd0"></option><option value="#d08bbf"></option><option value="#8a732e"></option><option value="#458a2e"></option><option value="#2e8a73"></option><option value="#2e458a"></option><option value="#732e8a"></option><option value="#8a2e45"></option><option value="#e6dfcf"></option><option value="#8f8a82"></option><option value="#4a4540"></option></datalist>
     </section>
   </main>
 
   <div class="crayons rock" id="crayons" role="dialog" aria-label="Crayons" hidden>
     <p class="crayon-name" id="crayon-name"></p>
     <div class="box-of" id="crayon-box"></div>
+    <div class="wheel" id="crayon-wheel" hidden>
+      <canvas id="wheel-disc" width="200" height="200" aria-label="Color wheel: hue around it, strength out from its middle"></canvas>
+      <input type="range" id="wheel-bright" min="0" max="100" value="100" aria-label="Brightness">
+    </div>
     <div class="buttons">
-      <label class="stone plate more">More colors&#x2026;<input type="color" id="crayon-more" list="tones" aria-label="More colors"></label>
+      <button class="stone plate" id="crayon-view">Color wheel</button>
       <button class="stone plate" id="crayon-done">Done</button>
     </div>
   </div>
@@ -593,12 +594,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 163.
+    Version 164.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=163"></script>
+<script src="sprites.js?v=164"></script>
 <script>
 'use strict';
 
@@ -1966,7 +1967,7 @@ function paintCrayon(canvas, hex) {
   }
 }
 const crayonsEl = document.getElementById('crayons'), crayonBox = document.getElementById('crayon-box');
-const crayonName = document.getElementById('crayon-name'), crayonMore = document.getElementById('crayon-more');
+const crayonName = document.getElementById('crayon-name');
 let crayonsFor = null, crayonPick = null;
 const crayonButtons = CRAYONS.map(([name, hex]) => {
   const b = el('button', 'crayon');
@@ -1986,13 +1987,13 @@ function showCrayon() {
   const i = CRAYONS.findIndex(([, h]) => '#' + h === hex);
   crayonButtons.forEach((b, k) => b.setAttribute('aria-pressed', k === i));
   crayonName.textContent = i >= 0 ? CRAYONS[i][0] : crayonsFor ? crayonsFor.title : '';
-  crayonMore.value = hex || '#000000';
 }
 function openCrayons(plaque, onPick) {
   crayonsFor = plaque;
   crayonPick = onPick;
   plaque.setAttribute('aria-expanded', 'true');
   crayonsEl.hidden = false;
+  showView(false);
   showCrayon();
   (crayonButtons.find(b => b.getAttribute('aria-pressed') === 'true') || crayonButtons[0]).focus();
 }
@@ -2004,24 +2005,69 @@ function closeCrayons(refocus = false) {
   crayonsEl.hidden = true;
   if (refocus) was.focus();
 }
-crayonMore.addEventListener('input', () => { if (crayonPick) crayonPick(crayonMore.value); });
+// The color wheel, for a color no crayon has (Sam: "show the color wheel
+// interface for custom color"), as the Mac's picker had beside its
+// crayons: hue around it, strength out from its middle, its brightness
+// under it, and a ring where the color is. A phone's own picker cannot be
+// asked for a wheel, so the page draws one.
+const wheelView = document.getElementById('crayon-wheel'), disc = document.getElementById('wheel-disc');
+const bright = document.getElementById('wheel-bright'), viewBtn = document.getElementById('crayon-view');
+let wheelHsv = [0, 0, 1];
+function hsvToHex([h, sv, v]) {
+  const f = n => { const k = (n + h * 6) % 6; return v - v * sv * Math.max(0, Math.min(k, 4 - k, 1)); };
+  return '#' + [f(5), f(3), f(1)].map(c => Math.round(c * 255).toString(16).padStart(2, '0')).join('');
+}
+function hexToHsv(hex) {
+  const [r, g, b] = hexToRgb(hex).map(c => c / 255), v = Math.max(r, g, b), d = v - Math.min(r, g, b);
+  const h = !d ? 0 : v === r ? ((g - b) / d + 6) % 6 : v === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, v ? d / v : 0, v];
+}
+function paintWheel() {
+  const ctx = disc.getContext('2d'), n = disc.width, R = n / 2, img = ctx.createImageData(n, n);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const dx = x + 0.5 - R, dy = y + 0.5 - R, r = Math.hypot(dx, dy) / (R - 1);
+    if (r > 1) continue;
+    const [cr, cg, cb] = hexToRgb(hsvToHex([(Math.atan2(dy, dx) / (2 * Math.PI) + 1) % 1, r, wheelHsv[2]]));
+    const i = (y * n + x) * 4;
+    img.data[i] = cr; img.data[i + 1] = cg; img.data[i + 2] = cb; img.data[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const a = wheelHsv[0] * 2 * Math.PI, px = R + Math.cos(a) * wheelHsv[1] * (R - 1), py = R + Math.sin(a) * wheelHsv[1] * (R - 1);
+  ctx.lineWidth = 2;
+  for (const [c, rad] of [['#000', 6], ['#fff', 4]]) {
+    ctx.strokeStyle = c; ctx.beginPath(); ctx.arc(px, py, rad, 0, 2 * Math.PI); ctx.stroke();
+  }
+}
+function wheelAt(e) {
+  const box = disc.getBoundingClientRect(), R = box.width / 2;
+  const dx = e.clientX - box.left - R, dy = e.clientY - box.top - R;
+  wheelHsv = [(Math.atan2(dy, dx) / (2 * Math.PI) + 1) % 1, Math.min(1, Math.hypot(dx, dy) / R), wheelHsv[2]];
+  paintWheel();
+  if (crayonPick) crayonPick(hsvToHex(wheelHsv));
+}
+disc.addEventListener('pointerdown', e => { disc.setPointerCapture(e.pointerId); wheelAt(e); });
+disc.addEventListener('pointermove', e => { if (disc.hasPointerCapture(e.pointerId)) wheelAt(e); });
+bright.addEventListener('input', () => {
+  wheelHsv[2] = bright.value / 100;
+  paintWheel();
+  if (crayonPick) crayonPick(hsvToHex(wheelHsv));
+});
+function showView(wheel) {
+  wheelView.hidden = !wheel;
+  crayonBox.hidden = wheel;
+  viewBtn.textContent = wheel ? 'Crayons' : 'Color wheel';
+  if (wheel) {
+    wheelHsv = hexToHsv(crayonsFor ? crayonsFor.dataset.hex || '#ffffff' : '#ffffff');
+    bright.value = Math.round(wheelHsv[2] * 100);
+    paintWheel();
+  }
+}
+viewBtn.addEventListener('click', () => showView(wheelView.hidden));
 document.getElementById('crayon-done').addEventListener('click', () => closeCrayons(true));
 crayonsEl.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); closeCrayons(true); } });
 document.addEventListener('pointerdown', e => {
   if (crayonsFor && !e.target.closest('#crayons') && !crayonsFor.contains(e.target)) closeCrayons();
 });
-// More colors... opens the browser's picker, with the swatches (#tones):
-// the picker's swatches (a phone's offers a row of its own, all fully
-// saturated): the skins' blue and green; six vivid primaries and
-// secondaries at saturation 0.75 and lightness 0.52 (Sam liked "some of
-// the primary color more vibrant ones"); twelve hues at HSL saturation
-// 0.55 and lightness 0.57, six soft (0.42, 0.68) and six deep (0.5,
-// 0.36); and three neutrals. A part's shades keep their lightness steps
-// from the pick, so a pick near the middle keeps them. The first set, as
-// light and saturated as the Zoombini's blue (lightness 0.81, saturation
-// 1), washed the shading out to white (Sam: "they drown the detail of the
-// feature"); the second, all at saturation 0.32-0.42, was "too uniformly
-// dun".
 
 // asked over the window, as a GIF is shown (Sam: "styled like the maker")
 let mixThen = null;
@@ -2528,7 +2574,7 @@ function paintTiles() {
       if (c.hidden) return;
       const hex = colourPick(build, colourKey(feat), k) || '#' + groups[k].ref;
       const word = feat === 'body' ? 'Skin' : groups.length > 1 ? 'Color ' + (k + 1) : 'Color';
-      const label = feat === 'body' ? 'Skin colour' : titled(feat) + ' ' + word.toLowerCase();
+      const label = feat === 'body' ? 'Skin color' : titled(feat) + ' ' + word.toLowerCase();
       c.querySelector('span').textContent = word;
       c.title = label;
       c.setAttribute('aria-label', label);
@@ -2611,11 +2657,13 @@ dice.addEventListener('click', () => {
 });
 // Mix Colors! has the dice roll colours too (Sam, 5 November 2026: "add
 // color randomization option"): each part, the skin and each extra not
-// locked, every one of its colours one of the picker's swatches (TONES).
-// Off, the dice gives back each part's own colours, as before.
-const TONES = [...document.querySelectorAll('#tones option')].map(o => o.value);
+// locked, every one of its colours a crayon from the crayon box (Sam: "have
+// the randomize draw from the crayon box"). Off, the dice gives back each
+// part's own colours, as before. (Swatches came before the crayons: as
+// light as the Zoombini's blue, they washed a part's shading out, and all
+// soft they were "too uniformly dun".)
 let hues = false;
-const tone = () => TONES[Math.floor(Math.random() * TONES.length)];
+const tone = () => '#' + CRAYONS[Math.floor(Math.random() * CRAYONS.length)][1];
 function rollColours(build) {
   const kind = state.kind;
   if (!locks.body) build.skin = tone();
