@@ -559,7 +559,7 @@
         <button class="stone plate mix" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix Traits!</button>
         <button class="stone plate mix" id="btn-hues" aria-pressed="false" title="Roll new colors with the dice">Mix Colors!</button>
       </div>
-      <datalist id="tones"><option value="#9ebfff"></option><option value="#c9ee31"></option><option value="#c77575"></option><option value="#c79e75"></option><option value="#c7c775"></option><option value="#9ec775"></option><option value="#75c775"></option><option value="#75c79e"></option><option value="#75c7c7"></option><option value="#759ec7"></option><option value="#7575c7"></option><option value="#9e75c7"></option><option value="#c775c7"></option><option value="#c7759e"></option><option value="#8d5a49"></option><option value="#8d8d49"></option><option value="#5a8d49"></option><option value="#498d6b"></option><option value="#497c8d"></option><option value="#49498d"></option><option value="#7c498d"></option><option value="#8d496b"></option><option value="#d8d2c4"></option><option value="#8f8a82"></option><option value="#55504a"></option></datalist>
+      <datalist id="tones"><option value="#9ebfff"></option><option value="#c9ee31"></option><option value="#ce5555"></option><option value="#ce9155"></option><option value="#cece55"></option><option value="#91ce55"></option><option value="#55ce55"></option><option value="#55ce91"></option><option value="#55cece"></option><option value="#5591ce"></option><option value="#5555ce"></option><option value="#9155ce"></option><option value="#ce55ce"></option><option value="#ce5591"></option><option value="#d09c8b"></option><option value="#bfd08b"></option><option value="#8bd09c"></option><option value="#8bbfd0"></option><option value="#9c8bd0"></option><option value="#d08bbf"></option><option value="#8a732e"></option><option value="#458a2e"></option><option value="#2e8a73"></option><option value="#2e458a"></option><option value="#732e8a"></option><option value="#8a2e45"></option><option value="#e6dfcf"></option><option value="#8f8a82"></option><option value="#4a4540"></option></datalist>
     </section>
   </main>
 
@@ -569,12 +569,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 160.
+    Version 161.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=160"></script>
+<script src="sprites.js?v=161"></script>
 <script>
 'use strict';
 
@@ -1192,9 +1192,9 @@ const FLEEN_BODIES = new WeakSet();
 })(S.characters.fleen.parts.find(p => p.name === 'body'));
 // Rows into the body a pair of wings' roots go, at the least (hatOn).
 const WING_ROOT = 3;
-// The share of the body's width each wing's root moves out from its middle
-// walking away (hatOn).
-const WING_SPREAD = 0.1;                     // a fifth was "too far apart" (Sam)
+// The share of a Zoombini's width the outer wing's root moves out from the
+// middle of its back walking away (hatOn).
+const WING_SPREAD = 0.1;
 function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) {
   const h = S.hats[hat];
   if (!h || !body.crown) return [];
@@ -1241,11 +1241,17 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
     const top = topAt(body, Math.round(cx));
     if (top !== null && cy + h.sink < top + WING_ROOT) cy = top + WING_ROOT - h.sink;
   }
-  // walking away, the wings' two pieces apart, each root WING_SPREAD of the
-  // body's width out from its middle, at the shoulders: they met in the
-  // middle of its back (Sam: "too centered")
-  const spread = wings && w && w[10] ? Math.round(bw * WING_SPREAD) : 0;
-  const apart = p => spread * Math.sign(p.dx + rect(p.sprite)[2] / 2);
+  // a Zoombini walking away: the wing whose root is further from the
+  // middle of its back moves out WING_SPREAD of the body's width, to the
+  // shoulder, and the other stays (Sam: they were "too centered"; both
+  // moved, "bring the more centered one more towards the center"). A
+  // Fleen's stay as they are: its back is narrow, and moved, one lay
+  // across the back of its head ("completely misaligned on the fleen")
+  const spread = wings && w && w[10] && !FLEEN_BODIES.has(body) ? Math.round(bw * WING_SPREAD) : 0;
+  const inner = p => p.dx + rect(p.sprite)[2] / 2 < 0 ? p.dx + rect(p.sprite)[2] : p.dx;
+  const outer = spread && pieces.length > 1
+    ? pieces.reduce((a, p) => Math.abs(inner(p)) > Math.abs(inner(a)) ? p : a) : null;
+  const apart = p => p === outer ? spread * Math.sign(p.dx + rect(p.sprite)[2] / 2) : 0;
   // a hat faces right; on frames that face left it is turned about the crown
   const placed = pieces.map(p => ({ part: 'hat:' + hat, sprite: p.sprite, flip: left, back: h.on === 'back',
                                     rx: -Math.round(left ? cx - p.dx - fdx - ox - rect(p.sprite)[2] : cx + p.dx + fdx + ox + apart(p)),
@@ -1891,12 +1897,14 @@ function colourPlaque(onPick) {
   const input = el('input');
   input.type = 'color';
   // the picker's swatches (a phone's offers a row of its own, all fully
-  // saturated): the skins' blue and green, twelve hues at HSL saturation
-  // 0.42 and lightness 0.62, eight at 0.32 and 0.42, and three neutrals.
-  // A part's shades keep their lightness steps from the pick, so a pick
-  // near the middle keeps them; the first set, as light and saturated as
-  // the Zoombini's blue (lightness 0.81, saturation 1), washed the shading
-  // out to white (Sam: "they drown the detail of the feature").
+  // saturated): the skins' blue and green; twelve hues at HSL saturation
+  // 0.55 and lightness 0.57, six soft (0.42, 0.68) and six deep (0.5,
+  // 0.36); and three neutrals. A part's shades keep their lightness steps
+  // from the pick, so a pick near the middle keeps them. The first set, as
+  // light and saturated as the Zoombini's blue (lightness 0.81, saturation
+  // 1), washed the shading out to white (Sam: "they drown the detail of the
+  // feature"); the second, all at saturation 0.32-0.42, was "too uniformly
+  // dun".
   input.setAttribute('list', 'tones');
   input.addEventListener('input', () => onPick(input.value));
   b.append(el('canvas'), el('span'), input);
