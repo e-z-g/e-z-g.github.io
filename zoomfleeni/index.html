@@ -425,13 +425,28 @@
   }
   .ctrl[hidden] { display: none; }
   .ctrl canvas { display: block; flex: none; image-rendering: pixelated; }
-  /* a colour: the plaque is the button, the browser's own colour picker
-     under it, invisible, so a tap anywhere on it opens the picker */
-  .ctrl input[type="color"] {
+  /* The crayon box a color plaque opens (Sam: "the crayon picker of old",
+     the one Mac OS X had): its crayons standing in rows, the one picked
+     raised, its name over them, and More colors... over the browser's own
+     picker, invisible, so a tap anywhere on it opens that. */
+  .crayons {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 30;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 12px 14px; max-height: 94vh; overflow: auto;
+  }
+  .crayons[hidden] { display: none; }
+  .crayons .crayon-name { margin: 0; min-height: 1.3em; text-shadow: 1px 0 #000, -1px 0 #000, 0 1px #000, 0 -1px #000; }
+  .crayons .box-of { display: grid; grid-template-columns: repeat(8, auto); gap: 2px 4px; }
+  .crayons .crayon { padding: 6px 0 0; border: 0; background: none; cursor: pointer; line-height: 0; }
+  .crayons .crayon canvas { display: block; width: 20px; height: 48px; image-rendering: pixelated; }
+  .crayons .crayon[aria-pressed="true"] { padding: 0 0 6px; }
+  .crayons .buttons { display: flex; gap: 10px; }
+  .crayons .more { position: relative; }
+  .crayons .more input[type="color"] {
     position: absolute; inset: 0; width: 100%; height: 100%;
     opacity: 0; border: 0; padding: 0; cursor: pointer;
   }
-  .ctrl:has(input:focus-visible) { outline: 3px solid var(--tan); outline-offset: 2px; }
+  .more:has(input:focus-visible) { outline: 3px solid var(--tan); outline-offset: 2px; }
 
 
   /* A desktop: the character in its window on the left, as tall as the
@@ -563,18 +578,27 @@
     </section>
   </main>
 
+  <div class="crayons rock" id="crayons" role="dialog" aria-label="Crayons" hidden>
+    <p class="crayon-name" id="crayon-name"></p>
+    <div class="box-of" id="crayon-box"></div>
+    <div class="buttons">
+      <label class="stone plate more">More colors&#x2026;<input type="color" id="crayon-more" list="tones" aria-label="More colors"></label>
+      <button class="stone plate" id="crayon-done">Done</button>
+    </div>
+  </div>
+
   <footer>
     Art from <i>The Logical Journey of the Zoombinis</i> (Broderbund, 1996), taken
     from the game's data files. A fan-made toy, not affiliated with the game's makers.
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 162.
+    Version 163.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=162"></script>
+<script src="sprites.js?v=163"></script>
 <script>
 'use strict';
 
@@ -1893,25 +1917,112 @@ function paintNone(canvas, on) {
 // the browser's colour picker. Its word is set as it is painted: "Color",
 // or "Color 1" and "Color 2" for a part with two (US spelling, as Mix Colors!).
 function colourPlaque(onPick) {
-  const b = el('label', 'stone ctrl');
-  const input = el('input');
-  input.type = 'color';
-  // the picker's swatches (a phone's offers a row of its own, all fully
-  // saturated): the skins' blue and green; six vivid primaries and
-  // secondaries at saturation 0.75 and lightness 0.52 (Sam liked "some of
-  // the primary color more vibrant ones"); twelve hues at HSL saturation
-  // 0.55 and lightness 0.57, six soft (0.42, 0.68) and six deep (0.5,
-  // 0.36); and three neutrals. A part's shades keep their lightness steps
-  // from the pick, so a pick near the middle keeps them. The first set, as
-  // light and saturated as the Zoombini's blue (lightness 0.81, saturation
-  // 1), washed the shading out to white (Sam: "they drown the detail of the
-  // feature"); the second, all at saturation 0.32-0.42, was "too uniformly
-  // dun".
-  input.setAttribute('list', 'tones');
-  input.addEventListener('input', () => onPick(input.value));
-  b.append(el('canvas'), el('span'), input);
+  const b = el('button', 'stone ctrl');
+  b.setAttribute('aria-haspopup', 'dialog');
+  b.append(el('canvas'), el('span'));
+  b.addEventListener('click', () => (crayonsFor === b ? closeCrayons() : openCrayons(b, onPick)));
   return b;
 }
+// The crayon box: the 48 crayons of Mac OS X's Crayons picker, by name, in
+// its rows (light, pale, bright, pure, dark, deep, and the greys down the
+// right). A crayon picked colors the part at once and the box stays open,
+// as the Mac's did, until Done, Escape or a tap elsewhere.
+const CRAYONS = [
+  ['Cantaloupe', 'ffcc66'], ['Honeydew', 'ccff66'], ['Spindrift', '66ffcc'], ['Sky', '66ccff'],
+  ['Lavender', 'cc66ff'], ['Carnation', 'ff6fcf'], ['Licorice', '000000'], ['Snow', 'ffffff'],
+  ['Salmon', 'ff6666'], ['Banana', 'ffff66'], ['Flora', '66ff66'], ['Ice', '66ffff'],
+  ['Orchid', '6666ff'], ['Bubblegum', 'ff66ff'], ['Lead', '191919'], ['Mercury', 'e6e6e6'],
+  ['Tangerine', 'ff8000'], ['Lime', '80ff00'], ['Sea Foam', '00ff80'], ['Aqua', '0080ff'],
+  ['Grape', '8000ff'], ['Strawberry', 'ff0080'], ['Tungsten', '333333'], ['Silver', 'cccccc'],
+  ['Maraschino', 'ff0000'], ['Lemon', 'ffff00'], ['Spring', '00ff00'], ['Turquoise', '00ffff'],
+  ['Blueberry', '0000ff'], ['Magenta', 'ff00ff'], ['Iron', '4c4c4c'], ['Magnesium', 'b3b3b3'],
+  ['Mocha', '804000'], ['Fern', '408000'], ['Moss', '008040'], ['Ocean', '004080'],
+  ['Eggplant', '400080'], ['Maroon', '800040'], ['Steel', '666666'], ['Aluminum', '999999'],
+  ['Cayenne', '800000'], ['Asparagus', '808000'], ['Clover', '008000'], ['Teal', '008080'],
+  ['Midnight', '000080'], ['Plum', '800080'], ['Tin', '7f7f7f'], ['Nickel', '808080'],
+];
+// A crayon, 10 by 24 pixels: its point, its paper wrapper's two dark bands,
+// lit down the left and shaded down the right, in a black outline.
+function paintCrayon(canvas, hex) {
+  const W = 10, H = 24, [r, g, b] = hexToRgb('#' + hex);
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d'), fill = new Map();
+  const tone = k => k > 1 ? [r, g, b].map(v => Math.round(v + (255 - v) * (k - 1))) : [r, g, b].map(v => Math.round(v * k));
+  for (let y = 1; y < H - 1; y++) {
+    // the point narrows to two pixels over its top seven rows
+    const half = y < 8 ? Math.min(4, 1 + Math.floor(y / 2)) : 4;
+    for (let x = 5 - half; x < 5 + half; x++) {
+      const band = y === 9 || y === 10 || y === 19 || y === 20;
+      const side = x === 5 - half ? 1.35 : x === 4 + half ? 0.7 : 1;
+      fill.set(x + ',' + y, tone(band ? side * 0.6 : side));
+    }
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const c = fill.get(x + ',' + y);
+    const edge = !c && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => fill.has((x + dx) + ',' + (y + dy)));
+    if (!c && !edge) continue;
+    ctx.fillStyle = c ? 'rgb(' + c.join(',') + ')' : '#000';
+    ctx.fillRect(x, y, 1, 1);
+  }
+}
+const crayonsEl = document.getElementById('crayons'), crayonBox = document.getElementById('crayon-box');
+const crayonName = document.getElementById('crayon-name'), crayonMore = document.getElementById('crayon-more');
+let crayonsFor = null, crayonPick = null;
+const crayonButtons = CRAYONS.map(([name, hex]) => {
+  const b = el('button', 'crayon');
+  b.title = name;
+  b.setAttribute('aria-label', name);
+  b.appendChild(el('canvas'));
+  paintCrayon(b.firstChild, hex);
+  b.addEventListener('click', () => { if (crayonPick) crayonPick('#' + hex); });
+  for (const ev of ['pointerenter', 'focus']) b.addEventListener(ev, () => { crayonName.textContent = name; });
+  for (const ev of ['pointerleave', 'blur']) b.addEventListener(ev, showCrayon);
+  crayonBox.appendChild(b);
+  return b;
+});
+// the name of the crayon the part is colored with, if it is one
+function showCrayon() {
+  const hex = crayonsFor ? crayonsFor.dataset.hex : '';
+  const i = CRAYONS.findIndex(([, h]) => '#' + h === hex);
+  crayonButtons.forEach((b, k) => b.setAttribute('aria-pressed', k === i));
+  crayonName.textContent = i >= 0 ? CRAYONS[i][0] : crayonsFor ? crayonsFor.title : '';
+  crayonMore.value = hex || '#000000';
+}
+function openCrayons(plaque, onPick) {
+  crayonsFor = plaque;
+  crayonPick = onPick;
+  plaque.setAttribute('aria-expanded', 'true');
+  crayonsEl.hidden = false;
+  showCrayon();
+  (crayonButtons.find(b => b.getAttribute('aria-pressed') === 'true') || crayonButtons[0]).focus();
+}
+function closeCrayons(refocus = false) {
+  if (!crayonsFor) return;
+  const was = crayonsFor;
+  was.setAttribute('aria-expanded', 'false');
+  crayonsFor = crayonPick = null;
+  crayonsEl.hidden = true;
+  if (refocus) was.focus();
+}
+crayonMore.addEventListener('input', () => { if (crayonPick) crayonPick(crayonMore.value); });
+document.getElementById('crayon-done').addEventListener('click', () => closeCrayons(true));
+crayonsEl.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); closeCrayons(true); } });
+document.addEventListener('pointerdown', e => {
+  if (crayonsFor && !e.target.closest('#crayons') && !crayonsFor.contains(e.target)) closeCrayons();
+});
+// More colors... opens the browser's picker, with the swatches (#tones):
+// the picker's swatches (a phone's offers a row of its own, all fully
+// saturated): the skins' blue and green; six vivid primaries and
+// secondaries at saturation 0.75 and lightness 0.52 (Sam liked "some of
+// the primary color more vibrant ones"); twelve hues at HSL saturation
+// 0.55 and lightness 0.57, six soft (0.42, 0.68) and six deep (0.5,
+// 0.36); and three neutrals. A part's shades keep their lightness steps
+// from the pick, so a pick near the middle keeps them. The first set, as
+// light and saturated as the Zoombini's blue (lightness 0.81, saturation
+// 1), washed the shading out to white (Sam: "they drown the detail of the
+// feature"); the second, all at saturation 0.32-0.42, was "too uniformly
+// dun".
+
 // asked over the window, as a GIF is shown (Sam: "styled like the maker")
 let mixThen = null;
 const mixAsk = document.getElementById('mix-ask');
@@ -2420,10 +2531,10 @@ function paintTiles() {
       const label = feat === 'body' ? 'Skin colour' : titled(feat) + ' ' + word.toLowerCase();
       c.querySelector('span').textContent = word;
       c.title = label;
-      const input = c.querySelector('input');
-      input.setAttribute('aria-label', label);
-      input.value = hex;
+      c.setAttribute('aria-label', label);
+      c.dataset.hex = hex;
       paintIcon(c.firstChild, 'colour', hex, 2);
+      if (crayonsFor === c) showCrayon();
     });
     if (t.pages) {
       t.pages.forEach((page, n) => page.classList.toggle('shown', n === t.page));
