@@ -404,7 +404,7 @@
     background: none;
     cursor: pointer;
   }
-  #btn-mix { display: block; margin: 10px auto 2px; }
+  .toggles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 10px auto 2px; }
   .tile[aria-disabled="true"] { filter: grayscale(1); opacity: 0.4; }
   .tile canvas {
     display: block;
@@ -555,7 +555,11 @@
     <section class="box rock" aria-label="Body and features">
       <div class="tabs" id="tabs" role="tablist" aria-label="Body and features"></div>
       <div class="panels" id="rows"></div>
-      <button class="stone plate mix" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix Traits!</button>
+      <div class="toggles">
+        <button class="stone plate mix" id="btn-mix" aria-pressed="false" title="Mix a Zoombini's parts and a Fleen's">Mix Traits!</button>
+        <button class="stone plate mix" id="btn-hues" aria-pressed="false" title="Roll new colors with the dice">Mix Colors!</button>
+      </div>
+      <datalist id="tones"><option value="#9ebfff"></option><option value="#c9ee31"></option><option value="#ff9e9e"></option><option value="#ffcf9e"></option><option value="#ffff9e"></option><option value="#cfff9e"></option><option value="#9eff9e"></option><option value="#9effcf"></option><option value="#9effff"></option><option value="#9ecfff"></option><option value="#9e9eff"></option><option value="#cf9eff"></option><option value="#ff9eff"></option><option value="#ff9ecf"></option><option value="#e06b43"></option><option value="#e0b943"></option><option value="#b9e043"></option><option value="#6be043"></option><option value="#43e06b"></option><option value="#43e0b9"></option><option value="#43b9e0"></option><option value="#436be0"></option><option value="#6b43e0"></option><option value="#b943e0"></option><option value="#e043b9"></option><option value="#e0436b"></option><option value="#efe9dc"></option><option value="#a9a39a"></option><option value="#5e5852"></option></datalist>
     </section>
   </main>
 
@@ -565,12 +569,12 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 158.
+    Version 159.
   </footer>
 </div>
 
 <!-- the data under the page's version, so a phone never pairs a new page with old data -->
-<script src="sprites.js?v=158"></script>
+<script src="sprites.js?v=159"></script>
 <script>
 'use strict';
 
@@ -1021,7 +1025,8 @@ function variantsFor(kind, build, pose = REST, seat = null) {
   const under = { body: out.find(p => p.name === 'body').v,
                   hair: build.hair.none ? null : out.filter(p => p.name === 'hair').pop().v,
                   left: framesFace(kind, pose) === 'left',
-                  soft: !build.hair.none && SOFT_HAIR.has(S.characters[build.hair.borrowed ? OTHER[kind] : kind].names.hair[build.hair.v]) };
+                  hairName: build.hair.none ? null : S.characters[build.hair.borrowed ? OTHER[kind] : kind].names.hair[build.hair.v] };
+  under.soft = SOFT_HAIR.has(under.hairName);
   // the middle of all that is drawn, across (for a hat round it all)
   const xs = out.filter(p => p && !none(p.name)).flatMap(p => [-p.v.rx, -p.v.rx + rect(p.v.sprite)[2]]);
   under.figure = (Math.min(...xs) + Math.max(...xs)) / 2;
@@ -1043,6 +1048,8 @@ function variantsFor(kind, build, pose = REST, seat = null) {
     let ps = hatOn(under.body, k, S.hats[k].lid && under.soft ? null : under.hair, Object.assign({}, pose, { hat: (pose.extraHats || {})[was] || null, figure: under.figure }),
                    under.left, apart(k) ? null : stack);
     if (apart(k)) { hat.push(...ps); continue; }
+    const fore = !stack.length && !(pose.walk && pose.walk[10]) && (HAIR_NUDGE[S.hats[k].name] || {})[under.hairName];
+    if (fore) ps = ps.map(p => Object.assign({}, p, { rx: p.rx - (under.left ? -fore : fore) }));
     const nudge = stackNudge(k, lastOn);
     if (nudge) ps = ps.map(p => Object.assign({}, p, { rx: p.rx - (under.left ? -nudge[0] : nudge[0]), ry: p.ry - nudge[1] }));
     lastOn = k;
@@ -1187,6 +1194,9 @@ const FLEEN_BODIES = new WeakSet();
 })(S.characters.fleen.parts.find(p => p.name === 'body'));
 // Rows into the body a pair of wings' roots go, at the least (hatOn).
 const WING_ROOT = 3;
+// The share of the body's width each wing's root moves out from its middle
+// walking away (hatOn).
+const WING_SPREAD = 0.2;
 function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) {
   const h = S.hats[hat];
   if (!h || !body.crown) return [];
@@ -1226,9 +1236,14 @@ function hatOn(body, hat, hair = null, pose = REST, left = false, below = null) 
     const top = topAt(body, Math.round(cx));
     if (top !== null && cy + h.sink < top + WING_ROOT) cy = top + WING_ROOT - h.sink;
   }
+  // walking away, the wings' two pieces apart, each root WING_SPREAD of the
+  // body's width out from its middle, at the shoulders: they met in the
+  // middle of its back (Sam: "too centered")
+  const spread = wings && w && w[10] ? Math.round(bw * WING_SPREAD) : 0;
+  const apart = p => spread * Math.sign(p.dx + rect(p.sprite)[2] / 2);
   // a hat faces right; on frames that face left it is turned about the crown
   const placed = pieces.map(p => ({ part: 'hat:' + hat, sprite: p.sprite, flip: left, back: h.on === 'back',
-                                    rx: -Math.round(left ? cx - p.dx - fdx - ox - rect(p.sprite)[2] : cx + p.dx + fdx + ox),
+                                    rx: -Math.round(left ? cx - p.dx - fdx - ox - rect(p.sprite)[2] : cx + p.dx + fdx + ox + apart(p)),
                                     ry: -Math.round(cy + h.sink + p.dy + oy) }));
   // each wing on the body: one whose root is not on it moves toward the
   // body's middle a pixel at a time until it is (Sam: "a wing or two is
@@ -1287,6 +1302,11 @@ let HAT_RULE = 'hair';
 // Hair that cargo (a barrel, sack or crate) presses flat, sitting on the
 // head with the hair poking out at its sides (Sam: a crate sat "too high on
 // messy hair"); a cap, bandana, flat top or helmet holds it up
+// Pixels a hat sits further forward, toward the face, worn straight on a
+// hair: the woodpecker perched on the horned helmet's back horn, its tail
+// off the back of the head (Sam: "slightly too far back"). Not walking
+// away, when forward is into the picture.
+const HAIR_NUDGE = { 'a woodpecker': { 'Horned helmet': 3 } };
 const SOFT_HAIR = new Set(['Shaggy', 'Ponytail', 'Tuft', 'Blue quiff', 'Grass tuft', 'Mohawk']);
 // The row a hat's seat is on, over this body in this hair - worked out once
 // for each: boxes asks for it for every frame of every hat on every tick.
@@ -1858,12 +1878,15 @@ function paintNone(canvas, on) {
            Math.floor((canvas.height - size) / 2) + (on ? 1 : 0), 2);
 }
 // A colour plaque: the paint drop in the colour it holds and a word, over
-// the browser's colour picker. Its word is set as it is painted: "Colour",
-// or "Colour 1" and "Colour 2" for a part with two.
+// the browser's colour picker. Its word is set as it is painted: "Color",
+// or "Color 1" and "Color 2" for a part with two (US spelling, as Mix Colors!).
 function colourPlaque(onPick) {
   const b = el('label', 'stone ctrl');
   const input = el('input');
   input.type = 'color';
+  // the picker's swatches (a phone's offers a row of its own, all fully
+  // saturated): the skins' blue and green, and colours as soft as they
+  input.setAttribute('list', 'tones');
   input.addEventListener('input', () => onPick(input.value));
   b.append(el('canvas'), el('span'), input);
   return b;
@@ -2372,7 +2395,7 @@ function paintTiles() {
       c.hidden = k >= groups.length;
       if (c.hidden) return;
       const hex = colourPick(build, colourKey(feat), k) || '#' + groups[k].ref;
-      const word = feat === 'body' ? 'Skin' : groups.length > 1 ? 'Colour ' + (k + 1) : 'Colour';
+      const word = feat === 'body' ? 'Skin' : groups.length > 1 ? 'Color ' + (k + 1) : 'Color';
       const label = feat === 'body' ? 'Skin colour' : titled(feat) + ' ' + word.toLowerCase();
       c.querySelector('span').textContent = word;
       c.title = label;
@@ -2449,9 +2472,29 @@ dice.addEventListener('click', () => {
     // colour picked for it before
     if (build.colours) build.colours = Object.fromEntries(Object.entries(build.colours).filter(([f]) => !f.startsWith('hat:')));
   }
+  if (hues) rollColours(build);
   state.name[state.kind] = makeName();
   endClip();
   update();
+});
+// Mix Colors! has the dice roll colours too (Sam, 5 November 2026: "add
+// color randomization option"): each part, the skin and each extra not
+// locked, every one of its colours one of the picker's swatches (TONES).
+// Off, the dice gives back each part's own colours, as before.
+const TONES = [...document.querySelectorAll('#tones option')].map(o => o.value);
+let hues = false;
+const tone = () => TONES[Math.floor(Math.random() * TONES.length)];
+function rollColours(build) {
+  const kind = state.kind;
+  if (!locks.body) build.skin = tone();
+  build.colours = Object.assign({}, build.colours);
+  for (const f of FEATURES) if (!locks[f]) build.colours[f] = groupsOf(kind, build, f).map(tone);
+  if (!locks.extras) for (const k of build.extras || []) build.colours['hat:' + k] = (S.hats[k].groups || []).map(tone);
+}
+const huesBtn = document.getElementById('btn-hues');
+huesBtn.addEventListener('click', () => {
+  hues = !hues;
+  huesBtn.setAttribute('aria-pressed', hues);
 });
 const mixBtn = document.getElementById('btn-mix');
 mixBtn.setAttribute('aria-pressed', mix);
