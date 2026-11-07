@@ -11,7 +11,8 @@ Needs only Python 3.8+ (no extra packages). Writes, under the output folder:
                                              as shipped (the game stores
                                              JPEG, so nothing is re-encoded)
     faces_index.csv                          room, node, face, archive,
-                                             running number, size
+                                             running number (over every
+                                             resource; not Riveal's), size
     maps/<ROOM>.json                         the room's nodes and links
     maps/<ROOM>.svg                          a rough top-down sketch of them
     maps/index.html                          all the sketches on one page
