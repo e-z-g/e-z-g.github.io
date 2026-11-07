@@ -3,12 +3,13 @@
 What a COLMAP run on a Myst III room did: which nodes each model holds, and how
 well each linked node pair matched.
 
-    python inspect_run.py WORK            (WORK as given to run_colmap.ps1)
+    python inspect_run.py WORK [TAG]      (WORK and -Tag as given to run_colmap.ps1)
 
-Reads WORK/database.db (verified matches per image pair, from two_view_geometries)
-and the models in WORK/sparse/<n>/ after model_converter has written them as text
-(images.txt); run_colmap.ps1 does not, so this converts them with COLMAP first if
-COLMAP_BAT is set or found at C:\\colmap\\4.2.1\\COLMAP.bat. Standard library only.
+Reads WORK/runs/TAG/database.db (verified matches per image pair, from
+two_view_geometries) and the models in WORK/runs/TAG/sparse/<n>/, converted to text
+with COLMAP's model_converter (COLMAP_BAT, or C:\\colmap\\4.2.1\\COLMAP.bat). Without
+TAG it reads the first run's layout, WORK/database.db and WORK/sparse. Standard
+library only.
 """
 import collections
 import json
@@ -30,7 +31,8 @@ def node_of(name):
 
 def main():
     work = sys.argv[1]
-    db = sqlite3.connect(os.path.join(work, 'database.db'))
+    run = os.path.join(work, 'runs', sys.argv[2]) if len(sys.argv) > 2 else work
+    db = sqlite3.connect(os.path.join(run, 'database.db'))
     names = dict(db.execute('select image_id, name from images'))
     inl = collections.Counter()
     for pid, rows in db.execute('select pair_id, rows from two_view_geometries'):
@@ -46,12 +48,12 @@ def main():
     nodes = json.load(open(os.path.join(work, 'nodes.json')))
     bat = os.environ.get('COLMAP_BAT', r'C:\colmap\4.2.1\COLMAP.bat')
     models = {}
-    sparse = os.path.join(work, 'sparse')
+    sparse = os.path.join(run, 'sparse')
     for m in sorted(os.listdir(sparse)):
         path = os.path.join(sparse, m)
         if not os.path.isdir(path):
             continue
-        txt = os.path.join(work, 'sparse_txt', m)
+        txt = os.path.join(run, 'sparse_txt', m)
         os.makedirs(txt, exist_ok=True)
         if not os.path.exists(os.path.join(txt, 'images.txt')) and os.path.exists(bat):
             subprocess.run([bat, 'model_converter', '--input_path', path, '--output_path', txt,

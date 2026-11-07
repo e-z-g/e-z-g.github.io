@@ -111,6 +111,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/heading_check.py` | Measures each link's direction of travel from the pictures (below). Needs opencv-python. |
 | `colmap/run_colmap.ps1` | Runs the sparse reconstruction on the PC: features, rig, matching from `pairs.txt`, mapper, model statistics; logs in `<room>\logs\`. |
 | `colmap/inspect_run.py` | After a run: which nodes each model holds, features per node, verified matches per linked pair. |
+| `colmap/brighten_faces.py` | CLAHE-brightened copies of every face, for feature extraction only. Needs opencv-python. |
+| `colmap/evaluate_model.py` | Checks a model against what it was never told: one shared rotation, the hotspot bearings, the age map. Needs numpy. |
 | `colmap/ENSI/` | `pairs.txt`, `rig_config.json`, `nodes.json`, the heading table and run summaries (no images). |
 
 ```sh
@@ -242,8 +244,43 @@ mapping. `colmap/ENSI/run1.txt` has the details.
   two models have no shared node. The tail of the mapper's log is failed
   attempts to start further models ("bad initial pair", "no initial pair").
 
-Next runs, not yet made: features from brightened copies of the dark faces
-(the originals stay the images of record) and a lower SIFT peak threshold;
-looser registration thresholds or the global mapper for 19 and 20; and the
-age map's positions with the measured climbs as pose priors
-(`pose_prior_mapper`).
+## Runs 2-4 on ENSI (7 November 2026)
+
+Each run in `<room>\runs\<tag>\` on the PC; `colmap/ENSI/run2.txt` … `run4.txt`
+have the settings, the models, matches per link and the evaluation.
+
+| run | features | mapper | nodes placed | models |
+|---|---|---|---|---|
+| 1 | originals, default SIFT | incremental | 24 | 1–18; 21–26 |
+| 2 | brightened, SIFT peak 0.002 | incremental | 25 | 1–18; 20–26 |
+| 3 | as 2 | incremental, looser thresholds | 30 | 1–19; 19–27; 38–40 |
+| 4 | as 2 | global | 40 | one model, all but 36 |
+
+- **Brightening worked.** `brighten_faces.py` (CLAHE on every face) with the
+  peak threshold at 0.002 gives 6,000–49,000 features per node instead of
+  1,000–15,000, and every cave link now has verified matches (19–220; seven
+  had none).
+- **Run 3's looser thresholds** (`abs_pose_min_num_inliers 12`,
+  `abs_pose_min_inlier_ratio 0.1`, `init_min_num_inliers 50`,
+  `init_min_tri_angle 8`, `filter_min_tri_angle 0.5`, `ba_local_min_tri_angle 2`,
+  `max_reg_trials 6`) bring in 19 and 27 and start a cave piece; node 19 is now
+  in both large models, so they can be merged.
+- **Run 4's single model is wrong, though its reprojection error is as low
+  (0.34 px).** `evaluate_model.py` finds node rotations up to 67° apart where
+  all should be equal, cave walks pointing up to 176° from their hotspots, a
+  median 3.7 steps off the age map, and nodes 1–26 all at one height. The
+  global mapper averages rotations from the matches and does not know they
+  are equal; with the cave's few matches that goes wrong and drags the rest.
+- **Run 3's models are right by every check:** rotations equal to 0.01° (model
+  0) and 2.4° at worst (model 1), bearings within a median 5.0° and 4.2° of the
+  hotspots, and the age map matched to a median 0.43 and 0.12 steps. They also
+  give heights: nodes 1–9 and 16 level, 10–12 0.4 steps lower, 13–15 0.75,
+  17–19 about 1.2 steps below the start (in map steps, one step being a typical
+  walk).
+
+The cave (28–41 except 38–40) is still out. What is left to try: merging
+run 3's two large models through node 19 (`model_merger`); holding every
+node's rotation at the known one, which COLMAP's mappers have no option for
+but which makes the positions a linear problem given each link's direction
+(as `heading_check.py` already measures); and the age map's positions as pose
+priors.
