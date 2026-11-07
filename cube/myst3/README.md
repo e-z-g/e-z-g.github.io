@@ -97,3 +97,105 @@ Distances are in typical steps, not metres; there are no heights.
 - `maps/rooms/index.html` — the room sketches as SVG.
 - `maps/ages/*.json`, `maps/rooms/*.json` — the data, for later use (e.g. as
   starting positions for COLMAP).
+
+## Preparing a room for COLMAP (`colmap/`)
+
+The aim is a true 3D reconstruction of an age from its node panoramas, starting
+with Voltaic's ENSI room. This part only lays the room out as COLMAP input and
+checks the geometry; nothing has been reconstructed yet.
+
+| File | What it does |
+|---|---|
+| `colmap/face_geometry.py` | Each face pixel's direction, each face's camera rotation, and a seam check that stitches a node's six faces (`check`, one node, optionally writing an equirectangular panorama; `room`, every node of a room). Needs numpy and Pillow for the checks. |
+| `colmap/prepare_colmap.py` | Copies a room's faces into COLMAP's layout and writes `pairs.txt`, `rig_config.json` and `nodes.json`. Standard library only. |
+| `colmap/ENSI/` | Those three files for ENSI (no images). |
+
+```sh
+python colmap/prepare_colmap.py C:\myst3_out\faces maps\rooms\ENSI.json maps\ages\Voltaic.json C:\myst3_colmap\ENSI
+python colmap/face_geometry.py room C:\myst3_out\faces\ENSI
+```
+
+### Where each face points, and the proof
+
+ScummVM draws a node as a cube with face *i* (0–5) textured from the archive's
+cube face *i*+1 (`engines/myst3/nodecube.cpp`) at the corners in
+`Renderer::cubeVertices` (`engines/myst3/gfx.cpp`). Read from that table, with
+*s*, *t* the image column and row as fractions (*t* down), a pixel looks along
+
+| face | | direction (x right, y up, z back) |
+|---|---|---|
+| 1 | front | (2s−1, 1−2t, −1) |
+| 2 | bottom | (1−2s, −1, 1−2t) |
+| 3 | back | (1−2s, 1−2t, 1) |
+| 4 | right | (1, 1−2t, 2s−1) |
+| 5 | left | (−1, 1−2t, 1−2s) |
+| 6 | top | (1−2s, 1, 2t−1) |
+
+With *u* = *s* and *v* = 1 − *t* this is `faceUvToDir()` in `../atlas-layout.js`
+term for term (viewer slots front 5, bottom 3, back 4, right 1, left 0, top 2).
+The viewer's (−1, 1, 1) scale on its cube is undone inside its own
+`gnomonicUV`, so `faceUvToDir` is in the game's frame and not mirrored. Two
+checks back this up:
+
+- **Every face's rotation has determinant +1.** A COLMAP camera's rotation has
+  rows (right, down, forward); a mirrored mapping would make right × down point
+  backwards, determinant −1. Seams alone could not show this, since a cube
+  mirrored as a whole still joins up.
+- **Every seam joins up.** For each of a node's 24 face edges, the check
+  compares the colour step across the seam (edge pixel against the pixel one
+  step beyond it, on the neighbouring face) with the step one pixel inside
+  the face. Over all 41 ENSI nodes the seam adds at most 4.2 grey levels
+  (median per node 0.0–0.9; no edge over 5). Swapping and mirroring left and
+  right, as a test that the check can fail, gives up to 75. An
+  equirectangular panorama of node 1 built this way is seamless, with a
+  level horizon (checked by eye; not committed, being made from game images).
+
+Each face is a 640×640 gnomonic view of exactly 90°, so the camera is
+`PINHOLE 320 320 320 320` with no distortion, and the six faces of a node share
+one centre. As `cam_from_rig` rotations with face 1 as the rig's reference
+(quaternions w, x, y, z, as COLMAP's `rig_config.json` reads them): front
+(1, 0, 0, 0), bottom (0, 0, ½√2, ½√2), back (0, 0, 1, 0), right
+(½√2, 0, −½√2, 0), left (½√2, 0, ½√2, 0), top (0, 0, −½√2, ½√2).
+
+### ENSI's input (7 November 2026)
+
+- **41 nodes, 246 images.** Every node with faces is a base node (1–41); 107 is
+  scripted but has no faces of its own.
+- **Layout:** `images/f<face>/ENSI-<node>.jpg`. One folder per face because
+  COLMAP's rig takes each sensor's images by folder prefix and groups a frame
+  by the file name after it, so a node's six faces are its six files with the
+  same name. COLMAP gives each sensor of a rig its own camera, so there are six
+  cameras with identical PINHOLE settings rather than one shared camera.
+- **48 linked node pairs** from 91 walk and 8 zip hotspots within the room
+  (7 → 107 dropped as a node to its own variant; moves into other rooms left
+  out). Every node is linked to at least one other.
+- **2,343 image pairs:** 1,728 between linked nodes (all 36 face pairings of
+  each) and 615 within nodes (15 each). The within-node pairs share a centre
+  and barely overlap, so they can add no geometry; they are listed as asked and
+  cost little.
+
+### The plan (not run)
+
+On the maintainer's PC (Windows 11, RTX 4060 Ti 16 GB): COLMAP 4.2.1 with CUDA
+in `C:\colmap\4.2.1`, numpy and Pillow for Python 3.13.
+
+1. `feature_extractor` with `ImageReader.camera_model PINHOLE`,
+   `camera_params 320,320,320,320`, `single_camera_per_folder 1`, SIFT on the
+   GPU (default 8,192 features).
+2. `rig_configurator` with `rig_config.json`: one rig of six sensors, 41 frames.
+3. `matches_importer --match_type pairs` with `pairs.txt` (GPU matching).
+4. `mapper` with focal length, principal point and extra parameters fixed and
+   `ba_refine_sensor_from_rig 0`, so the faces keep their exact rotations about
+   one centre; the global mapper is the alternative to try if the incremental
+   one breaks the room into pieces.
+
+At this size the first three steps take a minute or two and mapping a few
+minutes. The mapper still estimates each node's rotation; since every node in
+fact shares one world orientation, the spread of the recovered rotations is a
+check on the result, and they can be held equal afterwards.
+
+Open: which compass heading is which face. ScummVM's camera faces the front
+(−z) at heading 180 (`Renderer::setupCameraPerspective`, `180 - heading`
+about y), but whether heading then increases to the right or the left has not
+been checked against the pictures. It matters only for using the age map's
+positions as priors, not for the steps above.
