@@ -122,6 +122,9 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/join_model.ps1` | Solved poses to one COLMAP model: `build_model.py`, `point_triangulator`, `bundle_adjuster` with rotations held, text copies for `evaluate_model.py`. |
 | `colmap/link_scales.py` | Step lengths from points that one node sees on two of its links, then positions (for nodes that face one way). Needs numpy, opencv-python. |
 | `colmap/depth_fill.py` | Fills a dense cloud's gaps with Depth Anything V2's depth, fitted face by face to COLMAP's depth maps, sky masked (SegFormer), kept only where nearby nodes agree. Needs torch, transformers. |
+| `m3a_list.py` | Lists every resource of a `<ROOM>nodes.m3a` (types, sizes, magic) and extracts any, such as the Bink movies. |
+| `colmap/video_frames.py` | A movie's frames as extra views of a laid-out room or age: frames, brightened copies, sequential and key-frame x face pairs. Needs opencv-python and ffmpeg. |
+| `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
 | `colmap/viewer/` | A browser viewer for a dense cloud and mesh (`index.html`, three.js), `export_viewer_data.py` to pack the data, `serve_viewer.py` to serve it locally or through a tunnel. No data is committed. |
 | `colmap/ENSI/`, `colmap/Amateria/` | Pair lists, rig files, `nodes.json`, run summaries (no images). |
 
@@ -511,3 +514,37 @@ The viewer has the whole age and cuts of MACA, MAIS, MALL and MASS (each point
 goes to the room of its nearest node). A broad band of points beside MALL that
 looks like fill gone wrong is in COLMAP's own points too: a large surface seen
 at a grazing angle.
+
+## Movies as extra views (7 November 2026)
+
+Every movie is inside the room archives (`m3a_list.py`; type 8 movie, 72
+multitrack, all Bink `BIKi`, decoded with ffmpeg 9 on the PC). The flyovers
+shown when an age's book is opened in J'nanin are in the J'nanin rooms that hold
+the books: **LEMT 10912 is Amateria's** (15.3 s, 640×360, 15 fps, 229 frames),
+LEET 10302 Voltaic's, LELT 10302 Edanna's. MATO 24007 is Amateria's ride seen
+from inside the glass ball (143 s), not yet used.
+
+**The flyover's camera** was measured from the movie alone (`register_video.ps1
+-AloneOnly`): started at 600 px the mapper settles on a focal length of 455 px
+(a 70° horizontal field of view); left free from 455 it ends at 457. **No lens
+distortion**: with one radial term free it comes out at k = 0.003 (about 1 px at
+the corners) and the error does not change (0.635 against 0.637 px). Left to
+guess a focal length from nothing, the mapper started on nonsense and placed
+3 frames; started too far off (300, 450, 800) it fails the same way.
+
+**Into the 131-node model.** image_registrator alone placed only the 3 frames that
+match node faces directly (the movie looks down from above; many of its matches
+are the sun, sea and horizon, which say which way a frame looks but not where).
+The incremental mapper continuing the model with its frames held
+(`--Mapper.fix_existing_frames`) triangulates along the movie as it goes. With
+every other frame, 85 of 115 registered; with **every frame, 227 of 229**, mean
+error 0.61 px, 24,562 points instead of 8,248, about 4 minutes on the PC. The
+path is smooth (median 0.24, at most 0.36 node spacings from frame to frame),
+55 node spacings long, mostly 0.6 spacings above the nodes.
+
+**It confirms the layout.** A bundle adjustment with the flyover in and every node
+position free moves the nodes hardly at all: against COLMAP's sound 62-node
+model the centres differ by a median 0.007 walk lengths (0.004 held), against
+MALL's 0.006. Four more nodes were placed (MALL 17, MASS 57, MATO 7, MAWW 1)
+but three of them see only 4–5 points, so their poses (MAWW 1 tilted 27°, MATO 7
+turned 16°) are noise; MASS 57 sees 29 and comes out level and unturned.
