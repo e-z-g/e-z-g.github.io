@@ -1,0 +1,47 @@
+
+Name                     LastWriteTime       
+----                     -------------       
+1-image_undistorter.log  11/7/2026 1:52:24 AM
+2-patch_match_stereo.log 11/7/2026 2:11:44 AM
+3-stereo_fusion.log      11/7/2026 2:11:52 AM
+4-poisson_mesher.log     11/7/2026 2:11:52 AM
+5-delaunay_mesher.log    11/7/2026 2:12:31 AM
+
+430752 points
+node 1 face 1: cloud covers  46.2% of the face, mean colour difference there   6.6
+node 1 face 2: cloud covers   6.4% of the face, mean colour difference there  39.3
+node 1 face 3: cloud covers  26.7% of the face, mean colour difference there  14.3
+node 1 face 4: cloud covers  17.5% of the face, mean colour difference there  21.2
+node 1 face 5: cloud covers  57.8% of the face, mean colour difference there  10.2
+node 1 face 6: cloud covers   2.4% of the face, mean colour difference there   7.5
+node 8 face 1: cloud covers  34.0% of the face, mean colour difference there   7.5
+node 8 face 2: cloud covers   9.8% of the face, mean colour difference there  28.4
+node 8 face 3: cloud covers  27.4% of the face, mean colour difference there  30.6
+node 8 face 4: cloud covers   6.9% of the face, mean colour difference there  23.5
+node 8 face 5: cloud covers  54.0% of the face, mean colour difference there  11.9
+node 8 face 6: cloud covers   0.4% of the face, mean colour difference there  26.9
+node 13 face 1: cloud covers  43.1% of the face, mean colour difference there   5.5
+node 13 face 2: cloud covers   1.3% of the face, mean colour difference there  62.9
+node 13 face 3: cloud covers  25.9% of the face, mean colour difference there  14.3
+node 13 face 4: cloud covers  19.6% of the face, mean colour difference there  19.7
+node 13 face 5: cloud covers  41.2% of the face, mean colour difference there  16.1
+node 13 face 6: cloud covers  24.3% of the face, mean colour difference there   7.0
+node 19 face 1: cloud covers  24.0% of the face, mean colour difference there  20.8
+node 19 face 2: cloud covers   0.9% of the face, mean colour difference there   4.6
+node 19 face 3: cloud covers  14.0% of the face, mean colour difference there  23.9
+node 19 face 4: cloud covers  25.7% of the face, mean colour difference there  25.4
+node 19 face 5: cloud covers  26.7% of the face, mean colour difference there  40.0
+node 19 face 6: cloud covers  25.2% of the face, mean colour difference there  13.5
+node 24 face 1: cloud covers  19.0% of the face, mean colour difference there   7.3
+node 24 face 2: cloud covers  10.4% of the face, mean colour difference there   8.3
+node 24 face 3: cloud covers  30.2% of the face, mean colour difference there  15.2
+node 24 face 4: cloud covers  34.2% of the face, mean colour difference there  21.1
+node 24 face 5: cloud covers   7.4% of the face, mean colour difference there  20.6
+node 24 face 6: cloud covers  23.7% of the face, mean colour difference there   7.7
+
+Name                  Length
+----                  ------
+fused.ply           11630551
+meshed-delaunay.ply  4393416
+meshed-poisson.ply  55858501
+

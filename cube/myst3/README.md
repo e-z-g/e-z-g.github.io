@@ -114,6 +114,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/brighten_faces.py` | CLAHE-brightened copies of every face, for feature extraction only. Needs opencv-python. |
 | `colmap/evaluate_model.py` | Checks a model against what it was never told: one shared rotation, the hotspot bearings, the age map; and, with `--compare`, against other models. Needs numpy. |
 | `colmap/solve_nodes.py` | Every node's rotation and position from its links alone: a relative pose per link, rotation averaging, then positions from the directions. Modes: free rotation (default), `--upright` (yaw only), `--same-rotation`. Needs numpy, opencv-python. |
+| `colmap/run_dense.ps1` | Dense reconstruction from a sparse model: workspace, depth maps (`patch_match_stereo`, geometric consistency), fused coloured points, Poisson and Delaunay meshes. |
+| `colmap/render_cloud.py` | A fused cloud seen from above and from a node's own faces, beside the real faces, with the share of each face it covers. Needs numpy, Pillow. |
 | `colmap/build_model.py` | Writes solved poses as a COLMAP text model on an existing database's frames, for `point_triangulator` and `bundle_adjuster`. |
 | `colmap/ENSI/` | `pairs.txt`, `rig_config.json`, `nodes.json`, the heading table and run summaries (no images). |
 
@@ -347,3 +349,22 @@ COLMAP.bat point_triangulator --database_path ...\run3\database.db --image_path 
 COLMAP.bat bundle_adjuster --input_path J\tri --output_path J\ba --BundleAdjustment.constant_rig_from_world_rotation 1
     (with focal length, principal point, extra parameters and sensor_from_rig not refined)
 ```
+
+## Dense reconstruction of nodes 1–27 (7 November 2026)
+
+`run_dense.ps1` on the joined model, with the original faces: about 20 minutes
+on the RTX 4060 Ti, nearly all of it `patch_match_stereo` (149 of the 162
+faces have sparse points to work from, about 3 s per face per pass, two
+passes). Fusion gives **430,752 coloured points**; the Poisson mesh is 56 MB,
+the Delaunay mesh 4 MB. All of it stays on the PC
+(`C:\myst3_colmap\ENSI\dense_1-27\`), being made from game images;
+`colmap/ENSI/dense_1-27.txt` has the numbers.
+
+`render_cloud.py` draws the cloud from five nodes' own cameras (1, 8, 13, 19,
+24) beside the real faces. It lines up: rocks, the stone tower, the water and
+the far cliffs fall where they are in the pictures, in their colours (mean
+difference 5–15 grey levels on walls facing the node). The cloud covers
+20–58% of the side faces. What is missing is what should be: the sky, and each
+node's own platform and the thin walkways and railings (bottom faces 1–10%
+covered); a node's floor is seen from straight above only by that node, and
+from its neighbours at a grazing angle. Not yet looked at: the two meshes.
