@@ -169,9 +169,10 @@ function overview() {
   setOn('orbit', true);
   controls.enableZoom = controls.enablePan = true;
   controls.rotateSpeed = 1;
-  controls.target.set(0, 0, 0);
+  const mid = lo.clone().add(hi).multiplyScalar(0.5);   // the middle of what is loaded
+  controls.target.copy(mid);
   const r = hi.clone().sub(lo).length() * 0.45;
-  camera.position.set(r * 0.3, r * 0.8, r * 0.6);
+  camera.position.copy(mid).add(new THREE.Vector3(r * 0.3, r * 0.8, r * 0.6));
   camera.fov = 60; camera.updateProjectionMatrix();
   controls.update();
   say(`${n.toLocaleString()} points, ${Object.keys(info.nodes).length} nodes. Drag to turn, pinch to zoom.`);

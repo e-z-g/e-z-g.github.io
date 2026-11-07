@@ -484,10 +484,12 @@ face, and used where COLMAP has none. Three things keep it honest:
 - no fill beyond the depth range COLMAP measured on the face, and none on sky
   (SegFormer's ADE20K sky class; Amateria's dusk clouds otherwise get depths);
 - each fill point is looked at from the faces of the 8 nearest other nodes and
-  kept only if one of them sees something at the same depth (within 10%) and
-  no more of them see past it than support it. Without this the sky became flat
-  sheets; with it, 53% of Voltaic's 3.4 million candidates are kept, 45% of
-  Amateria's 6.2 million.
+  kept only if two of them see something at the same depth (within 10%), each
+  from more than 3° away from the source node's ray, and no more of them see
+  past it than support it. Without this the sky became flat sheets; with one
+  supporting node and no angle rule, 53% of Voltaic's 3.4 million candidates
+  were kept, 45% of Amateria's 6.2 million; with the rule as it now stands, 48%
+  of Voltaic's and 28% of the 131-node Amateria model's 13.9 million.
 
 Voltaic seen from its own nodes: side faces covered 45–80% instead of 20–45%,
 colour differences mostly 6–18 as for COLMAP's own points (`render_cloud.py`).
@@ -498,3 +500,14 @@ pavilions, paths and walls fill in; nodes standing among near tracks and beams
 the fill (thinned to about 550,000 points) behind its Fill button.
 `colmap/ENSI/fill_1-27.txt` and `colmap/Amateria/fill_run1_0.txt` are the
 per-face reports.
+
+### Amateria's 131 nodes, dense (7 November 2026)
+
+`run_dense.ps1` on the joined model (shared + floor + map lengths): 65 minutes
+(541 of the 786 faces have sparse points to work from), **586,055 points**, a 9 MB
+Delaunay and a 66 MB Poisson mesh. `depth_fill.py` adds 3.85 million points
+(held-out error median 8.1%, 90% within 48.7%; `colmap/Amateria/fill_joined.txt`).
+The viewer has the whole age and cuts of MACA, MAIS, MALL and MASS (each point
+goes to the room of its nearest node). A broad band of points beside MALL that
+looks like fill gone wrong is in COLMAP's own points too: a large surface seen
+at a grazing angle.

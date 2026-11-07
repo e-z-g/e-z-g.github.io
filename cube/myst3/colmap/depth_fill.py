@@ -31,8 +31,8 @@ face of the --neighbours nearest other nodes. It is supported where such a face
 sees something at the same depth in that direction (COLMAP's depth, or that
 face's own fitted depth, within 10%), and contradicted where it would hide what
 the face sees (nearer than 85% of it, including where the face sees nothing
-near: sky, far sea). Kept: supported at least once, and contradicted no more
-often than supported. Two networks' guesses from different nodes rarely agree
+near: sky, far sea). Kept: supported by at least --min-support faces (2), and
+contradicted no more often than supported. Two networks' guesses from different nodes rarely agree
 by chance, so this keeps what the views share and drops the sheets a single
 guess puts across the sky.
 
@@ -111,6 +111,9 @@ def main():
     ap.add_argument('--stride', type=int, default=3)
     ap.add_argument('--report')
     ap.add_argument('--neighbours', type=int, default=8)
+    ap.add_argument('--min-angle', type=float, default=3.0,
+                    help='a neighbour counts only where its ray and the source node\'s meet at more than this (degrees)')
+    ap.add_argument('--min-support', type=int, default=2)
     ap.add_argument('--sky-model', default='nvidia/segformer-b2-finetuned-ade-512-512',
                     help="a semantic segmentation model with a 'sky' class; '' to not look for sky")
     a = ap.parse_args()
@@ -202,9 +205,15 @@ def main():
     for name in obs:
         faces_of.setdefault(node_of[name], []).append(name)
     pts, cols = [], []
+    cos_min = math.cos(math.radians(a.min_angle))
     for name, (P, C) in cands.items():
         sup = np.zeros(len(P), int); con = np.zeros(len(P), int)
+        src = P - centres[node_of[name]]
+        src /= np.linalg.norm(src, axis=1)[:, None]
         for m in near[node_of[name]]:
+            chk = P - centres[m]
+            chk /= np.linalg.norm(chk, axis=1)[:, None]
+            apart = np.sum(src * chk, 1) < cos_min    # seen along almost the same ray proves nothing
             for other in faces_of.get(m, []):
                 R, t = poses[other]
                 O = obs[other]
@@ -218,17 +227,18 @@ def main():
                 ins = ok & (u >= 0) & (u < w) & (v >= 0) & (v < h)
                 o = np.full(len(P), np.nan)
                 o[ins] = O[v[ins], u[ins]]
-                known = ins & ~np.isnan(o)
+                known = ins & ~np.isnan(o) & apart
                 fin = known & np.isfinite(o)
                 sup[fin] += (np.abs(z[fin] - o[fin]) < 0.1 * o[fin])
                 con[known] += z[known] < 0.85 * o[known]          # it would hide what that face sees
-        keep = (sup >= 1) & (con <= sup)
+        keep = (sup >= a.min_support) & (con <= sup)
         pts.append(P[keep]); cols.append(C[keep])
         report[name].update({'kept': int(keep.sum())})
     total_c = sum(len(P) for P, _ in cands.values())
     total_k = sum(len(p) for p in pts)
     print(f'candidates {total_c}; kept {total_k} ({total_k / max(1, total_c) * 100:.0f}%): seen at the same depth '
-          f'(within 10%) by at least one of the {a.neighbours} nearest nodes, and contradicted by no more than support')
+          f'(within 10%) by at least {a.min_support} of the {a.neighbours} nearest nodes from over {a.min_angle} degrees '
+          f'apart, and contradicted by no more than support')
     e = np.concatenate(all_err)
     print(f'all faces: held-out error median {np.median(e) * 100:.1f}%, 90% within {np.percentile(e, 90) * 100:.1f}%')
     xyz, rgb = np.concatenate(pts), np.concatenate(cols)
