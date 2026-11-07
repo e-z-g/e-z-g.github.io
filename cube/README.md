@@ -361,7 +361,15 @@ with 128 px of its neighbours and faces done earlier lending their finished
 backdrop, at the depth of the step's far side, with `backdropFullDepth`
 (`amateria/layers/build_layers.py`, stitched at 1296 px by `stitch_layers.js`).
 What it leaves: small bites out of the glass balls on the front face, where
-the depth steps between a ball and the rings around it. Moving the measured
+the depth steps between a ball and the rings around it. With steps inside a near object (Voltaic ENSI 16's pod: a ball in
+front of its frame in front of the sky) the far side of the nearest step is
+the frame, which then stayed out of the region, and LaMa painted a dark
+pod-shaped blob at the frame's depth that streaked as the eye moved;
+`--reach 48` takes instead the farthest far side within 48 px (96 at 1280),
+the sky, and ENSI 16 is built so. Two layers cannot hold three, though: under
+MAWW 101's floor it took the beams below the slats for part of them and the
+gaps showed flat grey, so MAWW 101 and MASS 84 keep the nearest step
+(`--reach 0`). Moving the measured
 depth's edges onto the picture's by colour was tried first (pixels within
 14–18 px of a jump relabelled near or far) and dropped: in these dark faces
 the labels came out speckled, each speckle tore, and the rings and arcs broke

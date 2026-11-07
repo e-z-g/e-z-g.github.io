@@ -165,12 +165,25 @@ def hole_band(q, whole, t, width, step_at):
     return out, hole
 
 
-def removed_region(q, t, band):
+def removed_region(q, t, band, reach):
     """The near side of every jump within band px of it; the whole near object
-    (all of it nearer than the far side of its nearest jump, connected to a
-    jump's near side), which LaMa must not see; and the far side's q for every
-    pixel (that of the nearest far-side pixel, taken as the least q within 2 px
-    of it, since a step is soft over a pixel or two)."""
+    (all of it nearer than the far side behind it, connected to a jump's near
+    side), which LaMa must not see; and the q of what is behind, for every
+    pixel: the farthest far side of any jump within reach px (a far side's q
+    taken as the least within 2 px, since a step is soft over a pixel or two),
+    else that of the nearest jump.
+
+    The farthest within reach, not the nearest: an object with steps of its
+    own (ENSI 16's pod, a ball in front of its frame in front of the sky) had
+    its frame taken for what is behind the ball, so the frame stayed out of
+    the region, LaMa drew on it and painted more pod, and the backdrop got the
+    frame's depth: a dark pod-shaped blob that streaked as the eye moved.
+    reach is about as far as anything slides. Two layers cannot hold three,
+    though: under MAWW 101's floor slats it took the beams below for part of
+    the slats (the sea is in reach through the gaps), and the gaps showed flat
+    painted grey; keeping only small middle pieces did not tell the beams from
+    the pod's frame. So it is a choice per node: reach 0 is the nearest step,
+    as MAWW 101 is built."""
     near, far = jumps(q, t)
     if not far.any():
         none = np.zeros(q.shape, bool)
@@ -182,6 +195,11 @@ def removed_region(q, t, band):
     order = lab[ys, xs]
     fq_of = np.zeros(order.max() + 1, np.float32); fq_of[order] = qmin[ys, xs]
     fq = fq_of[lab]
+    if reach > 0:
+        BIG = np.float32(1e6)
+        far_q = np.where(far, qmin, BIG).astype(np.float32)
+        behind = cv2.erode(far_q, np.ones((2 * reach + 1, 2 * reach + 1), np.uint8))
+        fq = np.where(behind < BIG, np.minimum(behind, fq), fq)
     nearer = q > fq + t / 2
     _, comp = cv2.connectedComponents(nearer.astype(np.uint8), connectivity=8)
     keep = np.unique(comp[near & nearer]); keep = keep[keep > 0]
@@ -214,6 +232,8 @@ def main():
     ap.add_argument('out'); ap.add_argument('--lama', default='big-lama.pt')
     ap.add_argument('--band', type=int, default=160); ap.add_argument('--jump', type=float, default=0.8)
     ap.add_argument('--fringe', type=int, default=6, help='px the painted region reaches past the jump into the far side')
+    ap.add_argument('--reach', type=int, default=48, help='px within which the farthest far side counts as behind '
+                    '(0: the nearest step\'s far side; MAWW 101 is built so)')
     ap.add_argument('--src', default=AMATERIA, help='folder of the faces and depth maps')
     ap.add_argument('--names', nargs=6, help="the six faces' file names without suffix, in node_depth.py's order "
                     "(front, bottom, back, right, left, top; default MAWWnodes-8 ... -13)")
@@ -242,7 +262,7 @@ def main():
     # face padded with its neighbours so a jump at a seam is seen whole.
     for k in range(1, 7):
         look = pad_lookup(k, N, PAD_)
-        region, whole, fq = removed_region(sample(Q, look), a.jump, sc(a.band))
+        region, whole, fq = removed_region(sample(Q, look), a.jump, sc(a.band), sc(a.reach))
         grow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * sc(a.fringe) + 1,) * 2, np.uint8)) > 0
         masks[k], hide[k], fqs[k] = grow(region), grow(whole), fq
         fgq[k], holes[k] = hole_band(sample(Q, look), whole, a.jump, sc(a.hole), sc(a.hole_step))
