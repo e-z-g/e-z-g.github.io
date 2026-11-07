@@ -139,7 +139,14 @@ def jumps(q, t):
     return near & ~far, far & ~near
 
 
-def hole_band(q, whole, t, width, step_at):
+def remove_specks(m, area):
+    """m without its connected pieces of under area pixels."""
+    n, comp, stats, _ = cv2.connectedComponentsWithStats(m.astype(np.uint8), connectivity=8)
+    big = stats[:, cv2.CC_STAT_AREA] >= area; big[0] = False
+    return big[comp]
+
+
+def hole_band(q, whole, t, width, step_at, speck=80):
     """Voltaic's way of cutting, for every step: the width px on its far side
     become a hole in the foreground (green 0), and the near depth carries on
     under the hole for step_at px, so the mesh's step lies inside it. The mesh
@@ -147,18 +154,32 @@ def hole_band(q, whole, t, width, step_at):
     ramp of stretched triangles about 5 px wide; cut by the tear test, which
     reaches about a pixel from the step, the rest of that ramp showed as
     jagged teeth along every edge. A hole is cut by the picture's own pixels."""
-    near_e, _ = jumps(q, t)
+    # Hysteresis, as in edge finding: a step of half the size counts where it
+    # joins a full one, and gaps of a pixel or two along an edge are closed.
+    # Without it, where a step was a little softer the hole stopped, the cut
+    # along an edge was a dotted line, and pixels of the near object's edge
+    # stayed behind between the dots: a speckle along every rail and walkway.
+    strong, _ = jumps(q, t)
     hole = np.zeros(q.shape, bool)
-    if not near_e.any():
+    if not strong.any():
         return q.copy(), hole
+    weak, _ = jumps(q, t / 2)
+    weak = cv2.morphologyEx((weak | strong).astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)) > 0
+    _, wc = cv2.connectedComponents(weak.astype(np.uint8), connectivity=8)
+    keep = np.unique(wc[strong]); keep = keep[keep > 0]
+    near_e = np.isin(wc, keep) & ~whole | strong
     qmax = cv2.dilate(q.astype(np.float32), np.ones((5, 5), np.uint8))
     dist, lab = cv2.distanceTransformWithLabels((~near_e).astype(np.uint8), cv2.DIST_L2, 5,
                                                 labelType=cv2.DIST_LABEL_PIXEL)
     ys, xs = np.nonzero(near_e)
     nq_of = np.zeros(lab.max() + 1, np.float32); nq_of[lab[ys, xs]] = qmax[ys, xs]
     nq = nq_of[lab]
-    far_side = ~whole & ~near_e & (nq > q + t / 2)
+    far_side = ~whole & ~near_e & (nq > q + t / 4)
     hole = far_side & (dist <= width)
+    # No specks: holes of under speck pixels go, and so do islands of
+    # foreground that small inside a hole.
+    hole = remove_specks(hole, speck)
+    hole = ~remove_specks(~hole, speck)
     out = q.copy()
     under = far_side & (dist <= step_at)
     out[under] = nq[under]
@@ -251,7 +272,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('out'); ap.add_argument('--lama', default='big-lama.pt')
     ap.add_argument('--band', type=int, default=160); ap.add_argument('--jump', type=float, default=0.8)
-    ap.add_argument('--fringe', type=int, default=6, help='px the painted region reaches past the jump into the far side')
+    ap.add_argument('--hide-fringe', type=int, default=6, help='px past the edge LaMa repaints, not copying the fringe')
+    ap.add_argument('--fringe', type=int, default=2, help='px the painted region reaches past the jump into the far side')
     ap.add_argument('--reach', type=int, default=48, help='px within which the farthest far side counts as behind '
                     '(0: the nearest step\'s far side; MAWW 101 is built so)')
     ap.add_argument('--model-bg', help="model_backdrop.py's folder: what other nodes saw behind the near objects")
@@ -299,8 +321,21 @@ def main():
         region, whole, fq = removed_region(sample(Q, look), a.jump, sc(a.band),
                                              0 if k in a.nearest_faces else sc(a.reach), a.belong)
         grow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * sc(a.fringe) + 1,) * 2, np.uint8)) > 0
-        masks[k], hide[k], fqs[k], wholes[k] = grow(region), grow(whole), fq, whole
-        fgq[k], holes[k] = hole_band(sample(Q, look), whole, a.jump, sc(a.hole), sc(a.hole_step))
+        # Gaps narrower than the cut between parts of a near object (the slit
+        # between ENSI 16's spire blades): what shows through them is paler or
+        # mixed with the object's edges, and left in the backdrop at the far
+        # side's depth it stayed behind as a pale ghost of the slit.
+        k_gap = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * sc(a.hole) + 1,) * 2)
+        slits = (cv2.morphologyEx(whole.astype(np.uint8), cv2.MORPH_CLOSE, k_gap) > 0) & ~whole
+        # LaMa repaints --hide-fringe px past the edge, so it never copies the
+        # object's colour fringe (a 4 px margin let the spire's rust into the
+        # sky as a pink smudge); the backdrop keeps only --fringe px of that,
+        # and the real far side beyond (a 12 px strip of painted water was
+        # darker than the water beside it, a jagged line along every edge).
+        hgrow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * sc(a.hide_fringe) + 1,) * 2, np.uint8)) > 0
+        masks[k], hide[k], fqs[k], wholes[k] = grow(region) | slits, hgrow(whole) | slits, fq, whole
+        fgq[k], holes[k] = hole_band(sample(Q, look), whole, a.jump, sc(a.hole), sc(a.hole_step),
+                                           speck=int(20 * S * S))
     inner = (slice(PAD_, PAD_ + N), slice(PAD_, PAD_ + N))
     M = np.stack([masks[k][inner] for k in range(1, 7)])
     for k in ORDER:

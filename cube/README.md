@@ -390,7 +390,21 @@ dense, `build_layers.py --model-bg` puts that colour and depth in the backdrop
 and LaMa paints only the rest; scattered points it leaves to LaMa, since given
 as known they were clues LaMa joined up into a ghost of the object. The
 neighbours supply 2–9% of MASS 84's side faces and 4–16% of ENSI 16's: sea
-behind the stone tower, cliff and sea behind the walkways. Moving the measured
+behind the stone tower, cliff and sea behind the walkways.
+
+Speckle along thin things (rails, walkway edges) came from cuts that broke
+into dotted lines: where a step was a little softer the 2-pixel jump test
+missed it, the hole stopped, and pixels of the near object's edge stayed
+behind between the dots. The holes are now found with hysteresis (a step of
+half the size counts where it joins a full one, one-pixel gaps closed), and
+hole specks and foreground islands under 20 px (80 at 1280) are removed.
+LaMa repaints 6 px past every edge (`--hide-fringe`, 12 at 1280) so it never
+copies the object's colour fringe, but the backdrop keeps only 2 px of that
+painting (`--fringe`), and the real far side beyond: a 12 px strip of painted
+water was darker than the water beside it and showed as a jagged line along
+the walkway. Gaps narrower than the cut between parts of a near object (the
+slit between ENSI 16's spire blades) are painted whole; left at the far
+side's depth they stayed behind as pale ghosts. Moving the measured
 depth's edges onto the picture's by colour was tried first (pixels within
 14–18 px of a jump relabelled near or far) and dropped: in these dark faces
 the labels came out speckled, each speckle tore, and the rings and arcs broke
