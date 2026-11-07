@@ -274,7 +274,7 @@ texels per quad is already more than the geometry can express.
 
 ## Material kinds
 
-`createMaterials(colorMode, depthMode, seamFill, layoutId)` builds one material
+`createMaterials(colorMode, depthMode, layoutId)` builds one material
 per face; `MAT_KINDS` names the combinations. A material bakes **one** atlas
 layout for both its samplers, which is the constraint behind the one gap below.
 
@@ -283,14 +283,14 @@ layout for both its samplers, which is the constraint behind the one gap below.
 | `standard` | six images | none | depthless ages (Amateria, J'nanin) |
 | `standardDepth` | six images | 3×2 atlas | ages with six depth faces (Voltaic) |
 | `atlasSolo` | atlas | same atlas | pre-stitched ages (Edanna) |
-| `atlasFg` | atlas | same atlas | LDI foreground (custom uploads, Voltaic *Layered*); `seamFill` on, for tears |
-| `atlasBg` | atlas | same atlas | custom LDI backdrop; displaces at a lower rate |
+| `atlasFg` | atlas | same atlas | LDI foreground (custom uploads, Voltaic and Amateria *Layered*) |
+| `atlasBg` | atlas | same atlas | LDI backdrop; displaces at half the slider unless the version has `backdropFullDepth` |
 | `atlasStandard` | 5×3 atlas | six images | video panoramas |
 
 Every atlas bound to one material must therefore be in the same layout, and
 `agreedLayout()` refuses a mismatch by name rather than rendering it scrambled.
 Within a layout, each atlas carries **its own gutter fraction**
-(`uColorGutter`, `uDepthGutter`, `uBgColorGutter`, passed into
+(`uColorGutter`, `uDepthGutter`, passed into
 `sampleAtlas()` per call): the 3×2 gutter is 8px at the face size the atlas was
 stitched at, so a colour atlas stitched at 1024 and a depth atlas at 512 inset
 by different fractions. `gutterFracFor()` takes the width *as stitched* —
@@ -312,8 +312,19 @@ equal to red, so for it this is the old rule, "depth near zero is nothing".
 - Keeping holes out of red means marking one need not move the mesh. With one
   channel a hole was depth 0, which also sank the foreground into a pit there,
   and the pit's walls stretched across the view.
-- A **tear** (`uTearThreshold`, at steep depth gradients) still takes the
-  backdrop's colour at the same UV, so a crack reads as continuous picture.
+- A **tear** (`uTearThreshold`, at steep depth gradients) is discarded in the
+  same way, so the backdrop shows there at its own depth. It used to take the
+  backdrop's colour at the same UV (`seamFill`, removed): the foreground's
+  stretched wall across the step stayed where it was, painted with what was
+  behind, and a near object still smeared across what it hid. In Voltaic's
+  *Layered* version that changed only the walkway's edge over the floor (about
+  1% of a view), where a sawtooth of backdrop colour became a dark band: its
+  backdrop there is the original picture of the edge.
+- A version with `backdropFullDepth: true` measured its backdrop's depth on
+  the foreground's scale. Its backdrop then displaces at the full slider rate
+  (`bgDepthRate`) from 1% outside the foreground (`bgScaleFor()`), not at half
+  the rate from radius 56, so what a tear reveals lies where the hidden surface
+  is; the depth test keeps it behind wherever the two layers agree.
 
 Voltaic's *Layered* version is built this way, from the same capture: the
 estimated depth could not see through the walkway's slat gaps or the floor
@@ -329,6 +340,25 @@ walkway, 30 straight down), blending back to the estimate over 64 px more so
 the backdrop has no step of its own (`voltaic/layers/build_layers.py`). Built as face images, stitched 3×2 with
 `stitcher.html` at 656 px (640 of picture), exactly — the green mask survives
 the stitcher bit for bit.
+
+Amateria's *Layered* version (MAWW node 101) is the general case: every
+step in the measured depth tears. Its foreground is the original faces and
+measured depth, unchanged (green 255: nothing see-through, else the sky at
+depth 0 would be cut as a hole). Its backdrop is the near side of every step
+(two pixels 2 apart whose inverse distance differs by more than 0.8 in units
+of the farthest kept distance; the tear slider's middle tears at 1 to 2)
+within 160 px of it, painted by LaMa with the whole near object hidden from
+it (shown part of one, LaMa carries it on into the gap: with a 64 px band a
+ghost of the machinery's box came back beside it), each face padded
+with 128 px of its neighbours and faces done earlier lending their finished
+backdrop, at the depth of the step's far side, with `backdropFullDepth`
+(`amateria/layers/build_layers.py`, stitched by `stitch_layers.js`). What it
+leaves: where the measured depth's silhouette is rounder than the picture —
+the spire roof's eaves reach ~10 px past it — the eave tips sit at sky depth
+and stay behind as a pale wedge, and the tear notches the roof. Moving the
+depth's edges onto the picture's was tried (pixels within 14–18 px of a jump
+relabelled near or far by colour) and dropped: in these dark faces the labels
+came out speckled, each speckle tore, and the rings and arcs broke apart.
 
 **Known gap:** the video path's colour is a 5×3 atlas, so it cannot borrow the
 3×2 depth stitch and keeps its six per-face depth textures — which means the

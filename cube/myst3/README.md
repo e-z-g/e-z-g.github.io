@@ -125,6 +125,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `m3a_list.py` | Lists every resource of a `<ROOM>nodes.m3a` (types, sizes, magic) and extracts any, such as the Bink movies. |
 | `colmap/video_frames.py` | A movie's frames as extra views of a laid-out room or age: frames, brightened copies, sequential and key-frame x face pairs. Needs opencv-python and ffmpeg. |
 | `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
+| `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
 | `colmap/sky_masks.py` | Feature masks that leave out sky, sea and water (SegFormer, ADE20K), for movie frames: matches on the sky fix which way a picture looks but not where. Needs torch, transformers. |
 | `colmap/node_stereo.py` | `patch_match_stereo` for one node's six faces and the images they share most points with, instead of every image. |
 | `colmap/pair_points.py` | Depths in one face, up to scale, from its verified matches with one other face (essential matrix, triangulation): for a node no model places. Needs opencv-python. |
@@ -605,6 +606,32 @@ With the masks the ride registers **226 of its 2,145 frames** (17,474 points,
 held them, and most of the 1,316 frames, was the sky. The movie frames are
 640×360 and much of the ride is blurred or inside the cage, so with the sky gone
 little matches the node faces.
+
+### The flyover with the sky masked (MATO's lemt)
+
+The flyover registered into that masked model with its frames masked the same
+way: **191 of its 229 frames** on a smooth path (a median 0.25 node spacings a
+frame, never over 0.37), and four more nodes, MAWW 1, MASS 57, MATO 7 and
+MATO 10. Each of the four stood on 17–27 points of its face 4, all in the band
+of cloud above the horizon, in two pairs 0.17 and 0.49 apart whose pictures
+show a cockpit, rails over water, a rock island and a dome. The masks covered
+only the movie frames; the node faces had been matched with one another long
+before, and those matches still held cloud points.
+
+`filter_sky.py` takes them out: sky masks for the 852 node faces too (a median
+32.5% of a face, 44 faces over 95%), and in a copy of the database every
+verified match with an end on the sky dropped (356,226 of 2,996,505), a pair
+left under 15 deleted, and the model's 1,097 cloud points of 17,474 dropped.
+An image of the model left with no pair at all crashed the mapper (exit
+0xC0000409, nothing in the log), so such an image keeps its best pair
+unfiltered (135 images, nearly all whole faces of sky; keeping only pairs
+between two images of the model left 13 with none, and it crashed again).
+
+Registered again (`video_lemt_nodesky`): **191 of 229 frames** (29,948
+points, 0.66 px) and one node, **MASS 57**, now on 17 points of the rock
+island on its face 4, 13 units away, seen at a median 28.5°: not sky, but all
+in one patch about 100 px across, so its place is weakly held. It lies 7.3
+units (4.3 spacings) from the nearest node.
 
 ## Depth for the site's Amateria node (MAWW 101)
 
