@@ -476,7 +476,13 @@ node 13 the rock's outline runs on from cloud into picture, and the tower and
 water sit behind it in place. The floor right under a node is in its bottom face:
 Floors lays each node's bottom face (its middle 60%) flat at the node's floor
 height, measured from the dense points under it (21 of 27 Voltaic nodes, 43 of 62
-in Amateria's 62-node model; the median for the rest).
+in Amateria's 62-node model; the median for the rest). Some nodes stand on
+platforms a lift has raised (the maintainer's reading: their floor patches
+came out huge): the cloud lacks the platform, and the points below are the
+ground far down. Where those lie more than 1.3 times the median eye height down,
+the floor is laid at the median eye height instead: Voltaic's node 10 (3.0
+times), and in Amateria MASS 5, 21, 22, 25, 43 and 46 (2.1–3.4 times), MAIS 31
+(3.3), MATO 2 (2.8), and MAIS 7 and 18 just over the line (1.4, 1.3).
 
 **Learned depth, scaled to COLMAP's (`depth_fill.py`).** Depth Anything V2 (Base)
 on every face, its inverse depth fitted to COLMAP's geometric depth map for that

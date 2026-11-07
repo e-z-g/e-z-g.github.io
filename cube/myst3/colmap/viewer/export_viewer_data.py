@@ -34,6 +34,9 @@ nearest node is one of them (the mesh is left out).
 Floor height: how far the dense points straight under a node (within a tenth of
 the nodes' median spacing sideways) lie below it, the nearest tenth of them; where
 fewer than five points are there, the median over the nodes that have them.
+Where they lie more than 1.3 times that median down, the node stands on a platform
+the cloud lacks (a lift has raised it; the points are the ground below), so the
+floor is laid at the median eye height and the drop kept as ground_below.
 Everything is moved so the nodes' mean centre is at the origin. Needs numpy.
 """
 import argparse
@@ -168,6 +171,12 @@ def main():
     typical = float(np.median(list(floor.values()))) if floor else 0.55 * step
     print(f'floor heights measured under {len(floor)} of {len(nodes)} nodes; median {typical:.3f} '
           f'({typical / step:.2f} of the node spacing)')
+    raised = {n: h for n, h in floor.items() if h > 1.3 * typical}
+    for n in raised:                             # a lift has put the node on a platform the cloud
+        del floor[n]                             # lacks: what is below is the ground far down
+    if raised:
+        print(f'raised (points below more than 1.3 times the eye height down; floor laid at the eye '
+              f'height): ' + ', '.join(f'{labels.get(n, n)} {h / typical:.1f}x' for n, h in sorted(raised.items())))
     if a.faces:
         import shutil
         prefix = re.search(r'f1/(.+)-\d+\.jpg$', open(a.poses).readline().split()[-1]).group(1)
@@ -183,7 +192,8 @@ def main():
         'extent_p2_p98': [np.percentile(xyz, 2, 0).tolist(), np.percentile(xyz, 98, 0).tolist()],
         'nodes': {str(n): {'centre': c.tolist(), 'node_from_world': R.tolist(),
                            'label': labels.get(n, str(n)),
-                           'floor': floor.get(n, typical), 'floor_measured': n in floor}
+                           'floor': floor.get(n, typical), 'floor_measured': n in floor,
+                           'ground_below': raised.get(n)}
                   for n, (R, c) in sorted(nodes.items())},
     }
     if a.mesh:
