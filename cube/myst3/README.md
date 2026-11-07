@@ -194,8 +194,31 @@ minutes. The mapper still estimates each node's rotation; since every node in
 fact shares one world orientation, the spread of the recovered rotations is a
 check on the result, and they can be held equal afterwards.
 
-Open: which compass heading is which face. ScummVM's camera faces the front
-(−z) at heading 180 (`Renderer::setupCameraPerspective`, `180 - heading`
-about y), but whether heading then increases to the right or the left has not
-been checked against the pictures. It matters only for using the age map's
-positions as priors, not for the steps above.
+### Which way headings turn (`colmap/heading_check.py`)
+
+Settled both ways, 7 November 2026. **Heading *h* looks along (−sin *h*, 0,
+cos *h*) in the cube frame above: 0 back, 90 left, 180 front, 270 right,
+increasing clockwise seen from above** (turning right raises the heading).
+
+- **From the code:** ScummVM's camera is the rotation 180 − heading about y
+  (`Renderer::setupCameraPerspective`, `Matrix4(180 - heading, pitch, 0,
+  EO_YXZ)`); ScummVM's matrices are stored row by row and `glLoadMatrixf`
+  reads column by column, so OpenGL gets the transpose, and the camera's
+  −z then points along (−sin *h*, 0, cos *h*).
+- **From the pictures:** `heading_check.py` matches SIFT features between the
+  two nodes of every walk and zip, and solves for the direction of travel
+  with the rotation held at the identity (every node shares one orientation,
+  so each match only has to satisfy t · (a × b) = 0). Over ENSI's 99 links the
+  measured direction agrees with the hotspot heading to a median of 5.3° (90%
+  within 40.5°) read this way, and 89.7° (169.9°) read mirrored.
+  `colmap/ENSI/heading_check.txt` is the table.
+
+The same table gives each step's climb, which the age maps lack: 1 → 10 drops
+31°, 12 → 13 and 15 → 17 about 25°, 19 → 20 18°, and most walks are within
+1° of level. The large misses are zips (distant views, few matches, and
+12 ↔ 16 measures as nearly vertical) and links with only a handful of matches.
+
+**A warning for the reconstruction:** the southern chain, nodes 27–41, matches
+poorly. Its links find 4–18 consistent matches where the rest of the room
+finds 30–1,200, so COLMAP may fail to join those nodes to the others; that is
+where to look first if the room comes back in pieces.
