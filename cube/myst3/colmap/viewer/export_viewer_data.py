@@ -3,11 +3,14 @@
 Pack a dense reconstruction of a Myst III room for viewer/index.html.
 
     python export_viewer_data.py FUSED.ply FACE1_POSES.txt OUT_DIR [--mesh MESH.ply]
+                                 [--names NODES.json] [--title TEXT]
 
 FACE1_POSES.txt is the face-1 lines of the sparse model's images.txt (one line per
 node: id, qw qx qy qz, tx ty tz, camera, f1/ROOM-NNNN.jpg). The world is the model's
-own, which for the joined ENSI model is node 1's cube frame: y up, node 1's front
-face looking along -z.
+turned into the nodes' common cube frame (the mean of their node_from_world
+rotations), so y is up and node frames' front faces look along -z, whatever axes
+the model has (COLMAP's own mapper picks arbitrary ones). --names takes
+prepare_age.py's nodes.json, whose 'rooms' turn node numbers into ROOM:node labels.
 
 Writes to OUT_DIR:
   points.bin  float32 x,y,z for every point, then uint8 r,g,b for every point
@@ -86,6 +89,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('ply'); ap.add_argument('poses'); ap.add_argument('out')
     ap.add_argument('--mesh')
+    ap.add_argument('--names'); ap.add_argument('--title', default='')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
@@ -99,9 +103,19 @@ def main():
         R = qvec2rot([float(v) for v in p[1:5]]); t = np.array([float(v) for v in p[5:8]])
         nodes[n] = (f1.T @ R, -R.T @ t)
     origin = np.mean([c for _, c in nodes.values()], 0)
+    U, _, Vt = np.linalg.svd(sum(R for R, _ in nodes.values()))
+    Rm = U @ Vt                                  # world -> the nodes' common frame
+    if np.linalg.det(Rm) < 0:
+        Rm = U @ np.diag([1, 1, -1]) @ Vt
+    to_view = lambda P: (P - origin) @ Rm.T
+    nodes = {n: (R @ Rm.T, Rm @ (c - origin)) for n, (R, c) in nodes.items()}
+    labels = {}
+    if a.names:
+        rooms = json.load(open(a.names)).get('rooms', {})
+        labels = {n: rooms.get(str(n), str(n)) for n in nodes}
 
     xyz, rgb = read_ply(a.ply)
-    xyz = xyz - origin
+    xyz = to_view(xyz)
     with open(os.path.join(a.out, 'points.bin'), 'wb') as fh:
         fh.write(xyz.astype('<f4').tobytes()); fh.write(np.ascontiguousarray(rgb, np.uint8).tobytes())
 
@@ -109,15 +123,17 @@ def main():
     step = float(np.median([min(np.linalg.norm(nodes[i][1] - nodes[j][1]) for j in nodes if j != i)
                             for i in nodes]))
     scene = {
+        'title': a.title,
         'points': int(len(xyz)),
         'nearest_node_median': step,
         'extent_p2_p98': [np.percentile(xyz, 2, 0).tolist(), np.percentile(xyz, 98, 0).tolist()],
-        'nodes': {str(n): {'centre': (c - origin).tolist(), 'node_from_world': R.tolist()}
+        'nodes': {str(n): {'centre': c.tolist(), 'node_from_world': R.tolist(),
+                           'label': labels.get(n, str(n))}
                   for n, (R, c) in sorted(nodes.items())},
     }
     if a.mesh:
         verts, tris = read_ply_mesh(a.mesh)
-        verts = verts - origin
+        verts = to_view(verts)
         cols = colour_vertices(verts, xyz, rgb, cell=step / 40)
         with open(os.path.join(a.out, 'mesh.bin'), 'wb') as fh:
             fh.write(verts.astype('<f4').tobytes()); fh.write(cols.tobytes()); fh.write(tris.astype('<u4').tobytes())

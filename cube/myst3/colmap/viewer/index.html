@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Myst III room reconstruction</title>
 <!--
-  Viewer for a dense reconstruction packed by export_viewer_data.py. The data is not
+  Viewer for dense reconstructions packed by export_viewer_data.py. The data is not
   in this repository (it is made from the game's pictures); serve_viewer.py serves
-  this page with the data beside it at data/.
+  this page with each set at data/NAME/ and their list at data/sets.json; ?set=NAME
+  picks one, as does the list at the bottom left.
   Orbit: drag to turn, pinch or wheel to zoom, two fingers or right drag to pan.
   At a node: the camera stands at the node's centre; drag to look round.
 -->
@@ -19,10 +20,12 @@
     padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); }
   #bar .row { display: flex; gap: 6px; align-items: center; overflow-x: auto; white-space: nowrap;
     padding: 3px 0; }
+  #bar .row > * { flex: none; }
   button { background: #333a44; color: #eee; border: 0; border-radius: 6px; padding: 8px 10px;
     font: inherit; min-width: 38px; }
   button.on { background: #4a7bd0; }
   input[type=range] { width: 110px; }
+  select { background: #333a44; color: #eee; border: 0; border-radius: 6px; padding: 8px 6px; font: inherit; }
   #status { position: fixed; top: 0; left: 0; right: 0; padding: 6px 8px; font-size: 12px;
     background: rgba(20,22,26,.6); pointer-events: none; }
 </style>
@@ -36,6 +39,7 @@
 <div id="status">Loading…</div>
 <div id="bar">
   <div class="row">
+    <select id="set"></select>
     <button id="orbit" class="on">Overview</button>
     <button id="showPts" class="on">Points</button>
     <button id="showMesh">Mesh</button>
@@ -85,10 +89,13 @@ async function fetchBin(url, label) {
   return buf.buffer;
 }
 
-function label(text) {
+const ROOM_COLOURS = ['255,200,40', '90,200,255', '255,120,120', '140,230,120', '220,150,255', '255,170,90'];
+const roomColour = {};
+function label(text, room) {
+  if (!(room in roomColour)) roomColour[room] = ROOM_COLOURS[Object.keys(roomColour).length % ROOM_COLOURS.length];
   const c = document.createElement('canvas'); c.width = 64; c.height = 64;
   const g = c.getContext('2d');
-  g.fillStyle = 'rgba(255,200,40,.9)'; g.beginPath(); g.arc(32, 32, 30, 0, 7); g.fill();
+  g.fillStyle = `rgba(${roomColour[room]},.9)`; g.beginPath(); g.arc(32, 32, 30, 0, 7); g.fill();
   g.fillStyle = '#000'; g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(text, 32, 34);
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
@@ -96,9 +103,20 @@ function label(text) {
   return s;
 }
 
-const info = await (await fetch('data/scene.json')).json();
+const sets = await (await fetch('data/sets.json')).json();
+const want = new URLSearchParams(location.search).get('set');
+const set = sets.find((x) => x.name === want) || sets[0];
+const picker = document.getElementById('set');
+for (const x of sets) {
+  const o = document.createElement('option'); o.value = x.name; o.textContent = x.title;
+  if (x === set) o.selected = true;
+  picker.appendChild(o);
+}
+picker.onchange = () => { location.search = '?set=' + encodeURIComponent(picker.value); };
+const base = `data/${encodeURIComponent(set.name)}/`;
+const info = await (await fetch(base + 'scene.json')).json();
 const n = info.points;
-const pbuf = await fetchBin('data/points.bin', 'points');
+const pbuf = await fetchBin(base + 'points.bin', 'points');
 const pg = new THREE.BufferGeometry();
 pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pbuf, 0, n * 3), 3));
 pg.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(pbuf, n * 12, n * 3), 3, true));
@@ -110,15 +128,18 @@ const nodeGroup = new THREE.Group(); scene.add(nodeGroup);
 const nodeRow = document.getElementById('nodeRow');
 const buttons = {};
 for (const [id, nd] of Object.entries(info.nodes)) {
-  const s = label(id); s.position.fromArray(nd.centre); nodeGroup.add(s);
-  const b = document.createElement('button'); b.textContent = id; nodeRow.appendChild(b);
+  const name = nd.label || id;
+  const [room, num] = name.includes(':') ? name.split(':') : ['', name];
+  const s = label(num, room); s.position.fromArray(nd.centre); nodeGroup.add(s);
+  const b = document.createElement('button'); b.textContent = room ? `${room} ${num}` : num; nodeRow.appendChild(b);
+  b.style.borderBottom = room ? `3px solid rgb(${roomColour[room]})` : '';
   b.onclick = () => standAt(id); buttons[id] = b;
 }
 
 let mesh = null;
 async function loadMesh() {
   const m = info.mesh;
-  const buf = await fetchBin('data/mesh.bin', 'mesh');
+  const buf = await fetchBin(base + 'mesh.bin', 'mesh');
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buf, 0, m.vertices * 3), 3));
   g.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(buf, m.vertices * 12, m.vertices * 3), 3, true));
@@ -160,7 +181,7 @@ function standAt(id) {
   controls.rotateSpeed = -0.4;
   camera.fov = 75; camera.updateProjectionMatrix();
   controls.update();
-  say(`Node ${id}, facing its front face. Drag to look round.`);
+  say(`Node ${nd.label || id}, facing its front face. Drag to look round.`);
 }
 
 document.getElementById('orbit').onclick = overview;
