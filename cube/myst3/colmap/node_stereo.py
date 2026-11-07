@@ -71,7 +71,7 @@ def run(colmap, args, log):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('images'); ap.add_argument('sparse'); ap.add_argument('sparse_txt'); ap.add_argument('work')
-    ap.add_argument('nodes', nargs='+', type=int)
+    ap.add_argument('nodes', nargs='+')   # as in the file names: J'nanin's are 0077, which as numbers lose the zeros
     ap.add_argument('--top', type=int, default=20)
     ap.add_argument('--min-angle', type=float, default=1.0)
     ap.add_argument('--colmap', default=r'C:\colmap\4.2.1\COLMAP.bat')

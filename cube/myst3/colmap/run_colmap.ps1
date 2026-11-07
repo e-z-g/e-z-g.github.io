@@ -2,10 +2,12 @@
 #
 #     powershell -ExecutionPolicy Bypass -File run_colmap.ps1 -Work C:\myst3_colmap\ENSI [-Tag run1]
 #         [-FeatureImages images_feat] [-PeakThreshold 0.00667] [-Mapper mapper|global_mapper]
-#         [-MapperArgs '--Mapper.abs_pose_min_num_inliers 15'] [-Cpu] [-Colmap C:\colmap\4.2.1\COLMAP.bat]
+#         [-MapperArgs '--Mapper.abs_pose_min_num_inliers 15'] [-Cpu] [-Mask masks] [-Colmap C:\colmap\4.2.1\COLMAP.bat]
 #
 # -Cpu extracts and matches features on the CPU, leaving the GPU to a dense run
-# going at the same time.
+# going at the same time. -Mask names a folder of WORK with sky_masks.py's masks
+# (<image name>.png, black = no features): rooms open to the sky and sea, where
+# matches on the sky hold the nodes together wrongly.
 #
 # Each run has its own database and output, <WORK>\runs\<Tag>\ (database.db,
 # sparse\<n>\, logs\<n>-<step>.log), so runs can be compared side by side.
@@ -31,6 +33,7 @@ param(
   [ValidateSet('mapper', 'global_mapper')][string]$Mapper = 'mapper',
   [string]$MapperArgs = '',
   [switch]$Cpu,
+  [string]$Mask = '',
   [string]$Colmap = 'C:\colmap\4.2.1\COLMAP.bat'
 )
 $ErrorActionPreference = 'Stop'
@@ -43,6 +46,7 @@ New-Item -ItemType Directory -Force $logs, $sparse | Out-Null
 "tag $Tag  features from $FeatureImages  peak $PeakThreshold  $Mapper $MapperArgs" | Tee-Object (Join-Path $run 'settings.txt')
 $extra = @($MapperArgs -split '\s+' | Where-Object { $_ })
 $gpu = if ($Cpu) { '0' } else { '1' }
+$maskArgs = if ($Mask) { @('--ImageReader.mask_path', (Join-Path $Work $Mask)) } else { @() }
 
 function Step([string]$name, [string[]]$colmapArgs) {
   $log = Join-Path $logs "$name.log"
@@ -55,10 +59,11 @@ function Step([string]$name, [string[]]$colmapArgs) {
   if ($code -ne 0) { Get-Content $log -Tail 20; throw "$name failed" }
 }
 
-Step '1-feature_extractor' @('feature_extractor', '--database_path', $db, '--image_path', (Join-Path $Work $FeatureImages),
+$fe = @('feature_extractor', '--database_path', $db, '--image_path', (Join-Path $Work $FeatureImages),
   '--ImageReader.camera_model', 'PINHOLE', '--ImageReader.camera_params', '320,320,320,320',
   '--ImageReader.single_camera_per_folder', '1', '--FeatureExtraction.use_gpu', $gpu,
-  '--SiftExtraction.peak_threshold', $PeakThreshold)
+  '--SiftExtraction.peak_threshold', $PeakThreshold) + $maskArgs
+Step '1-feature_extractor' $fe
 Step '2-rig_configurator' @('rig_configurator', '--database_path', $db, '--rig_config_path', (Join-Path $Work 'rig_config.json'))
 Step '3-matches_importer' @('matches_importer', '--database_path', $db, '--match_list_path', (Join-Path $Work 'pairs.txt'),
   '--match_type', 'pairs', '--FeatureMatching.use_gpu', $gpu)

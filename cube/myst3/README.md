@@ -715,3 +715,31 @@ sky) also takes in the far sea: 45% and 25% sky against SegFormer's 25% and
 number as an integer, which turned ENSI's `0016` into 16 and found no faces; it
 now takes it as written.
 
+## The other ages' rooms, and J'nanin's site node (LEIS 77)
+
+One room per age through `run_colmap.ps1` with ENSI run 3's settings
+(brightened faces, SIFT peak 0.002, the looser incremental mapper), on the
+CPU (`-Cpu`) while a dense run had the GPU:
+
+| age | room | nodes laid out | largest model |
+|---|---|---|---|
+| Tomahna | TOHO | 8 | 4 (two models of 4) |
+| Narayan | NACH | 26 | 10 (models of 7, 10, 10, 3) |
+| Edanna | LISP | 36 | 7; 22 nodes not placed, links of 140-350 matches |
+| J'nanin | LEIS | 79 | 77, at 0.34 px |
+
+J'nanin's one model was the sky's doing. With `sky_masks.py`'s masks for its
+474 faces (a median 35% of a face) and `run_colmap.ps1 -Mask masks`
+(`run2_nosky`) it comes apart into models of 38, 24 and 13 nodes. The site's
+J'nanin location is node 77 (LEIS661 is node 77's face 1, pixel for pixel),
+in the 13-node model with nodes 23-33 and 76. `node_stereo.py` for node 77 and
+its eight nearest found only 9 source images beyond them, and `node_depth.py`
+fits loosely: on held-out measurements a median 6% off on face 4 and 19% on
+the sky face, but 39%, 80% and 235% on faces 1, 5 and 3. The maps' shapes are
+Depth Anything's and look right (the hut near, the cliffs far); on the floor a
+few spots of water reflecting the sky are taken for sky. Report:
+`colmap/LEIS/leis77_depth.json`. The site now has J'nanin's depth and a
+*Layered* version built as ENSI 16's, from the 6K faces at 1280; the model's
+neighbours supply 0-9% of its backdrop. `node_stereo.py` read node numbers
+as integers too, and now takes them as written.
+

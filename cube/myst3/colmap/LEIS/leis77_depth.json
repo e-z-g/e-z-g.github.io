@@ -1,0 +1,106 @@
+{
+ "face1": {
+  "image": "f1/LEIS-0077.jpg",
+  "sparse_points": 76,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.0942,
+  "sky_segformer": 0.0931,
+  "check_median": 0.3856,
+  "check_p90": 0.7802,
+  "check_n": 1566,
+  "fit": [
+   0.03783440215291089,
+   0.08527107172967557
+  ]
+ },
+ "face2": {
+  "image": "f2/LEIS-0077.jpg",
+  "sparse_points": 0,
+  "stereo_samples": 0,
+  "cloud_cells": 0,
+  "sky": 0.0097,
+  "sky_segformer": 0.0097,
+  "fit": [
+   0.018545383593420645,
+   0.4701003929760134
+  ]
+ },
+ "face3": {
+  "image": "f3/LEIS-0077.jpg",
+  "sparse_points": 5,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.0043,
+  "sky_segformer": 0.0043,
+  "check_median": 2.3527,
+  "check_p90": 3.0606,
+  "check_n": 1532,
+  "fit": [
+   0.056602651805194026,
+   0.1128421324760536
+  ]
+ },
+ "face4": {
+  "image": "f4/LEIS-0077.jpg",
+  "sparse_points": 77,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.0005,
+  "sky_segformer": 0.0005,
+  "check_median": 0.0605,
+  "check_p90": 0.4115,
+  "check_n": 1515,
+  "fit": [
+   0.04571409494810316,
+   0.14526243259143928
+  ]
+ },
+ "face5": {
+  "image": "f5/LEIS-0077.jpg",
+  "sparse_points": 112,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.0,
+  "sky_segformer": 0.0,
+  "check_median": 0.8,
+  "check_p90": 3.1369,
+  "check_n": 1532,
+  "fit": [
+   0.037813745615891174,
+   0.32486135207607375
+  ]
+ },
+ "face6": {
+  "image": "f6/LEIS-0077.jpg",
+  "sparse_points": 54,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.7228,
+  "sky_segformer": 0.5809,
+  "check_median": 0.1939,
+  "check_p90": 0.375,
+  "check_n": 1524,
+  "fit": [
+   0.051062447304226224,
+   8.296433406307503e-06
+  ]
+ },
+ "node": "0077",
+ "node_spacing": 1.405759797069265,
+ "r_near": 1.6138422223336397,
+ "r_near_spacings": 1.1480213232005823,
+ "r_far": 32.2768444466728,
+ "ratio": 20.0,
+ "seams_fitted": {
+  "samples": 1456,
+  "median": 0.1376,
+  "p90": 0.4967
+ },
+ "seams": {
+  "samples": 1456,
+  "median": 0.0053,
+  "p90": 0.0109
+ },
+ "band": 48
+}
