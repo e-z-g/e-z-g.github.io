@@ -440,6 +440,26 @@
         ]
       },
       {
+        // ENSI node 16, a node the 27-node Voltaic model places, beside the
+        // stone tower: depth from that model's dense run (COLMAP's per-face
+        // depth maps and sparse points) with Depth Anything filling the rest,
+        // by myst3/colmap/node_depth.py --dense --sparse; Layered built as
+        // Amateria's (sharpen_depth.py, amateria/layers/build_layers.py).
+        name: 'Voltaic (ENSI 16)',
+        baseUrl: rawUrl + 'voltaic/',
+        type: 'faces',
+        faces: ['ENSI-0016-1', 'ENSI-0016-2', 'ENSI-0016-3', 'ENSI-0016-4', 'ENSI-0016-5', 'ENSI-0016-6'],
+        audio: rawUrl + 'amateria/audio_amateria.mp3',
+        hasDepth: true,
+        depthSuffix: '_measured-depth.png',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpg' },
+          { label: 'Layered', backdropFullDepth: true, layers: {
+              fgColor: 'ensi16-layered-fg-color.webp', fgDepth: 'ensi16-layered-fg-depth.png',
+              bgColor: 'ensi16-layered-bg-color.webp', bgDepth: 'ensi16-layered-bg-depth.png' } }
+        ]
+      },
+      {
         name: "J'nanin",
         baseUrl: rawUrl + 'jnanin/',
         type: 'classic-leis',

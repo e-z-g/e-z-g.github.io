@@ -271,7 +271,8 @@ def joint_fit(meas, seams, w_seam, far=None, w_far=1.0, iters=8):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('images'); ap.add_argument('node', type=int); ap.add_argument('out')
+    ap.add_argument('images'); ap.add_argument('node'); ap.add_argument('out')
+    # the node as in the file names: ENSI's are 0016, which as a number loses its zeros
     ap.add_argument('--dense'); ap.add_argument('--sparse'); ap.add_argument('--cloud')
     ap.add_argument('--pair-depths', action='append', default=[])
     ap.add_argument('--faces'); ap.add_argument('--names')

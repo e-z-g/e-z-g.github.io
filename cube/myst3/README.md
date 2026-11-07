@@ -699,3 +699,18 @@ the model's, and the network fills what no other node saw. Report:
 101's, from the 640 px faces (no 4K copies) enlarged to 1280; the redrawn depth
 stays a median 2.6–5.1% from the measured.
 
+## Depth for a Voltaic node the model places (ENSI 16)
+
+The same for Voltaic: ENSI node 16 (`Voltaic (ENSI 16)` on the site), beside
+the stone tower, from the 27-node model's dense run (`dense_1-27`; 48% of its
+side faces and 22% of its floor have a geometric depth, about the most of any
+ENSI node). `node_depth.py 0016 --dense dense_1-27 --sparse
+joined_1-27/sparse_txt/ba` fits less tightly than for MASS 84: on held-out
+measurements a median 4.3–4.8% off on faces 3 and 4 and 1.2% on the sky face,
+but 10.9% and 14.6% on faces 1 and 5 (90% within 29–72%) and 26.8% on the
+floor. On faces 1 and 5 the sky rule (pixels predicted as far as SegFormer's
+sky) also takes in the far sea: 45% and 25% sky against SegFormer's 25% and
+18%. Report: `colmap/ENSI/ensi16_depth.json`. node_depth.py read the node
+number as an integer, which turned ENSI's `0016` into 16 and found no faces; it
+now takes it as written.
+
