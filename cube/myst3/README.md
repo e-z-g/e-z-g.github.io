@@ -108,7 +108,10 @@ checks the geometry; nothing has been reconstructed yet.
 |---|---|
 | `colmap/face_geometry.py` | Each face pixel's direction, each face's camera rotation, and a seam check that stitches a node's six faces (`check`, one node, optionally writing an equirectangular panorama; `room`, every node of a room). Needs numpy and Pillow for the checks. |
 | `colmap/prepare_colmap.py` | Copies a room's faces into COLMAP's layout and writes `pairs.txt`, `rig_config.json` and `nodes.json`. Standard library only. |
-| `colmap/ENSI/` | Those three files for ENSI (no images). |
+| `colmap/heading_check.py` | Measures each link's direction of travel from the pictures (below). Needs opencv-python. |
+| `colmap/run_colmap.ps1` | Runs the sparse reconstruction on the PC: features, rig, matching from `pairs.txt`, mapper, model statistics; logs in `<room>\logs\`. |
+| `colmap/inspect_run.py` | After a run: which nodes each model holds, features per node, verified matches per linked pair. |
+| `colmap/ENSI/` | `pairs.txt`, `rig_config.json`, `nodes.json`, the heading table and run summaries (no images). |
 
 ```sh
 python colmap/prepare_colmap.py C:\myst3_out\faces maps\rooms\ENSI.json maps\ages\Voltaic.json C:\myst3_colmap\ENSI
@@ -221,3 +224,26 @@ The same table gives each step's climb, which the age maps lack: 1 → 10 drops
 **A warning for the reconstruction:** nodes 27–41 match poorly. Their walks
 find 4–18 consistent matches where the walks among nodes 1–26 find 33–1,240, so COLMAP may fail to join those nodes to the others; that is
 where to look first if the room comes back in pieces.
+
+## First sparse run on ENSI (7 November 2026)
+
+`run_colmap.ps1` as written, on the PC: 4 s for features, 1 s matching, 2 s
+mapping. `colmap/ENSI/run1.txt` has the details.
+
+- **Two models, 24 of 41 nodes.** Model 0 holds nodes 1–18 (108 images,
+  3,751 points), model 1 nodes 21–26 (36 images, 848 points); mean
+  reprojection error 0.30 and 0.32 px. Not placed: 19, 20 and 27–41.
+- **Nodes 27–41 are in a dark cave passage.** SIFT finds 1,000–5,000 features
+  over their six faces against about 15,000 at the sunlit nodes, and seven of
+  their links have no verified matches at all. That is the image content,
+  not the layout.
+- **Nodes 19 and 20 are not that case:** 374–412 verified matches with their
+  neighbours, yet the mapper registered neither, and with them missing the
+  two models have no shared node. The tail of the mapper's log is failed
+  attempts to start further models ("bad initial pair", "no initial pair").
+
+Next runs, not yet made: features from brightened copies of the dark faces
+(the originals stay the images of record) and a lower SIFT peak threshold;
+looser registration thresholds or the global mapper for 19 and 20; and the
+age map's positions with the measured climbs as pose priors
+(`pose_prior_mapper`).
