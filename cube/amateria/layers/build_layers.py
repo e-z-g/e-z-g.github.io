@@ -183,7 +183,8 @@ def removed_region(q, t, band, reach):
     the slats (the sea is in reach through the gaps), and the gaps showed flat
     painted grey; keeping only small middle pieces did not tell the beams from
     the pod's frame. So it is a choice per node: reach 0 is the nearest step,
-    as MAWW 101 is built."""
+    as MAWW 101's floor is built (--nearest-faces 2), while its other faces,
+    the spire and the machinery among them, are cleaner with reach."""
     near, far = jumps(q, t)
     if not far.any():
         none = np.zeros(q.shape, bool)
@@ -234,6 +235,8 @@ def main():
     ap.add_argument('--fringe', type=int, default=6, help='px the painted region reaches past the jump into the far side')
     ap.add_argument('--reach', type=int, default=48, help='px within which the farthest far side counts as behind '
                     '(0: the nearest step\'s far side; MAWW 101 is built so)')
+    ap.add_argument('--nearest-faces', type=int, nargs='*', default=[],
+                    help="faces (node_depth.py's numbers, 2 the floor) built with the nearest step whatever --reach")
     ap.add_argument('--src', default=AMATERIA, help='folder of the faces and depth maps')
     ap.add_argument('--names', nargs=6, help="the six faces' file names without suffix, in node_depth.py's order "
                     "(front, bottom, back, right, left, top; default MAWWnodes-8 ... -13)")
@@ -262,7 +265,8 @@ def main():
     # face padded with its neighbours so a jump at a seam is seen whole.
     for k in range(1, 7):
         look = pad_lookup(k, N, PAD_)
-        region, whole, fq = removed_region(sample(Q, look), a.jump, sc(a.band), sc(a.reach))
+        region, whole, fq = removed_region(sample(Q, look), a.jump, sc(a.band),
+                                             0 if k in a.nearest_faces else sc(a.reach))
         grow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * sc(a.fringe) + 1,) * 2, np.uint8)) > 0
         masks[k], hide[k], fqs[k] = grow(region), grow(whole), fq
         fgq[k], holes[k] = hole_band(sample(Q, look), whole, a.jump, sc(a.hole), sc(a.hole_step))

@@ -368,8 +368,11 @@ pod-shaped blob at the frame's depth that streaked as the eye moved;
 `--reach 48` takes instead the farthest far side within 48 px (96 at 1280),
 the sky, and ENSI 16 is built so. Two layers cannot hold three, though: under
 MAWW 101's floor it took the beams below the slats for part of them and the
-gaps showed flat grey, so MAWW 101 and MASS 84 keep the nearest step
-(`--reach 0`). Moving the measured
+gaps showed flat grey. The choice is per face: MAWW 101 is built with
+`--reach 48 --nearest-faces 2`, the farthest step on its five other faces
+(cleaner spire and machinery) and the nearest on the floor; MASS 84 keeps the
+nearest step throughout (`--reach 0`; the farthest made no visible
+difference). Moving the measured
 depth's edges onto the picture's by colour was tried first (pixels within
 14–18 px of a jump relabelled near or far) and dropped: in these dark faces
 the labels came out speckled, each speckle tore, and the rings and arcs broke
