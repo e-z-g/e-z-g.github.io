@@ -254,6 +254,7 @@ def main():
     ap.add_argument('--fringe', type=int, default=6, help='px the painted region reaches past the jump into the far side')
     ap.add_argument('--reach', type=int, default=48, help='px within which the farthest far side counts as behind '
                     '(0: the nearest step\'s far side; MAWW 101 is built so)')
+    ap.add_argument('--model-bg', help="model_backdrop.py's folder: what other nodes saw behind the near objects")
     ap.add_argument('--belong', type=float, default=0.5,
                     help='a middle layer goes with the near object when its gap to it is under this times its gap to the farthest')
     ap.add_argument('--nearest-faces', type=int, nargs='*', default=[],
@@ -281,7 +282,16 @@ def main():
     lama = Lama(a.lama)
     bg = C.copy()                     # finished backdrops replace these face by face
     done = np.zeros(6, bool)
-    masks, hide, fqs, fgq, holes = {}, {}, {}, {}, {}
+    masks, hide, fqs, fgq, holes, wholes = {}, {}, {}, {}, {}, {}
+    # What the model's other nodes saw behind the near objects (model_backdrop.py).
+    MQ = np.zeros((6, N, N), np.float32); MC = np.zeros((6, N, N, 3), np.float32)
+    used = np.zeros((6, N, N), bool)
+    if a.model_bg:
+        for k, n in faces.items():
+            qf = os.path.join(a.model_bg, n + '_model-bg-q.npy')
+            if os.path.exists(qf):
+                MQ[k - 1] = np.load(qf)
+                MC[k - 1] = np.asarray(Image.open(os.path.join(a.model_bg, n + '_model-bg.png')).convert('RGB'))
     # The removed region and far-side depth of every face first, each on the
     # face padded with its neighbours so a jump at a seam is seen whole.
     for k in range(1, 7):
@@ -289,7 +299,7 @@ def main():
         region, whole, fq = removed_region(sample(Q, look), a.jump, sc(a.band),
                                              0 if k in a.nearest_faces else sc(a.reach), a.belong)
         grow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * sc(a.fringe) + 1,) * 2, np.uint8)) > 0
-        masks[k], hide[k], fqs[k] = grow(region), grow(whole), fq
+        masks[k], hide[k], fqs[k], wholes[k] = grow(region), grow(whole), fq, whole
         fgq[k], holes[k] = hole_band(sample(Q, look), whole, a.jump, sc(a.hole), sc(a.hole_step))
     inner = (slice(PAD_, PAD_ + N), slice(PAD_, PAD_ + N))
     M = np.stack([masks[k][inner] for k in range(1, 7)])
@@ -303,7 +313,20 @@ def main():
         # is finished backdrop: known, not painted.
         m = hide[k] & ~done[look[0] - 1]
         m[inner] = hide[k][inner]
-        if m[inner].any():
+        # Inside a near object, what another node saw behind it is known, not
+        # painted; LaMa fills only what no node saw. (On the far side of an
+        # edge the backdrop is that surface itself, so the model is not used.)
+        # Only where the model is dense: scattered points (a dotted outline
+        # of ENSI 16's pod) given to LaMa as known were clues it joined up
+        # into a ghost pod; there it paints instead.
+        seen = sample(MQ, look) > 0
+        dense = cv2.blur(seen.astype(np.float32), (2 * sc(4) + 1,) * 2) > 0.6
+        seen = cv2.erode((seen & dense).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+        seen &= wholes[k]
+        rgb[seen] = sample(MC, look)[seen]
+        used[k - 1] = seen[inner]
+        m &= ~seen
+        if (m[inner] | seen[inner]).any():
             painted = lama(rgb, m)[inner]
             keep = masks[k][inner]
             bg[k - 1][keep] = painted[keep]
@@ -313,7 +336,9 @@ def main():
     for k, n in faces.items():
         d = dep[k].astype(np.float32)
         fq = cv2.blur(fqs[k], (9, 9))[inner]
-        bgd = np.where(M[k - 1], (fq - 1) / (RATIO - 1) * 255, d)
+        bq = np.where(used[k - 1], MQ[k - 1], fq)
+        bq = np.where(wholes[k][inner], bq, fq)
+        bgd = np.where(M[k - 1], (bq - 1) / (RATIO - 1) * 255, d)
         bgd = np.minimum(bgd, d)          # the backdrop never in front of the foreground
         fd = (fgq[k][inner] - 1) / (RATIO - 1) * 255
         green = np.where(holes[k][inner], 0, 255)

@@ -377,7 +377,20 @@ gaps showed flat grey. The choice is per face: ENSI 16 and MAWW 101 are
 built with `--reach 48`, MAWW 101 with `--nearest-faces 2` so its floor keeps
 the nearest step (cleaner spire and machinery on the other faces); MASS 84
 keeps the nearest step throughout (`--reach 0`; reach made no visible
-difference). Moving the measured
+difference).
+
+For nodes the 3D model places (MASS 84, ENSI 16) the backdrop is no longer
+only LaMa's invention: `myst3/colmap/model_backdrop.py` projects the dense
+depth maps of the twelve nearest nodes' faces into the site node, and each
+pixel keeps the nearest point lying behind the foreground (behind the nearer
+of the site depth and the model's own depth for the node, seen by its node
+within 30° of our line of sight, and not of the foreground's colour within
+four times its distance). Inside the near objects, wherever those points are
+dense, `build_layers.py --model-bg` puts that colour and depth in the backdrop
+and LaMa paints only the rest; scattered points it leaves to LaMa, since given
+as known they were clues LaMa joined up into a ghost of the object. The
+neighbours supply 2–9% of MASS 84's side faces and 4–16% of ENSI 16's: sea
+behind the stone tower, cliff and sea behind the walkways. Moving the measured
 depth's edges onto the picture's by colour was tried first (pixels within
 14–18 px of a jump relabelled near or far) and dropped: in these dark faces
 the labels came out speckled, each speckle tore, and the rings and arcs broke
