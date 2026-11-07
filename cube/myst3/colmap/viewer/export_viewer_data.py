@@ -4,6 +4,8 @@ Pack a dense reconstruction of a Myst III room for viewer/index.html.
 
     python export_viewer_data.py FUSED.ply FACE1_POSES.txt OUT_DIR [--mesh MESH.ply]
                                  [--names NODES.json] [--title TEXT]
+                                 [--faces DIR --face-pattern 'f{f}/ENSI-{n:04d}.jpg']
+                                 [--fill FILL.ply --fill-max 600000]
 
 FACE1_POSES.txt is the face-1 lines of the sparse model's images.txt (one line per
 node: id, qw qx qy qz, tx ty tz, camera, f1/ROOM-NNNN.jpg). The world is the model's
@@ -18,8 +20,18 @@ Writes to OUT_DIR:
               uint32 three vertex indices per triangle; a COLMAP Delaunay mesh has
               no colours, so each vertex takes the mean colour of the fused points
               in its grid cell (or the nearest filled cell around it)
-  scene.json  counts, the centre and size of the scene, and each node's centre and
-              node_from_world rotation, for the node markers and the views from a node
+  scene.json  counts, the centre and size of the scene, and each node's centre,
+              node_from_world rotation and floor height, for the node markers, the
+              views from a node and the floor patches
+  face-<n>-<f>.jpg  (with --faces) each node's six faces, copied: the viewer puts
+              them round the camera as a backdrop at infinity when standing at a
+              node (what has no parallax, sky and far scenery, is exactly that),
+              and lays each bottom face flat at the node's floor height
+  fill.bin    (with --fill) depth_fill.py's points, thinned to one per cell of a grid
+              sized so that at most --fill-max remain, in points.bin's layout
+Floor height: how far the dense points straight under a node (within a tenth of
+the nodes' median spacing sideways) lie below it, the nearest tenth of them; where
+fewer than five points are there, the median over the nodes that have them.
 Everything is moved so the nodes' mean centre is at the origin. Needs numpy.
 """
 import argparse
@@ -90,6 +102,10 @@ def main():
     ap.add_argument('ply'); ap.add_argument('poses'); ap.add_argument('out')
     ap.add_argument('--mesh')
     ap.add_argument('--names'); ap.add_argument('--title', default='')
+    ap.add_argument('--faces', help='folder holding the original faces')
+    ap.add_argument('--fill'); ap.add_argument('--fill-max', type=int, default=600000)
+    ap.add_argument('--face-pattern', default='f{f}/{room}-{n:04d}.jpg',
+                    help='path of a face under --faces; {f} face 1-6, {n} node, {room} the poses file\'s prefix')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
@@ -122,13 +138,31 @@ def main():
     steps = sorted(np.linalg.norm(nodes[i][1] - nodes[j][1]) for i in nodes for j in nodes if i < j)
     step = float(np.median([min(np.linalg.norm(nodes[i][1] - nodes[j][1]) for j in nodes if j != i)
                             for i in nodes]))
+    floor = {}
+    for n, (_, c) in nodes.items():
+        d = xyz - c
+        m = (np.hypot(d[:, 0], d[:, 2]) < 0.1 * step) & (d[:, 1] < -0.02 * step) & (d[:, 1] > -3 * step)
+        if m.sum() >= 5:
+            floor[n] = float(np.percentile(-d[m, 1], 10))
+    typical = float(np.median(list(floor.values()))) if floor else 0.55 * step
+    print(f'floor heights measured under {len(floor)} of {len(nodes)} nodes; median {typical:.3f} '
+          f'({typical / step:.2f} of the node spacing)')
+    if a.faces:
+        import shutil
+        prefix = re.search(r'f1/(.+)-\d+\.jpg$', open(a.poses).readline().split()[-1]).group(1)
+        for n in nodes:
+            for f in range(1, 7):
+                shutil.copyfile(os.path.join(a.faces, a.face_pattern.format(f=f, n=n, room=prefix)),
+                                os.path.join(a.out, f'face-{n}-{f}.jpg'))
     scene = {
         'title': a.title,
+        'faces': bool(a.faces),
         'points': int(len(xyz)),
         'nearest_node_median': step,
         'extent_p2_p98': [np.percentile(xyz, 2, 0).tolist(), np.percentile(xyz, 98, 0).tolist()],
         'nodes': {str(n): {'centre': c.tolist(), 'node_from_world': R.tolist(),
-                           'label': labels.get(n, str(n))}
+                           'label': labels.get(n, str(n)),
+                           'floor': floor.get(n, typical), 'floor_measured': n in floor}
                   for n, (R, c) in sorted(nodes.items())},
     }
     if a.mesh:
@@ -138,6 +172,20 @@ def main():
         with open(os.path.join(a.out, 'mesh.bin'), 'wb') as fh:
             fh.write(verts.astype('<f4').tobytes()); fh.write(cols.tobytes()); fh.write(tris.astype('<u4').tobytes())
         scene['mesh'] = {'vertices': int(len(verts)), 'triangles': int(len(tris))}
+    if a.fill:
+        fx, fc = read_ply(a.fill)
+        fx = to_view(fx)
+        cell = step / 200
+        while True:                              # coarsen the grid until few enough cells are filled
+            _, first = np.unique(np.floor(fx / cell).astype(np.int64), axis=0, return_index=True)
+            if len(first) <= a.fill_max:
+                break
+            cell *= 1.25
+        fx, fc = fx[first], fc[first]
+        with open(os.path.join(a.out, 'fill.bin'), 'wb') as fh:
+            fh.write(fx.astype('<f4').tobytes()); fh.write(np.ascontiguousarray(fc, np.uint8).tobytes())
+        scene['fill'] = int(len(fx))
+        print(f'fill: {len(fx)} points kept, one per {cell / step:.4f}-spacing cell')
     json.dump(scene, open(os.path.join(a.out, 'scene.json'), 'w'), indent=1)
     print(f'{len(xyz)} points, {len(nodes)} nodes, nearest-node distance median {step:.3f}, '
           f'longest node pair {steps[-1]:.3f}')

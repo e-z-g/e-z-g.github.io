@@ -121,6 +121,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/turn_scan.py` | For each link, how many matches fit at every turn from −180° to +179°: whether two nodes face the same way. Needs numpy, opencv-python. |
 | `colmap/join_model.ps1` | Solved poses to one COLMAP model: `build_model.py`, `point_triangulator`, `bundle_adjuster` with rotations held, text copies for `evaluate_model.py`. |
 | `colmap/link_scales.py` | Step lengths from points that one node sees on two of its links, then positions (for nodes that face one way). Needs numpy, opencv-python. |
+| `colmap/depth_fill.py` | Fills a dense cloud's gaps with Depth Anything V2's depth, fitted face by face to COLMAP's depth maps, sky masked (SegFormer), kept only where nearby nodes agree. Needs torch, transformers. |
 | `colmap/viewer/` | A browser viewer for a dense cloud and mesh (`index.html`, three.js), `export_viewer_data.py` to pack the data, `serve_viewer.py` to serve it locally or through a tunnel. No data is committed. |
 | `colmap/ENSI/`, `colmap/Amateria/` | Pair lists, rig files, `nodes.json`, run summaries (no images). |
 
@@ -460,3 +461,40 @@ the likely cause. Three links still point the wrong way (MAIS 10→11, MACA
 
 `colmap/Amateria/` has the layout files, the turn scan, the solve reports and
 `solved_floor_map_nodes.json`.
+
+## Filling the gaps (7 November 2026)
+
+Two ways, both alongside the dense runs.
+
+**The pictures themselves, in the viewer.** What has no parallax (sky, sea, far
+scenery) is exactly a node's six faces at infinity: standing at a node, the
+viewer puts them round the camera behind the cloud (Backdrop). On Voltaic's
+node 13 the rock's outline runs on from cloud into picture, and the tower and
+water sit behind it in place. The floor right under a node is in its bottom face:
+Floors lays each node's bottom face (its middle 60%) flat at the node's floor
+height, measured from the dense points under it (21 of 27 Voltaic nodes, 43 of 62
+in Amateria's 62-node model; the median for the rest).
+
+**Learned depth, scaled to COLMAP's (`depth_fill.py`).** Depth Anything V2 (Base)
+on every face, its inverse depth fitted to COLMAP's geometric depth map for that
+face, and used where COLMAP has none. Three things keep it honest:
+
+- the fit is checked on half of COLMAP's depths it was not fitted to: Voltaic
+  median 6.8% off, 90% within 36.5%; Amateria 9.9% and 51.3%;
+- no fill beyond the depth range COLMAP measured on the face, and none on sky
+  (SegFormer's ADE20K sky class; Amateria's dusk clouds otherwise get depths);
+- each fill point is looked at from the faces of the 8 nearest other nodes and
+  kept only if one of them sees something at the same depth (within 10%) and
+  no more of them see past it than support it. Without this the sky became flat
+  sheets; with it, 53% of Voltaic's 3.4 million candidates are kept, 45% of
+  Amateria's 6.2 million.
+
+Voltaic seen from its own nodes: side faces covered 45–80% instead of 20–45%,
+colour differences mostly 6–18 as for COLMAP's own points (`render_cloud.py`).
+The rocks, the sea and the tower fill in; each node's own platform stays poor
+(its neighbours barely see it), which the floor patches cover. In Amateria the
+pavilions, paths and walls fill in; nodes standing among near tracks and beams
+(MASS 30) stay poor, as nothing near is reconstructed there. The viewer loads
+the fill (thinned to about 550,000 points) behind its Fill button.
+`colmap/ENSI/fill_1-27.txt` and `colmap/Amateria/fill_run1_0.txt` are the
+per-face reports.
