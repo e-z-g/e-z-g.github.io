@@ -112,7 +112,9 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/run_colmap.ps1` | Runs the sparse reconstruction on the PC: features, rig, matching from `pairs.txt`, mapper, model statistics; logs in `<room>\logs\`. |
 | `colmap/inspect_run.py` | After a run: which nodes each model holds, features per node, verified matches per linked pair. |
 | `colmap/brighten_faces.py` | CLAHE-brightened copies of every face, for feature extraction only. Needs opencv-python. |
-| `colmap/evaluate_model.py` | Checks a model against what it was never told: one shared rotation, the hotspot bearings, the age map. Needs numpy. |
+| `colmap/evaluate_model.py` | Checks a model against what it was never told: one shared rotation, the hotspot bearings, the age map; and, with `--compare`, against other models. Needs numpy. |
+| `colmap/solve_nodes.py` | Every node's rotation and position from its links alone: a relative pose per link, rotation averaging, then positions from the directions. Modes: free rotation (default), `--upright` (yaw only), `--same-rotation`. Needs numpy, opencv-python. |
+| `colmap/build_model.py` | Writes solved poses as a COLMAP text model on an existing database's frames, for `point_triangulator` and `bundle_adjuster`. |
 | `colmap/ENSI/` | `pairs.txt`, `rig_config.json`, `nodes.json`, the heading table and run summaries (no images). |
 
 ```sh
@@ -284,3 +286,64 @@ node's rotation at the known one, which COLMAP's mappers have no option for
 but which makes the positions a linear problem given each link's direction
 (as `heading_check.py` already measures); and the age map's positions as pose
 priors.
+
+## One model of nodes 1–27 (7 November 2026)
+
+Run 3's two models could not be merged by COLMAP (`model_merger`: "Merge
+failed"; they share one node). The cave was set aside for now (the
+maintainer's call): its links are too poorly matched to measure.
+
+**Do the nodes face the same way?** The maintainer's caution was that a node's
+"forward" can differ from the next, sometimes by a lot, so this was measured
+rather than assumed. For nodes 1–27 the turn between linked nodes is zero by
+every measure: the five-unknown pose per link (`solve_nodes.py`) gives
+0.0–1.6°, COLMAP's run 3 0.01°, and the two-way hotspot headings agree within
+±18° (all of ENSI, except the zip 30–35 at −42°). In the cave, per-link turns
+of 8–24° and two of 110° and 158° came from 12–23 matches each, too few to say
+whether any cave node is really turned. The tools keep the question open per
+room: `solve_nodes.py` solves rotations unless told not to, and
+`evaluate_model.py` reports each node's departure from the common rotation.
+
+Two things that did not work, for the record:
+
+- **`--upright`** (each node a yaw alone, three unknowns per link) chose
+  between a turn and the same turn plus 180° wrongly on several links
+  (10–11, 15–17, 18–19, 21–22 came out at 176–180°). Counting points in front
+  only where the two views differ by over 1° of parallax helped but did not
+  settle it. Not used.
+- **Positions from directions alone** (`--same-rotation`, which reuses
+  `heading_check.py`'s solver and gets every link's sign right, in front 0.94–1.00)
+  fit the hotspots (median 4.6°) and the age map (0.28 steps) well, but
+  differ from COLMAP's models by 0.56 walk lengths. A direction says nothing of
+  distance: around a loop the lengths are fixed, along a chain each step is
+  set to the minimum. The weak zip 12 → 21 (22 matches, 0.59 in front) also
+  had to be dropped (`--min-front 0.8`): kept, it outvoted the strong
+  15 → 17 and bent the loop 12–21.
+
+**What worked:** those solved poses written as a COLMAP model
+(`build_model.py`) on run 3's database, `point_triangulator` with the poses
+held, then `bundle_adjuster` with every rotation held
+(`constant_rig_from_world_rotation 1`) and only positions and points free, so
+the lengths come from the 3D points:
+
+- **27 nodes in one model**, 9,422 points, 0.30 px mean reprojection error;
+- rotations identical (held), hotspot bearings within a median 4.8°, the age
+  map within a median 0.35 steps;
+- **it agrees with run 3's two models to a median 0.015 and 0.018 walk lengths**
+  (at most 0.03 and 0.07), which neither it nor they were fitted to;
+- heights, in map steps above the lowest node: 1–9 and 16 at 1.75, 10–12 at
+  1.39, 13–15 at 1.05, 17–19 0.6–0.7, 20–22 0.2–0.4, 23–26 at 0, 27 at 0.44.
+
+`colmap/ENSI/joined_1-27_frames.txt` (with `_rigs.txt`) holds the final poses
+in COLMAP's frame format; `solved_1-27_nodes.json` and `_relposes.json` the
+solve before bundle adjustment; `joined_1-27.txt` the reports. The model itself,
+with its points, stays on the PC (`C:\myst3_colmap\ENSI\joined_1-27\ba`), being
+made from game images.
+
+```powershell
+py solve_nodes.py C:\myst3_colmap\ENSI --same-rotation --nodes 1-27 --out C:\myst3_colmap\ENSI\solve_same_1-27
+py build_model.py C:\myst3_colmap\ENSI\runs\run3\database.db C:\myst3_colmap\ENSI\solve_same_1-27\nodes_solved.json J\init
+COLMAP.bat point_triangulator --database_path ...\run3\database.db --image_path ...\images --input_path J\init --output_path J\tri
+COLMAP.bat bundle_adjuster --input_path J\tri --output_path J\ba --BundleAdjustment.constant_rig_from_world_rotation 1
+    (with focal length, principal point, extra parameters and sensor_from_rig not refined)
+```

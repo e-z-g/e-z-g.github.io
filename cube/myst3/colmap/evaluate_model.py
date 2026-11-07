@@ -2,7 +2,7 @@
 """
 Is a COLMAP model of a Myst III room right? Check it against what is already known.
 
-    python evaluate_model.py WORK TAG [MODEL]     (MODEL defaults to 0)
+    python evaluate_model.py WORK TAG [MODEL] [--compare TXT_DIR ...]   (MODEL defaults to 0)
 
 Reads the model as text (inspect_run.py writes WORK/runs/TAG/sparse_txt/<MODEL>/)
 and WORK/nodes.json, and reports three things the reconstruction was never told:
@@ -61,8 +61,12 @@ def rot_angle(R):
 
 
 def main():
-    work, tag = sys.argv[1], sys.argv[2]
-    model = sys.argv[3] if len(sys.argv) > 3 else '0'
+    args = sys.argv[1:]
+    compare = []
+    while '--compare' in args:
+        i = args.index('--compare'); compare.append(args[i + 1]); del args[i:i + 2]
+    work, tag = args[0], args[1]
+    model = args[2] if len(args) > 2 else '0'
     frames = read_frames(os.path.join(work, 'runs', tag, 'sparse_txt', model))
     nodes = json.load(open(os.path.join(work, 'nodes.json')))
     print(f'{tag} model {model}: {len(frames)} nodes')
@@ -116,6 +120,22 @@ def main():
     print(f'3. age map: {len(common)} nodes; fitted turn {turn:+.1f} deg, '
           f'1 map step = {1 / scale:.3f} model units; residual median {r[len(r) // 2]:.2f} steps, '
           f'max {r[-1]:.2f} (node {common[int(np.argmax(res))]})')
+    # 4. other models: centres after the best similarity, in median walk lengths of this model
+    steps = [np.linalg.norm(frames[l['to']][1] - frames[l['from']][1]) for l in nodes['links_used']
+             if l['kind'] == 'walk' and l['from'] in frames and l['to'] in frames]
+    step = float(np.median(steps))
+    for path in compare:
+        other = read_frames(path)
+        com = [n for n in frames if n in other]
+        X = np.array([other[n][1] for n in com]); Y = np.array([frames[n][1] for n in com])
+        Xm, Ym = X.mean(0), Y.mean(0)
+        U, S, Vt = np.linalg.svd((X - Xm).T @ (Y - Ym))
+        D = np.diag([1, 1, np.sign(np.linalg.det(U @ Vt))])
+        Rs_ = (U @ D @ Vt).T
+        sc = (S * np.diag(D)).sum() / ((X - Xm) ** 2).sum()
+        res = sorted(np.linalg.norm((sc * (Rs_ @ (X - Xm).T)).T + Ym - Y, axis=1) / step)
+        print(f'4. against {path}: {len(com)} nodes, centres differ by median {res[len(res) // 2]:.3f}, '
+              f'max {res[-1]:.3f} walk lengths')
     heights = {n: float((Rm_node @ frames[n][1])[1] * scale) for n in frames}
     lo = min(heights.values())
     print('   heights above the lowest node, in map steps: ' +

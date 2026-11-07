@@ -1,0 +1,33 @@
+== solve (same rotation, nodes 1-27)
+
+relative poses read from C:\myst3_colmap\ENSI\solve_same_1-27\relposes.json
+31 of 32 links with at least 20 inliers and 0.8 in front; dropped: [(12, 21)]
+
+nodes turned by more than 5 deg or tilted more than 3: none
+not placed: none
+rotation residuals over 31 links: median 0.00 deg, max 0.00 ((1, 2))
+direction residuals: median 0.03 deg, max 1.08 ((5, 6))
+hotspot headings vs solved directions, in each node's own frame: 67 hotspots, median 4.6 deg, 90% within 12.9, worst 57.3
+age map: 27 nodes, turn -0.8 deg, residual median 0.28 steps, max 0.81 (node 26)
+   horizontal: median 0.560, max 0.887; vertical: median 0.039, max 0.156
+against C:\myst3_colmap\ENSI\runs\run3\sparse_txt\0: 19 nodes, centres differ by median 0.560 and at most 0.901 median steps (node 19)
+   horizontal: median 0.139, max 0.232; vertical: median 0.021, max 0.042
+against C:\myst3_colmap\ENSI\runs\run3\sparse_txt\1: 9 nodes, centres differ by median 0.140 and at most 0.235 median steps (node 27)
+
+== joined model ba
+joined_1-27 model ba: 27 nodes
+1. rotation spread: median 0.00 deg, max 0.00 (worst nodes 27 0.0, 26 0.0, 25 0.0)
+2. bearings: 67 hotspots, error median 4.8 deg, 90% within 13.4, worst 57.3
+       4 ->   3 walk hotspot    56  model 358.7  ( -57.3)  climb  -0.0
+      18 ->  17 walk hotspot   300  model 331.5  ( +31.5)  climb  +0.4
+      15 ->  17 walk hotspot   131  model 111.7  ( -19.3)  climb -25.3
+       2 ->   3 walk hotspot   257  model 275.7  ( +18.7)  climb  +0.6
+       6 ->   5 walk hotspot    95  model  77.6  ( -17.4)  climb  +0.2
+      10 ->  11 walk hotspot    84  model  68.9  ( -15.1)  climb  -0.7
+       5 ->   6 walk hotspot   271  model 257.6  ( -13.4)  climb  -0.2
+      11 ->  10 walk hotspot   262  model 248.9  ( -13.1)  climb  +0.7
+3. age map: 27 nodes; fitted turn +1.9 deg, 1 map step = 1.738 model units; residual median 0.35 steps, max 1.04 (node 11)
+4. against C:\myst3_colmap\ENSI\runs\run3\sparse_txt\0: 19 nodes, centres differ by median 0.015, max 0.030 walk lengths
+4. against C:\myst3_colmap\ENSI\runs\run3\sparse_txt\1: 9 nodes, centres differ by median 0.018, max 0.066 walk lengths
+   heights above the lowest node, in map steps: 1:1.73, 2:1.75, 3:1.75, 4:1.75, 5:1.75, 6:1.75, 7:1.75, 8:1.75, 9:1.75, 10:1.39, 11:1.38, 12:1.39, 13:1.06, 14:1.05, 15:1.05, 16:1.75, 17:0.68, 18:0.67, 19:0.58, 20:0.35, 21:0.44, 22:0.24, 23:0.03, 24:0.00, 25:0.00, 26:0.00, 27:0.44
+
