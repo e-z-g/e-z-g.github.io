@@ -358,7 +358,13 @@
         baseUrl: rawUrl + 'amateria/',
         type: 'side-numbered',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
-        hasDepth: false,
+        // MAWW node 101 (node 1 with its console closed), made by
+        // myst3/colmap/node_depth.py: Depth Anything per face, fitted to 133
+        // points triangulated on the platform it shares with MAWW 2, held
+        // together at the cube's seams, with the sky at infinity. Encoded so
+        // the slider at its top is true proportion (myst3/README.md).
+        hasDepth: true,
+        depthSuffix: '_measured-depth.png',
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' },
           { label: '4K',       suffix: '_seamless.webp', ai: true }

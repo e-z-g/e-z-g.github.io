@@ -4,6 +4,8 @@
 #         [-Run run1] [-Model joined_floor_map\ba] [-Out video_lemt] [-Mask] [-Colmap C:\colmap\4.2.1\COLMAP.bat]
 #         [-Focal 550] [-CameraModel SIMPLE_PINHOLE] [-AloneOnly] [-FixFocal | -FreeAll]
 #         [-Params 455,320,180]   (skip step 1 and use this camera)
+#         [-Database video_ride\combined.db]   (start from this database, not the run's)
+#         [-ImageList FILE]   (the mapper considers only these images: the model's and the movie's)
 #
 # -Focal is the starting focal length in pixels for the movie's camera (a mapper
 # left to guess from nothing settled on nonsense); the mapper refines it. -AloneOnly
@@ -15,7 +17,9 @@
 #    for the faces), each frame matched with its next few (pairs_seq.txt), the mapper
 #    with one camera (-CameraModel) for every frame, started at -Focal and refined.
 #    WORK\<Tag>\alone_f<Focal>\, and the camera it found.
-# 2. With the room: a copy of the run's database, the frames added with that camera
+# 2. With the room: a copy of the run's database (or -Database, relative to WORK: to
+#    add a second movie to a model that already has one, the first movie's database,
+#    which holds its frames' features and matches), the frames added with that camera
 #    held fixed, matched in sequence and key frames against every node face
 #    (pairs_all.txt), the incremental mapper continuing the finished model with its
 #    frames held (fix_existing_frames), so it triangulates along the movie as it
@@ -40,6 +44,8 @@ param(
   [switch]$FreeAll,
   [switch]$FinalBA,
   [string]$Params = '',
+  [string]$Database = '',
+  [string]$ImageList = '',
   [string]$Colmap = 'C:\colmap\4.2.1\COLMAP.bat'
 )
 $ErrorActionPreference = 'Stop'
@@ -56,6 +62,7 @@ function Step([string]$name, [string]$line) {
   if ($code -ne 0) { Get-Content "$logs\$name.log" -Tail 20; throw "$name failed" }
 }
 $maskArg = if ($Mask) { "--ImageReader.mask_path `"$Work\masks`"" } else { '' }
+$listArg = if ($ImageList) { "--Mapper.image_list_path `"$ImageList`"" } else { '' }
 $fixed = '--Mapper.ba_refine_focal_length 0 --Mapper.ba_refine_principal_point 0 --Mapper.ba_refine_extra_params 0 --Mapper.ba_refine_sensor_from_rig 0'
 
 if ($Params) {
@@ -86,11 +93,12 @@ if ($Params) {
 }
 # 2. with the room
 $db = "$O\combined.db"
-Copy-Item -Force (Join-Path $Work "runs\$Run\database.db") $db
+$src = if ($Database) { Join-Path $Work $Database } else { Join-Path $Work "runs\$Run\database.db" }
+Copy-Item -Force $src $db
 Step 'b1-features' "`"$Colmap`" feature_extractor --database_path `"$db`" --image_path `"$Work\images_feat`" --image_list_path `"$T\list.txt`" --ImageReader.camera_model $($cam[1]) --ImageReader.single_camera 1 --ImageReader.camera_params $params $maskArg --FeatureExtraction.use_gpu 1 --SiftExtraction.peak_threshold 0.002"
 Step 'b2-match' "`"$Colmap`" matches_importer --database_path `"$db`" --match_list_path `"$T\pairs_all.txt`" --match_type pairs --FeatureMatching.use_gpu 1"
 New-Item -ItemType Directory -Force "$O\reg" | Out-Null
-Step 'b3-register' "`"$Colmap`" mapper --database_path `"$db`" --image_path `"$Work\images`" --input_path `"$Work\$Model`" --output_path `"$O\reg`" --Mapper.fix_existing_frames 1 $fixed --Mapper.abs_pose_min_num_inliers 15 --Mapper.multiple_models 0"
+Step 'b3-register' "`"$Colmap`" mapper --database_path `"$db`" --image_path `"$Work\images`" --input_path `"$Work\$Model`" --output_path `"$O\reg`" --Mapper.fix_existing_frames 1 $fixed --Mapper.abs_pose_min_num_inliers 15 --Mapper.multiple_models 0 $listArg"
 if ($FinalBA) {
   Step 'b4-tri' "`"$Colmap`" point_triangulator --database_path `"$db`" --image_path `"$Work\images`" --input_path `"$O\reg`" --output_path `"$O\tri`" $fixed"
   Step 'b5-ba' "`"$Colmap`" bundle_adjuster --input_path `"$O\tri`" --output_path `"$O\ba`" --BundleAdjustment.constant_rig_from_world_rotation 1 --BundleAdjustment.refine_focal_length 0 --BundleAdjustment.refine_principal_point 0 --BundleAdjustment.refine_extra_params 0 --BundleAdjustment.refine_sensor_from_rig 0"

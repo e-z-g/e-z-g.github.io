@@ -125,6 +125,10 @@ checks the geometry; nothing has been reconstructed yet.
 | `m3a_list.py` | Lists every resource of a `<ROOM>nodes.m3a` (types, sizes, magic) and extracts any, such as the Bink movies. |
 | `colmap/video_frames.py` | A movie's frames as extra views of a laid-out room or age: frames, brightened copies, sequential and key-frame x face pairs. Needs opencv-python and ffmpeg. |
 | `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
+| `colmap/sky_masks.py` | Feature masks that leave out sky, sea and water (SegFormer, ADE20K), for movie frames: matches on the sky fix which way a picture looks but not where. Needs torch, transformers. |
+| `colmap/node_stereo.py` | `patch_match_stereo` for one node's six faces and the images they share most points with, instead of every image. |
+| `colmap/pair_points.py` | Depths in one face, up to scale, from its verified matches with one other face (essential matrix, triangulation): for a node no model places. Needs opencv-python. |
+| `colmap/node_depth.py` | A node's six depth faces for the site's cube viewer: Depth Anything per face, scaled by one joint fit to what was measured (sparse points, stereo, a projected cloud or `pair_points.py`), the seams and the sky at infinity, seams blended, written as the viewer's disparity. Needs torch, transformers. |
 | `colmap/static_mask.py` | A mask of what moves with the camera in a movie (pixels that barely change); empty for the ride. |
 | `colmap/video_match_stats.py`, `seq_match_stats.py`, `node_points.py`, `set_camera.py` | Small checks: frame-to-face matches, frame-to-frame matches along a movie, points per node face, a fixed camera for trials. |
 | `colmap/viewer/` | A browser viewer for a dense cloud and mesh (`index.html`, three.js), `export_viewer_data.py` to pack the data, `serve_viewer.py` to serve it locally or through a tunnel. No data is committed. |
@@ -573,10 +577,69 @@ age or off their neighbours in time by over a node spacing, were taken out
 (`image_deleter`), leaving **1,087** on a smooth path (median 0.03, at most 0.93
 node spacings a frame).
 
-The ride also **placed 11 more nodes, firmly** (70–1,565 points each): MACA 26
-and 36, MALL 17, MASS 57, MAWW 1, 2 and 3, MATO 7, 10, 11 and 12. Every one comes
-out facing the age's one orientation within 0.2°, MAWW 1 (reached by a movie,
-not a walk) included: the flyover's 27° for MAWW 1 was noise from 5 points.
-The cleaned model (`video_ride\clean` on the PC): 142 nodes, 44,936 points,
-0.81 px; the original nodes as before (0.004 and 0.006 walk lengths from
-COLMAP's sound models).
+The ride also took in 11 more nodes (70–1,565 points each): MACA 26 and 36,
+MALL 17, MASS 57, MAWW 1, 2 and 3, MATO 7, 10, 11 and 12, every one facing the
+age's one orientation within 0.2°. The cleaned model (`video_ride\clean` on the
+PC): 142 nodes, 44,936 points, 0.81 px; the original nodes as before (0.004 and
+0.006 walk lengths from COLMAP's sound models).
+
+**Their positions are wrong** (found the same day, making MAWW 1's depth). Eight
+of the 11 lie within 0.15 node spacings of one another (MAWW 1, 2 and 3, MASS
+57, MACA 26 and 36, MALL 17, MATO 7), though their faces show a pier, rock
+columns, a lift cage and a tower: different places. Their points are on the
+clouds (15–20 units away, the median node spacing being 1.59) and on the
+horizon (3,600–5,600). The sky looks the same from everywhere in the age, so
+matches on it fix which way a picture looks (hence the 0.2°) but not where it
+was taken; the mapper put each node by the ride frames it matched, near ride
+frame 190. MALL 17's 12 map steps from the age map came from this, not from the
+map. The ride frames' own path is suspect for the same reason.
+
+The fix tried: `sky_masks.py` (SegFormer's sky, sea and water, grown by 6
+pixels) as feature masks for the ride's frames, so that no feature of theirs is
+on the sky; the node faces keep their features, but a match needs both ends.
+Of the ride's 2,145 frames the masks take a median 2.2% (10–90%: 0–49%); the
+dark sea is mostly not recognised as water, so its reflections stay in.
+
+With the masks the ride registers **226 of its 2,145 frames** (17,474 points,
+0.58 px; `video_ride_nosky` on the PC) and places **none** of the 11 nodes: what
+held them, and most of the 1,316 frames, was the sky. The movie frames are
+640×360 and much of the ride is blurred or inside the cage, so with the sky gone
+little matches the node faces.
+
+## Depth for the site's Amateria node (MAWW 101)
+
+The site's Amateria location is MAWW node 101, node 1 with the console closed
+and glass balls on the track (faces 3–6 are node 1's; faces 1 and 2 differ in
+14% and 36% of their pixels). No model places node 1 (above), and stereo from
+the ride's frames measured nothing but clouds (`node_stereo.py`: 0.3–0.5% of the
+side faces kept, at 10–20 units). What it does share is its platform: MAWW 2's
+floor face shows the same deck and console (144 verified matches with node 1's
+floor face, with the sky masked on all 18 faces of MAWW 1–3), with rock columns
+round it instead of open sea: the platform moves. `pair_points.py` triangulates
+133 points on it from the two floor faces (0.26 px; MAWW 2's eye a little lower,
+along the floor face's axis; depths 4.5–10 times the baseline). On node 1's floor
+face Depth Anything's inverse depth fits those points within a median 6.3% (one
+scale and offset; correlation 0.94).
+
+`node_depth.py` then fits all six faces of node 1 at once (12 unknowns, a scale and
+offset per face): the 133 platform points; every face's edges equal to the
+neighbouring face's across the seam; and the sky at zero inverse depth, which is
+how Depth Anything is trained and fixes each face's offset. Without the sky the
+fit made every face a constant distance, a sphere, which satisfies the seams
+trivially. Held-out platform points come out a median 16.0% off (90% within 37.1%):
+the seams pull the floor face, since each face's network depth is predicted on its
+own. Node 101's two changed faces get their own network depth, fitted to node 1's
+distances over the pixels they share (5.0% and 0.8% off), so the closed console
+and the balls have the depth their own picture shows. The steps left at the
+seams (median 16.7%, 90% within 63%) are blended out over 48 pixels each side
+(1.2%, 10%), so the viewer draws no crease at the cube's edges.
+
+So for this node only the platform is measured; the rest is the network's depth
+held to the platform's scale through the seams, with the sky at infinity. The
+overall scale is the two eyes' separation, unknown in the age's units, which
+the viewer does not need: it draws proportions. The six maps are
+`../amateria/MAWWnodes-8…13_measured-depth.png` (8-bit, d = (r_far / r − 1) /
+(r_far / r_near − 1), r_near the 0.5th percentile of distance, r_far 20 times
+it), so the slider at its top (K = 19) is true proportion, and the default (70%,
+K = 10.7) is flatter.
+
