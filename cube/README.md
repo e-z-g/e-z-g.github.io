@@ -404,7 +404,14 @@ painting (`--fringe`), and the real far side beyond: a 12 px strip of painted
 water was darker than the water beside it and showed as a jagged line along
 the walkway. Gaps narrower than the cut between parts of a near object (the
 slit between ENSI 16's spire blades) are painted whole; left at the far
-side's depth they stayed behind as pale ghosts. Moving the measured
+side's depth they stayed behind as pale ghosts. The cut now follows each near object's
+whole outline rather than the pixels where the depth jumps, which left it
+dashed wherever the step was just under the threshold; and the object's depth
+carries on 6 px past its outline under a 12 px hole (12 and 24 at 1280). On
+a phone the mesh has a vertex every 2.5 px of a 640 px face and each vertex
+averages the depth a quad round it; with 3 px, the vertices just inside an
+outline took in some of the far side and the rim bent back in a
+vertex-spaced pattern as the eye moved, a wiggle along every thin thing. Moving the measured
 depth's edges onto the picture's by colour was tried first (pixels within
 14–18 px of a jump relabelled near or far) and dropped: in these dark faces
 the labels came out speckled, each speckle tore, and the rings and arcs broke

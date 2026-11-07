@@ -147,39 +147,45 @@ def remove_specks(m, area):
 
 
 def hole_band(q, whole, t, width, step_at, speck=80):
-    """Voltaic's way of cutting, for every step: the width px on its far side
-    become a hole in the foreground (green 0), and the near depth carries on
-    under the hole for step_at px, so the mesh's step lies inside it. The mesh
-    has a vertex every 2.5 px and smooths depth over as much, so a step is a
-    ramp of stretched triangles about 5 px wide; cut by the tear test, which
-    reaches about a pixel from the step, the rest of that ramp showed as
-    jagged teeth along every edge. A hole is cut by the picture's own pixels."""
-    # Hysteresis, as in edge finding: a step of half the size counts where it
-    # joins a full one, and gaps of a pixel or two along an edge are closed.
-    # Without it, where a step was a little softer the hole stopped, the cut
-    # along an edge was a dotted line, and pixels of the near object's edge
-    # stayed behind between the dots: a speckle along every rail and walkway.
-    strong, _ = jumps(q, t)
+    """Voltaic's way of cutting, for every near object: the width px outside
+    its outline that lie noticeably farther than it become a hole in the
+    foreground (green 0), and the object's depth carries on under the hole for
+    step_at px, so the mesh's step lies inside it. The mesh has a vertex every
+    2.5 px and smooths depth over as much, so a step is a ramp of stretched
+    triangles about 5 px wide; cut by the tear test, which reaches about a
+    pixel from the step, the rest of that ramp showed as jagged teeth along
+    every edge. A hole is cut by the picture's own pixels.
+
+    The band follows the near object's whole outline (removed_region's
+    `whole`). Found from the edge pixels where the depth jumps, it was a dashed
+    line wherever a softer stretch of the step escaped the jump test: pixels
+    of the edge stayed behind between the dashes, a speckle and a saw-toothed
+    wiggle along every rail and walkway edge as the eye moved. Its outline is
+    smoothed over a pixel or so, and specks under `speck` px go.
+
+    The depth carries on under the hole for 6 px of a 640 px face (12 at
+    1280) and the hole is twice that: on a phone the mesh has a vertex every
+    2.5 px of a 640 px face and each vertex averages the depth a quad round
+    it, so with 3 px the vertices just inside an outline took in some of the
+    far side and the rim bent back by a vertex-spaced pattern as the eye moved,
+    a wiggle along every thin thing (ENSI 16's spire blades, the slit between
+    them)."""
     hole = np.zeros(q.shape, bool)
-    if not strong.any():
+    if not whole.any():
         return q.copy(), hole
-    weak, _ = jumps(q, t / 2)
-    weak = cv2.morphologyEx((weak | strong).astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8)) > 0
-    _, wc = cv2.connectedComponents(weak.astype(np.uint8), connectivity=8)
-    keep = np.unique(wc[strong]); keep = keep[keep > 0]
-    near_e = np.isin(wc, keep) & ~whole | strong
-    qmax = cv2.dilate(q.astype(np.float32), np.ones((5, 5), np.uint8))
-    dist, lab = cv2.distanceTransformWithLabels((~near_e).astype(np.uint8), cv2.DIST_L2, 5,
+    rim = whole & ~(cv2.erode(whole.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0)
+    qmax = cv2.dilate(np.where(whole, q, 0).astype(np.float32), np.ones((5, 5), np.uint8))
+    dist, lab = cv2.distanceTransformWithLabels((~rim).astype(np.uint8), cv2.DIST_L2, 5,
                                                 labelType=cv2.DIST_LABEL_PIXEL)
-    ys, xs = np.nonzero(near_e)
+    ys, xs = np.nonzero(rim)
     nq_of = np.zeros(lab.max() + 1, np.float32); nq_of[lab[ys, xs]] = qmax[ys, xs]
     nq = nq_of[lab]
-    far_side = ~whole & ~near_e & (nq > q + t / 4)
+    far_side = ~whole & (nq > q + t / 4)
     hole = far_side & (dist <= width)
-    # No specks: holes of under speck pixels go, and so do islands of
-    # foreground that small inside a hole.
+    hole = cv2.GaussianBlur(hole.astype(np.float32), (0, 0), 1.0) > 0.5
     hole = remove_specks(hole, speck)
     hole = ~remove_specks(~hole, speck)
+    hole &= ~whole
     out = q.copy()
     under = far_side & (dist <= step_at)
     out[under] = nq[under]
@@ -285,8 +291,8 @@ def main():
     ap.add_argument('--names', nargs=6, help="the six faces' file names without suffix, in node_depth.py's order "
                     "(front, bottom, back, right, left, top; default MAWWnodes-8 ... -13)")
     ap.add_argument('--colour-suffix', default='_orig.jpeg'); ap.add_argument('--depth-suffix', default='_measured-depth.png')
-    ap.add_argument('--hole', type=int, default=6, help='px of the far side of a step cut out of the foreground')
-    ap.add_argument('--hole-step', type=int, default=3, help='px of the hole the near depth carries on under')
+    ap.add_argument('--hole', type=int, default=12, help='px of the far side of a step cut out of the foreground')
+    ap.add_argument('--hole-step', type=int, default=6, help='px of the hole the near depth carries on under')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     col, dep = {}, {}
