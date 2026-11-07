@@ -218,7 +218,6 @@ The same table gives each step's climb, which the age maps lack: 1 → 10 drops
 1° of level. The large misses are zips (distant views, few matches, and
 12 ↔ 16 measures as nearly vertical) and links with only a handful of matches.
 
-**A warning for the reconstruction:** the southern chain, nodes 27–41, matches
-poorly. Its links find 4–18 consistent matches where the rest of the room
-finds 30–1,200, so COLMAP may fail to join those nodes to the others; that is
+**A warning for the reconstruction:** nodes 27–41 match poorly. Their walks
+find 4–18 consistent matches where the walks among nodes 1–26 find 33–1,240, so COLMAP may fail to join those nodes to the others; that is
 where to look first if the room comes back in pieces.
