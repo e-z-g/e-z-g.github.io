@@ -12,14 +12,16 @@
 const { chromium } = require('playwright');
 const path = require('path');
 
-const [stitcherUrl, facesDir, outDir = facesDir, cell = '656'] = process.argv.slice(2);
+const [stitcherUrl, facesDir, outDir = facesDir, cell = '656', prefix = 'amateria-layered',
+       nameList = 'MAWWnodes-8,MAWWnodes-9,MAWWnodes-10,MAWWnodes-11,MAWWnodes-12,MAWWnodes-13'] = process.argv.slice(2);
 if (!stitcherUrl || !facesDir) {
-  console.error('usage: node stitch_layers.js <stitcher.html URL> <faces dir> [out dir] [cell px, 656 or 1296]');
+  console.error('usage: node stitch_layers.js <stitcher.html URL> <faces dir> [out dir] [cell px, 656 or 1296]\n'
+    + '         [atlas name prefix] [six face names in node_depth.py\'s order: front,bottom,back,right,left,top]');
   process.exit(1);
 }
-const faces = { left: 12, front: 8, right: 11, back: 10, top: 13, bottom: 9 };
-const names = { 'fg-color': 'amateria-layered-fg-color', 'fg-depth': 'amateria-layered-fg-depth',
-                'bg-color': 'amateria-layered-bg-color', 'bg-depth': 'amateria-layered-bg-depth' };
+const [front, bottom, back, right, left, top] = nameList.split(',');
+const faces = { left, front, right, back, top, bottom };
+const names = Object.fromEntries(['fg-color', 'fg-depth', 'bg-color', 'bg-depth'].map(sl => [sl, `${prefix}-${sl}`]));
 
 (async () => {
   const browser = await chromium.launch();

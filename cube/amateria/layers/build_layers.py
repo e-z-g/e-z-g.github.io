@@ -6,7 +6,10 @@ images, one per slot of the viewer's two-layer upload, ready for stitcher.html.
     python sharpen_depth.py SITE_DIR SHARP_DIR       (myst3/colmap; 1280 px depth)
     python build_layers.py OUT_DIR --src SHARP_DIR --colour-suffix _sharp-colour.png
         --depth-suffix _sharp-depth.png [--lama big-lama.pt] [--band 160] [--jump 0.8]
-        [--fringe 6] [--hole 6] [--hole-step 3]
+        [--fringe 6] [--hole 6] [--hole-step 3] [--names N1 ... N6]
+
+--names builds another node (MASS 84: MA-4084-1 ... -6); the stitch then takes
+the cell size, an atlas prefix and the same names.
     node stitch_layers.js http://localhost:8000/cube/stitcher.html OUT_DIR OUT_DIR 1296
                                                 (then the four 3x2 atlases)
 
@@ -69,7 +72,7 @@ from PIL import Image
 AMATERIA = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 # node_depth.py's face numbers (its DIRS) and the site's files: front, bottom,
 # back, right, left, top.
-FACES = {1: 8, 2: 9, 3: 10, 4: 11, 5: 12, 6: 13}
+FACES = {k: f'MAWWnodes-{n}' for k, n in zip(range(1, 7), range(8, 14))}
 ORDER = (6, 1, 3, 4, 5, 2)   # top first (sky only), bottom last (it borders all four sides)
 DIRS = {1: lambda s, t: (2 * s - 1, 1 - 2 * t, -np.ones_like(s)),
         2: lambda s, t: (1 - 2 * s, -np.ones_like(s), 1 - 2 * t),
@@ -116,9 +119,9 @@ def sample(stack, look):
     return stack[kk - 1, row, col]
 
 
-def load(n, src=AMATERIA, colour='_orig.jpeg', depth='_measured-depth.png'):
-    c = np.asarray(Image.open(os.path.join(src, f'MAWWnodes-{n}{colour}')).convert('RGB'))
-    d = np.asarray(Image.open(os.path.join(src, f'MAWWnodes-{n}{depth}')).convert('L'))
+def load(name, src=AMATERIA, colour='_orig.jpeg', depth='_measured-depth.png'):
+    c = np.asarray(Image.open(os.path.join(src, f'{name}{colour}')).convert('RGB'))
+    d = np.asarray(Image.open(os.path.join(src, f'{name}{depth}')).convert('L'))
     return c, d
 
 
@@ -212,13 +215,16 @@ def main():
     ap.add_argument('--band', type=int, default=160); ap.add_argument('--jump', type=float, default=0.8)
     ap.add_argument('--fringe', type=int, default=6, help='px the painted region reaches past the jump into the far side')
     ap.add_argument('--src', default=AMATERIA, help='folder of the faces and depth maps')
+    ap.add_argument('--names', nargs=6, help="the six faces' file names without suffix, in node_depth.py's order "
+                    "(front, bottom, back, right, left, top; default MAWWnodes-8 ... -13)")
     ap.add_argument('--colour-suffix', default='_orig.jpeg'); ap.add_argument('--depth-suffix', default='_measured-depth.png')
     ap.add_argument('--hole', type=int, default=6, help='px of the far side of a step cut out of the foreground')
     ap.add_argument('--hole-step', type=int, default=3, help='px of the hole the near depth carries on under')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     col, dep = {}, {}
-    for k, n in FACES.items():
+    faces = dict(zip(range(1, 7), a.names)) if a.names else FACES
+    for k, n in faces.items():
         col[k], dep[k] = load(n, a.src, a.colour_suffix, a.depth_suffix)
     N = dep[1].shape[0]
     # Pixel distances are given for 640 px faces and scale with the face.
@@ -257,9 +263,9 @@ def main():
             keep = masks[k][inner]
             bg[k - 1][keep] = painted[keep]
         done[k - 1] = True
-        print(f'face {FACES[k]}: {int(M[k - 1].sum())} px removed and painted ({M[k - 1].mean() * 100:.1f}%)')
+        print(f'face {faces[k]}: {int(M[k - 1].sum())} px removed and painted ({M[k - 1].mean() * 100:.1f}%)')
     q8 = lambda x: np.clip(np.rint(x), 0, 255).astype(np.uint8)
-    for k, n in FACES.items():
+    for k, n in faces.items():
         d = dep[k].astype(np.float32)
         fq = cv2.blur(fqs[k], (9, 9))[inner]
         bgd = np.where(M[k - 1], (fq - 1) / (RATIO - 1) * 255, d)

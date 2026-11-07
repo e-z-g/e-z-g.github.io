@@ -386,6 +386,30 @@
         ]
       },
       {
+        // MASS node 84, a node the 131-node model places: its depth is the
+        // dense model's own (COLMAP's per-face depth maps and sparse points,
+        // run_dense.ps1 on the joined model), with Depth Anything filling
+        // what no other node saw, made by myst3/colmap/node_depth.py --dense
+        // --sparse (myst3/README.md).
+        name: 'Amateria (MASS 84)',
+        baseUrl: rawUrl + 'amateria/',
+        type: 'faces',
+        faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
+        audio: rawUrl + 'amateria/audio_amateria.mp3',
+        hasDepth: true,
+        depthSuffix: '_measured-depth.png',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpg' },
+          // Two layers as for MAWW 101: depth redrawn at 1280px
+          // (sharpen_depth.py, fitted to the model-measured depth), a hole
+          // on the far side of every step, the backdrop painted by LaMa
+          // (amateria/layers/build_layers.py, stitch_layers.js at 1296px).
+          { label: 'Layered', backdropFullDepth: true, layers: {
+              fgColor: 'mass84-layered-fg-color.webp', fgDepth: 'mass84-layered-fg-depth.png',
+              bgColor: 'mass84-layered-bg-color.webp', bgDepth: 'mass84-layered-bg-depth.png' } }
+        ]
+      },
+      {
         name: 'Voltaic',
         baseUrl: rawUrl + 'voltaic/',
         type: 'voltaic',
@@ -1978,7 +2002,13 @@
       const type = fetchDepth ? loc.type : ((typeof version === 'object' && version.type) ? version.type : loc.type);
       
       let p;
-      if (type === 'side-numbered') { p = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s }; }
+      // 'faces': the location names its six files itself, without suffix, in
+      // the order front, bottom, back, right, left, top (node_depth.py's).
+      if (type === 'faces') {
+        const [front, bottom, back, right, left, top] = loc.faces.map(n => loc.baseUrl + n + s);
+        p = { front, bottom, back, right, left, top };
+      }
+      else if (type === 'side-numbered') { p = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s }; }
       else if (type === 'voltaic') { 
         p = { left: loc.baseUrl+'ENCHnodes-281'+s, front: loc.baseUrl+'ENCHnodes-277'+s, right: loc.baseUrl+'ENCHnodes-280'+s, back: loc.baseUrl+'ENCHnodes-279'+s, top: loc.baseUrl+'ENCHnodes-282'+s, bottom: loc.baseUrl+'ENCHnodes-278'+s }; 
       } 

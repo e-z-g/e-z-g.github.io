@@ -671,3 +671,31 @@ the viewer does not need: it draws proportions. The six maps are
 it), so the slider at its top (K = 19) is true proportion, and the default (70%,
 K = 10.7) is flatter.
 
+### Sharper outlines (`colmap/sharpen_depth.py`)
+
+The *Layered* version redraws that depth at 1280 px: Depth Anything V2 Large
+run on the site's 4K faces (reduced to 1280) at an input of 1036 px, fitted per
+face to the measured depth (1/z = a p + b, Cauchy-weighted, away from the
+measured map's outlines, the measured sky held at zero), seams closed over 96
+px. At its own input size of 518 px the network drew the spire roof as a
+rounded blob whose eaves reached ~10 px past it; at 1036 the outline follows
+the eaves. The redrawn maps stay a median 2–7% from the measured ones (90%
+within 6–16%).
+
+## Depth for a node the model places (MASS 84)
+
+The site also has MASS node 84 (`Amateria (MASS 84)`), one of the 131 nodes
+the joined model places, chosen for the best dense coverage of its side faces
+(37% of their pixels have a COLMAP geometric depth in `dense_joined`; no node
+has more) and near structure: a building with a porthole, the track, a rock
+wall. `node_depth.py 4084 --dense dense_joined --sparse
+joined_floor_map/sparse_txt/ba` fits Depth Anything to the model's own depths
+(3,000 stereo depths a side face, 31–295 sparse points) and the seams: on
+held-out measurements a median 2.2% off on faces 1 and 5, 4.5% on face 4, 12.5%
+on face 3 (90% within 12–59%); the floor, which no other node saw, takes its
+scale from the seams. So here the scale and the shape where points exist are
+the model's, and the network fills what no other node saw. Report:
+`colmap/Amateria/mass84_depth.json`. Its *Layered* version is built as MAWW
+101's, from the 640 px faces (no 4K copies) enlarged to 1280; the redrawn depth
+stays a median 2.6–5.1% from the measured.
+
