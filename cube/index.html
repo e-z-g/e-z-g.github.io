@@ -369,15 +369,17 @@
           { label: 'Original', suffix: '_orig.jpeg' },
           { label: '4K',       suffix: '_seamless.webp', ai: true },
           // The same node as two layers, so a near object no longer stretches
-          // across what it hid when the eye moves: the foreground tears at
-          // every step in the depth and the backdrop shows what was behind.
-          // Foreground: the original faces and the measured depth (green 255:
-          // nothing is see-through). Backdrop: the near side of every step
-          // taken out within 64px of it and painted in by LaMa, at the depth
-          // of the step's far side. The backdrop's depth is on the
-          // foreground's scale, so it displaces at the full rate
+          // across what it hid when the eye moves. The depth is redrawn at
+          // 1280px from the 4K faces (myst3/colmap/sharpen_depth.py, fitted
+          // to the measured depth), so its outlines follow the picture.
+          // Foreground: the 4K faces at 1280px and that depth, with a 6px
+          // hole (green 0) on the far side of every step and the near depth
+          // carried under it, so the mesh's ramp at a step is cut by the
+          // picture's pixels, as in Voltaic. Backdrop: the near side of
+          // every step taken out within 320px and painted in by LaMa, at the
+          // depth of the step's far side, on the foreground's scale
           // (backdropFullDepth). Built by amateria/layers/build_layers.py,
-          // stitched 3x2 at 656px by stitch_layers.js.
+          // stitched 3x2 at 1296px by stitch_layers.js.
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'amateria-layered-fg-color.webp', fgDepth: 'amateria-layered-fg-depth.png',
               bgColor: 'amateria-layered-bg-color.webp', bgDepth: 'amateria-layered-bg-depth.png' } }

@@ -7,14 +7,14 @@
 //
 // Needs Playwright (npm i playwright in a scratch folder, not in this repo).
 // 656px cells are 640px of picture inside the 8px gutters: the captures'
-// own size, so nothing is resampled. The green see-through mask in fg-depth
-// survives the stitcher bit for bit (checked for Voltaic's version).
+// own size, so nothing is resampled; 1296 for faces of 1280 (sharpen_depth.py).
+// The green see-through mask in fg-depth survives the stitcher bit for bit.
 const { chromium } = require('playwright');
 const path = require('path');
 
-const [stitcherUrl, facesDir, outDir = facesDir] = process.argv.slice(2);
+const [stitcherUrl, facesDir, outDir = facesDir, cell = '656'] = process.argv.slice(2);
 if (!stitcherUrl || !facesDir) {
-  console.error('usage: node stitch_layers.js <stitcher.html URL> <faces dir> [out dir]');
+  console.error('usage: node stitch_layers.js <stitcher.html URL> <faces dir> [out dir] [cell px, 656 or 1296]');
   process.exit(1);
 }
 const faces = { left: 12, front: 8, right: 11, back: 10, top: 13, bottom: 9 };
@@ -33,7 +33,7 @@ const names = { 'fg-color': 'amateria-layered-fg-color', 'fg-depth': 'amateria-l
       await page.setInputFiles('#file-' + face, path.join(facesDir, `${slot}-${k}.png`));
     }
     await page.selectOption('#slot-select', slot);
-    await page.fill('#face-size', '656');
+    await page.fill('#face-size', cell);
     if (slot.endsWith('color')) {
       await page.selectOption('#fmt-select', 'image/webp');
       await page.fill('#quality', '92');

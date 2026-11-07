@@ -342,23 +342,30 @@ the backdrop has no step of its own (`voltaic/layers/build_layers.py`). Built as
 the stitcher bit for bit.
 
 Amateria's *Layered* version (MAWW node 101) is the general case: every
-step in the measured depth tears. Its foreground is the original faces and
-measured depth, unchanged (green 255: nothing see-through, else the sky at
-depth 0 would be cut as a hole). Its backdrop is the near side of every step
+step in the depth is cut. Its depth is redrawn at 1280 px from the 4K faces
+(`myst3/colmap/sharpen_depth.py`: Depth Anything V2 Large at an input of 1036
+px, fitted to the measured depth), because the measured map's outlines, made
+at 518 px, were rounder than the picture: the spire roof's eaves reached ~10
+px past them, sat at sky depth and were left behind in blocks. Its foreground
+is those faces with a 6 px hole (green 0) on the far side of every step and
+the near depth carried 3 px under it, Voltaic's way: the mesh has a vertex
+every 2.5 px of a 640 px face and smooths depth over as much, so a step is a
+ramp of stretched triangles, and the tear test, reaching about a pixel from
+the step, left the rest of the ramp as jagged teeth. Its backdrop is the near side of every step
 (two pixels 2 apart whose inverse distance differs by more than 0.8 in units
 of the farthest kept distance; the tear slider's middle tears at 1 to 2)
-within 160 px of it, painted by LaMa with the whole near object hidden from
+within 160 px of it (at 640 px a face, 320 at 1280), painted by LaMa with the whole near object hidden from
 it (shown part of one, LaMa carries it on into the gap: with a 64 px band a
 ghost of the machinery's box came back beside it), each face padded
 with 128 px of its neighbours and faces done earlier lending their finished
 backdrop, at the depth of the step's far side, with `backdropFullDepth`
-(`amateria/layers/build_layers.py`, stitched by `stitch_layers.js`). What it
-leaves: where the measured depth's silhouette is rounder than the picture —
-the spire roof's eaves reach ~10 px past it — the eave tips sit at sky depth
-and stay behind as a pale wedge, and the tear notches the roof. Moving the
-depth's edges onto the picture's was tried (pixels within 14–18 px of a jump
-relabelled near or far by colour) and dropped: in these dark faces the labels
-came out speckled, each speckle tore, and the rings and arcs broke apart.
+(`amateria/layers/build_layers.py`, stitched at 1296 px by `stitch_layers.js`).
+What it leaves: small bites out of the glass balls on the front face, where
+the depth steps between a ball and the rings around it. Moving the measured
+depth's edges onto the picture's by colour was tried first (pixels within
+14–18 px of a jump relabelled near or far) and dropped: in these dark faces
+the labels came out speckled, each speckle tore, and the rings and arcs broke
+apart.
 
 **Known gap:** the video path's colour is a 5×3 atlas, so it cannot borrow the
 3×2 depth stitch and keeps its six per-face depth textures — which means the

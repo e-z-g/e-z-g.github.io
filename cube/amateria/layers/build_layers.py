@@ -3,9 +3,18 @@
 Build Amateria's "Layered" version (MAWW node 101): four sets of six face
 images, one per slot of the viewer's two-layer upload, ready for stitcher.html.
 
-    python build_layers.py OUT_DIR [--lama big-lama.pt] [--band 160] [--jump 0.8] [--fringe 6]
-    node stitch_layers.js http://localhost:8000/cube/stitcher.html OUT_DIR
+    python sharpen_depth.py SITE_DIR SHARP_DIR       (myst3/colmap; 1280 px depth)
+    python build_layers.py OUT_DIR --src SHARP_DIR --colour-suffix _sharp-colour.png
+        --depth-suffix _sharp-depth.png [--lama big-lama.pt] [--band 160] [--jump 0.8]
+        [--fringe 6] [--hole 6] [--hole-step 3]
+    node stitch_layers.js http://localhost:8000/cube/stitcher.html OUT_DIR OUT_DIR 1296
                                                 (then the four 3x2 atlases)
+
+Pixel distances are given for 640 px faces and scale with the faces read
+(doubled for the site's 1280 px build). Without --src it reads the 640 px
+captures and their measured depth; on those the depth's outlines are rounder
+than the picture, the eaves of the spire roof sat at sky depth and were left
+behind in blocks, which is why the site's version uses sharpen_depth.py's.
 
 Needs numpy, Pillow, opencv-python and torch, and LaMa's weights as TorchScript
 (big-lama.pt, from the simple-lama-inpainting release v0.1.0); a GPU helps.
@@ -17,11 +26,12 @@ fix it the way Voltaic's do (cube/README.md, "Two layers: holes and tears"):
 the foreground tears at the step and the backdrop shows what was behind.
 
 The four slots, per face:
-  fg colour  the original capture.
-  fg depth   red and blue: the measured depth (MAWWnodes-N_measured-depth.png)
-             unchanged. Green: 255 everywhere: nothing in this node is
-             see-through, and with green equal to red the sky (depth 0) would
-             be cut away as a hole.
+  fg colour  the faces read (the site's: the 4K faces at 1280 px).
+  fg depth   red and blue: the depth read, with the near depth carried
+             --hole-step px past every step. Green: 0 in --hole px on the far
+             side of every step (a hole, cut like Voltaic's: see hole_band),
+             255 elsewhere; with green equal to red the sky (depth 0) would be
+             cut away as a hole too.
   bg colour  the near side of every depth jump taken out within --band pixels
              of the jump (160; the farthest anything slides at full
              head-tracking range is about 48 px) and painted in by LaMa. LaMa
@@ -106,9 +116,9 @@ def sample(stack, look):
     return stack[kk - 1, row, col]
 
 
-def load(n):
-    c = np.asarray(Image.open(os.path.join(AMATERIA, f'MAWWnodes-{n}_orig.jpeg')).convert('RGB'))
-    d = np.asarray(Image.open(os.path.join(AMATERIA, f'MAWWnodes-{n}_measured-depth.png')).convert('L'))
+def load(n, src=AMATERIA, colour='_orig.jpeg', depth='_measured-depth.png'):
+    c = np.asarray(Image.open(os.path.join(src, f'MAWWnodes-{n}{colour}')).convert('RGB'))
+    d = np.asarray(Image.open(os.path.join(src, f'MAWWnodes-{n}{depth}')).convert('L'))
     return c, d
 
 
@@ -124,6 +134,32 @@ def jumps(q, t):
         near |= np.roll(np.roll(b, dy, 0), dx, 1)
         far |= np.roll(np.roll(a, dy, 0), dx, 1)
     return near & ~far, far & ~near
+
+
+def hole_band(q, whole, t, width, step_at):
+    """Voltaic's way of cutting, for every step: the width px on its far side
+    become a hole in the foreground (green 0), and the near depth carries on
+    under the hole for step_at px, so the mesh's step lies inside it. The mesh
+    has a vertex every 2.5 px and smooths depth over as much, so a step is a
+    ramp of stretched triangles about 5 px wide; cut by the tear test, which
+    reaches about a pixel from the step, the rest of that ramp showed as
+    jagged teeth along every edge. A hole is cut by the picture's own pixels."""
+    near_e, _ = jumps(q, t)
+    hole = np.zeros(q.shape, bool)
+    if not near_e.any():
+        return q.copy(), hole
+    qmax = cv2.dilate(q.astype(np.float32), np.ones((5, 5), np.uint8))
+    dist, lab = cv2.distanceTransformWithLabels((~near_e).astype(np.uint8), cv2.DIST_L2, 5,
+                                                labelType=cv2.DIST_LABEL_PIXEL)
+    ys, xs = np.nonzero(near_e)
+    nq_of = np.zeros(lab.max() + 1, np.float32); nq_of[lab[ys, xs]] = qmax[ys, xs]
+    nq = nq_of[lab]
+    far_side = ~whole & ~near_e & (nq > q + t / 2)
+    hole = far_side & (dist <= width)
+    out = q.copy()
+    under = far_side & (dist <= step_at)
+    out[under] = nq[under]
+    return out, hole
 
 
 def removed_region(q, t, band):
@@ -175,30 +211,39 @@ def main():
     ap.add_argument('out'); ap.add_argument('--lama', default='big-lama.pt')
     ap.add_argument('--band', type=int, default=160); ap.add_argument('--jump', type=float, default=0.8)
     ap.add_argument('--fringe', type=int, default=6, help='px the painted region reaches past the jump into the far side')
+    ap.add_argument('--src', default=AMATERIA, help='folder of the faces and depth maps')
+    ap.add_argument('--colour-suffix', default='_orig.jpeg'); ap.add_argument('--depth-suffix', default='_measured-depth.png')
+    ap.add_argument('--hole', type=int, default=6, help='px of the far side of a step cut out of the foreground')
+    ap.add_argument('--hole-step', type=int, default=3, help='px of the hole the near depth carries on under')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     col, dep = {}, {}
     for k, n in FACES.items():
-        col[k], dep[k] = load(n)
+        col[k], dep[k] = load(n, a.src, a.colour_suffix, a.depth_suffix)
     N = dep[1].shape[0]
+    # Pixel distances are given for 640 px faces and scale with the face.
+    S = N / 640
+    sc = lambda v: max(1, int(round(v * S)))
+    PAD_ = sc(PAD)
     C = np.stack([col[k] for k in range(1, 7)]).astype(np.float32)
     D = np.stack([dep[k] for k in range(1, 7)]).astype(np.float32) / 255
     Q = 1 + (RATIO - 1) * D
     lama = Lama(a.lama)
     bg = C.copy()                     # finished backdrops replace these face by face
     done = np.zeros(6, bool)
-    masks, hide, fqs = {}, {}, {}
+    masks, hide, fqs, fgq, holes = {}, {}, {}, {}, {}
     # The removed region and far-side depth of every face first, each on the
     # face padded with its neighbours so a jump at a seam is seen whole.
     for k in range(1, 7):
-        look = pad_lookup(k, N, PAD)
-        region, whole, fq = removed_region(sample(Q, look), a.jump, a.band)
-        grow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * a.fringe + 1,) * 2, np.uint8)) > 0
+        look = pad_lookup(k, N, PAD_)
+        region, whole, fq = removed_region(sample(Q, look), a.jump, sc(a.band))
+        grow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * sc(a.fringe) + 1,) * 2, np.uint8)) > 0
         masks[k], hide[k], fqs[k] = grow(region), grow(whole), fq
-    inner = (slice(PAD, PAD + N), slice(PAD, PAD + N))
+        fgq[k], holes[k] = hole_band(sample(Q, look), whole, a.jump, sc(a.hole), sc(a.hole_step))
+    inner = (slice(PAD_, PAD_ + N), slice(PAD_, PAD_ + N))
     M = np.stack([masks[k][inner] for k in range(1, 7)])
     for k in ORDER:
-        look = pad_lookup(k, N, PAD)
+        look = pad_lookup(k, N, PAD_)
         rgb = sample(bg, look)
         # LaMa paints over the whole near object, so it never sees part of
         # one and carries it on into the gap (with a 64px band, a ghost of the
@@ -219,7 +264,9 @@ def main():
         fq = cv2.blur(fqs[k], (9, 9))[inner]
         bgd = np.where(M[k - 1], (fq - 1) / (RATIO - 1) * 255, d)
         bgd = np.minimum(bgd, d)          # the backdrop never in front of the foreground
-        fgd = np.stack([d, np.full_like(d, 255), d], -1)
+        fd = (fgq[k][inner] - 1) / (RATIO - 1) * 255
+        green = np.where(holes[k][inner], 0, 255)
+        fgd = np.stack([fd, green, fd], -1)
         for slot, img in (('fg-color', col[k]), ('fg-depth', fgd), ('bg-color', bg[k - 1]), ('bg-depth', bgd)):
             Image.fromarray(q8(img)).save(os.path.join(a.out, f'{slot}-{n}.png'))
         Image.fromarray(q8(M[k - 1] * 255)).save(os.path.join(a.out, f'removed-{n}.png'))
