@@ -1,0 +1,122 @@
+{
+ "room": "TOHB",
+ "nodes": [
+  1,
+  2,
+  201,
+  301,
+  401,
+  402,
+  10002,
+  10201
+ ],
+ "links": [
+  {
+   "from": 1,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 180,
+   "pitch": -9
+  },
+  {
+   "from": 2,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    401,
+    10002
+   ],
+   "heading": null,
+   "pitch": null
+  },
+  {
+   "from": 2,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    401,
+    11002
+   ],
+   "heading": null,
+   "pitch": null
+  },
+  {
+   "from": 2,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    201,
+    12002
+   ],
+   "heading": null,
+   "pitch": null
+  },
+  {
+   "from": 201,
+   "kind": "walk",
+   "opcode": 164,
+   "args": [
+    301
+   ],
+   "heading": null,
+   "pitch": null
+  },
+  {
+   "from": 201,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    301,
+    10201
+   ],
+   "heading": null,
+   "pitch": null
+  },
+  {
+   "from": 301,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    600
+   ],
+   "heading": null,
+   "pitch": null
+  },
+  {
+   "from": 401,
+   "kind": "walk",
+   "opcode": 164,
+   "args": [
+    402
+   ],
+   "heading": null,
+   "pitch": null
+  }
+ ],
+ "walk_bearings": [
+  {
+   "from": 1,
+   "to": 2,
+   "heading": 180
+  }
+ ],
+ "sketch_positions": {
+  "1": [
+   0.0,
+   0.0
+  ],
+  "2": [
+   1.2246467991473532e-16,
+   -1.0
+  ]
+ },
+ "walk_connected_groups": [
+  [
+   1,
+   2
+  ]
+ ]
+}

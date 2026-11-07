@@ -326,7 +326,7 @@ spoke edges. Its backdrop is that floor, reconstructed under the metal by a
 pyramid (push-pull) fill ~64 px around every hole — about as far as the floor
 slides at full head-tracking range — at the open floor's depth (~20 by the
 walkway, 30 straight down), blending back to the estimate over 64 px more so
-the backdrop has no step of its own. Built as face images, stitched 3×2 with
+the backdrop has no step of its own (`voltaic/layers/build_layers.py`). Built as face images, stitched 3×2 with
 `stitcher.html` at 656 px (640 of picture), exactly — the green mask survives
 the stitcher bit for bit.
 

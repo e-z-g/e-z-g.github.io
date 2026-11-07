@@ -1,0 +1,344 @@
+{
+ "room": "LELT",
+ "nodes": [
+  1,
+  2,
+  101,
+  102,
+  201,
+  202,
+  301,
+  302,
+  402,
+  502,
+  602,
+  10402,
+  11402
+ ],
+ "links": [
+  {
+   "from": 1,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    201,
+    10001
+   ],
+   "heading": 174,
+   "pitch": -12
+  },
+  {
+   "from": 1,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 352,
+   "pitch": -11
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    1
+   ],
+   "heading": 177,
+   "pitch": -7
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    402
+   ],
+   "heading": 344,
+   "pitch": -21
+  },
+  {
+   "from": 101,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    301,
+    10101
+   ],
+   "heading": 174,
+   "pitch": -12
+  },
+  {
+   "from": 101,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    102
+   ],
+   "heading": 352,
+   "pitch": -11
+  },
+  {
+   "from": 102,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    101
+   ],
+   "heading": 177,
+   "pitch": -7
+  },
+  {
+   "from": 102,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    202
+   ],
+   "heading": 342,
+   "pitch": 8
+  },
+  {
+   "from": 201,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    501,
+    184
+   ],
+   "heading": 174,
+   "pitch": -12
+  },
+  {
+   "from": 201,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 352,
+   "pitch": -11
+  },
+  {
+   "from": 202,
+   "kind": "walk",
+   "opcode": 164,
+   "args": [
+    302
+   ],
+   "heading": 104,
+   "pitch": 224
+  },
+  {
+   "from": 202,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    102
+   ],
+   "heading": 0,
+   "pitch": 0
+  },
+  {
+   "from": 301,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    501,
+    284
+   ],
+   "heading": 174,
+   "pitch": -12
+  },
+  {
+   "from": 301,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    102
+   ],
+   "heading": 352,
+   "pitch": -11
+  },
+  {
+   "from": 302,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    602
+   ],
+   "heading": 136,
+   "pitch": 312
+  },
+  {
+   "from": 302,
+   "kind": "walk",
+   "opcode": 164,
+   "args": [
+    502
+   ],
+   "heading": 0,
+   "pitch": 0
+  },
+  {
+   "from": 402,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 172,
+   "pitch": 300
+  },
+  {
+   "from": 402,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    102,
+    10002
+   ],
+   "heading": 172,
+   "pitch": 300
+  },
+  {
+   "from": 402,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 0,
+   "pitch": 0
+  },
+  {
+   "from": 402,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    102,
+    10002
+   ],
+   "heading": 0,
+   "pitch": 0
+  },
+  {
+   "from": 402,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 0,
+   "pitch": 0
+  },
+  {
+   "from": 502,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    202,
+    11302
+   ],
+   "heading": null,
+   "pitch": null
+  }
+ ],
+ "walk_bearings": [
+  {
+   "from": 1,
+   "to": 2,
+   "heading": 354.5
+  },
+  {
+   "from": 101,
+   "to": 102,
+   "heading": 354.5
+  },
+  {
+   "from": 201,
+   "to": 2,
+   "heading": 352
+  },
+  {
+   "from": 202,
+   "to": 302,
+   "heading": 104
+  },
+  {
+   "from": 301,
+   "to": 102,
+   "heading": 352
+  },
+  {
+   "from": 302,
+   "to": 602,
+   "heading": 136
+  },
+  {
+   "from": 302,
+   "to": 502,
+   "heading": 0
+  }
+ ],
+ "sketch_positions": {
+  "1": [
+   0.0,
+   0.0
+  ],
+  "2": [
+   -0.09584575252022448,
+   0.9953961983671787
+  ],
+  "201": [
+   0.0433273484398414,
+   0.005128129625608491
+  ],
+  "101": [
+   0.0,
+   0.0
+  ],
+  "102": [
+   -0.09584575252022448,
+   0.9953961983671787
+  ],
+  "301": [
+   0.0433273484398414,
+   0.005128129625608491
+  ],
+  "202": [
+   0.0,
+   0.0
+  ],
+  "302": [
+   0.9702957262759965,
+   -0.2419218955996678
+  ],
+  "602": [
+   1.6649540967349936,
+   -0.961261695938319
+  ],
+  "502": [
+   0.9702957262759965,
+   0.7580781044003322
+  ]
+ },
+ "walk_connected_groups": [
+  [
+   202,
+   302,
+   602,
+   502
+  ],
+  [
+   1,
+   2,
+   201
+  ],
+  [
+   101,
+   102,
+   301
+  ]
+ ]
+}

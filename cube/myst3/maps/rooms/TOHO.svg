@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="370" height="413" font-family="sans-serif" font-size="11"><rect width="100%" height="100%" fill="#fff"/>
+<text x="8" y="16" font-size="14" font-weight="bold">TOHO</text>
+<line x1="108.8" y1="50.0" x2="105.6" y2="109.9" stroke="#333"/>
+<line x1="105.6" y1="109.9" x2="54.1" y2="115.2" stroke="#333"/>
+<line x1="105.6" y1="109.9" x2="102.4" y2="164.9" stroke="#333"/>
+<line x1="54.1" y1="115.2" x2="102.4" y2="164.9" stroke="#333"/>
+<line x1="102.4" y1="164.9" x2="97.7" y2="224.7" stroke="#333"/>
+<line x1="97.7" y1="224.7" x2="147.1" y2="265.3" stroke="#333"/>
+<line x1="97.7" y1="224.7" x2="40.0" y2="241.3" stroke="#333"/>
+<line x1="97.7" y1="224.7" x2="92.6" y2="282.8" stroke="#333"/>
+<line x1="147.1" y1="265.3" x2="92.6" y2="282.8" stroke="#333"/>
+<line x1="147.1" y1="265.3" x2="150.3" y2="325.2" stroke="#333"/>
+<line x1="147.1" y1="265.3" x2="150.3" y2="325.2" stroke="#333"/>
+<line x1="40.0" y1="241.3" x2="50.9" y2="300.3" stroke="#333"/>
+<line x1="40.0" y1="241.3" x2="59.5" y2="298.0" stroke="#333"/>
+<line x1="40.0" y1="241.3" x2="54.0" y2="299.6" stroke="#333"/>
+<line x1="92.6" y1="282.8" x2="93.7" y2="342.7" stroke="#333"/>
+<line x1="330.3" y1="110.0" x2="330.3" y2="50.0" stroke="#333"/>
+<circle cx="108.8" cy="50.0" r="9" fill="#fff" stroke="#333"/><text x="108.8" y="54.0" text-anchor="middle">1</text>
+<circle cx="105.6" cy="109.9" r="9" fill="#fff" stroke="#333"/><text x="105.6" y="113.9" text-anchor="middle">2</text>
+<circle cx="54.1" cy="115.2" r="9" fill="#fff" stroke="#333"/><text x="54.1" y="119.2" text-anchor="middle">3</text>
+<circle cx="102.4" cy="164.9" r="9" fill="#fff" stroke="#333"/><text x="102.4" y="168.9" text-anchor="middle">4</text>
+<circle cx="97.7" cy="224.7" r="9" fill="#fff" stroke="#333"/><text x="97.7" y="228.7" text-anchor="middle">5</text>
+<circle cx="147.1" cy="265.3" r="9" fill="#fff" stroke="#333"/><text x="147.1" y="269.3" text-anchor="middle">6</text>
+<circle cx="40.0" cy="241.3" r="9" fill="#fff" stroke="#333"/><text x="40.0" y="245.3" text-anchor="middle">7</text>
+<circle cx="92.6" cy="282.8" r="9" fill="#fff" stroke="#333"/><text x="92.6" y="286.8" text-anchor="middle">8</text>
+<circle cx="150.3" cy="325.2" r="9" fill="#fff" stroke="#333"/><text x="150.3" y="329.2" text-anchor="middle">106</text>
+<circle cx="150.3" cy="325.2" r="9" fill="#fff" stroke="#333"/><text x="150.3" y="329.2" text-anchor="middle">206</text>
+<circle cx="50.9" cy="300.3" r="9" fill="#fff" stroke="#333"/><text x="50.9" y="304.3" text-anchor="middle">107</text>
+<circle cx="59.5" cy="298.0" r="9" fill="#fff" stroke="#333"/><text x="59.5" y="302.0" text-anchor="middle">207</text>
+<circle cx="54.0" cy="299.6" r="9" fill="#fff" stroke="#333"/><text x="54.0" y="303.6" text-anchor="middle">607</text>
+<circle cx="93.7" cy="342.7" r="9" fill="#fff" stroke="#333"/><text x="93.7" y="346.7" text-anchor="middle">108</text>
+<circle cx="330.3" cy="110.0" r="9" fill="#fff" stroke="#333"/><text x="330.3" y="114.0" text-anchor="middle">506</text>
+<circle cx="330.3" cy="50.0" r="9" fill="#fff" stroke="#333"/><text x="330.3" y="54.0" text-anchor="middle">606</text>
+<text x="8" y="403" fill="#666">Not reached by walking (close-ups and the like): 101, 201, 306, 307, 406, 707, 807, 10004, 10007, 10306, 11007, 11306, 20306</text>
+</svg>
