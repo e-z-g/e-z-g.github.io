@@ -5,31 +5,44 @@ one way (solve_nodes.py --same-rotation has been run and its turn checked with
 turn_scan.py).
 
     python link_scales.py WORK [--solve WORK/solve_same] [--out WORK/solve_scaled]
-                          [--features images_feat] [--min-inliers 20] [--min-front 0.8]
+                          [--sources shared,floor,map] [--features images_feat]
+                          [--min-inliers 20] [--min-front 0.8] [--verbose]
 
 Why: a link's matches give the direction of the step from one node to the next,
 not its length, so solve_nodes.py makes every step along a chain the shortest
 allowed, and bundle adjustment can only correct that where enough points join
-the nodes. Here the lengths are measured directly:
+the nodes. Here each link's log length is solved from up to three sources:
 
-1. For each link (A, B), the matches that fit its direction (each ray within 0.5
-   degrees of the other's epipolar plane) are triangulated with the step taken as one unit; each
-   gets a distance from A and from B.
-2. A point that node B sees on two of its links, (A, B) and (B, C), is one
-   point at one distance from B, so the ratio of its two distances from B is the
-   ratio of the two steps' lengths. The median over all such points (each seen
-   with over 1 degree of parallax on both links) is that pair's ratio.
-3. Every link's log length is the least-squares fit to those ratios, weighted by
-   the number of points, one length held at 1 in each connected part.
-4. The centres are the least-squares fit to c_y - c_x = length * direction,
-   reweighted against links that do not fit (Cauchy, at a tenth of the length).
+shared  A point that node B sees on two of its links, (A, B) and (B, C), is one
+        point at one distance from B, so the ratio of its two distances from B
+        (each triangulated with that link's step as one unit) is the ratio of the
+        two steps' lengths. Median over the points seen with over 1 degree of
+        parallax on both links; weight from their number and spread.
+floor   A node stands at eye height above the floor under it. Each link's points
+        that lie under one of its nodes (within 0.25 of the step sideways, 0.15
+        to 2 below) give that node's height in the link's units; the floor is
+        the highest cluster of them (things further down, such as the sea, are
+        ignored). Each node gets an unknown height H_n, the same on all its links,
+        so the floor ties two links at a node exactly whatever the node's height;
+        and every H_n is drawn towards one common eye height (log sigma 0.1: in
+        Voltaic's ENSI, flat-platform nodes stand 0.546-0.565 steps above the
+        floor, stairs and walkways 0.42-0.53). The common eye height is the unit.
+map     The age map's distance between the two nodes, in map steps (walks there
+        are one step each, so this says little), times one unknown scale: a weak
+        pull (log sigma 0.7) for links nothing else measures.
+
+The fit is reweighted against equations that disagree (Cauchy). Parts of the
+link graph with no absolute measure (no floor, no map) have one length held at 1;
+parts with one (a floor, or the map) all share the one unit and are placed together.
 
 Each link's direction is checked against the hotspots between its two nodes
 (heading h looks along (-sin h, 0, cos h)): more than 120 degrees off and the
-direction is reversed (the measured direction's sign is the one thing a
-distant, level scene leaves open), between 60 and 120 it is dropped. Links
-with no hotspot keep their measured direction.
+direction is reversed (the sign is what a distant, level scene leaves open),
+between 60 and 120 it is dropped. Links with no hotspot keep their measured
+direction.
 
+The centres are the least-squares fit to c_y - c_x = length * direction over the
+largest part joined by measurements, reweighted against links that do not fit.
 Writes OUT/nodes_solved.json in solve_nodes.py's form (for build_model.py and
 join_model.ps1) and OUT/scales.json. Needs numpy and opencv-python.
 """
@@ -61,21 +74,40 @@ def triangulate(a, b, c):
     return la, lb
 
 
+def floor_height(P):
+    """Height of the floor under a node from points P relative to it (y up), in the link's units."""
+    side = np.hypot(P[:, 0], P[:, 2])
+    h = -P[:, 1]
+    cand = np.sort(h[(side < 0.25) & (h > 0.15) & (h < 2.0)])
+    if len(cand) < 3:
+        return None
+    top = cand[cand <= 1.15 * np.percentile(cand, 20)]   # the highest surface below the node
+    if len(top) < 3:
+        return None
+    lg = np.log(top)
+    return float(np.exp(np.median(lg))), len(top), float(np.median(np.abs(lg - np.median(lg))))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('work')
     ap.add_argument('--solve'); ap.add_argument('--out')
+    ap.add_argument('--sources', default='shared,floor,map')
     ap.add_argument('--features', default='images_feat')
     ap.add_argument('--min-inliers', type=int, default=20)
     ap.add_argument('--min-front', type=float, default=0.8)
     ap.add_argument('--verbose', action='store_true', help='counts per link and per pair of links')
+    ap.add_argument('--compare', action='append', default=[],
+                    help='a COLMAP text model to compare the centres with (after the best similarity); repeatable')
     a = ap.parse_args()
+    sources = set(a.sources.split(','))
     solve = a.solve or os.path.join(a.work, 'solve_same')
     out = a.out or os.path.join(a.work, 'solve_scaled')
     os.makedirs(out, exist_ok=True)
     meta = json.load(open(os.path.join(a.work, 'nodes.json')))
     names = meta.get('rooms', {})
     nm = lambda n: names.get(str(n), str(n))
+    ln = lambda L: f'{nm(L[0])}-{nm(L[1])}'
     rel = {tuple(map(int, k.split('-'))): v for k, v in json.load(open(os.path.join(solve, 'relposes.json'))).items()}
 
     # directions, checked against the hotspots
@@ -96,20 +128,19 @@ def main():
                 ang = np.median([math.degrees(math.acos(np.clip(ch @ np.array(h) / np.linalg.norm(ch), -1, 1)))
                                  for h in hs])
                 if ang > 120:
-                    c = -c; notes.append(f'{nm(x)}-{nm(y)} reversed ({ang:.0f} deg from its hotspots)')
+                    c = -c; notes.append(f'{ln((x, y))} reversed ({ang:.0f} deg from its hotspots)')
                 elif ang > 60:
-                    notes.append(f'{nm(x)}-{nm(y)} dropped ({ang:.0f} deg from its hotspots)')
+                    notes.append(f'{ln((x, y))} dropped ({ang:.0f} deg from its hotspots)')
                     continue
         links[(x, y)] = c
-    print(f'{len(links)} links kept of {len(rel)}')
+    print(f'{len(links)} links kept of {len(rel)}; length sources: {", ".join(sorted(sources))}')
     for s in notes:
         print('  ' + s)
 
-    # 1. distances from each node, per link, keyed by the node's feature index
+    # triangulated points per link: distances from each end keyed by feature index, and floors
     sift = cv2.SIFT_create(nfeatures=5000, contrastThreshold=0.01)
     folder = os.path.join(a.work, a.features)
-    feats = {}
-    depth = {}                                       # (link, node) -> {feature index: distance}
+    feats, depth, floors = {}, {}, {}
     for (x, y), c in links.items():
         for n in (x, y):
             if n not in feats:
@@ -128,108 +159,184 @@ def main():
         ok = inl & (la > 0) & (lb > 0)
         depth[((x, y), x)] = dict(zip(m[ok, 0].tolist(), la[ok].tolist()))
         depth[((x, y), y)] = dict(zip(m[ok, 1].tolist(), lb[ok].tolist()))
+        P = la[ok, None] * A[ok]                     # points relative to x
+        fx, fy = floor_height(P), floor_height(P - c)
+        if fx: floors[((x, y), x)] = fx
+        if fy: floors[((x, y), y)] = fy
         if a.verbose:
-            print(f'  {nm(x)}-{nm(y)}: {len(m)} matches, {int(par.sum())} with parallax, '
-                  f'{int(inl.sum())} fit the direction, {int(ok.sum())} in front of both')
+            fl = '  '.join(f'floor under {nm(n)} {f[0]:.3f} ({f[1]} pts)' for n, f in ((x, fx), (y, fy)) if f)
+            print(f'  {ln((x, y))}: {len(m)} matches, {int(par.sum())} with parallax, '
+                  f'{int(inl.sum())} fit the direction, {int(ok.sum())} in front of both  {fl}')
 
-    # 2. ratios between two links at a shared node
-    at = defaultdict(list)
-    for (L, n) in depth:
-        at[n].append(L)
-    ratios = []
-    for n, Ls in at.items():
-        for i in range(len(Ls)):
-            for j in range(i + 1, len(Ls)):
-                d1, d2 = depth[(Ls[i], n)], depth[(Ls[j], n)]
-                common = d1.keys() & d2.keys()
-                if a.verbose:
-                    print(f'  at {nm(n)}: {nm(Ls[i][0])}-{nm(Ls[i][1])} and {nm(Ls[j][0])}-{nm(Ls[j][1])} '
-                          f'share {len(common)} points')
-                if len(common) < 5:
-                    continue
-                r = np.array([math.log(d1[k] / d2[k]) for k in common])   # log(s_j / s_i)
-                med = float(np.median(r))
-                spread = float(np.median(np.abs(r - med)))
-                ratios.append((Ls[i], Ls[j], med, len(common), spread, n))
-    print(f'{len(ratios)} pairs of links with at least 5 points in common')
+    # equations on the unknowns: log length per link, log height per node with a floor, log map scale
+    lidx = {L: k for k, L in enumerate(links)}
+    fnodes = sorted({n for (_, n) in floors}) if 'floor' in sources else []
+    hidx = {n: len(links) + k for k, n in enumerate(fnodes)}
+    kidx = len(links) + len(fnodes)
+    nunk = kidx + 1
+    eqs = []                                          # (coefficients dict, rhs, weight, kind, label)
+    if 'shared' in sources:
+        at = defaultdict(list)
+        for (L, n) in depth:
+            at[n].append(L)
+        for n, Ls in at.items():
+            for i in range(len(Ls)):
+                for j in range(i + 1, len(Ls)):
+                    d1, d2 = depth[(Ls[i], n)], depth[(Ls[j], n)]
+                    common = d1.keys() & d2.keys()
+                    if a.verbose:
+                        print(f'  at {nm(n)}: {ln(Ls[i])} and {ln(Ls[j])} share {len(common)} points')
+                    if len(common) < 5:
+                        continue
+                    r = np.array([math.log(d1[k] / d2[k]) for k in common])   # log(s_j / s_i)
+                    med = float(np.median(r)); spread = float(np.median(np.abs(r - med)))
+                    eqs.append(({lidx[Ls[j]]: 1, lidx[Ls[i]]: -1}, med, math.sqrt(len(common)) / (0.05 + spread),
+                                'shared', f'{ln(Ls[i])} / {ln(Ls[j])} at {nm(n)}'))
+    if 'floor' in sources:
+        for (L, n), (h, cnt, spread) in floors.items():   # s_L * h = H_n
+            eqs.append(({lidx[L]: 1, hidx[n]: -1}, -math.log(h), math.sqrt(cnt) / (0.05 + spread),
+                        'floor', f'floor under {nm(n)} on {ln(L)}'))
+        for n in fnodes:                                  # H_n near the common eye height, the unit
+            eqs.append(({hidx[n]: 1}, 0.0, 1 / 0.1, 'eye', f'eye height at {nm(n)}'))
+    if 'map' in sources:
+        pos = meta['age_map_positions_steps']
+        for (x, y) in links:
+            p, q = pos.get(str(x)), pos.get(str(y))
+            if p and q and math.dist(p, q) > 0.2:
+                eqs.append(({lidx[(x, y)]: 1, kidx: -1}, math.log(math.dist(p, q)), 1 / 0.7, 'map', f'map {ln((x, y))}'))
 
-    # 3. log lengths
-    idx = {L: k for k, L in enumerate(links)}
+    # parts: links joined through any equation; parts with no absolute measure get one length held
     adj = defaultdict(set)
-    for L1, L2, *_ in ratios:
-        adj[L1].add(L2); adj[L2].add(L1)
+    for co, *_ in eqs:
+        ks = list(co)
+        for u in ks:
+            for v in ks:
+                if u != v:
+                    adj[u].add(v)
     comp, part = {}, 0
-    for L in links:
-        if L in comp:
+    for u in range(nunk):
+        if u in comp:
             continue
-        stack = [L]; comp[L] = part
+        stack = [u]; comp[u] = part
         while stack:
-            u = stack.pop()
-            for v in adj[u]:
+            w_ = stack.pop()
+            for v in adj[w_]:
                 if v not in comp:
                     comp[v] = part; stack.append(v)
         part += 1
-    rows, rhs, wts = [], [], []
-    for L1, L2, med, cnt, spread, n in ratios:
-        r = np.zeros(len(links)); r[idx[L2]] = 1; r[idx[L1]] = -1
-        rows.append(r); rhs.append(med); wts.append(math.sqrt(cnt) / (0.05 + spread))
-    for p in range(part):                            # one length per part held at 1
-        first = next(L for L in links if comp[L] == p)
-        r = np.zeros(len(links)); r[idx[first]] = 1
-        rows.append(r); rhs.append(0.0); wts.append(1e3)
-    M, y, w = np.array(rows), np.array(rhs), np.array(wts)
-    for it in range(10):                             # reweight ratios that disagree
+    absolute = {comp[k] for co, _, _, kind, _ in eqs if kind == 'eye' for k in co}
+    if 'map' in sources and not fnodes:
+        eqs.append(({kidx: 1}, 0.0, 1e3, 'gauge', 'map scale held'))
+        absolute.add(comp[kidx])
+    for p in range(part):
+        if p not in absolute:
+            first = next(k for k in range(len(links)) if comp[k] == p) if any(comp[k] == p for k in range(len(links))) else None
+            if first is not None:
+                eqs.append(({first: 1}, 0.0, 1e3, 'gauge', 'held'))
+    M = np.zeros((len(eqs), nunk)); y = np.zeros(len(eqs)); w0 = np.zeros(len(eqs))
+    for i, (co, r, wt, _, _) in enumerate(eqs):
+        for k, v in co.items():
+            M[i, k] = v
+        y[i], w0[i] = r, wt
+    hard = np.array([kind in ('gauge', 'eye') for _, _, _, kind, _ in eqs])
+    w = w0.copy()
+    for it in range(15):
         sol = np.linalg.lstsq(M * w[:, None], y * w, rcond=None)[0]
         res = M @ sol - y
-        base_w = np.array(wts)
-        w = base_w / (1 + (res / 0.15) ** 2)
-        w[len(ratios):] = 1e3
-    length = {L: math.exp(sol[idx[L]]) for L in links}
-    sizes = defaultdict(int)
+        w = np.where(hard, w0, w0 / (1 + (res / 0.15) ** 2))
+    length = {L: math.exp(sol[lidx[L]]) for L in links}
+    kinds = defaultdict(int)
+    for _, _, _, kind, _ in eqs:
+        kinds[kind] += 1
+    print('equations: ' + ', '.join(f'{k} {v}' for k, v in sorted(kinds.items())))
+    if fnodes:
+        hs = sorted(math.exp(sol[hidx[n]]) for n in fnodes)
+        print(f'nodes with a floor measured: {len(fnodes)}; their heights relative to the common one: '
+              f'median {hs[len(hs) // 2]:.2f}, 10-90% {hs[len(hs) // 10]:.2f}-{hs[len(hs) * 9 // 10]:.2f}')
+    if 'map' in sources:
+        print(f'one age-map step = {math.exp(sol[kidx]):.3f} units')
+    bad = sorted(((abs(r_), lab) for r_, (_, _, _, kind, lab) in zip(res, eqs) if kind not in ('gauge',)), reverse=True)[:8]
+    for r_, lab in bad:
+        print(f'  off by a factor {math.exp(r_):.2f}: {lab}')
+    group = lambda k: -1 if comp[k] in absolute else comp[k]   # every absolute part shares one unit
+    lsizes = defaultdict(int)
     for L in links:
-        sizes[comp[L]] += 1
-    big = max(sizes, key=sizes.get)
-    print(f'link parts joined by shared points: {len(sizes)}; largest {sizes[big]} links; '
-          f'others: {sorted((s for p, s in sizes.items() if p != big), reverse=True)}')
-    bad = sorted(((abs(r), L1, L2, n) for r, (L1, L2, *_ , n) in zip(res[:len(ratios)], ratios)), reverse=True)[:6]
-    for r, L1, L2, n in bad:
-        print(f'  ratio off by a factor {math.exp(r):.2f}: {nm(L1[0])}-{nm(L1[1])} vs {nm(L2[0])}-{nm(L2[1])} at {nm(n)}')
+        lsizes[group(lidx[L])] += 1
+    big = max(lsizes, key=lsizes.get)
+    print(f'link parts joined by measurements: {len(lsizes)}; largest {lsizes[big]} links; '
+          f'others: {sorted((s for p, s in lsizes.items() if p != big), reverse=True)}')
 
-    # 4. centres, from the links of the largest part (others have no common scale)
-    use = [L for L in links if comp[L] == big]
-    nodes = sorted({n for L in use for n in L})
+    # centres, from the links of the largest part
+    use = [L for L in links if group(lidx[L]) == big]
+    nadj = defaultdict(set)                          # and of those, the largest set of nodes they connect
+    for x, yy in use:
+        nadj[x].add(yy); nadj[yy].add(x)
+    seen, best = set(), set()
+    for n0 in nadj:
+        if n0 in seen:
+            continue
+        cc, stack = {n0}, [n0]
+        while stack:
+            for v in nadj[stack.pop()]:
+                if v not in cc:
+                    cc.add(v); stack.append(v)
+        seen |= cc
+        if len(cc) > len(best):
+            best = cc
+    use = [L for L in use if L[0] in best]
+    nodes = sorted(best)
     ni = {n: k for k, n in enumerate(nodes)}
     lw = np.array([float(rel[L]['inliers']) ** 0.5 for L in use])
     w = lw.copy()
     for it in range(20):
-        rows, rhs, ws = [], [], []
-        for (x, y), wt in zip(use, w):
-            d = length[(x, y)] * links[(x, y)]
+        rows = np.zeros((3 * len(use) + 3, 3 * len(nodes))); rhs = np.zeros(3 * len(use) + 3)
+        ws = np.zeros(3 * len(use) + 3)
+        for i, ((x, yy), wt) in enumerate(zip(use, w)):
+            d = length[(x, yy)] * links[(x, yy)]
             for k in range(3):
-                r = np.zeros(3 * len(nodes)); r[3 * ni[y] + k] = 1; r[3 * ni[x] + k] = -1
-                rows.append(r); rhs.append(d[k]); ws.append(wt)
+                rows[3 * i + k, 3 * ni[yy] + k] = 1; rows[3 * i + k, 3 * ni[x] + k] = -1
+                rhs[3 * i + k] = d[k]; ws[3 * i + k] = wt
         for k in range(3):
-            r = np.zeros(3 * len(nodes)); r[3 * 0 + k] = 1
-            rows.append(r); rhs.append(0.0); ws.append(1e3)
-        M, yv, ws = np.array(rows), np.array(rhs), np.array(ws)
-        C = np.linalg.lstsq(M * ws[:, None], yv * ws, rcond=None)[0].reshape(-1, 3)
-        res = np.array([np.linalg.norm(C[ni[y]] - C[ni[x]] - length[(x, y)] * links[(x, y)]) / length[(x, y)]
-                        for x, y in use])
+            rows[3 * len(use) + k, k] = 1; ws[3 * len(use) + k] = 1e3
+        C = np.linalg.lstsq(rows * ws[:, None], rhs * ws, rcond=None)[0].reshape(-1, 3)
+        res = np.array([np.linalg.norm(C[ni[yy]] - C[ni[x]] - length[(x, yy)] * links[(x, yy)]) / length[(x, yy)]
+                        for x, yy in use])
         w = lw / (1 + (res / 0.1) ** 2)
     worst = sorted(zip(res, use), reverse=True)[:6]
     print(f'{len(nodes)} nodes placed from {len(use)} links; step misfit (in step lengths) median '
-          f'{np.median(res):.3f}; worst ' + ', '.join(f'{nm(x)}-{nm(y)} {r:.2f}' for r, (x, y) in worst))
+          f'{np.median(res):.3f}; worst ' + ', '.join(f'{ln(L)} {r_:.2f}' for r_, L in worst))
     others = sorted(n for n in meta['nodes'] if n not in ni)
     print(f'not placed: {[nm(n) for n in others]}')
+
+    if a.compare:
+        from evaluate_model import read_frames
+        step = float(np.median([length[L] for L in use]))
+        for path in a.compare:
+            other = read_frames(path)
+            com = [n for n in nodes if n in other]
+            if len(com) < 3:
+                print(f'against {path}: {len(com)} nodes in common, not compared')
+                continue
+            X = np.array([other[n][1] for n in com]); Y = np.array([C[ni[n]] for n in com])
+            Xm, Ym = X.mean(0), Y.mean(0)
+            U, S, Vt = np.linalg.svd((X - Xm).T @ (Y - Ym))
+            D = np.diag([1, 1, np.sign(np.linalg.det(U @ Vt))])
+            Rs_ = (U @ D @ Vt).T
+            sc = (S * np.diag(D)).sum() / ((X - Xm) ** 2).sum()
+            r_ = np.linalg.norm((sc * (Rs_ @ (X - Xm).T)).T + Ym - Y, axis=1) / step
+            print(f'against {path}: {len(com)} nodes, centres differ by median {np.median(r_):.3f}, '
+                  f'max {r_.max():.3f} median steps (node {nm(com[int(np.argmax(r_))])})')
 
     I = np.eye(3).tolist()
     json.dump({'nodes': {str(n): {'node_from_ref': I, 'centre': C[ni[n]].tolist(), 'yaw_pitch_tilt_deg': [0, 0, 0]}
                          for n in nodes}},
               open(os.path.join(out, 'nodes_solved.json'), 'w'), indent=1)
-    json.dump({'lengths': {f'{x}-{y}': length[(x, y)] for x, y in links},
+    json.dump({'sources': sorted(sources),
+               'lengths': {f'{x}-{y}': length[(x, y)] for x, y in links},
                'directions': {f'{x}-{y}': links[(x, y)].tolist() for x, y in links},
-               'ratios': [{'a': f'{L1[0]}-{L1[1]}', 'b': f'{L2[0]}-{L2[1]}', 'at': n, 'log_b_over_a': med,
-                           'points': cnt, 'spread': spread} for L1, L2, med, cnt, spread, n in ratios],
+               'floors': {f'{L[0]}-{L[1]}@{n}': list(f) for (L, n), f in floors.items()},
+               'equations': [{'label': lab, 'kind': kind, 'residual': float(r_)}
+                             for r_, (_, _, _, kind, lab) in zip(M @ sol - y, eqs)],
                'notes': notes}, open(os.path.join(out, 'scales.json'), 'w'), indent=0)
 
 

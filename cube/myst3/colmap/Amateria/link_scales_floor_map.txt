@@ -1,0 +1,25 @@
+157 links kept of 177; length sources: floor, map, shared
+  MACA:4-MACA:5 reversed (170 deg from its hotspots)
+  MACA:10-MACA:14 reversed (170 deg from its hotspots)
+  MAIS:2-MAIS:5 dropped (66 deg from its hotspots)
+  MASS:9-MASS:14 dropped (77 deg from its hotspots)
+  MATO:6-MATO:7 reversed (136 deg from its hotspots)
+equations: eye 42, floor 51, gauge 1, map 152, shared 160
+nodes with a floor measured: 42; their heights relative to the common one: median 1.00, 10-90% 0.86-1.16
+one age-map step = 2.167 units
+  off by a factor 15.54: map MACA:41-MASS:1
+  off by a factor 5.55: map MAIS:14-MAIS:15
+  off by a factor 4.42: map MAIS:16-MAIS:17
+  off by a factor 3.99: map MAIS:6-MAIS:30
+  off by a factor 3.96: map MAIS:13-MAIS:14
+  off by a factor 3.61: map MAIS:17-MAIS:18
+  off by a factor 3.52: map MATO:5-MATO:9
+  off by a factor 3.25: map MATO:10-MATO:11
+link parts joined by measurements: 2; largest 156 links; others: [1]
+131 nodes placed from 147 links; step misfit (in step lengths) median 0.000; worst MACA:4-MACA:5 2.13, MASS:5-MASS:32 1.38, MACA:11-MACA:12 1.01, MACA:19-MACA:24 0.97, MASS:14-MASS:29 0.01, MASS:14-MASS:28 0.01
+not placed: ['MACA:26', 'MACA:36', 'MALL:17', 'MASS:57', 'MAWW:1', 'MAWW:2', 'MAWW:3', 'MATO:3', 'MATO:4', 'MATO:5', 'MATO:6', 'MATO:7', 'MATO:9', 'MATO:10', 'MATO:11', 'MATO:12']
+against C:\myst3_colmap\Amateria\runs\run1\sparse_txt\0: 62 nodes, centres differ by median 0.023, max 0.067 median steps (node MAIS:12)
+against C:\myst3_colmap\Amateria\runs\run1\sparse_txt\3: 13 nodes, centres differ by median 2.665, max 3.655 median steps (node MACA:15)
+against C:\myst3_colmap\Amateria\runs\run1\sparse_txt\9: 8 nodes, centres differ by median 0.005, max 0.006 median steps (node MALL:12)
+against C:\myst3_colmap\Amateria\runs\run1\sparse_txt\2: 8 nodes, centres differ by median 0.660, max 2.883 median steps (node MAIS:2)
+against C:\myst3_colmap\Amateria\runs\run1\sparse_txt\4: 6 nodes, centres differ by median 0.773, max 1.779 median steps (node MAIS:11)

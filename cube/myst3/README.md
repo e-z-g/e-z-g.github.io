@@ -421,4 +421,42 @@ neighbours). Nothing then ties one step's length to the next. `link_scales.py`
 measures those ratios where points allow: 79 of 157 links join into one part;
 the rest fall into 35 smaller ones.
 
-`colmap/Amateria/` has the layout files, the turn scan and the solve reports.
+### Step lengths from shared points, floors and the map
+
+`link_scales.py` now takes each link's length from up to three sources at once:
+**shared** points (above), the **floor** (a node stands at eye height above the
+floor under it: the link's points that lie under a node give that node's height
+in the link's units), and the **age map**'s distance between the two nodes as a
+weak pull (log sigma 0.7) where nothing else measures.
+
+The floor was tested first on Voltaic's ENSI, whose joined model is known to be
+right. In its dense cloud, flat-platform nodes stand 0.546–0.565 steps above the
+floor (within 2%), stairs and walkways 0.42–0.53. Measured from SIFT points
+alone, 15 of 16 floor readings fall within 5% of the true height (median 1.01;
+the walkway under node 20 at 0.74). On ENSI's 27 nodes, against the joined model:
+
+| lengths from | nodes | median gap |
+|---|---|---|
+| shared points | 27 | 0.070 steps |
+| floor only | 3 (only one chain of floor-measured links) | 0.005 |
+| map only | 27 | 0.356 |
+| shared + floor | 27 | 0.084 |
+
+On Amateria, shared + floor + map places **131 nodes**; joined by
+`join_model.ps1` (one round): 7,908 points, 0.30 px, hotspot bearings within a
+median 4.9°, and **against COLMAP's own models that pass the checks**: the
+62-node model (spanning MACA, MAIS and MASS) to a median 0.004 walk lengths (at
+most 0.023) and MALL's 8-node model to 0.005. The first joined model had 0.098
+against the 62-node one. COLMAP's models 3 (MACA), 4 (MAIS 6–11) and 2 are
+themselves wrong: their nodes turn 20–49°, 22–25° and up to 23° from each other,
+and their hotspot bearings are a median 110° and 107° off.
+
+Room by room against the age map: MACA 0.35 steps, MALL 0.29, MAIS 0.78 (its
+steps 2.7 times the others' per map step), MASS 1.68, turned 36° from the map.
+The whole-age fit stays at 3.3 steps; as COLMAP's own three-room model agrees
+with this one, the age map's layout between rooms (every walk one step) is
+the likely cause. Three links still point the wrong way (MAIS 10→11, MACA
+4→5, MAIS 19→3), in weakly measured loops.
+
+`colmap/Amateria/` has the layout files, the turn scan, the solve reports and
+`solved_floor_map_nodes.json`.
