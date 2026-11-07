@@ -125,6 +125,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `m3a_list.py` | Lists every resource of a `<ROOM>nodes.m3a` (types, sizes, magic) and extracts any, such as the Bink movies. |
 | `colmap/video_frames.py` | A movie's frames as extra views of a laid-out room or age: frames, brightened copies, sequential and key-frame x face pairs. Needs opencv-python and ffmpeg. |
 | `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
+| `colmap/static_mask.py` | A mask of what moves with the camera in a movie (pixels that barely change); empty for the ride. |
+| `colmap/video_match_stats.py`, `seq_match_stats.py`, `node_points.py`, `set_camera.py` | Small checks: frame-to-face matches, frame-to-frame matches along a movie, points per node face, a fixed camera for trials. |
 | `colmap/viewer/` | A browser viewer for a dense cloud and mesh (`index.html`, three.js), `export_viewer_data.py` to pack the data, `serve_viewer.py` to serve it locally or through a tunnel. No data is committed. |
 | `colmap/ENSI/`, `colmap/Amateria/` | Pair lists, rig files, `nodes.json`, run summaries (no images). |
 
@@ -554,3 +556,27 @@ model the centres differ by a median 0.007 walk lengths (0.004 held), against
 MALL's 0.006. Four more nodes were placed (MALL 17, MASS 57, MATO 7, MAWW 1)
 but three of them see only 4–5 points, so their poses (MAWW 1 tilted 27°, MATO 7
 turned 16°) are noise; MASS 57 sees 29 and comes out level and unturned.
+
+### The ride (MATO 24007)
+
+143 s, 2,145 frames at 640×360, from inside the glass ball. Nothing in the
+picture is fixed to the camera (`static_mask.py` finds no still pixels: the cage
+turns as the ball rolls, the scratches on the glass move), so no mask; matches
+on the cage do not move like the scenery and fall out as outliers. Frame to frame
+the ride matches well (median 225 verified matches to the next frame, over 400 in
+long stretches) but breaks about 195 times in motion blur. Alone it falls into
+31–42 pieces whatever the focal length (300–700 px all place 1,300–1,770 frames
+at about 1 px): the ball spins more than it travels, which does not fix the focal
+length. With the flyover's 455 px and the 131-node model continued (nodes held),
+**1,316 frames registered** in 19 minutes; 229 of them, placed far outside the
+age or off their neighbours in time by over a node spacing, were taken out
+(`image_deleter`), leaving **1,087** on a smooth path (median 0.03, at most 0.93
+node spacings a frame).
+
+The ride also **placed 11 more nodes, firmly** (70–1,565 points each): MACA 26
+and 36, MALL 17, MASS 57, MAWW 1, 2 and 3, MATO 7, 10, 11 and 12. Every one comes
+out facing the age's one orientation within 0.2°, MAWW 1 (reached by a movie,
+not a walk) included: the flyover's 27° for MAWW 1 was noise from 5 points.
+The cleaned model (`video_ride\clean` on the PC): 142 nodes, 44,936 points,
+0.81 px; the original nodes as before (0.004 and 0.006 walk lengths from
+COLMAP's sound models).

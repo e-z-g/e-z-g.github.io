@@ -3,6 +3,7 @@
 #     powershell -ExecutionPolicy Bypass -File register_video.ps1 -Work C:\myst3_colmap\Amateria -Tag lemt
 #         [-Run run1] [-Model joined_floor_map\ba] [-Out video_lemt] [-Mask] [-Colmap C:\colmap\4.2.1\COLMAP.bat]
 #         [-Focal 550] [-CameraModel SIMPLE_PINHOLE] [-AloneOnly] [-FixFocal | -FreeAll]
+#         [-Params 455,320,180]   (skip step 1 and use this camera)
 #
 # -Focal is the starting focal length in pixels for the movie's camera (a mapper
 # left to guess from nothing settled on nonsense); the mapper refines it. -AloneOnly
@@ -38,6 +39,7 @@ param(
   [switch]$FixFocal,
   [switch]$FreeAll,
   [switch]$FinalBA,
+  [string]$Params = '',
   [string]$Colmap = 'C:\colmap\4.2.1\COLMAP.bat'
 )
 $ErrorActionPreference = 'Stop'
@@ -56,27 +58,32 @@ function Step([string]$name, [string]$line) {
 $maskArg = if ($Mask) { "--ImageReader.mask_path `"$Work\masks`"" } else { '' }
 $fixed = '--Mapper.ba_refine_focal_length 0 --Mapper.ba_refine_principal_point 0 --Mapper.ba_refine_extra_params 0 --Mapper.ba_refine_sensor_from_rig 0'
 
-# 1. the movie alone
-$A = "$T\alone_$($CameraModel.ToLower())_f$([int]$Focal)$(if ($FixFocal) { '_fixed' } else { '' })"
-New-Item -ItemType Directory -Force "$A\sparse", "$A\txt" | Out-Null
-$vdb = "$A\video.db"
-if (Test-Path $vdb) { Remove-Item $vdb }
-$size = (Get-Content "$T\list.txt" -TotalCount 1)
-Add-Type -AssemblyName System.Drawing
-$im = [System.Drawing.Image]::FromFile((Join-Path "$Work\images" $size)); $cx = $im.Width / 2; $cy = $im.Height / 2; $im.Dispose()
-$start = if ($CameraModel -eq 'SIMPLE_RADIAL') { "$Focal,$cx,$cy,0" } elseif ($CameraModel -eq 'SIMPLE_PINHOLE') { "$Focal,$cx,$cy" } else { "$Focal,$Focal,$cx,$cy" }
-Step 'a1-features' "`"$Colmap`" feature_extractor --database_path `"$vdb`" --image_path `"$Work\images_feat`" --image_list_path `"$T\list.txt`" --ImageReader.camera_model $CameraModel --ImageReader.single_camera 1 --ImageReader.camera_params $start $maskArg --FeatureExtraction.use_gpu 1 --SiftExtraction.peak_threshold 0.002"
-Step 'a2-match' "`"$Colmap`" matches_importer --database_path `"$vdb`" --match_list_path `"$T\pairs_seq.txt`" --match_type pairs --FeatureMatching.use_gpu 1"
-$aloneOpts = if ($FixFocal) { '--Mapper.ba_refine_focal_length 0' } elseif ($FreeAll) { '--Mapper.ba_refine_principal_point 1' } else { '' }
-Step 'a3-mapper' "`"$Colmap`" mapper --database_path `"$vdb`" --image_path `"$Work\images`" --output_path `"$A\sparse`" --Mapper.multiple_models 0 $aloneOpts"
-Step 'a4-txt' "`"$Colmap`" model_converter --input_path `"$A\sparse\0`" --output_path `"$A\txt`" --output_type TXT"
-Step 'a5-analyzer' "`"$Colmap`" model_analyzer --path `"$A\sparse\0`""
-Get-Content "$logs\a5-analyzer.log" | Select-String 'Registered images|Points:|reprojection'
-$cam = (Get-Content "$A\txt\cameras.txt" | Where-Object { $_ -notmatch '^#' } | Select-Object -First 1).Split(' ')
-$params = ($cam[4..($cam.Length - 1)]) -join ','
-"movie camera: $($cam[1]) $($cam[2])x$($cam[3]) params $params"
-if ($AloneOnly) { return }
+if ($Params) {
+  $params = $Params; $cam = @('', $CameraModel)
+  "movie camera given: $CameraModel $params"
+} else {
+  # 1. the movie alone
+  $A = "$T\alone_$($CameraModel.ToLower())_f$([int]$Focal)$(if ($FixFocal) { '_fixed' } else { '' })"
+  New-Item -ItemType Directory -Force "$A\sparse", "$A\txt" | Out-Null
+  $vdb = "$A\video.db"
+  if (Test-Path $vdb) { Remove-Item $vdb }
+  $size = (Get-Content "$T\list.txt" -TotalCount 1)
+  Add-Type -AssemblyName System.Drawing
+  $im = [System.Drawing.Image]::FromFile((Join-Path "$Work\images" $size)); $cx = $im.Width / 2; $cy = $im.Height / 2; $im.Dispose()
+  $start = if ($CameraModel -eq 'SIMPLE_RADIAL') { "$Focal,$cx,$cy,0" } elseif ($CameraModel -eq 'SIMPLE_PINHOLE') { "$Focal,$cx,$cy" } else { "$Focal,$Focal,$cx,$cy" }
+  Step 'a1-features' "`"$Colmap`" feature_extractor --database_path `"$vdb`" --image_path `"$Work\images_feat`" --image_list_path `"$T\list.txt`" --ImageReader.camera_model $CameraModel --ImageReader.single_camera 1 --ImageReader.camera_params $start $maskArg --FeatureExtraction.use_gpu 1 --SiftExtraction.peak_threshold 0.002"
+  Step 'a2-match' "`"$Colmap`" matches_importer --database_path `"$vdb`" --match_list_path `"$T\pairs_seq.txt`" --match_type pairs --FeatureMatching.use_gpu 1"
+  $aloneOpts = if ($FixFocal) { '--Mapper.ba_refine_focal_length 0' } elseif ($FreeAll) { '--Mapper.ba_refine_principal_point 1' } else { '' }
+  Step 'a3-mapper' "`"$Colmap`" mapper --database_path `"$vdb`" --image_path `"$Work\images`" --output_path `"$A\sparse`" --Mapper.multiple_models 0 $aloneOpts"
+  Step 'a4-txt' "`"$Colmap`" model_converter --input_path `"$A\sparse\0`" --output_path `"$A\txt`" --output_type TXT"
+  Step 'a5-analyzer' "`"$Colmap`" model_analyzer --path `"$A\sparse\0`""
+  Get-Content "$logs\a5-analyzer.log" | Select-String 'Registered images|Points:|reprojection'
+  $cam = (Get-Content "$A\txt\cameras.txt" | Where-Object { $_ -notmatch '^#' } | Select-Object -First 1).Split(' ')
+  $params = ($cam[4..($cam.Length - 1)]) -join ','
+  "movie camera: $($cam[1]) $($cam[2])x$($cam[3]) params $params"
+  if ($AloneOnly) { return }
 
+}
 # 2. with the room
 $db = "$O\combined.db"
 Copy-Item -Force (Join-Path $Work "runs\$Run\database.db") $db
