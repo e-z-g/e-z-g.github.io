@@ -117,7 +117,12 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/run_dense.ps1` | Dense reconstruction from a sparse model: workspace, depth maps (`patch_match_stereo`, geometric consistency), fused coloured points, Poisson and Delaunay meshes. |
 | `colmap/render_cloud.py` | A fused cloud seen from above and from a node's own faces, beside the real faces, with the share of each face it covers. Needs numpy, Pillow. |
 | `colmap/build_model.py` | Writes solved poses as a COLMAP text model on an existing database's frames, for `point_triangulator` and `bundle_adjuster`. |
-| `colmap/ENSI/` | `pairs.txt`, `rig_config.json`, `nodes.json`, the heading table and run summaries (no images). |
+| `colmap/prepare_age.py` | As `prepare_colmap.py` for a whole age: every room's nodes, numbered 1000 × (room's place in the age) + node, with the walks between rooms. |
+| `colmap/turn_scan.py` | For each link, how many matches fit at every turn from −180° to +179°: whether two nodes face the same way. Needs numpy, opencv-python. |
+| `colmap/join_model.ps1` | Solved poses to one COLMAP model: `build_model.py`, `point_triangulator`, `bundle_adjuster` with rotations held, text copies for `evaluate_model.py`. |
+| `colmap/link_scales.py` | Step lengths from points that one node sees on two of its links, then positions (for nodes that face one way). Needs numpy, opencv-python. |
+| `colmap/viewer/` | A browser viewer for a dense cloud and mesh (`index.html`, three.js), `export_viewer_data.py` to pack the data, `serve_viewer.py` to serve it locally or through a tunnel. No data is committed. |
+| `colmap/ENSI/`, `colmap/Amateria/` | Pair lists, rig files, `nodes.json`, run summaries (no images). |
 
 ```sh
 python colmap/prepare_colmap.py C:\myst3_out\faces maps\rooms\ENSI.json maps\ages\Voltaic.json C:\myst3_colmap\ENSI
@@ -368,3 +373,52 @@ difference 5–15 grey levels on walls facing the node). The cloud covers
 node's own platform and the thin walkways and railings (bottom faces 1–10%
 covered); a node's floor is seen from straight above only by that node, and
 from its neighbours at a grazing angle. Not yet looked at: the two meshes.
+
+A phone-sized viewer for it is in `colmap/viewer/` (orbit, the Delaunay mesh
+coloured from the nearest points, and a button per node that puts the camera at
+the node's centre). The packed data stays out of the repository, in
+`e-z-g-disassembly/reference/myst3/dense_1-27/viewer_data/`; it was shown on the
+maintainer's phone through a temporary `cloudflared` tunnel.
+
+## Amateria as one age (7 November 2026)
+
+`prepare_age.py` lays out all six rooms together: **147 nodes, 882 faces, 177
+linked pairs**, 12 of them walks from one room into another (every one also in
+the age map's `cross_used`). Every room's seams check out (median excess 0–1
+grey level per node; the worst single edges, 5–19 levels, are one to three of a
+node's twelve, where a wrong layout spoils most).
+
+**Do Amateria's nodes face one way?** Not assumed this time; measured three ways:
+
+- the free solve (`solve_nodes.py`): every link with hundreds to thousands of
+  inliers turns 0.0–0.4°; the links that claim 4–180° all have 12–96 inliers
+  among several hundred matches, and four of them have almost no points in
+  front (the twisted pair);
+- `turn_scan.py` on all 177 links: **168 peak at a turn of 0° (±2°)**; of the
+  other nine, two are ties between 0° and ±180° and seven fit only 12–34
+  matches anywhere, with no clear peak;
+- held to one rotation, the hotspot headings agree with the solved directions to
+  a median 4.6° (the free solve: 8.0°, 90% within 76°). A node turned by 180°
+  would be 180° off on every hotspot.
+
+A turn of exactly 180° often scores nearly as well as 0° in the scan (MALL
+8–15: 1,015 against 1,007): points near the horizon fit any level turn. The
+hotspots settle those.
+
+**Positions are the hard part.** COLMAP's incremental mapper splits the age into
+12 models (62 nodes in the largest). The zero-turn solve joined by
+`join_model.ps1` holds 131 nodes, 8,376 points, 0.26 px, hotspots within a median
+4.5°, and agrees with COLMAP's largest model to a median 0.10 walk lengths (at
+most 0.67), but is 2.6 walk lengths off COLMAP's 13-node MACA model, and fits the
+age map to a median 3.2 steps (room by room: MACA 0.36, MALL 0.22, MAIS 0.85 with
+its steps 2.7 times longer, MASS 1.76). Repeating triangulation and adjustment
+(`-Rounds 5`) diverged at the third round: nodes held by few points drift.
+
+The cause is the scenery: nodes stand far apart over open water, so most matches
+are distant (in MALL about 93% have under 1° of parallax), and few near points
+are seen from three nodes in a row (MALL 4, 5 and 15 share 0–2 with their
+neighbours). Nothing then ties one step's length to the next. `link_scales.py`
+measures those ratios where points allow: 79 of 157 links join into one part;
+the rest fall into 35 smaller ones.
+
+`colmap/Amateria/` has the layout files, the turn scan and the solve reports.
