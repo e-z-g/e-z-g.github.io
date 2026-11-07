@@ -165,7 +165,7 @@ def hole_band(q, whole, t, width, step_at):
     return out, hole
 
 
-def removed_region(q, t, band, reach):
+def removed_region(q, t, band, reach, belong=0.5):
     """The near side of every jump within band px of it; the whole near object
     (all of it nearer than the far side behind it, connected to a jump's near
     side), which LaMa must not see; and the q of what is behind, for every
@@ -178,6 +178,11 @@ def removed_region(q, t, band, reach):
     its frame taken for what is behind the ball, so the frame stayed out of
     the region, LaMa drew on it and painted more pod, and the backdrop got the
     frame's depth: a dark pod-shaped blob that streaked as the eye moved.
+    Only a middle layer that belongs to the near object goes with it: one
+    whose gap to the near side is under belong (0.5) times its gap to the
+    farthest far side (the frame, a little behind the ball and far in front of
+    the sky). Taking every middle layer took the rocks round ENSI 16's walkway
+    too, painted as sea at sea depth: a grey outline round the walkway.
     reach is about as far as anything slides. Two layers cannot hold three,
     though: under MAWW 101's floor slats it took the beams below for part of
     the slats (the sea is in reach through the gaps), and the gaps showed flat
@@ -196,12 +201,26 @@ def removed_region(q, t, band, reach):
     order = lab[ys, xs]
     fq_of = np.zeros(order.max() + 1, np.float32); fq_of[order] = qmin[ys, xs]
     fq = fq_of[lab]
+    nearer = q > fq + t / 2
     if reach > 0:
+        # The farthest far side within reach, and the q of the nearest near side.
         BIG = np.float32(1e6)
         far_q = np.where(far, qmin, BIG).astype(np.float32)
         behind = cv2.erode(far_q, np.ones((2 * reach + 1, 2 * reach + 1), np.uint8))
-        fq = np.where(behind < BIG, np.minimum(behind, fq), fq)
-    nearer = q > fq + t / 2
+        fq_far = np.where(behind < BIG, np.minimum(behind, fq), fq)
+        qmax = cv2.dilate(q.astype(np.float32), np.ones((5, 5), np.uint8))
+        _, nlab = cv2.distanceTransformWithLabels((~near).astype(np.uint8), cv2.DIST_L2, 5,
+                                                  labelType=cv2.DIST_LABEL_PIXEL)
+        ny, nx = np.nonzero(near)
+        nq_of = np.zeros(nlab.max() + 1, np.float32); nq_of[nlab[ny, nx]] = qmax[ny, nx]
+        nq = nq_of[nlab]
+        # A middle layer belongs to the near object when it lies only a little
+        # behind it next to how far the farthest far side lies behind it.
+        mid = ~nearer & (q > fq_far + t / 2)
+        belongs = mid & (nq - q < belong * (q - fq_far))
+        grown = cv2.dilate(belongs.astype(np.uint8), np.ones((2 * reach + 1,) * 2, np.uint8)) > 0
+        fq = np.where(belongs | (nearer & grown), fq_far, fq)
+        nearer |= belongs
     _, comp = cv2.connectedComponents(nearer.astype(np.uint8), connectivity=8)
     keep = np.unique(comp[near & nearer]); keep = keep[keep > 0]
     whole = np.isin(comp, keep)
@@ -235,6 +254,8 @@ def main():
     ap.add_argument('--fringe', type=int, default=6, help='px the painted region reaches past the jump into the far side')
     ap.add_argument('--reach', type=int, default=48, help='px within which the farthest far side counts as behind '
                     '(0: the nearest step\'s far side; MAWW 101 is built so)')
+    ap.add_argument('--belong', type=float, default=0.5,
+                    help='a middle layer goes with the near object when its gap to it is under this times its gap to the farthest')
     ap.add_argument('--nearest-faces', type=int, nargs='*', default=[],
                     help="faces (node_depth.py's numbers, 2 the floor) built with the nearest step whatever --reach")
     ap.add_argument('--src', default=AMATERIA, help='folder of the faces and depth maps')
@@ -266,7 +287,7 @@ def main():
     for k in range(1, 7):
         look = pad_lookup(k, N, PAD_)
         region, whole, fq = removed_region(sample(Q, look), a.jump, sc(a.band),
-                                             0 if k in a.nearest_faces else sc(a.reach))
+                                             0 if k in a.nearest_faces else sc(a.reach), a.belong)
         grow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * sc(a.fringe) + 1,) * 2, np.uint8)) > 0
         masks[k], hide[k], fqs[k] = grow(region), grow(whole), fq
         fgq[k], holes[k] = hole_band(sample(Q, look), whole, a.jump, sc(a.hole), sc(a.hole_step))

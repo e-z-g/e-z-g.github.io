@@ -365,13 +365,18 @@ the depth steps between a ball and the rings around it. With steps inside a near
 front of its frame in front of the sky) the far side of the nearest step is
 the frame, which then stayed out of the region, and LaMa painted a dark
 pod-shaped blob at the frame's depth that streaked as the eye moved;
-`--reach 48` takes instead the farthest far side within 48 px (96 at 1280),
-the sky, and ENSI 16 is built so. Two layers cannot hold three, though: under
+`--reach 48` lets a middle layer go with the near object when it belongs to
+it: when its gap to the near side is under half (`--belong 0.5`) its gap to
+the farthest far side within 48 px (96 at 1280), as the frame does (a little
+behind the ball, far in front of the sky). Taking every middle layer took the
+rocks round ENSI 16's walkway too, painted as sea at sea depth, which showed
+as a grey outline round the walkway; the rocks lie far behind the walkway
+next to how far the sea lies behind them, so they stay. Two layers cannot hold three, though: under
 MAWW 101's floor it took the beams below the slats for part of them and the
-gaps showed flat grey. The choice is per face: MAWW 101 is built with
-`--reach 48 --nearest-faces 2`, the farthest step on its five other faces
-(cleaner spire and machinery) and the nearest on the floor; MASS 84 keeps the
-nearest step throughout (`--reach 0`; the farthest made no visible
+gaps showed flat grey. The choice is per face: ENSI 16 and MAWW 101 are
+built with `--reach 48`, MAWW 101 with `--nearest-faces 2` so its floor keeps
+the nearest step (cleaner spire and machinery on the other faces); MASS 84
+keeps the nearest step throughout (`--reach 0`; reach made no visible
 difference). Moving the measured
 depth's edges onto the picture's by colour was tried first (pixels within
 14–18 px of a jump relabelled near or far) and dropped: in these dark faces

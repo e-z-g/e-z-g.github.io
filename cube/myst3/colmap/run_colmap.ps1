@@ -2,7 +2,10 @@
 #
 #     powershell -ExecutionPolicy Bypass -File run_colmap.ps1 -Work C:\myst3_colmap\ENSI [-Tag run1]
 #         [-FeatureImages images_feat] [-PeakThreshold 0.00667] [-Mapper mapper|global_mapper]
-#         [-MapperArgs '--Mapper.abs_pose_min_num_inliers 15'] [-Colmap C:\colmap\4.2.1\COLMAP.bat]
+#         [-MapperArgs '--Mapper.abs_pose_min_num_inliers 15'] [-Cpu] [-Colmap C:\colmap\4.2.1\COLMAP.bat]
+#
+# -Cpu extracts and matches features on the CPU, leaving the GPU to a dense run
+# going at the same time.
 #
 # Each run has its own database and output, <WORK>\runs\<Tag>\ (database.db,
 # sparse\<n>\, logs\<n>-<step>.log), so runs can be compared side by side.
@@ -27,6 +30,7 @@ param(
   [string]$PeakThreshold = '0.00667',
   [ValidateSet('mapper', 'global_mapper')][string]$Mapper = 'mapper',
   [string]$MapperArgs = '',
+  [switch]$Cpu,
   [string]$Colmap = 'C:\colmap\4.2.1\COLMAP.bat'
 )
 $ErrorActionPreference = 'Stop'
@@ -38,6 +42,7 @@ if (Test-Path $run) { Remove-Item -Recurse -Force $run }
 New-Item -ItemType Directory -Force $logs, $sparse | Out-Null
 "tag $Tag  features from $FeatureImages  peak $PeakThreshold  $Mapper $MapperArgs" | Tee-Object (Join-Path $run 'settings.txt')
 $extra = @($MapperArgs -split '\s+' | Where-Object { $_ })
+$gpu = if ($Cpu) { '0' } else { '1' }
 
 function Step([string]$name, [string[]]$colmapArgs) {
   $log = Join-Path $logs "$name.log"
@@ -52,11 +57,11 @@ function Step([string]$name, [string[]]$colmapArgs) {
 
 Step '1-feature_extractor' @('feature_extractor', '--database_path', $db, '--image_path', (Join-Path $Work $FeatureImages),
   '--ImageReader.camera_model', 'PINHOLE', '--ImageReader.camera_params', '320,320,320,320',
-  '--ImageReader.single_camera_per_folder', '1', '--FeatureExtraction.use_gpu', '1',
+  '--ImageReader.single_camera_per_folder', '1', '--FeatureExtraction.use_gpu', $gpu,
   '--SiftExtraction.peak_threshold', $PeakThreshold)
 Step '2-rig_configurator' @('rig_configurator', '--database_path', $db, '--rig_config_path', (Join-Path $Work 'rig_config.json'))
 Step '3-matches_importer' @('matches_importer', '--database_path', $db, '--match_list_path', (Join-Path $Work 'pairs.txt'),
-  '--match_type', 'pairs', '--FeatureMatching.use_gpu', '1')
+  '--match_type', 'pairs', '--FeatureMatching.use_gpu', $gpu)
 if ($Mapper -eq 'mapper') {
   $fixed = @('--Mapper.ba_refine_focal_length', '0', '--Mapper.ba_refine_principal_point', '0',
     '--Mapper.ba_refine_extra_params', '0', '--Mapper.ba_refine_sensor_from_rig', '0')
