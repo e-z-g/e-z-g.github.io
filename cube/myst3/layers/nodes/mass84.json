@@ -31,6 +31,9 @@
    "reach": 0,
    "light": [
     "1:142,280,180,315"
+   ],
+   "keep-gaps": [
+    2
    ]
   }
  },
@@ -45,7 +48,8 @@
   "layers.reach": "0: the reach rule made no visible difference here, so the nearest step is kept throughout.",
   "backdrop.masks": "Sky, sea and water from the neighbours are not used: stereo gave lit clouds a depth a little behind the lamp post and track, kept as a dark and orange speckle in the sky, and put the post's reflection just behind the post, a second post as the eye moved.",
   "layers.light": "Face 1's lamp glass was sky in the measured depth: the shade moved with the post and the glass stayed on the sky, and the backdrop kept a copy of the glass. In this box the glass takes the shade's depth.",
-  "sharpen.no-lights": "sharpen_depth.py's lamp rule took the far post's blue flame for a light, with the rails crossing it, and pulled 2,148 px of the flame forward to the rails' depth: the flame slid off its post as the eye moved. It missed the lamp glass, which layers.light places."
+  "sharpen.no-lights": "sharpen_depth.py's lamp rule took the far post's blue flame for a light, with the rails crossing it, and pulled 2,148 px of the flame forward to the rails' depth: the flame slid off its post as the eye moved. It missed the lamp glass, which layers.light places.",
+  "layers.keep-gaps": "Face 2, the floor: the gaps between the slats look at the sea far below. As slits they were painted, so the backdrop under the floor was plain dark, and every hole on a slat (the depth's slat outlines are several px off the picture's) showed dark paint instead of wood."
  },
  "shipped": "Rebuilt from this file on 8 November 2026 with the backdrop from the moved model, then again the same day with the neighbours' sky and water masked, the lamp glass given the shade's depth and sharpen_depth's lamp rule left out."
 }

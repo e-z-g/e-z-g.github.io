@@ -339,6 +339,9 @@ def main():
     ap.add_argument('--colour-suffix', default='_orig.jpeg'); ap.add_argument('--depth-suffix', default='_measured-depth.png')
     ap.add_argument('--hole', type=int, default=12, help='px of the far side of a step cut out of the foreground')
     ap.add_argument('--hole-step', type=int, default=6, help='px of the hole the near depth carries on under')
+    ap.add_argument('--keep-gaps', type=int, nargs='*', default=[],
+                    help="faces (node_depth.py's numbers) whose gaps between parts of a near object keep the picture "
+                         "instead of being painted")
     ap.add_argument('--light', action='extend', nargs='+', default=[],
                     help='K:X0,Y0,X1,Y1: a light against the sky in this box of face K (640 px) given the depth of what holds it')
     a = ap.parse_args()
@@ -387,6 +390,13 @@ def main():
         # side's depth it stayed behind as a pale ghost of the slit.
         k_gap = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * sc(a.hole) + 1,) * 2)
         slits = (cv2.morphologyEx(whole.astype(np.uint8), cv2.MORPH_CLOSE, k_gap) > 0) & ~whole
+        # Not on --keep-gaps faces: MASS 84's floor looks between its slats at
+        # the sea far below, real far side, not a pale slit. Painted over, the
+        # backdrop under the whole floor was plain dark, and wherever a hole
+        # (placed from the depth's outlines, several px off the slats') fell
+        # on a slat its wood was gone.
+        if k in a.keep_gaps:
+            slits[:] = False
         # LaMa repaints --hide-fringe px past the edge, so it never copies the
         # object's colour fringe (a 4 px margin let the spire's rust into the
         # sky as a pink smudge); the backdrop keeps only --fringe px of that,

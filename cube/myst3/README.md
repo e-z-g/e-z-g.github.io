@@ -982,6 +982,20 @@ solid pixels round it (q 3.16, the shade 3.01). Without the lamp rule the
 shade's soft rim was among those pixels, and their median put the glass
 behind its shade (2.12).
 
+Next came the floor (face 2), where slat wood was missing even at depth 0.
+The foreground's holes are placed from the depth's outlines, and the slats'
+outlines there are notched and up to about 10 px off the picture's straight
+edges, so many holes fell on wood. The gaps between the slats are narrower
+than the cut, so `build_layers.py` took them for slits and painted them, and
+the backdrop under the whole floor was plain dark: every hole on wood showed
+dark paint. Two changes:
+
+- The viewer now cuts holes only when depth is on. At zero nothing moves, so
+  the picture is drawn whole (`cube/index.html`).
+- `build_layers.py --keep-gaps 2` keeps the picture in the floor's gaps, which
+  look at the sea far below. That paints 53.4% of face 2 instead of 59.0%, and
+  a hole on a slat now shows that slat's wood, at the backdrop's depth.
+
 ## Depth for the site's Amateria node (MAWW 101)
 
 The site's Amateria location is MAWW node 101, node 1 with the console closed
