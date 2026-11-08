@@ -32,12 +32,17 @@ Writes to OUT_DIR:
               points.bin's layout
 --rooms (with --names) keeps only those rooms: their nodes, and the points whose
 nearest node is one of them (the mesh is left out).
-Floor height: how far the dense points straight under a node (within a tenth of
-the nodes' median spacing sideways) lie below it, the nearest tenth of them; where
-fewer than five points are there, the median over the nodes that have them.
-Where they lie more than 1.3 times that median down, the node stands on a platform
-the cloud lacks (a lift has raised it; the points are the ground below), so the
-floor is laid at the median eye height and the drop kept as ground_below.
+Floor height: the densest horizontal layer of the dense points under a node
+(within --floor-radius of the nodes' median spacing sideways, in bins of a
+twentieth of it); where fewer than 20 points are there, the floor level of the
+measured nodes within two spacings (nearer ones counting more), else the median
+over the nodes that have them. Each node's own bottom-face stereo depth was
+tried first and has too little (the floor right under a node is seen squarely
+only by that face). --leave-out marks nodes whose points are not in the cloud.
+Against the points inside each floor picture, this puts a median 74% on the
+picture and 10% below it, where the nearest tenth of the points within a tenth
+of a spacing (the rule before, with the eye height where the points lay far
+down) put 57% and 23%, on Amateria's moved cloud (8 November 2026).
 Everything is moved so the nodes' mean centre is at the origin. Needs numpy.
 """
 import argparse
@@ -111,6 +116,9 @@ def main():
     ap.add_argument('--faces', help='folder holding the original faces')
     ap.add_argument('--fill'); ap.add_argument('--fill-max', type=int, default=0, help='thin the fill to this many points (0: keep all)')
     ap.add_argument('--rooms', help='only these rooms (needs --names)')
+    ap.add_argument('--floor-radius', type=float, default=0.3,
+                    help='floor points are looked for within this share of the node spacing sideways')
+    ap.add_argument('--leave-out', default='', help='nodes (numbers) whose points are not in the cloud: no floor drawn')
     ap.add_argument('--face-pattern', default='f{f}/{room}-{n:04d}.jpg',
                     help='path of a face under --faces; {f} face 1-6, {n} node, {room} the poses file\'s prefix')
     a = ap.parse_args()
@@ -163,21 +171,64 @@ def main():
     steps = sorted(np.linalg.norm(nodes[i][1] - nodes[j][1]) for i in nodes for j in nodes if i < j)
     step = float(np.median([min(np.linalg.norm(nodes[i][1] - nodes[j][1]) for j in nodes if j != i)
                             for i in nodes]))
+    # The floor under a node: the densest horizontal layer of points below it (within
+    # --floor-radius of the node spacing sideways, in bins of a twentieth of it), between 0.3
+    # and 3 times the eye height. The floor is the one large level surface there; the nearest
+    # points (railings, a table) or the lowest (the sea beyond a walkway's edge) are not.
+    def layers(c):
+        d = xyz - c
+        m = (np.hypot(d[:, 0], d[:, 2]) < a.floor_radius * step) & (d[:, 1] < -0.02 * step) & (d[:, 1] > -3 * step)
+        return -d[m, 1]
+    first = {}
+    for n, (_, c) in nodes.items():
+        y = layers(c)
+        if len(y) >= 20:
+            first[n] = float(np.median(y))
+    typical = float(np.median(list(first.values()))) if first else 0.55 * step
     floor = {}
     for n, (_, c) in nodes.items():
-        d = xyz - c
-        m = (np.hypot(d[:, 0], d[:, 2]) < 0.1 * step) & (d[:, 1] < -0.02 * step) & (d[:, 1] > -3 * step)
-        if m.sum() >= 5:
-            floor[n] = float(np.percentile(-d[m, 1], 10))
-    typical = float(np.median(list(floor.values()))) if floor else 0.55 * step
+        y = layers(c)
+        y = y[(y > 0.3 * typical) & (y < 3 * typical)]
+        if len(y) < 20:
+            continue
+        hist, edges = np.histogram(y, bins=np.arange(0.3 * typical, 3 * typical, 0.05 * step))
+        k = int(hist.argmax())
+        floor[n] = float((edges[k] + edges[k + 1]) / 2)
+    typical = float(np.median(list(floor.values()))) if floor else typical
     print(f'floor heights measured under {len(floor)} of {len(nodes)} nodes; median {typical:.3f} '
           f'({typical / step:.2f} of the node spacing)')
-    raised = {n: h for n, h in floor.items() if h > 1.3 * typical}
-    for n in raised:                             # a lift has put the node on a platform the cloud
-        del floor[n]                             # lacks: what is below is the ground far down
-    if raised:
-        print(f'raised (points below more than 1.3 times the eye height down; floor laid at the eye '
-              f'height): ' + ', '.join(f'{labels.get(n, n)} {h / typical:.1f}x' for n, h in sorted(raised.items())))
+    raised = {}
+    # A node with no floor points of its own takes its measured neighbours' floor level (the
+    # ground is continuous between nodes a step apart), nearer ones counting more.
+    left_out = {int(v) for v in a.leave_out.split(',') if v}
+    level = {n: nodes[n][1][1] - h for n, h in floor.items()}
+    from_nbrs = {}
+    for n, (_, c) in nodes.items():
+        if n in floor or n in raised:
+            continue
+        near = [(np.linalg.norm(nodes[m][1] - c), y) for m, y in level.items() if m not in left_out]
+        near = [(dd, y) for dd, y in near if dd < 2 * step]
+        if near:
+            w = np.array([1 / max(dd, 1e-3) for dd, _ in near])
+            h = c[1] - float(np.dot(w, [y for _, y in near]) / w.sum())
+            if 0.3 * typical < h < 1.3 * typical:
+                from_nbrs[n] = h
+    print(f'floor from neighbours under {len(from_nbrs)} more nodes; the eye height assumed under '
+          f'{len(nodes) - len(floor) - len(from_nbrs)}')
+    def floor_fit(n, h):
+        # Of the points inside the floor picture's square, the share within a tenth of the node
+        # spacing of it, and the share lower (the picture floating above them)
+        c = nodes[n][1]; d = xyz - c
+        m = (np.abs(d[:, 0]) < 0.6 * h) & (np.abs(d[:, 2]) < 0.6 * h) & (d[:, 1] < 0) & (d[:, 1] > -3 * h)
+        if m.sum() < 20:
+            return None
+        y = -d[m, 1]
+        return float((np.abs(y - h) < 0.1 * step).mean()), float((y > h + 0.1 * step).mean())
+    fits = [f for n in nodes if n not in left_out
+            for f in [floor_fit(n, floor.get(n, from_nbrs.get(n, typical)))] if f]
+    if fits:
+        print(f'floor pictures against the points under them ({len(fits)} nodes): median {np.median([f[0] for f in fits]) * 100:.0f}% '
+              f'on the picture, {np.median([f[1] for f in fits]) * 100:.0f}% below it')
     if a.faces:
         import shutil
         prefix = re.search(r'f1/(.+)-\d+\.jpg$', open(a.poses).readline().split()[-1]).group(1)
@@ -193,8 +244,9 @@ def main():
         'extent_p2_p98': [np.percentile(xyz, 2, 0).tolist(), np.percentile(xyz, 98, 0).tolist()],
         'nodes': {str(n): {'centre': c.tolist(), 'node_from_world': R.tolist(),
                            'label': labels.get(n, str(n)),
-                           'floor': floor.get(n, typical), 'floor_measured': n in floor,
-                           'ground_below': raised.get(n)}
+                           'floor': floor.get(n, from_nbrs.get(n, typical)), 'floor_measured': n in floor,
+                           'floor_from': 'points' if n in floor else 'neighbours' if n in from_nbrs else 'eye height',
+                           'in_cloud': n not in left_out, 'ground_below': raised.get(n)}
                   for n, (R, c) in sorted(nodes.items())},
     }
     if a.mesh:

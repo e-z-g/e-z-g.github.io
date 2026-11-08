@@ -67,6 +67,7 @@ def main():
     ap.add_argument('--min-gain', type=float, default=1.5)
     ap.add_argument('--max-spread', type=float, default=0.3)
     ap.add_argument('--nodes', nargs='*')
+    ap.add_argument('--runs', nargs='*', help="node_align.py --runs/--frames output: move these runs, by name")
     a = ap.parse_args()
     data = json.load(open(a.resect))
     move = {}
@@ -74,7 +75,12 @@ def main():
         for run, r in data.items():
             if not r.get('members'):
                 continue
-            ok = any(m in a.nodes for m in r['members']) if a.nodes is not None else r['kept'] and not r['trusted']
+            if a.runs is not None:
+                ok = run in a.runs
+            elif a.nodes is not None:
+                ok = any(m in a.nodes for m in r['members'])
+            else:
+                ok = r['kept'] and not r['trusted'] and not run.startswith('control')
             if ok:
                 for m in r['members']:
                     move[m] = {'new': r['new_centres'][m], 'depth_scale': r['scale'], 'rot': r['rot'], 'run': run}
@@ -97,8 +103,7 @@ def main():
         if head:
             p = line.split()
             m = NODE.fullmatch(p[9])
-            if m:
-                img_node[int(p[0])] = m.group(2)
+            img_node[int(p[0])] = m.group(2) if m else p[9]     # a node, or a movie frame by its name
         head = not head
     os.makedirs(os.path.join(a.out, 'sparse'), exist_ok=True)
     for f in os.listdir(a.sparse_txt):
@@ -134,12 +139,13 @@ def main():
         if head:
             p = line.split()
             m = NODE.fullmatch(p[9])
-            if m and m.group(2) in move:
+            key = m.group(2) if m else p[9]
+            if key in move:
                 R = qvec2rot(np.array(p[1:5], float))
-                if 'rot' in move[m.group(2)]:
-                    R = R @ np.array(move[m.group(2)]['rot']).T
+                if 'rot' in move[key]:
+                    R = R @ np.array(move[key]['rot']).T
                     p[1:5] = [repr(float(v)) for v in rot2qvec(R)]
-                p[5:8] = [repr(float(v)) for v in -R @ np.array(move[m.group(2)]['new'])]
+                p[5:8] = [repr(float(v)) for v in -R @ np.array(move[key]['new'])]
                 line = ' '.join(p)
         out.append(line)
         head = not head
@@ -156,14 +162,14 @@ def main():
     if not os.path.exists(st_out):
         shutil.copytree(st_in, st_out)
     prev = os.path.join(a.out, 'moves.json')
+    def depth_names(n):
+        return [f'f{k}/{n}.jpg.geometric.bin' for k in range(1, 7)] if '/' not in n else [n + '.geometric.bin']
     for n in (json.load(open(prev)) if os.path.exists(prev) else {}):
-        for k in range(1, 7):                     # undo an earlier run's scaling
-            name = f'f{k}/{n}.jpg.geometric.bin'
+        for name in depth_names(n):               # undo an earlier run's scaling
             if os.path.exists(os.path.join(st_in, 'depth_maps', name)):
                 shutil.copy(os.path.join(st_in, 'depth_maps', name), os.path.join(st_out, 'depth_maps', name))
     for n in moved:
-        for k in range(1, 7):
-            name = f'f{k}/{n}.jpg.geometric.bin'
+        for name in depth_names(n):
             src = os.path.join(st_in, 'depth_maps', name)
             if os.path.exists(src):
                 scale_depth(src, os.path.join(st_out, 'depth_maps', name), move[n]['depth_scale'])

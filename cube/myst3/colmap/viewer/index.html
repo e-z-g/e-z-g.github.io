@@ -248,7 +248,8 @@ document.getElementById('showFloors').onclick = () => {
   if (!info.faces) return say('No faces in this data.');
   if (!floors) {
     floors = new THREE.Group();
-    for (const [id, nd] of Object.entries(info.nodes)) floors.add(faceQuad(nd, id, 2, nd.floor, 0.2, 0.8, {}));
+    // a node whose points were left out of the cloud is misplaced: its floor would float
+    for (const [id, nd] of Object.entries(info.nodes)) if (nd.in_cloud !== false) floors.add(faceQuad(nd, id, 2, nd.floor, 0.2, 0.8, {}));
     scene.add(floors); setOn('showFloors', true); return;
   }
   floors.visible = !floors.visible; setOn('showFloors', floors.visible);

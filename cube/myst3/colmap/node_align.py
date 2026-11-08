@@ -97,6 +97,8 @@ def main():
     ap.add_argument('dense'); ap.add_argument('trusted'); ap.add_argument('out')
     ap.add_argument('--nodes', nargs='*')
     ap.add_argument('--runs', nargs='*', help='NAME=NODE,NODE,...: nodes moved together by one similarity')
+    ap.add_argument('--frames', nargs='*', help='NAME=PREFIX,FIRST,LAST: movie frames PREFIX%%04d.jpg moved together')
+    ap.add_argument('--movie-camera', default='455,320,180', help='f,cx,cy of the movie frames (SIMPLE_PINHOLE)')
     ap.add_argument('--samples', type=int, default=8000)
     ap.add_argument('--masks'); ap.add_argument('--sky-margin', type=int, default=8)
     ap.add_argument('--starts', default='0.5,0.7,1,1.4,2')
@@ -121,6 +123,17 @@ def main():
         if m:
             faces.setdefault(m.group(2), {})[int(m.group(1))] = nm
     centre = {n: -poses[f[1]][0].T @ poses[f[1]][1] for n, f in faces.items() if 1 in f}
+    frame_groups = []
+    for spec in a.frames or []:
+        label, rest = spec.split('=')
+        prefix, first, last = rest.split(',')
+        members = [f'{prefix}{i:04d}.jpg' for i in range(int(first), int(last) + 1)]
+        members = [m for m in members if m in poses]
+        for m in members:                        # a movie frame is its own one-face group
+            faces[m] = {0: m}
+            centre[m] = -poses[m][0].T @ poses[m][1]
+        frame_groups.append((label, members))
+    mf, mcx, mcy = (float(v) for v in a.movie_camera.split(','))
 
     # The reference: fused points whose every source image is a trusted node's.
     pts = read_ply(os.path.join(a.dense, 'fused.ply'))
@@ -231,8 +244,9 @@ def main():
 
     rng = np.random.default_rng(0)
     starts = [float(v) for v in a.starts.split(',')]
-    if a.runs:
-        groups = [(r.split('=')[0], [m for m in r.split('=')[1].split(',') if m in centre]) for r in a.runs]
+    if a.runs or frame_groups:
+        groups = [(r.split('=')[0], [m for m in r.split('=')[1].split(',') if m in centre]) for r in a.runs or []]
+        groups += frame_groups
     else:
         groups = [(n, [n]) for n in (a.nodes or sorted(n for n in centre if n not in trusted))]
     out = {}
@@ -249,7 +263,11 @@ def main():
                 continue
             i = rng.choice(len(v), min(a.samples // 6, len(v)), replace=False)
             v, u, zz = v[i], u[i], z[v[i], u[i]]
-            Xc = np.stack([(u + 0.5 - W / 2) / (W / 2) * zz, (v + 0.5 - H / 2) / (H / 2) * zz, zz], 1)
+            if NODE.fullmatch(name):             # a cube face: 90 degrees, f = W/2
+                f_, cx, cy = W / 2, W / 2, H / 2
+            else:                                # a movie frame
+                f_, cx, cy = mf, mcx, mcy
+            Xc = np.stack([(u + 0.5 - cx) / f_ * zz, (v + 0.5 - cy) / f_ * zz, zz], 1)
             R, t = poses[name]
             P.append((Xc - t) @ R); own.append(np.linalg.norm(Xc, axis=1))
         if not P:
