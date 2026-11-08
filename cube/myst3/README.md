@@ -190,6 +190,10 @@ checks the geometry; nothing has been reconstructed yet.
 | `splat/splat_dataset.py` | A COLMAP text dataset for a Gaussian splat trainer (Brush): the faces of chosen nodes and movie frames, their poses, a ghost-free cloud as starting points. |
 | `splat/pad_small.py` | Pads JPEGs under 20 KB with zero bytes after their end marker, which Brush 0.3.0 needs. |
 | `splat/splat_render.py` | Renders a 3DGS `.ply` from COLMAP cameras beside the real images, with PSNR (torch, CUDA). |
+| `splat/sky_dome.py` | Gives a splat trained with the sky masked its sky back: the masked pixels of every image as an all-round map, sampled as a shell of splats far away. |
+| `splat/sky_floaters.py` | Takes out of a sky-masked splat the splats deep in the sky of several views above their horizon. |
+| `splat/splat_reduce.py` | A display copy of a splat for a device that cannot load the whole: the splats that show most, without view-dependent colour. |
+| `splat/serve_splat.py` | Serves splat files with the cross-origin and byte-range headers a web splat viewer needs, for a tunnel. |
 | `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
@@ -823,6 +827,39 @@ MACA 41 tower, the MAIS 29 floor tiles and pillars. The sky is wrong in all of
 them, blotchy or tinted, and most of the error: it has no depth, so the splat
 puts it at a finite distance that only the trained views agree with. Things
 under roofs that few views see (MASS 31, 35) stay soft.
+
+### The sky
+
+Three ways were tried, with the same 30,000 steps and the same six views (PSNR,
+dB; MASS 35, MASS 31, MACA 41, MAIS 29, flyover frame 145, MASS 84):
+
+| sky | 35 | 31 | 41 | 29 | 145 | 84 | mean |
+|---|---|---|---|---|---|---|---|
+| trained in, as above | 22.9 | 17.9 | 19.4 | 16.9 | 23.6 | 21.2 | 20.3 |
+| masked (`--masks`), a sky shell added | 19.3 | 17.7 | 22.2 | 18.7 | 23.8 | 22.9 | 20.8 |
+| transparent (`--alpha`), a sky shell added | 17.9 | 17.0 | 21.2 | 22.8 | 23.1 | 21.4 | 20.6 |
+| masked, shell, floaters taken out | 18.4 | 17.8 | 20.9 | 22.4 | 25.4 | 22.5 | 21.2 |
+
+`splat/sky_dome.py` gives a splat trained without the sky its sky back: every
+image's masked pixels, as world directions, averaged into an equirectangular
+map, and 400,000 opaque splats on a sphere 1,000 units out sampled from it, so
+any 3DGS viewer shows the sky. The masks (`sky_masks.py`: SegFormer's sky, sea
+and water) also take in the sea next to the nodes, which reflects the towers,
+so only directions down to 15 degrees below the horizon are used and the rest
+filled from the horizon down (y is up in the joined model). With the sky
+masked, nothing in training keeps splats out of it, and some float in front of
+it as haze from untrained views (MAIS 29). Training with the sky transparent
+instead kept the sky clear at MAIS 29 but grew opaque black blobs (MASS 35, 31,
+84). `splat/sky_floaters.py` takes out of the masked splat the splats whose
+centre falls more than 8 px inside the sky of at least 8 views and more than 2
+degrees above their horizon (below it the masks hold sea, whose splats must
+stay): 286,374 of 3,195,184. At 2 views it took the whole roof of MASS 35's
+pavilion as well (12.5 dB there), at 4 most of it; 8 keeps it. The best splat
+so far is that one with the shell: 3,308,810 splats, 745 MB
+(`C:\myst3_out\splat\amateria_best.ply`), and `splat/splat_reduce.py` makes a
+copy for phones of the 1.5 million that show most, without view-dependent
+colour (84 MB). Under roofs that few views see (MASS 31, 35) every version is
+soft.
 
 ## Depth for the site's Amateria node (MAWW 101)
 
