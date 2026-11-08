@@ -26,7 +26,9 @@ projected into the trusted faces, the share they see past (a farther depth
 or, with --masks, sky), before and after. Scale stays within 2x and the turn within
 10 degrees (left free, the search shrank nodes to a tenth, which hides their
 points from the trusted faces instead of fitting them). A move is kept only
-when more points agree with the trusted faces and fewer are seen past. With --runs, each run of nodes named moves as one: one similarity about the
+when more points agree with the trusted faces, fewer are seen past, more are
+inliers to the reference, and the scale is off its bound (shrinking alone
+makes more points agree: a run already in place, shrunk to half, did). With --runs, each run of nodes named moves as one: one similarity about the
 run's mean centre, so a run cannot hide its points by shrinking each node onto
 itself, and runs already in place serve as a check that the search leaves
 them be. Writes OUT.json: per node the old and new
@@ -295,7 +297,12 @@ def main():
         ang = float(np.degrees(np.arccos(np.clip((np.trace(Rot) - 1) / 2, -1, 1))))
         before, nb = seen_past(P)
         after, na = seen_past(C + t + s * (P - C) @ Rot.T)
-        keepit = na > nb and after < before
+        # More agreeing views alone is not enough: shrinking a run towards its
+        # centre makes more of its points land in front of what others saw.
+        # The control run MACA14,15,38, already in place, did exactly that
+        # (agreeing x4, scale at the 0.5 bound, inliers 6% -> 2%). So the
+        # inliers must rise too and the scale must stay off its bound.
+        keepit = na > nb and after < before and fin > base and abs(np.log(s)) < 0.95 * np.log(2)
         out[n] = {'members': members,
                   'new_centres': {m: (C + t + s * Rot @ (centre[m] - C)).tolist() for m in members},
                   'centre': C.tolist(), 'new_centre': (C + t).tolist(), 'shift': float(np.linalg.norm(t)),

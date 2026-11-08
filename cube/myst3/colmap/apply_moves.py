@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-A copy of a dense workspace with nodes moved as node_resect.py placed them,
-ready for stereo_fusion.
+A copy of a dense workspace with nodes moved as node_resect.py or
+node_align.py --runs placed them, ready for stereo_fusion.
 
-    python apply_moves.py DENSE RESECT.json SPARSE_TXT OUT [--min-lines 20] [--min-gain 1.5]
+    python apply_moves.py DENSE MOVES.json SPARSE_TXT OUT [--min-lines 20] [--min-gain 1.5]
         [--max-spread 0.3] [--nodes MA-2001 ...]
+
+MOVES.json is node_resect.py's output (a new centre and depth scale per node,
+the turn kept) or node_align.py's with --runs (per run a similarity: every
+member's new centre, the turn Rot and the scale s; a run is moved when
+node_align kept it and it is not all trusted nodes, or when one of its members
+is given with --nodes). A turned node's cameras become R Rot^T.
 
 SPARSE_TXT is DENSE's sparse model as text (model_converter --output_type TXT),
 with rigs.txt and frames.txt: a node is one frame of a six-camera rig whose
@@ -28,6 +34,15 @@ import subprocess
 import numpy as np
 
 from evaluate_model import qvec2rot
+
+
+def rot2qvec(R):
+    w = np.sqrt(max(0.0, 1 + R[0, 0] + R[1, 1] + R[2, 2])) / 2
+    x = np.copysign(np.sqrt(max(0.0, 1 + R[0, 0] - R[1, 1] - R[2, 2])) / 2, R[2, 1] - R[1, 2])
+    y = np.copysign(np.sqrt(max(0.0, 1 - R[0, 0] + R[1, 1] - R[2, 2])) / 2, R[0, 2] - R[2, 0])
+    z = np.copysign(np.sqrt(max(0.0, 1 - R[0, 0] - R[1, 1] + R[2, 2])) / 2, R[1, 0] - R[0, 1])
+    q = np.array([w, x, y, z])
+    return q / np.linalg.norm(q)
 
 NODE = re.compile(r'f(\d)/(.*)\.jpg')
 
@@ -53,8 +68,18 @@ def main():
     ap.add_argument('--max-spread', type=float, default=0.3)
     ap.add_argument('--nodes', nargs='*')
     a = ap.parse_args()
-    res = json.load(open(a.resect))['nodes']
+    data = json.load(open(a.resect))
     move = {}
+    if 'nodes' not in data:                       # node_align.py --runs
+        for run, r in data.items():
+            if not r.get('members'):
+                continue
+            ok = any(m in a.nodes for m in r['members']) if a.nodes is not None else r['kept'] and not r['trusted']
+            if ok:
+                for m in r['members']:
+                    move[m] = {'new': r['new_centres'][m], 'depth_scale': r['scale'], 'rot': r['rot'], 'run': run}
+        data = {'nodes': {}}
+    res = data['nodes']
     for n, r in res.items():
         if a.nodes is not None:
             ok = n in a.nodes
@@ -85,11 +110,14 @@ def main():
             if line.startswith('#'):
                 fo.write(line); continue
             p = line.split()
-            data = p[10:]
+            data = p[9:]                          # NUM_DATA_IDS, then (CAMERA, sensor, image) triples
             ids = [int(data[1 + 3 * k + 2]) for k in range(int(data[0]))]
             node = next((img_node[i] for i in ids if i in img_node), None)
             if node in move:
                 R = qvec2rot(np.array(p[2:6], float))
+                if 'rot' in move[node]:
+                    R = R @ np.array(move[node]['rot']).T
+                    p[2:6] = [repr(float(v)) for v in rot2qvec(R)]
                 C = np.array(move[node]['new'])
                 t = -R @ C
                 p[6:9] = [repr(float(v)) for v in t]
@@ -108,6 +136,9 @@ def main():
             m = NODE.fullmatch(p[9])
             if m and m.group(2) in move:
                 R = qvec2rot(np.array(p[1:5], float))
+                if 'rot' in move[m.group(2)]:
+                    R = R @ np.array(move[m.group(2)]['rot']).T
+                    p[1:5] = [repr(float(v)) for v in rot2qvec(R)]
                 p[5:8] = [repr(float(v)) for v in -R @ np.array(move[m.group(2)]['new'])]
                 line = ' '.join(p)
         out.append(line)
@@ -116,7 +147,10 @@ def main():
     print(f'moved {len(moved)} nodes:')
     for n in sorted(moved):
         r = move[n]
-        print(f'  {n}: shift {r["shift"]:.2f}, depth x{r["depth_scale"]:.3f}, lines {r["agree_old"]} -> {r["agree_new"]}')
+        if 'run' in r:
+            print(f'  {n}: run {r["run"]}, depth x{r["depth_scale"]:.3f}')
+        else:
+            print(f'  {n}: shift {r["shift"]:.2f}, depth x{r["depth_scale"]:.3f}, lines {r["agree_old"]} -> {r["agree_new"]}')
     # stereo: everything copied, the moved nodes' geometric depths scaled
     st_in, st_out = os.path.join(a.dense, 'stereo'), os.path.join(a.out, 'stereo')
     if not os.path.exists(st_out):

@@ -185,8 +185,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `layers/stitch_layers.js` | The face images into four 3×2 atlases through `stitcher.html` (Playwright). |
 | `colmap/node_consistency.py` | Which nodes of a model disagree with their neighbours: each node's depth-map points projected into its nearest nodes' depth maps, the share a neighbour sees past (or, with `--masks`, sky). Finds single misplaced nodes; misses runs of them, which agree with one another. Needs numpy, Pillow. |
 | `colmap/node_resect.py` | Places nodes again from matches to a trusted model's points with their turns held (a line per match). Works where a node shares near scenery with the trusted nodes; Amateria's misplaced runs share almost none (matched with `runs/rematch`'s 154,008 extra pairs, they get 2–30 agreeing lines from one or two trusted nodes). Only near points count: far scenery puts every node on the trusted camera that saw it. |
-| `colmap/node_align.py` | Fits a node's, or a run of nodes', own dense points onto the trusted nodes' (ICP, then the trusted faces' see-through test). Per node the search games the score by shrinking nodes; with `--runs` a run moves as one, with runs already in place as controls. In progress. |
-| `colmap/apply_moves.py` | A copy of a dense workspace with nodes moved and their depth maps scaled, for `stereo_fusion` without stereo again. Not yet used. |
+| `colmap/node_align.py` | Fits a node's, or a run of nodes', own dense points onto the trusted nodes' (ICP, then the trusted faces' see-through test). Per node the search games the score by shrinking nodes; with `--runs` a run moves as one, with runs already in place as controls; a move is kept only if inliers rise and the scale is off its bound. |
+| `colmap/apply_moves.py` | A copy of a dense workspace with nodes moved (from `node_resect.py`, or turned and scaled by `node_align.py --runs`) and their depth maps scaled, for `stereo_fusion` without stereo again. Made `dense_moved`. |
 | `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
@@ -742,6 +742,40 @@ them made by the ride's frames (28.5% of the ride's points; the flyover's
 2.0%). With those dropped: 1,000,420 points (`amateria-movies-noghost`). The
 filter only reaches what the 62 nodes see; the runs themselves still need
 placing again, not just leaving out.
+
+Moving the runs. `node_resect.py` matched the 69 other nodes' faces against all
+372 trusted faces (154,008 more pairs in a copy of the database) and placed each
+node from the matches' rays through trusted 3D points. Far points only give a
+direction (every ray passes through the trusted camera), and with near points
+alone the runs have little support: only MASS 83, 89 and 90 were placed with
+confidence (moved 0.4–0.65, depth x1.09). `node_align.py --runs` instead fits
+each run's own dense points onto the trusted nodes' cloud by one similarity, and
+scores it by the trusted faces' see-through test. Two runs already in place went
+in as controls:
+
+| run | inliers | seen past | shift, turn, scale | |
+|---|---|---|---|---|
+| MASS 82–90 | 16% → 53% | 39% → 6% | 0.64, 0.8°, 1.089 | moved |
+| MAIS 30–33, MATO 2 | 6% → 29% | 59% → 9% | 2.72, 1.8°, 0.853 | moved |
+| MAIS 1–5 | 4% → 15% | 65% → 11% | 2.22, 3.0°, 0.848 | moved |
+| MAIS 6–10 | 2% → 1% | 62% → 14% | 6.40, 9.2°, 0.500 | left |
+| MACA 1–13 | 0.3% → 1.3% | 45% → 7% | 5.34, 8.7°, 0.500 | left |
+| MALL 4–16 | 0.9% → 0.0% | 87% → 71% | 8.69, 7.0°, 0.502 | left |
+| MASS 7–12 (control) | 55% → 54% | 40% → 40% | 0.04, 0.4°, 0.997 | stays |
+| MACA 14, 15, 38 (control) | 6% → 2% | 3% → 8% | 4.47, 8.7°, 0.502 | stays |
+
+The second control shows how the score is gamed: a run shrunk to half puts more
+of its points in front of what the trusted faces saw, so more "agree", while
+fewer land on anything. A move is now kept only if the inliers rise too and the
+scale is off its 0.5–2 bound; that leaves the first three. MASS 82–90's fit
+agrees with `node_resect.py`'s separate estimate. `apply_moves.py` wrote
+`dense_joined` with those 15 nodes moved (cameras turned by the run's turn,
+depth maps multiplied by its scale) as `dense_moved`; fused, 573,790 points, and
+the ghosts fall from 12,389 to 4,808. The moved runs' own share falls to under
+1% (MAIS 30–33 from 30–38%, MAIS 1–5 from 29–43%, MASS 82–90 from 3–6%). The
+tower's diagonal ghost is gone. What is left is MALL 4–13 (38–55%, unchanged),
+MASS 7–12 and 44 (4–13%) and MAIS 6–8 (4%). Packed for `colmap/viewer/` as
+`amateria-moved`.
 
 ## Depth for the site's Amateria node (MAWW 101)
 
