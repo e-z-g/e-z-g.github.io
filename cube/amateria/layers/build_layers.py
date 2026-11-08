@@ -146,7 +146,7 @@ def remove_specks(m, area):
     return big[comp]
 
 
-def hole_band(q, whole, t, width, step_at, speck=80):
+def hole_band(q, whole, t, width, step_at, speck=80, rim_px=2):
     """Voltaic's way of cutting, for every near object: the width px outside
     its outline that lie noticeably farther than it become a hole in the
     foreground (green 0), and the object's depth carries on under the hole for
@@ -186,6 +186,13 @@ def hole_band(q, whole, t, width, step_at, speck=80):
     hole = remove_specks(hole, speck)
     hole = ~remove_specks(~hole, speck)
     hole &= ~whole
+    # The object's outermost rim_px px too, where they border the hole: those
+    # pixels are the object's colour blended with what was behind it, and
+    # over a different backdrop they showed as a pale torn fringe.
+    if rim_px > 0:
+        din = cv2.distanceTransform(whole.astype(np.uint8), cv2.DIST_L2, 3)
+        near_hole = cv2.dilate(hole.astype(np.uint8), np.ones((2 * rim_px + 3,) * 2, np.uint8)) > 0
+        hole |= whole & (din <= rim_px) & near_hole
     out = q.copy()
     under = far_side & (dist <= step_at)
     out[under] = nq[under]
@@ -278,6 +285,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('out'); ap.add_argument('--lama', default='big-lama.pt')
     ap.add_argument('--band', type=int, default=160); ap.add_argument('--jump', type=float, default=0.8)
+    ap.add_argument('--rim', type=int, default=1, help="px of a near object's own blended rim cut where it borders a hole")
     ap.add_argument('--hide-fringe', type=int, default=6, help='px past the edge LaMa repaints, not copying the fringe')
     ap.add_argument('--fringe', type=int, default=2, help='px the painted region reaches past the jump into the far side')
     ap.add_argument('--reach', type=int, default=48, help='px within which the farthest far side counts as behind '
@@ -341,7 +349,7 @@ def main():
         hgrow = lambda m: cv2.dilate(m.astype(np.uint8), np.ones((2 * sc(a.hide_fringe) + 1,) * 2, np.uint8)) > 0
         masks[k], hide[k], fqs[k], wholes[k] = grow(region) | slits, hgrow(whole) | slits, fq, whole
         fgq[k], holes[k] = hole_band(sample(Q, look), whole, a.jump, sc(a.hole), sc(a.hole_step),
-                                           speck=int(20 * S * S))
+                                           speck=int(20 * S * S), rim_px=sc(a.rim))
     inner = (slice(PAD_, PAD_ + N), slice(PAD_, PAD_ + N))
     M = np.stack([masks[k][inner] for k in range(1, 7)])
     for k in ORDER:

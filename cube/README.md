@@ -411,7 +411,16 @@ carries on 6 px past its outline under a 12 px hole (12 and 24 at 1280). On
 a phone the mesh has a vertex every 2.5 px of a 640 px face and each vertex
 averages the depth a quad round it; with 3 px, the vertices just inside an
 outline took in some of the far side and the rim bent back in a
-vertex-spaced pattern as the eye moved, a wiggle along every thin thing. Moving the measured
+vertex-spaced pattern as the eye moved, a wiggle along every thin thing. A
+near object's own outermost pixel (two at 1280) is cut too where it borders
+a hole (`--rim`): those pixels blend the object with what was behind it and
+showed as a pale torn fringe over a different backdrop. Lamps and lights
+(SegFormer's lamp, light, chandelier and sconce) take the depth of what they
+hang from in `sharpen_depth.py`: Depth Anything read MASS 84's glowing lantern
+as far off, and it stayed with the sky while its cap moved. MASS 84's
+backdrop now comes from the dense run with the movie frames and from the 20
+nearest nodes seen within 45° (11-18% of its side faces, against 2-11%): the
+pier and its rails carry on behind the building where LaMa had painted sky. Moving the measured
 depth's edges onto the picture's by colour was tried first (pixels within
 14–18 px of a jump relabelled near or far) and dropped: in these dark faces
 the labels came out speckled, each speckle tore, and the rings and arcs broke

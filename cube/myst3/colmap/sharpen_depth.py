@@ -63,6 +63,40 @@ def fit(p, t, w, iters=8):
     return a, b
 
 
+LIGHTS = ('lamp', 'light', 'chandelier', 'sconce', 'lantern')
+
+
+def light_fill(img, q, seg, seg_proc):
+    """Lamps and lights at the depth of what they hang from. Depth Anything
+    reads a glowing glass as far off, as light sources often are, so MASS 84's
+    lantern stayed with the sky while its dark cap moved with the post.
+    SegFormer (ADE20K) finds lamps, lights, chandeliers and sconces; each
+    piece takes the nearer end (90th percentile of r_far / r) of the solid
+    things in a ring round it, where that is nearer than its own."""
+    import cv2
+    import torch
+    ids = [int(i) for i, l in seg.config.id2label.items() if any(w in l for w in LIGHTS)]
+    with torch.no_grad():
+        x = seg_proc(images=img, return_tensors='pt').to(seg.device)
+        lab = torch.nn.functional.interpolate(seg(**x).logits, size=q.shape, mode='bilinear',
+                                              align_corners=False).argmax(1)[0].cpu().numpy()
+    lamp = np.isin(lab, ids)
+    if not lamp.any():
+        return q, 0
+    lamp = cv2.dilate(lamp.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+    n, comp = cv2.connectedComponents(lamp.astype(np.uint8), connectivity=8)
+    out, filled = q.copy(), 0
+    for c in range(1, n):
+        m = comp == c
+        ring = (cv2.dilate(m.astype(np.uint8), np.ones((31, 31), np.uint8)) > 0) & ~m & (q >= 1)
+        if ring.sum() < 20:
+            continue
+        qf = np.percentile(q[ring], 90)
+        upd = m & (out < qf)
+        out[upd] = qf; filled += int(upd.sum())
+    return out, filled
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('site'); ap.add_argument('out')
@@ -73,12 +107,16 @@ def main():
     ap.add_argument('--out-suffix', default='_sharp-depth.png')
     ap.add_argument('--model', default='depth-anything/Depth-Anything-V2-Large-hf')
     ap.add_argument('--band', type=int, default=96)
+    ap.add_argument('--seg-model', default='nvidia/segformer-b2-finetuned-ade-512-512')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     import torch
     from transformers import AutoImageProcessor, AutoModelForDepthEstimation
     proc = AutoImageProcessor.from_pretrained(a.model)
     net = AutoModelForDepthEstimation.from_pretrained(a.model).to('cuda' if torch.cuda.is_available() else 'cpu').eval()
+    from transformers import SegformerForSemanticSegmentation, SegformerImageProcessor
+    seg_proc = SegformerImageProcessor.from_pretrained(a.seg_model)
+    seg = SegformerForSemanticSegmentation.from_pretrained(a.seg_model).to(net.device).eval()
     N = a.size
     u = (np.arange(N) + 0.5) / N
     s, t = np.meshgrid(u, u)
@@ -115,6 +153,10 @@ def main():
                             'vs_measured_p90_pct': float(np.percentile(rel, 90) * 100)}
             print(f'{name}: 1/z = {A:.4g} p + {B:.4g} over {m1.sum()} px; against the measured depth '
                   f'median {np.median(rel) * 100:.1f}%, 90% within {np.percentile(rel, 90) * 100:.1f}%')
+        qn, lit = light_fill(img, qn, seg, seg_proc)
+        if lit:
+            print(f'{name}: {lit} px of lamps and lights set to the depth round them')
+            report.setdefault(name, {})['lights_filled_px'] = lit
         faces[k] = {'r': np.where(qn >= 1, 1.0 / np.maximum(qn, 1e-12), np.inf)}
     feather(faces, N, N, a.band)
     for k, name in enumerate(a.names, 1):
