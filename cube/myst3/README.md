@@ -635,6 +635,15 @@ island on its face 4, 13 units away, seen at a median 28.5°: not sky, but all
 in one patch about 100 px across, so its place is weakly held. It lies 7.3
 units (4.3 spacings) from the nearest node.
 
+### Dense with the movie frames (`dense_movies`)
+
+`run_dense.ps1` on `video_lemt_nodesky`'s model (the 131 nodes, MASS 57, 226 ride
+frames and 191 flyover frames, sky taken out): 1,209 images, `patch_match_stereo`
+2 hours 0 minutes on the RTX 4060 Ti, fusion 39 s. **1,146,050 points**, against
+586,055 from the nodes alone (`dense_joined`); a 12 MB Delaunay and a 148 MB
+Poisson mesh. Packed for `colmap/viewer/` as `amateria-movies`; not yet compared
+with `dense_joined` region by region.
+
 ## Depth for the site's Amateria node (MAWW 101)
 
 The site's Amateria location is MAWW node 101, node 1 with the console closed
