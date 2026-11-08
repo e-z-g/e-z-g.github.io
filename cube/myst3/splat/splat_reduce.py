@@ -5,8 +5,9 @@ phone): the splats that show most, without view-dependent colour.
 
     python splat_reduce.py FULL.ply OUT.ply [--keep 1500000] [--sh 0]
 
-Splats are ranked by opacity times their largest extent (a faint or tiny splat
-changes little of any picture) and the --keep largest kept; with --shell, the
+Splats are ranked by opacity times the area of their two longest axes (a
+faint, tiny or needle-thin splat changes little of any picture; --rank length
+for the longest axis alone) and the --keep largest kept; with --shell, the
 sky shell at the end is thinned on its own to --shell-keep larger splats; spherical
 harmonics above degree --sh are dropped. The full file stays the reference:
 this is only for display. Needs numpy.
@@ -21,6 +22,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('full'); ap.add_argument('out')
     ap.add_argument('--keep', type=int, default=1500000); ap.add_argument('--sh', type=int, default=0)
+    ap.add_argument('--rank', choices=['area', 'length'], default='area',
+                    help='rank by opacity times the area of the two longest axes (a thin needle counts little) or the longest axis')
+    ap.add_argument('--max-aspect', type=float, default=0,
+                    help='shorten any splat\'s longest axis to at most this many times its middle one (0: leave them)')
     ap.add_argument('--shell', type=int, default=0, help="the last N splats are sky_dome.py's shell")
     ap.add_argument('--shell-keep', type=int, default=0,
                     help='keep this many of the shell, evenly spread and grown to cover the same sky (counted in --keep)')
@@ -45,8 +50,22 @@ def main():
                 shell[:, ix[f'scale_{c}']] += grow
         a.keep -= len(shell)
     opac = 1 / (1 + np.exp(-data[:, ix['opacity']]))
-    extent = np.exp(data[:, [ix['scale_0'], ix['scale_1'], ix['scale_2']]].max(1))
-    order = np.argsort(-(opac * extent))[:a.keep]
+    sc = np.sort(data[:, [ix['scale_0'], ix['scale_1'], ix['scale_2']]], 1)     # log scales, small to large
+    size = np.exp(sc[:, 2] + sc[:, 1]) if a.rank == 'area' else np.exp(sc[:, 2])
+    order = np.argsort(-(opac * size))[:a.keep]
+    if a.max_aspect:
+        # Training makes many splats needles (half are 5 times longer than wide, 1% over 500
+        # times), which views it was not trained on show as heaps of sticks.
+        cap = np.log(a.max_aspect)
+        s3 = data[:, [ix['scale_0'], ix['scale_1'], ix['scale_2']]]
+        mid = np.median(s3, 1)
+        long_ = s3.max(1)
+        over = long_ - mid > cap
+        k = s3.argmax(1)
+        for c in range(3):
+            m = over & (k == c)
+            data[m, ix[f'scale_{c}']] = mid[m] + cap
+        print(f'{over.sum()} splats ({over.mean() * 100:.1f}%) shortened to {a.max_aspect:g} times their middle axis')
     # f_rest is stored channel by channel (all of red's coefficients, then green's, then blue's)
     per = sum(p.startswith('f_rest_') for p in props) // 3
     k_rest = min(per, (a.sh + 1) ** 2 - 1)

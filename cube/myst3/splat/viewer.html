@@ -7,9 +7,9 @@
 <!--
   A WebGL viewer for a splat served beside this page (serve_splat.py), for
   phones and any browser without WebGPU: GaussianSplats3D on three.js, from a
-  CDN. ?file=NAME.ply picks the file (default amateria_phone_600k.ply); ?sh=N
+  CDN. ?file=NAME.ply picks the file (default amateria_phone_1m.ply); ?sh=N
   the spherical-harmonic degree to use (0-2, default 0). The camera starts at
-  MASS 84 looking along its face 1; drag to turn round the point just ahead,
+  MASS 84 looking along its face 1 (?eye=x,y,z and ?look=x,y,z to start elsewhere); drag to turn round the point just ahead,
   pinch or scroll to move. Coordinates are the joined COLMAP model's, y up.
 -->
 <style>
@@ -28,17 +28,19 @@
 <script type="module">
 import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
 const q = new URLSearchParams(location.search);
-const file = q.get('file') || 'amateria_phone_600k.ply';
+const file = q.get('file') || 'amateria_phone_1m.ply';
 const msg = document.getElementById('msg');
 const say = (t) => { msg.textContent = t; };
 window.addEventListener('error', (e) => say('Error: ' + e.message));
 window.addEventListener('unhandledrejection', (e) => say('Error: ' + (e.reason && e.reason.message || e.reason)));
 // MASS 84's centre and the way its face 1 looks
-const eye = [-14.722, -2.219, -5.703], fwd = [-0.005, -0.012, -1.0];
+const num = (k, d) => (q.get(k) ? q.get(k).split(',').map(Number) : d);
+const eye = num('eye', [-14.722, -2.219, -5.703]), fwd = [-0.005, -0.012, -1.0];
+const look = num('look', eye.map((v, i) => v + fwd[i]));
 const viewer = new GaussianSplats3D.Viewer({
   cameraUp: [0, 1, 0],
   initialCameraPosition: eye,
-  initialCameraLookAt: eye.map((v, i) => v + fwd[i]),
+  initialCameraLookAt: look,
   sharedMemoryForWorkers: false,          // no cross-origin isolation on a plain server
   sphericalHarmonicsDegree: Math.min(2, parseInt(q.get('sh') || '0', 10)),
 });
