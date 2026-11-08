@@ -194,6 +194,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `splat/sky_floaters.py` | Takes out of a sky-masked splat the splats deep in the sky of several views above their horizon. |
 | `splat/splat_reduce.py` | A display copy of a splat for a device that cannot load the whole: the splats that show most, without view-dependent colour. |
 | `splat/serve_splat.py` | Serves splat files with the cross-origin and byte-range headers a web splat viewer needs, for a tunnel. |
+| `colmap/tower_model.ps1` | A sparse model of Amateria's tower (MATO) with MAIS 32 and 33 beside its door, for setting it into the joined model. |
 | `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
@@ -877,6 +878,21 @@ depth, with splats just in front of the camera and holes on the floor and
 round the node: what only the node itself saw, the splat fits in colour with
 splats at any depth. So the redrawn depth stays. A splat held to the measured
 depth in training (a depth loss; Brush has none) might do better.
+
+### The tower (MATO)
+
+Of the tower's 10 nodes only MATO 2, outside its door, is in the joined model.
+`colmap/tower_model.ps1` makes a model of the tower alone (prepare_colmap.py
+with MATO.json, faces brightened, the loose mapper settings) with MAIS 32 and
+33 added beside MATO 2, so that three nodes would be shared with the joined
+model. It comes out in three pieces: MATO 2 with MAIS 32 and 33; MATO 4, 5, 6
+and 9; MATO 10, 11 and 12; MATO 3 and 7 unplaced. The links between the pieces
+have no matches to speak of (MATO 2-3: 0 verified, 3-4: 40, 6-7: 17, against
+230-2,203 within them): the tower is rooms joined by a door and lift rides
+(MATO 2 outside, 3 behind a curtain inside, 4-6 a dark chamber and a hub, 7 an
+open lookout over the sea), and no room sees into the next. Joining them needs
+the age map's steps and headings (no heights), or, for the lookout, the outside
+it sees.
 
 ## Depth for the site's Amateria node (MAWW 101)
 
