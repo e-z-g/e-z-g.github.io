@@ -1,0 +1,39 @@
+{
+ "node": "J'nanin LEIS 77",
+ "repo_folder": "jnanin",
+ "names": [
+  "LEIS661",
+  "LEIS662",
+  "LEIS663",
+  "LEIS664",
+  "LEIS665",
+  "LEIS666"
+ ],
+ "work": "{out}/leis77_run2_nosky",
+ "site": "{out}/leis77_run2_nosky/site",
+ "measured_depth": "node_stereo.py and node_depth.py on LEIS's sky-masked model (run2_nosky, model 2 of 13 nodes); see myst3/README.md on J'nanin and colmap/LEIS/leis77_depth.json",
+ "steps": {
+  "sharpen": {
+   "colour-suffix": "-orig.jpg"
+  },
+  "backdrop": {
+   "dense": "{out}/leis77_run2_nosky/stereo",
+   "sparse_txt": "{colmap}/LEIS/runs/run2_nosky/sparse_txt/2",
+   "node": "0077",
+   "node_depth_json": "{out}/leis77_run2_nosky/depth/node_depth.json",
+   "same": 1.6,
+   "neighbours": 20,
+   "max-angle": 45
+  },
+  "layers": {}
+ },
+ "stitch": {
+  "cell": 1296,
+  "prefix": "leis77-layered"
+ },
+ "why": {
+  "sharpen.colour-suffix": "The 640 px captures (-orig.jpg). Never the site's high-resolution J'nanin images (-seamless, -6144, -4096, -hdmod), which are AI upscales.",
+  "backdrop": "Settings as MASS 84's."
+ },
+ "shipped": "Built from this file, all 30 face images match the shipped build bit for bit (checked 8 November 2026)."
+}

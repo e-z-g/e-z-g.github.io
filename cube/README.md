@@ -337,7 +337,7 @@ spoke edges. Its backdrop is that floor, reconstructed under the metal by a
 pyramid (push-pull) fill ~64 px around every hole — about as far as the floor
 slides at full head-tracking range — at the open floor's depth (~20 by the
 walkway, 30 straight down), blending back to the estimate over 64 px more so
-the backdrop has no step of its own (`voltaic/layers/build_layers.py`). Built as face images, stitched 3×2 with
+the backdrop has no step of its own (`myst3/layers/grate_layers.py`). Built as face images, stitched 3×2 with
 `stitcher.html` at 656 px (640 of picture), exactly — the green mask survives
 the stitcher bit for bit.
 
@@ -359,7 +359,7 @@ it (shown part of one, LaMa carries it on into the gap: with a 64 px band a
 ghost of the machinery's box came back beside it), each face padded
 with 128 px of its neighbours and faces done earlier lending their finished
 backdrop, at the depth of the step's far side, with `backdropFullDepth`
-(`amateria/layers/build_layers.py`, stitched at 1296 px by `stitch_layers.js`).
+(`myst3/layers/build_layers.py`, stitched at 1296 px by `stitch_layers.js`).
 What it leaves: small bites out of the glass balls on the front face, where
 the depth steps between a ball and the rings around it. With steps inside a near object (Voltaic ENSI 16's pod: a ball in
 front of its frame in front of the sky) the far side of the nearest step is

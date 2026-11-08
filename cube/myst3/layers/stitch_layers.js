@@ -1,5 +1,5 @@
 // Stitch the face images build_layers.py writes into the four 3x2 atlases
-// of Amateria's Layered version (MAWW node 101), with stitcher.html itself, so the layout and
+// of a node's Layered version (build_layers.py, grate_layers.py), with stitcher.html itself, so the layout and
 // gutters are exactly what the viewer reads.
 //
 //   python3 -m http.server 8000                       (from the repo root)

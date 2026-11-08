@@ -42,11 +42,11 @@ cube/                 cubemap VR viewer + face stitcher (ES modules, three.js)
   stitcher.html         builds atlases the viewer reads
   atlas-layout.js       the shared contract between the two
   amateria/ edanna/ jnanin/ voltaic/   scene assets (images, audio)
-  voltaic/layers/       builds Voltaic's two-layer "Layered" version from the faces
-                        (build_layers.py, then stitch_layers.js through stitcher.html)
   myst3/                Myst III node data: face extractor for the game's archives,
-                        node links from ScummVM's myst3.dat, whole-age node maps.
-                        Not served to the viewer; see myst3/README.md
+                        node links from ScummVM's myst3.dat, whole-age node maps,
+                        COLMAP models (colmap/) and the builder of every node's
+                        two-layer "Layered" version (layers/, one file per node in
+                        layers/nodes/). Not served to the viewer; see myst3/README.md
 
 ev/                   star/planet viewer
 fpqr/                 Fancy-Pants QR encoder (index.html + css/ + js/)

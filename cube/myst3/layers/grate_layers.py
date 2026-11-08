@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
-Build Voltaic's "Layered" version: four sets of six face images, one per
-slot of the viewer's two-layer upload, ready for stitcher.html.
+Build Voltaic's "Layered" version of the ENCH grate node (faces 277-282):
+four sets of six face images, one per slot of the viewer's two-layer upload,
+ready for stitcher.html. The one node built by its own method: the holes are
+the wire mesh, found by colour (dark wire on lit floor), not by steps in the
+depth as build_layers.py finds them, and the floor is filled by push-pull,
+not LaMa. Its settings are in nodes/ench-grate.json.
 
-    python build_layers.py out_dir              (needs numpy and Pillow)
-    node stitch_layers.js http://localhost:8000/cube/stitcher.html out_dir
+    python grate_layers.py out_dir              (needs numpy and Pillow)
+    node stitch_layers.js http://localhost:8000/cube/stitcher.html out_dir out_dir 656 voltaic-layered 277,278,279,280,281,282
                                                 (then the four 3x2 atlases)
 
 Why. The estimated depth maps (ENCHnodes-*-depth.jpeg) could not see
@@ -34,7 +38,7 @@ import os, sys
 import numpy as np
 from PIL import Image
 
-VOLTAIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+VOLTAIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'voltaic')
 FACES = (277, 278, 279, 280, 281, 282)
 
 

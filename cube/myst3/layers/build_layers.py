@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 """
-Build Amateria's "Layered" version (MAWW node 101): four sets of six face
-images, one per slot of the viewer's two-layer upload, ready for stitcher.html.
+Build a node's "Layered" version: four sets of six face images, one per
+slot of the viewer's two-layer upload, ready for stitcher.html. Used for
+every site node with a Layered version except Voltaic's ENCH grate
+(grate_layers.py); run through build_node.py with the node's file in nodes/,
+which holds the settings each node was built with and why.
 
-    python sharpen_depth.py SITE_DIR SHARP_DIR       (myst3/colmap; 1280 px depth)
-    python build_layers.py OUT_DIR --src SHARP_DIR --colour-suffix _sharp-colour.png
-        --depth-suffix _sharp-depth.png [--lama big-lama.pt] [--band 160] [--jump 0.8]
-        [--fringe 6] [--hole 6] [--hole-step 3] [--names N1 ... N6]
-
---names builds another node (MASS 84: MA-4084-1 ... -6); the stitch then takes
-the cell size, an atlas prefix and the same names.
-    node stitch_layers.js http://localhost:8000/cube/stitcher.html OUT_DIR OUT_DIR 1296
+    python build_layers.py OUT_DIR --src SHARP_DIR --names N1 ... N6
+        --colour-suffix _sharp-colour.png --depth-suffix _sharp-depth.png
+        [--lama big-lama.pt] [--model-bg DIR] [other settings below]
+    node stitch_layers.js http://localhost:8000/cube/stitcher.html OUT_DIR OUT_DIR 1296 PREFIX N1,...,N6
                                                 (then the four 3x2 atlases)
 
 Pixel distances are given for 640 px faces and scale with the faces read
@@ -69,7 +68,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-AMATERIA = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
+AMATERIA = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'amateria')
 # node_depth.py's face numbers (its DIRS) and the site's files: front, bottom,
 # back, right, left, top.
 FACES = {k: f'MAWWnodes-{n}' for k, n in zip(range(1, 7), range(8, 14))}

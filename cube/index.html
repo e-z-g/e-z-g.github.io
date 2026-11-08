@@ -378,7 +378,7 @@
           // picture's pixels, as in Voltaic. Backdrop: the near side of
           // every step taken out within 320px and painted in by LaMa, at the
           // depth of the step's far side, on the foreground's scale
-          // (backdropFullDepth). Built by amateria/layers/build_layers.py,
+          // (backdropFullDepth). Built by myst3/layers/build_layers.py,
           // stitched 3x2 at 1296px by stitch_layers.js.
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'amateria-layered-fg-color.webp', fgDepth: 'amateria-layered-fg-depth.png',
@@ -403,7 +403,7 @@
           // Two layers as for MAWW 101: depth redrawn at 1280px
           // (sharpen_depth.py, fitted to the model-measured depth), a hole
           // on the far side of every step, the backdrop painted by LaMa
-          // (amateria/layers/build_layers.py, stitch_layers.js at 1296px).
+          // (myst3/layers/build_layers.py, stitch_layers.js at 1296px).
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'mass84-layered-fg-color.webp', fgDepth: 'mass84-layered-fg-depth.png',
               bgColor: 'mass84-layered-bg-color.webp', bgDepth: 'mass84-layered-bg-depth.png' } }
@@ -444,7 +444,7 @@
         // stone tower: depth from that model's dense run (COLMAP's per-face
         // depth maps and sparse points) with Depth Anything filling the rest,
         // by myst3/colmap/node_depth.py --dense --sparse; Layered built as
-        // Amateria's (sharpen_depth.py, amateria/layers/build_layers.py).
+        // Amateria's (sharpen_depth.py, myst3/layers/build_layers.py).
         name: 'Voltaic (ENSI 16)',
         baseUrl: rawUrl + 'voltaic/',
         type: 'faces',

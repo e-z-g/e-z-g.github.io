@@ -5,6 +5,53 @@ viewer's ages come from, and maps of how its nodes connect. Nothing here is
 served to the viewer; it is groundwork for walking an age node by node and for
 3D reconstruction from the nodes' panoramas.
 
+## How to build a layered node
+
+A site node's *Layered* version is two cube maps: the node's faces with holes
+cut at every step in the depth, and a backdrop showing what lay behind. Each
+built node has a file in `layers/nodes/` holding every setting it was built
+with and why it differs from the default; that file, not the notes below, is
+the record.
+
+1. **Faces.** `myst3_nodes.py` extracts them. The six go in the age's folder
+   (`cube/<age>/`) as `<name>_orig.jpg`, in the order front, bottom, back,
+   right, left, top.
+2. **A 3D model with the node in it.** `colmap/prepare_age.py`, then
+   `colmap/run_colmap.ps1 -Mask` on the PC (sky masked: matches on the sky
+   pull nodes together), then `colmap/run_dense.ps1`; for one node of a
+   sparse model, `colmap/node_stereo.py`. Check the model with
+   `colmap/ghost_points.py` against nodes known to be right.
+3. **Measured depth.** `colmap/node_depth.py` fits Depth Anything to the
+   model's depths: `<name>_measured-depth.png` and `node_depth.json`.
+4. **The node's file.** Copy `layers/nodes/mass84.json`, set the names and
+   paths, and leave every setting at its default until a fault shows; when
+   one is changed, say why in `why`.
+5. **Build**, on the PC: `python layers/build_node.py layers/nodes/<node>.json`
+   runs `colmap/sharpen_depth.py` (depth redrawn at 1280 px),
+   `colmap/model_backdrop.py` (what other nodes saw behind the near objects)
+   and `layers/build_layers.py` (holes, and LaMa for the backdrop no node
+   saw), and prints the stitch command.
+6. **Stitch** on the Mac with that command (`layers/stitch_layers.js`, through
+   `stitcher.html`), copy the four atlases into the age's folder and add a
+   `Layered` version with `backdropFullDepth: true` to the node's entry in
+   `cube/index.html`.
+
+| node | file | how its settings differ |
+|---|---|---|
+| Amateria MAWW 101 | `maww101.json` | not in the model; floor face keeps the nearest step; built from the AI 4K faces |
+| Amateria MASS 84 | `mass84.json` | backdrop from 20 nodes within 45°; nearest step throughout |
+| Voltaic ENSI 16 | `ensi16.json` | backdrop colour test at 4, not 1.6 |
+| J'nanin LEIS 77 | `leis77.json` | defaults; captured faces only |
+| Voltaic ENCH grate | `ench-grate.json` | its own method, `grate_layers.py` (holes from the wire mesh's colour) |
+
+**Known limits.** Depth Anything runs on each face alone, so neighbouring
+faces disagree at their seams and are blended together over 48–96 px; the
+seams are patched, not solved. The per-node settings are each a patch for one
+node's fault; more neighbouring views in the model, which let
+`model_backdrop.py` show what is really behind, are the way to fewer of them.
+
+Everything below is the lab notebook, in the order the work was done.
+
 ## Where the data comes from
 
 - **Faces** live in the game's `<ROOM>nodes.m3a` archives: one directory entry
@@ -126,6 +173,10 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/video_frames.py` | A movie's frames as extra views of a laid-out room or age: frames, brightened copies, sequential and key-frame x face pairs. Needs opencv-python and ffmpeg. |
 | `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
 | `colmap/sharpen_depth.py` | A site node's measured depth redrawn at 1280 px from the 4K faces: Depth Anything V2 Large at an input of 1036 px, fitted to the measured depth away from its outlines, seams closed; outlines that follow the picture, for Amateria's *Layered* version. Needs torch, transformers, opencv-python. |
+| `layers/build_node.py` | Builds a site node's Layered version from its file in `layers/nodes/` (every setting, and why it differs from the default): `colmap/sharpen_depth.py`, `colmap/model_backdrop.py`, `layers/build_layers.py`, then prints the `layers/stitch_layers.js` command. |
+| `layers/build_layers.py` | The four slots' face images of a Layered version: holes on the far side of every depth step, the backdrop from `model_backdrop.py` where other nodes saw it and LaMa elsewhere. Needs numpy, Pillow, opencv-python, torch. |
+| `layers/grate_layers.py` | Voltaic's ENCH grate node, the one built its own way: holes from the wire mesh's colour, floor by push-pull. |
+| `layers/stitch_layers.js` | The face images into four 3×2 atlases through `stitcher.html` (Playwright). |
 | `colmap/node_consistency.py` | Which nodes of a model disagree with their neighbours: each node's depth-map points projected into its nearest nodes' depth maps, the share a neighbour sees past (or, with `--masks`, sky). Finds single misplaced nodes; misses runs of them, which agree with one another. Needs numpy, Pillow. |
 | `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
