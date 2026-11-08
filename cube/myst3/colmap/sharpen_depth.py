@@ -35,7 +35,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from node_depth import feather
+from node_depth import edge_pairs, feather
 
 RATIO = 20.0
 
@@ -48,6 +48,29 @@ def predict(net, proc, img, size, inp):
         p = net(**x.to(net.device)).predicted_depth
         p = torch.nn.functional.interpolate(p[:, None], size=(size, size), mode='bicubic', align_corners=False)
     return p[0, 0].cpu().numpy().astype(np.float64)
+
+
+def seam_steps(qs, N):
+    """Relative step in r_far / r across every seam where both sides have depth:
+    median and 90th percentile, before any blending."""
+    rel = []
+    for (k, edge), e in edge_pairs(N, N).items():
+        v, u, j, v2, u2 = e.T
+        q1 = qs[k][v, u]; q2 = np.array([qs[jj][vv, uu] for jj, vv, uu in zip(j, v2, u2)])
+        ok = (q1 > 0) & (q2 > 0)
+        rel.append(np.abs(q1[ok] - q2[ok]) / ((q1[ok] + q2[ok]) / 2))
+    rel = np.concatenate(rel)
+    return float(np.median(rel) * 100), float(np.percentile(rel, 90) * 100)
+
+
+def padded(imgs, k, N, pad):
+    """Face k with pad px of its neighbours round it, as one picture."""
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'layers'))
+    from build_layers import pad_lookup
+    kk, row, col = pad_lookup(k, N, pad)
+    stack = np.stack([np.asarray(imgs[i]) for i in range(1, 7)])
+    return Image.fromarray(stack[kk - 1, row, col])
 
 
 def fit(p, t, w, iters=8):
@@ -122,6 +145,9 @@ def main():
     ap.add_argument('--model', default='depth-anything/Depth-Anything-V2-Large-hf')
     ap.add_argument('--band', type=int, default=96)
     ap.add_argument('--seg-model', default='nvidia/segformer-b2-finetuned-ade-512-512')
+    ap.add_argument('--pad', type=float, default=0.0,
+                    help='predict each face padded with this share of its size from its neighbours, then crop '
+                         '(0: each face alone, as the site builds were made)')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     import torch
@@ -136,10 +162,20 @@ def main():
     s, t = np.meshgrid(u, u)
     ray = np.sqrt(1 + (2 * s - 1) ** 2 + (1 - 2 * t) ** 2)     # r / z on a 90-degree face
     faces, report = {}, {}
+    imgs = {k: Image.open(os.path.join(a.site, name + a.colour_suffix)).convert('RGB').resize((N, N), Image.LANCZOS)
+            for k, name in enumerate(a.names, 1)}
+    PADPX = int(round(a.pad * N))
     for k, name in enumerate(a.names, 1):
-        img = Image.open(os.path.join(a.site, name + a.colour_suffix)).convert('RGB').resize((N, N), Image.LANCZOS)
+        img = imgs[k]
         img.save(os.path.join(a.out, name + '_sharp-colour.png'))
-        p = predict(net, proc, img, N, a.input)
+        if PADPX:
+            # Depth Anything sees across the seams, so the six predictions agree
+            # there instead of each guessing what lies past its own edge.
+            big = N + 2 * PADPX
+            inp = int(round(a.input * big / N / 14)) * 14
+            p = predict(net, proc, padded(imgs, k, N, PADPX), big, inp)[PADPX:PADPX + N, PADPX:PADPX + N]
+        else:
+            p = predict(net, proc, img, N, a.input)
         d8 = np.asarray(Image.open(os.path.join(a.site, name + a.depth_suffix)).convert('L'))
         dm = cv2.resize(d8.astype(np.float32), (N, N), interpolation=cv2.INTER_LINEAR) / 255
         sky = cv2.resize((d8 == 0).astype(np.uint8), (N, N), interpolation=cv2.INTER_NEAREST) > 0
@@ -172,6 +208,10 @@ def main():
             print(f'{name}: {lit} px of lamps and lights set to the depth round them')
             report.setdefault(name, {})['lights_filled_px'] = lit
         faces[k] = {'r': np.where(qn >= 1, 1.0 / np.maximum(qn, 1e-12), np.inf)}
+    qs = {k: np.where(np.isfinite(f['r']), 1.0 / f['r'], 0.0) for k, f in faces.items()}
+    med, p90 = seam_steps(qs, N)
+    print(f'seams before blending: median step {med:.1f}%, 90% within {p90:.1f}% (pad {a.pad})')
+    report['seams_before_blending'] = {'median_pct': med, 'p90_pct': p90, 'pad': a.pad}
     feather(faces, N, N, a.band)
     for k, name in enumerate(a.names, 1):
         qn = np.where(np.isfinite(faces[k]['r']), 1.0 / faces[k]['r'], 0.0)

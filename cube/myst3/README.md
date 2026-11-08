@@ -46,7 +46,13 @@ the record.
 
 **Known limits.** Depth Anything runs on each face alone, so neighbouring
 faces disagree at their seams and are blended together over 48–96 px; the
-seams are patched, not solved. The per-node settings are each a patch for one
+seams are patched, not solved. Predicting each face padded with 20% of its
+neighbours (`sharpen_depth.py --pad 0.2`, a wider perspective view) did not
+settle them: the median step across the seams before blending went from 11.1%
+to 9.5% on MAWW 101, 7.7% to 6.0% on ENSI 16 and 19.0% to 16.2% on LEIS 77, but
+from 6.1% to 14.4% on MASS 84, and the fit to the measured depth got worse on
+most faces. The default stays unpadded; a model made for panoramas is the next
+thing to try. The per-node settings are each a patch for one
 node's fault; more neighbouring views in the model, which let
 `model_backdrop.py` show what is really behind, are the way to fewer of them.
 
@@ -178,6 +184,9 @@ checks the geometry; nothing has been reconstructed yet.
 | `layers/grate_layers.py` | Voltaic's ENCH grate node, the one built its own way: holes from the wire mesh's colour, floor by push-pull. |
 | `layers/stitch_layers.js` | The face images into four 3×2 atlases through `stitcher.html` (Playwright). |
 | `colmap/node_consistency.py` | Which nodes of a model disagree with their neighbours: each node's depth-map points projected into its nearest nodes' depth maps, the share a neighbour sees past (or, with `--masks`, sky). Finds single misplaced nodes; misses runs of them, which agree with one another. Needs numpy, Pillow. |
+| `colmap/node_resect.py` | Places nodes again from matches to a trusted model's points with their turns held (a line per match). Works where a node shares near scenery with the trusted nodes; Amateria's misplaced runs share almost none (matched with `runs/rematch`'s 154,008 extra pairs, they get 2–30 agreeing lines from one or two trusted nodes). Only near points count: far scenery puts every node on the trusted camera that saw it. |
+| `colmap/node_align.py` | Fits a node's, or a run of nodes', own dense points onto the trusted nodes' (ICP, then the trusted faces' see-through test). Per node the search games the score by shrinking nodes; with `--runs` a run moves as one, with runs already in place as controls. In progress. |
+| `colmap/apply_moves.py` | A copy of a dense workspace with nodes moved and their depth maps scaled, for `stereo_fusion` without stereo again. Not yet used. |
 | `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
