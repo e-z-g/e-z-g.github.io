@@ -370,9 +370,10 @@
           { label: '4K',       suffix: '_seamless.webp', ai: true },
           // The same node as two layers, so a near object no longer stretches
           // across what it hid when the eye moves. The depth is redrawn at
-          // 1280px from the 4K faces (myst3/colmap/sharpen_depth.py, fitted
-          // to the measured depth), so its outlines follow the picture.
-          // Foreground: the 4K faces at 1280px and that depth, with a 6px
+          // 1280px from the game's own 640px faces (myst3/colmap/
+          // sharpen_depth.py, fitted to the measured depth), so its outlines
+          // follow the picture; the 4K faces are an AI upscale and are not used.
+          // Foreground: the 640px faces at 1280px and that depth, with a 6px
           // hole (green 0) on the far side of every step and the near depth
           // carried under it, so the mesh's ramp at a step is cut by the
           // picture's pixels, as in Voltaic. Backdrop: the near side of

@@ -38,7 +38,7 @@ the record.
 
 | node | file | how its settings differ |
 |---|---|---|
-| Amateria MAWW 101 | `maww101.json` | not in the model; floor face keeps the nearest step; built from the AI 4K faces |
+| Amateria MAWW 101 | `maww101.json` | not in the model; floor face keeps the nearest step |
 | Amateria MASS 84 | `mass84.json` | backdrop from 20 nodes within 45°; nearest step throughout |
 | Voltaic ENSI 16 | `ensi16.json` | backdrop colour test at 4, not 1.6 |
 | J'nanin LEIS 77 | `leis77.json` | defaults; captured faces only |
@@ -178,7 +178,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `m3a_list.py` | Lists every resource of a `<ROOM>nodes.m3a` (types, sizes, magic) and extracts any, such as the Bink movies. |
 | `colmap/video_frames.py` | A movie's frames as extra views of a laid-out room or age: frames, brightened copies, sequential and key-frame x face pairs. Needs opencv-python and ffmpeg. |
 | `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
-| `colmap/sharpen_depth.py` | A site node's measured depth redrawn at 1280 px from the 4K faces: Depth Anything V2 Large at an input of 1036 px, fitted to the measured depth away from its outlines, seams closed; outlines that follow the picture, for Amateria's *Layered* version. Needs torch, transformers, opencv-python. |
+| `colmap/sharpen_depth.py` | A site node's measured depth redrawn at 1280 px from the node's faces (the game's 640 px ones, enlarged): Depth Anything V2 Large at an input of 1036 px, fitted to the measured depth away from its outlines, seams closed; outlines that follow the picture, for Amateria's *Layered* version. Needs torch, transformers, opencv-python. |
 | `layers/build_node.py` | Builds a site node's Layered version from its file in `layers/nodes/` (every setting, and why it differs from the default): `colmap/sharpen_depth.py`, `colmap/model_backdrop.py`, `layers/build_layers.py`, then prints the `layers/stitch_layers.js` command. |
 | `layers/build_layers.py` | The four slots' face images of a Layered version: holes on the far side of every depth step, the backdrop from `model_backdrop.py` where other nodes saw it and LaMa elsewhere. Needs numpy, Pillow, opencv-python, torch. |
 | `layers/grate_layers.py` | Voltaic's ENCH grate node, the one built its own way: holes from the wire mesh's colour, floor by push-pull. |
@@ -777,6 +777,14 @@ tower's diagonal ghost is gone. What is left is MALL 4–13 (38–55%, unchanged
 MASS 7–12 and 44 (4–13%) and MAIS 6–8 (4%). Packed for `colmap/viewer/` as
 `amateria-moved`.
 
+The same moves applied to the movie workspace (`dense_movies_moved`), fused
+without the nodes still misplaced (MACA 1, 5 and 6, MAIS 10 and 11, MALL 5–13
+and 18): 1,095,589 points, of which 77,225 are ghosts, 68,582 of them made by
+the ride's frames (30.4% of the ride's points). The moved runs' own share is
+under 1.1%. With the ghosts dropped: 1,018,364 points
+(`amateria-movies-moved`), against 1,000,420 without the three runs. The
+ride's frames are now the main source of ghosts.
+
 ## Depth for the site's Amateria node (MAWW 101)
 
 The site's Amateria location is MAWW node 101, node 1 with the console closed
@@ -824,6 +832,15 @@ px. At its own input size of 518 px the network drew the spire roof as a
 rounded blob whose eaves reached ~10 px past it; at 1036 the outline follows
 the eaves. The redrawn maps stay a median 2–7% from the measured ones (90%
 within 6–16%).
+
+On 8 November 2026 MAWW 101 was rebuilt from the game's 640 px faces
+(`_orig.jpeg`, enlarged to 1280) instead of the 4K faces, which are an AI
+upscale, at the maintainer's request (`layers/nodes/maww101.json`). The fit is
+a little looser on two faces (median 9.3% and 6.2% on faces 10 and 11, from
+7.0% and 3.1%; the others within 0.4 points), the seams before blending the
+same (median 12.6%, 90% within 40.4%), and the painted share of each face
+within a point of before. The colour layers are softer: the upscaler's
+invented detail is gone.
 
 ## Depth for a node the model places (MASS 84)
 
