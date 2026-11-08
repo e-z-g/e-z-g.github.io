@@ -414,10 +414,16 @@ outline took in some of the far side and the rim bent back in a
 vertex-spaced pattern as the eye moved, a wiggle along every thin thing. A
 near object's own outermost pixel (two at 1280) is cut too where it borders
 a hole (`--rim`): those pixels blend the object with what was behind it and
-showed as a pale torn fringe over a different backdrop. Lamps and lights
-(SegFormer's lamp, light, chandelier and sconce) take the depth of what they
-hang from in `sharpen_depth.py`: Depth Anything read MASS 84's glowing lantern
-as far off, and it stayed with the sky while its cap moved. MASS 84's
+showed as a pale torn fringe over a different backdrop. In `sharpen_depth.py`
+the glow of a lamp takes the depth of the lamp: Depth Anything read MASS 84's
+lantern glass as sky, and it stayed behind while its cap moved. Within each of
+SegFormer's lamps and lights under 4% of the face, pixels as bright as its
+glow that read under 0.6 of its nearer part's r_far / r take that part's
+value. Each limit came from a failure: J'nanin's hut, lit windows and all, was
+pulled forward in flat blobs when every lit thing was filled from the ring
+round it; and SegFormer's streetlight is the whole post, so without the
+brightness test the sky between the post and the rails came forward and
+broke MASS 84's overhead rails into dashes. MASS 84's
 backdrop now comes from the dense run with the movie frames and from the 20
 nearest nodes seen within 45° (11-18% of its side faces, against 2-11%): the
 pier and its rails carry on behind the building where LaMa had painted sky. Moving the measured

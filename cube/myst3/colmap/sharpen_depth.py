@@ -70,9 +70,10 @@ def light_fill(img, q, seg, seg_proc):
     """Lamps and lights at the depth of what they hang from. Depth Anything
     reads a glowing glass as far off, as light sources often are, so MASS 84's
     lantern stayed with the sky while its dark cap moved with the post.
-    SegFormer (ADE20K) finds lamps, lights, chandeliers and sconces; each
-    piece takes the nearer end (90th percentile of r_far / r) of the solid
-    things in a ring round it, where that is nearer than its own."""
+    SegFormer (ADE20K) finds lamps, lights, chandeliers and sconces; within
+    each under 4% of the face, pixels as bright as its glow (over 0.8 of its
+    99th percentile of lightness) whose r_far / r is under 0.6 of the light's
+    nearer part (its 90th percentile) take that value."""
     import cv2
     import torch
     ids = [int(i) for i, l in seg.config.id2label.items() if any(w in l for w in LIGHTS)]
@@ -83,17 +84,30 @@ def light_fill(img, q, seg, seg_proc):
     lamp = np.isin(lab, ids)
     if not lamp.any():
         return q, 0
-    lamp = cv2.dilate(lamp.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
     n, comp = cv2.connectedComponents(lamp.astype(np.uint8), connectivity=8)
+    rgb = np.asarray(img.convert('RGB'), dtype=np.float32)
+    lum = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
     out, filled = q.copy(), 0
     for c in range(1, n):
         m = comp == c
-        ring = (cv2.dilate(m.astype(np.uint8), np.ones((31, 31), np.uint8)) > 0) & ~m & (q >= 1)
-        if ring.sum() < 20:
+        # Lamps are small: a large lit area (J'nanin's hut, whose windows and
+        # roof glow) is left alone, and the light's own pixels are used as
+        # SegFormer gives them, since grown by a few px they took in the cliff
+        # beside the roof and pulled it forward in white specks.
+        if m.sum() < 20 or m.sum() > 0.04 * m.size:
             continue
-        qf = np.percentile(q[ring], 90)
-        upd = m & (out < qf)
-        out[upd] = qf; filled += int(upd.sum())
+        # Within the light itself: pixels reading far behind its nearer part
+        # (MASS 84's lantern: the cap at r_far/r 2.7, a quarter of the glowing
+        # glass at 1, the sky) take that part's depth. Compared with a ring
+        # round it instead, the lantern hung against the sky passed for
+        # nothing wrong, and J'nanin's lit windows were pulled forward.
+        qn = np.percentile(q[m], 90)
+        # and only the glow: SegFormer's streetlight is the whole post, and
+        # the sky between it and the rails reads far too (pulled forward, it
+        # broke MASS 84's overhead rails into dashes); the glass is the
+        # brightest thing in the piece.
+        upd = m & (q < 0.6 * qn) & (lum > 0.8 * np.percentile(lum[m], 99))
+        out[upd] = qn; filled += int(upd.sum())
     return out, filled
 
 

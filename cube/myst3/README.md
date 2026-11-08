@@ -748,7 +748,8 @@ the sky face, but 39%, 80% and 235% on faces 1, 5 and 3. The maps' shapes are
 Depth Anything's and look right (the hut near, the cliffs far); on the floor a
 few spots of water reflecting the sky are taken for sky. Report:
 `colmap/LEIS/leis77_depth.json`. The site now has J'nanin's depth and a
-*Layered* version built as ENSI 16's, from the 6K faces at 1280; the model's
+*Layered* version built as ENSI 16's, from the 640 px captures enlarged to
+1280 (the site's 6K faces are AI upscales and are not used as input); the model's
 neighbours supply 0-9% of its backdrop. `node_stereo.py` read node numbers
 as integers too, and now takes them as written.
 
