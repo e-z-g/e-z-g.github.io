@@ -1,0 +1,58 @@
+{
+ "node": "Amateria MASS 84, fine relief halved",
+ "repo_folder": "amateria",
+ "names": [
+  "MA-4084-1",
+  "MA-4084-2",
+  "MA-4084-3",
+  "MA-4084-4",
+  "MA-4084-5",
+  "MA-4084-6"
+ ],
+ "work": "{out}/mass84_relief",
+ "site": "{out}/mass84/site_relief",
+ "measured_depth": "node_depth.py {colmap}/Amateria/images 4084 {out}/mass84/depth_relief --dense {colmap}/Amateria/dense_joined --sparse {colmap}/Amateria/runs/joined_floor_map/sparse_txt/ba --names MA-4084-1,...,MA-4084-6 --relief 0.5; node_depth_moved.json is its node_depth.json with r_far multiplied by 1.089189",
+ "steps": {
+  "sharpen": {
+   "colour-suffix": "_orig.jpg",
+   "no-lights": true,
+   "relief": 0.5
+  },
+  "backdrop": {
+   "dense": "{colmap}/Amateria/dense_movies_moved",
+   "sparse_txt": "{colmap}/Amateria/dense_movies_moved/sparse_txt",
+   "node": "4084",
+   "node_depth_json": "{out}/mass84/depth_relief/node_depth_moved.json",
+   "same": 1.6,
+   "neighbours": 20,
+   "max-angle": 45,
+   "masks": "{colmap}/Amateria/masks"
+  },
+  "layers": {
+   "reach": 0,
+   "light": [
+    "1:142,280,180,315"
+   ],
+   "keep-gaps": [
+    2
+   ]
+  }
+ },
+ "stitch": {
+  "cell": 1296,
+  "prefix": "mass84-relief-layered"
+ },
+ "why": {
+  "backdrop.dense": "The movie model with the three misplaced runs moved back (8 November 2026; MASS 84 is in the MASS 82-90 run, moved 0.64 and scaled 1.089). node_depth_moved.json is node_depth.json with r_far multiplied by 1.089189 for that scale. Inside near objects 8% of the hidden area is now what other nodes saw, against 4% from the model before the move, and a stray figure projected from the wrong place is gone.",
+  "backdrop.neighbours": "20 nodes and 45 degrees, not 12 and 30: the pillars behind the post are seen only by nodes farther round.",
+  "backdrop.same": "1.6, not 4: at 4 the pillars, near the post's colour, were taken for the post and left out.",
+  "layers.reach": "0: the reach rule made no visible difference here, so the nearest step is kept throughout.",
+  "backdrop.masks": "Sky, sea and water from the neighbours are not used: stereo gave lit clouds a depth a little behind the lamp post and track, kept as a dark and orange speckle in the sky, and put the post's reflection just behind the post, a second post as the eye moved.",
+  "layers.light": "Face 1's lamp glass was sky in the measured depth: the shade moved with the post and the glass stayed on the sky, and the backdrop kept a copy of the glass. In this box the glass takes the shade's depth.",
+  "sharpen.no-lights": "sharpen_depth.py's lamp rule took the far post's blue flame for a light, with the rails crossing it, and pulled 2,148 px of the flame forward to the rails' depth: the flame slid off its post as the eye moved. It missed the lamp glass, which layers.light places.",
+  "layers.keep-gaps": "Face 2, the floor: the gaps between the slats look at the sea far below. As slits they were painted, so the backdrop under the floor was plain dark, and every hole on a slat (the depth's slat outlines are several px off the picture's) showed dark paint instead of wood.",
+  "measured_depth": "Depth Anything V2 draws the rock wall on faces 3 and 4 as a slab per column (2.4 to 3.6 in r_far / r along one row where the stereo measures 3.1 to 3.3), which slid apart in the original and tore in the layered version. With the fine relief halved (node_depth.compress_relief) the slabs' steps are about a third of what they were (2.6 to 3.0 on that row); steps over about 1.6 times stay.",
+  "sharpen.relief": "The same for Depth Anything V2 Large, which would otherwise bring the slabs back."
+ },
+ "shipped": "A comparison build, shown on the site as its own location beside MASS 84 (8 November 2026)."
+}

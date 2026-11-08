@@ -237,6 +237,32 @@ def project_cloud(xyz, R, t, W, H, cell=4, min_count=2):
     return (good // gw) * cell + cell // 2, (good % gw) * cell + cell // 2, zmin[good]
 
 
+def compress_relief(q, factor=0.5, range_log=0.5, sigma_px=12, passes=2):
+    """q (any inverse distance, 0 where nothing) with its fine relief scaled by
+    factor. The log of q is split into a base, two passes of a bilateral
+    filter (sigma_px across, range_log in log q, so a step of more than about
+    1.6 times stays in the base: rails against the floor, the house against
+    the sky), and the detail above it, which is scaled.
+
+    Why: Depth Anything V2 reads lit rock as near and shaded rock as far, and
+    drew MASS 84's rock wall as a slab per column, 2.4 to 3.6 in r_far / r
+    along one row where the stereo measures 3.1 to 3.3; the slabs slid apart
+    in the original and tore in the layered version. MoGe-2 drew them deeper,
+    and holding the depth to the stereo blurred the rails, where the stereo
+    is wrong (README). Halved, the slabs' steps are about a third of what
+    they were. A rule, not a measurement: every fine relief is scaled, the
+    real with the drawn."""
+    import cv2
+    ok = q > 0
+    lq = np.log(np.where(ok, np.maximum(q, 1e-6), 1.0)).astype(np.float32)
+    fill = float(np.median(lq[ok])) if ok.any() else 0.0
+    lq0 = np.where(ok, lq, fill).astype(np.float32)
+    base = lq0.copy()
+    for _ in range(passes):
+        base = cv2.bilateralFilter(base, -1, range_log, sigma_px)
+    return np.where(ok, np.exp(base + factor * (lq0 - base)), 0.0)
+
+
 def follow_stereo(d, s, ok, has, lam=1.0, sigma=0.1, rounds=3, tol=0.15):
     """Inverse depth that is d (the fitted network depth) plus a correction e,
     held to s (the stereo's, same units) at the pixels in `has`, over the
@@ -322,6 +348,8 @@ def main():
     ap.add_argument('--dense'); ap.add_argument('--sparse'); ap.add_argument('--cloud')
     ap.add_argument('--follow-stereo', type=float, default=0.0,
                     help='after the fit, hold each face to its own stereo depths with this weight (follow_stereo; 0: off)')
+    ap.add_argument('--relief', type=float, default=1.0,
+                    help="scale the depth's fine relief by this (compress_relief; 1: off), before the seams are blended")
     ap.add_argument('--edge-px', type=int, default=6, help="with --follow-stereo: stereo within this many px of the "
                     "network's own steps is not followed")
     ap.add_argument('--masks', help="sky_masks.py's folder (MASKS/f<k>/<name>.png, black on sky, sea, water): "
@@ -564,6 +592,13 @@ def main():
         out = np.array(out)
         return {'samples': int(len(out)), 'median': round(float(np.median(out)), 4) if len(out) else None,
                 'p90': round(float(np.percentile(out, 90)), 4) if len(out) else None}
+    if a.relief != 1.0:
+        for k, f in faces.items():
+            q = np.where(np.isfinite(f['r']), 1.0 / f['r'], 0.0)
+            q2 = compress_relief(q, a.relief, sigma_px=12 * W / 640)
+            f['r'] = np.where(q2 > 0, 1.0 / np.maximum(q2, 1e-12), np.inf)
+        report['relief'] = a.relief
+        print(f'fine relief scaled by {a.relief}', flush=True)
     before = seam_steps()
     feather(faces, W, H, a.band)
     after = seam_steps()

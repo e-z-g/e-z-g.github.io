@@ -35,7 +35,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from node_depth import edge_pairs, feather, follow_stereo
+from node_depth import compress_relief, edge_pairs, feather, follow_stereo
 
 RATIO = 20.0
 
@@ -156,6 +156,9 @@ def main():
                          "weight (node_depth.follow_stereo; 0: off): the fit's one scale and offset leaves the "
                          "network's own slabs, which the measured depth no longer has once node_depth.py "
                          '--follow-stereo has taken them out')
+    ap.add_argument('--relief', type=float, default=1.0,
+                    help="scale the depth's fine relief by this (node_depth.compress_relief; 1: off), as node_depth.py "
+                         '--relief, so the network does not bring back what the measured depth had scaled')
     ap.add_argument('--no-lights', action='store_true',
                     help="leave out light_fill (on MASS 84 it pulled the far post's blue flame forward to the rails crossing it; "
                          "build_layers.py --light places that node's lamp glass instead)")
@@ -227,6 +230,8 @@ def main():
                   f'{np.percentile(rel1, 90) * 100:.1f}% after')
             report[name]['follow_measured'] = {'median_before': float(np.median(rel0)), 'median_after': float(np.median(rel1))}
             qn = np.where(okn, qn2, qn)
+        if a.relief != 1.0:
+            qn = compress_relief(np.where(qn > 0, qn, 0.0), a.relief, sigma_px=12 * N / 640)
         qn, lit = (qn, 0) if a.no_lights else light_fill(img, qn, seg, seg_proc)
         if lit:
             print(f'{name}: {lit} px of lamps and lights set to the depth round them')

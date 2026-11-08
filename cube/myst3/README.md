@@ -1046,6 +1046,18 @@ None is used; the options are left in, off by default. The stereo on this
 dark, repeating rock is no more reliable than the network, only wrong in
 other places.
 
+Halving the fine relief (`node_depth.py` and `sharpen_depth.py --relief 0.5`,
+`compress_relief`) does what the stereo could not. The log of the depth is
+split into a base, two passes of a bilateral filter that keeps steps of more
+than about 1.6 times, and the detail above it, which is halved. Along row 200
+of face 4 the wall runs 2.6 to 3.0, against 2.4 to 3.6; the rails, the house
+and the floor keep their outlines. At the default depth and tear settings,
+2.1% of face 4's wall tears (3.9% before) and 1.7% of face 3's (2.1%). It is a
+rule, not a measurement: every fine relief is halved, the real with the drawn.
+It is on the site as its own location, "Amateria (MASS 84, relief halved)"
+(`layers/nodes/mass84-relief.json`, files `MA-4084-*_relief-depth.png` and
+`mass84-relief-layered-*`), to compare with MASS 84 as it was.
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the
