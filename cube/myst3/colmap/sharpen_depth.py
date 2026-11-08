@@ -35,7 +35,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from node_depth import edge_pairs, feather
+from node_depth import edge_pairs, feather, follow_stereo
 
 RATIO = 20.0
 
@@ -151,6 +151,11 @@ def main():
     ap.add_argument('--model', default='depth-anything/Depth-Anything-V2-Large-hf')
     ap.add_argument('--band', type=int, default=96)
     ap.add_argument('--seg-model', default='nvidia/segformer-b2-finetuned-ade-512-512')
+    ap.add_argument('--follow-measured', type=float, default=0.0,
+                    help='after the fit, hold the new depth to the measured one away from its outlines with this '
+                         "weight (node_depth.follow_stereo; 0: off): the fit's one scale and offset leaves the "
+                         "network's own slabs, which the measured depth no longer has once node_depth.py "
+                         '--follow-stereo has taken them out')
     ap.add_argument('--no-lights', action='store_true',
                     help="leave out light_fill (on MASS 84 it pulled the far post's blue flame forward to the rails crossing it; "
                          "build_layers.py --light places that node's lamp glass instead)")
@@ -212,6 +217,16 @@ def main():
                             'vs_measured_p90_pct': float(np.percentile(rel, 90) * 100)}
             print(f'{name}: 1/z = {A:.4g} p + {B:.4g} over {m1.sum()} px; against the measured depth '
                   f'median {np.median(rel) * 100:.1f}%, 90% within {np.percentile(rel, 90) * 100:.1f}%')
+        if a.follow_measured > 0 and m1.sum() >= 100:
+            okn = (qn > 1e-6) & ~skyc
+            hasn = solid & (q > 0) & okn
+            qn2, _ = follow_stereo(qn, q, okn, hasn, lam=a.follow_measured)
+            rel0 = np.abs(qn[hasn] - q[hasn]) / q[hasn]; rel1 = np.abs(qn2[hasn] - q[hasn]) / q[hasn]
+            print(f'{name}: held to the measured depth over {hasn.sum()} px: off by median {np.median(rel0) * 100:.1f}%, '
+                  f'90% {np.percentile(rel0, 90) * 100:.1f}% before; {np.median(rel1) * 100:.1f}%, '
+                  f'{np.percentile(rel1, 90) * 100:.1f}% after')
+            report[name]['follow_measured'] = {'median_before': float(np.median(rel0)), 'median_after': float(np.median(rel1))}
+            qn = np.where(okn, qn2, qn)
         qn, lit = (qn, 0) if a.no_lights else light_fill(img, qn, seg, seg_proc)
         if lit:
             print(f'{name}: {lit} px of lamps and lights set to the depth round them')

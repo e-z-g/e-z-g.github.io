@@ -1102,7 +1102,15 @@
                         float dU = depthAt(uvU, uFace);
                         float dD = depthAt(uvD, uFace);
 
-                        float texGrad = length(vec2(dR - dL, dU - dD));
+                        // How far a step stretches is the step times the
+                        // depth setting, so the step is weighed by uDepthK
+                        // against the default (70%, K = 10.7): there the tear
+                        // is as before, below it less, at zero none. Weighed
+                        // by the step alone, a tiny depth tore MASS 84's rock
+                        // wall into strips along every column (the network
+                        // draws each column as its own slab) though nothing
+                        // there had moved more than a pixel.
+                        float texGrad = length(vec2(dR - dL, dU - dD)) * (uDepthK / 10.7);
                         float thresh = mix(0.20, 0.01, uTearThreshold);
                         alpha *= 1.0 - smoothstep(thresh * 0.5, thresh, texGrad);
                     }

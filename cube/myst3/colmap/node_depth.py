@@ -237,6 +237,52 @@ def project_cloud(xyz, R, t, W, H, cell=4, min_count=2):
     return (good // gw) * cell + cell // 2, (good % gw) * cell + cell // 2, zmin[good]
 
 
+def follow_stereo(d, s, ok, has, lam=1.0, sigma=0.1, rounds=3, tol=0.15):
+    """Inverse depth that is d (the fitted network depth) plus a correction e,
+    held to s (the stereo's, same units) at the pixels in `has`, over the
+    pixels in `ok` (not sky). It minimises, over e, the sum over neighbouring
+    pixel pairs of w_ij (e_i - e_j)^2 plus lam times the sum over measured
+    pixels of c_i (e_i - (s_i - d_i))^2: a sparse linear system, solved
+    directly (scipy). w_ij = exp(-(|d_i - d_j| / (sigma min(d_i, d_j)))^2),
+    a step of sigma (10%) of the value, floored at 0.01,
+    so the correction is smooth within each surface the network drew and free
+    to change across its steps: each surface takes the level the stereo
+    measured on it. Where the network split one surface into slabs (MASS 84's
+    rock wall, a step at every column), each slab is brought to the stereo
+    and the steps go; where it drew a real edge, the stereo has the same edge.
+    The correction being smooth within a surface, a stereo pixel that leaves
+    it (a reflection on the wet walkway) stands out; the c_i start at 1 and
+    are reweighted (Cauchy, scale tol of the value) over `rounds` solves.
+    Returns the new inverse depth (d where not ok) and the final weights."""
+    import scipy.sparse as sp
+    import scipy.sparse.linalg as spl
+    H, W = d.shape
+    idx = -np.ones((H, W), np.int64); idx[ok] = np.arange(int(ok.sum()))
+    n = int(ok.sum())
+    rows, cols, vals = [], [], []
+    for (a0, a1), (b0, b1) in ((((slice(None), slice(1, None))), (slice(None), slice(None, -1))),
+                               (((slice(1, None), slice(None))), (slice(None, -1), slice(None)))):
+        pa, pb = idx[a0, a1], idx[b0, b1]
+        m = (pa >= 0) & (pb >= 0)
+        da, db = d[a0, a1], d[b0, b1]
+        w = np.maximum(np.exp(-(np.abs(da - db) / (sigma * np.maximum(np.minimum(da, db), 1e-9))) ** 2), 0.01)[m]
+        i, j = pa[m], pb[m]
+        rows += [i, j, i, j]; cols += [i, j, j, i]; vals += [w, w, -w, -w]
+    L = sp.csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n))
+    r = (s - d)[ok]
+    meas = has[ok]
+    c = meas.astype(float)
+    e = np.zeros(n)
+    for _ in range(rounds):
+        A = L + sp.diags(lam * c + 1e-9)
+        e = spl.spsolve(A.tocsc(), lam * c * r)
+        rel = np.abs(e - r) / np.maximum(np.abs(s[ok]), 1e-9)
+        c = np.where(meas, 1.0 / (1.0 + (rel / tol) ** 2), 0.0)
+    out = d.copy(); out[ok] = d[ok] + e
+    cw = np.zeros((H, W)); cw[ok] = c
+    return out, cw
+
+
 def joint_fit(meas, seams, w_seam, far=None, w_far=1.0, iters=8):
     """a, b per face (1-6) fitting 1/r = (a p + b) / n to meas[k] = (p, n, 1/r),
     (a_k p_k + b_k) / n_k = (a_j p_j + b_j) / n_j to seams = [(k, p, n, j, p2, n2) arrays],
@@ -274,6 +320,12 @@ def main():
     ap.add_argument('images'); ap.add_argument('node'); ap.add_argument('out')
     # the node as in the file names: ENSI's are 0016, which as a number loses its zeros
     ap.add_argument('--dense'); ap.add_argument('--sparse'); ap.add_argument('--cloud')
+    ap.add_argument('--follow-stereo', type=float, default=0.0,
+                    help='after the fit, hold each face to its own stereo depths with this weight (follow_stereo; 0: off)')
+    ap.add_argument('--edge-px', type=int, default=6, help="with --follow-stereo: stereo within this many px of the "
+                    "network's own steps is not followed")
+    ap.add_argument('--masks', help="sky_masks.py's folder (MASKS/f<k>/<name>.png, black on sky, sea, water): "
+                    "stereo depths there are not followed")
     ap.add_argument('--pair-depths', action='append', default=[])
     ap.add_argument('--faces'); ap.add_argument('--names')
     ap.add_argument('--suffix', default='_measured-depth.png')
@@ -370,7 +422,7 @@ def main():
         V = np.concatenate([sp[:, 0].astype(int), vv, cv]); U = np.concatenate([sp[:, 1].astype(int), uu, cu])
         Z = np.concatenate([sp[:, 2], D[vv, uu], cz])
         meas[k] = (pred[V, U], norm[V, U], 1.0 / (Z * norm[V, U]))
-        faces[k] = {'img': img, 'pred': pred, 'sky': sky, 'norm': norm, 'marks': (V, U),
+        faces[k] = {'img': img, 'pred': pred, 'sky': sky, 'norm': norm, 'marks': (V, U), 'stereo': D,
                     'far': (pred[sv, su], norm[sv, su])}
         report[f'face{k}'] = {'image': rels[k], 'sparse_points': int(len(sp)), 'stereo_samples': int(len(vv)),
                               'cloud_cells': int(len(cv)),
@@ -407,9 +459,73 @@ def main():
         inv = aa * f['pred'] + bb
         f['r'] = np.where((inv > 0) & ~f['sky'], f['norm'] / np.maximum(inv, 1e-12), np.inf)
         rec = report[f'face{k}']
+        D = f['stereo']
+        f['inv'] = inv; f['followed'] = False
+        ok_k = (inv > 0) & ~f['sky']
+        if a.follow_stereo > 0 and (D[ok_k] > 0).mean() >= 0.05:
+            # The fit gives each face the network's shape with one scale and
+            # offset; where the network split one surface into slabs (MASS
+            # 84's rock wall: a step at every column, which the stereo does
+            # not have) the steps stayed, in the original and as tears in the
+            # layered version. Held to the stereo, each slab takes the level
+            # measured on it.
+            ok = (inv > 0) & ~f['sky']
+            has = (D > 0) & ok
+            if a.masks:
+                mp = os.path.join(a.masks, rels[k] + '.png')
+                if os.path.exists(mp):
+                    has &= np.asarray(Image.open(mp).convert('L').resize((W, H), Image.NEAREST)) > 127
+            # Not within --edge-px of the network's own steps (over 10% between
+            # pixels 2 apart, on the depth after a 5 px median): stereo is
+            # least sure at edges, and on thin things (rails, slats) it is all
+            # edge; holding to it there blurred MASS 84's rails into blobs.
+            # Those keep the network's shape, with the correction of what is
+            # round them; a slab of the wall, wider, keeps stereo inside it.
+            import cv2
+            qmed = cv2.medianBlur(np.where(ok, inv, 0).astype(np.float32), 5)
+            st = np.zeros(qmed.shape, bool)
+            for dy, dx in ((0, 2), (2, 0)):
+                o = np.roll(np.roll(qmed, -dy, 0), -dx, 1)
+                st |= np.abs(qmed - o) > 0.1 * np.maximum(np.minimum(qmed, o), 1e-9)
+            has &= ~(cv2.dilate(st.astype(np.uint8), np.ones((2 * a.edge_px + 1,) * 2, np.uint8)) > 0)
+            before = np.abs(inv[has] - 1.0 / D[has]) * D[has]
+            inv2, cw = follow_stereo(inv, np.where(D > 0, 1.0 / np.maximum(D, 1e-9), 0.0), ok, has, lam=a.follow_stereo)
+            after = np.abs(inv2[has] - 1.0 / D[has]) * D[has]
+            f['r'] = np.where((inv2 > 0) & ok, f['norm'] / np.maximum(inv2, 1e-12), np.inf)
+            f['followed'] = True
+            rec['follow_stereo'] = {'pixels': int(has.sum()), 'before_median': round(float(np.median(before)), 4),
+                                    'before_p90': round(float(np.percentile(before, 90)), 4),
+                                    'after_median': round(float(np.median(after)), 4),
+                                    'after_p90': round(float(np.percentile(after, 90)), 4)}
+            print(f'face {k}: held to {has.sum()} stereo depths: off by median {np.median(before) * 100:.1f}%, 90% '
+                  f'{np.percentile(before, 90) * 100:.1f}% before; {np.median(after) * 100:.1f}%, '
+                  f'{np.percentile(after, 90) * 100:.1f}% after', flush=True)
         print(f'face {k}: a {aa:.4g}, b {bb:.4g}' + (f'; checked on {rec["check_n"]} held-out measurements: median '
               f'{rec["check_median"] * 100:.1f}%, 90% within {rec["check_p90"] * 100:.1f}%' if 'check_n' in rec else
               '; nothing measured, from its seams'), flush=True)
+    # Faces whose stereo was too sparse to follow (under 5% of what is not sky:
+    # the floor, which no other node sees, the sky overhead with a few stray
+    # depths on the roof's edge) were fitted to their neighbours before those
+    # were held to their stereo, so the seams no longer met (MASS 84's floor
+    # and face 3: 14% at the 90th percentile). They are held at their edges
+    # to the neighbours as followed, by the same solve.
+    if a.follow_stereo > 0 and any(f['followed'] for f in faces.values()):
+        for k, f in faces.items():
+            if f['followed']:
+                continue
+            ok = np.isfinite(f['r'])
+            sv_ = np.zeros((H, W)); has = np.zeros((H, W), bool)
+            for (v, u, j, v2, u2) in pairs[k]:
+                rj = faces[j]['r'][v2, u2]
+                if faces[j]['followed'] and np.isfinite(rj) and ok[v, u]:
+                    sv_[v, u] = f['norm'][v, u] / rj; has[v, u] = True
+            if has.sum() < 20:
+                continue
+            inv0 = np.where(ok, f['norm'] / np.where(ok, f['r'], 1.0), 0.0)
+            inv2, _ = follow_stereo(inv0, sv_, ok, has, lam=a.follow_stereo)
+            f['r'] = np.where(ok & (inv2 > 0), f['norm'] / np.maximum(inv2, 1e-12), np.inf)
+            report[f'face{k}']['follow_seams'] = int(has.sum())
+            print(f'face {k}: held at {has.sum()} edge pixels to its followed neighbours', flush=True)
     # the other pictures (--faces): where one differs from the node's own face, its own
     # network depth fitted to the node's distances over the pixels the two share
     for k, f in faces.items():

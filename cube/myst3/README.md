@@ -1021,6 +1021,37 @@ unchanged. On MAWW 101 the ring of holes round the console is whole where it
 was dashed, and on ENSI 16 the walkway's railing is outlined along its whole
 length. Voltaic's grate has its own builder (`grate_layers.py`) and is not
 affected.
+
+### MASS 84's rock wall: slabs the network draws (8 November 2026)
+
+On faces 3 and 4 the rock wall's columns slid against each other in the
+original, and in the layered version tore into strips at the smallest depth.
+The cube's seams are not the cause: both depth maps meet across every edge
+within 1–4% (90th percentile). Depth Anything V2 draws the wall as a slab per
+column. Along row 200 of face 4 it jumps between 2.4 and 3.6 (r_far / r),
+where COLMAP's stereo for the node's own face measures 3.1 to 3.3. The
+network reads lit columns as near and shaded ones as far.
+`node_depth.py` fits the network with one scale and offset per face, so the
+slabs stay. Tried:
+
+| what | result |
+|---|---|
+| MoGe-2 (`colmap/depth_nets.py`, Ruicheng/moge-2-vitl-normal, 90-degree field of view) in place of Depth Anything | the same slabs, deeper: 1.6 to 4.3 along the same row; 8.1% from the stereo on face 4 against Depth Anything's 4.0% |
+| `node_depth.py --follow-stereo`: the network's depth plus a correction, smooth within each surface the network drew, held to the stereo (`follow_stereo`, a sparse solve), with the sky and water masks | face 4's wall smooth and on the stereo; but the stereo is wrong on thin things (rails turned to blobs on faces 1 and 3) and on face 3 has slabs of its own |
+| the same, without stereo within 6 px of the network's steps (`--edge-px`) | the rails kept, but most slabs are narrower than 12 px and kept no stereo: the wall unchanged |
+| the same, without stereo only on thin near things (an 11 px opening) | parts of the lit slabs caught as thin; the wall's spread halved (3.1 to 4.1), the rails blurred again |
+| `follow_stereo` only to scale each of the network's steps by the stereo's step across it | the slabs softened a little, slat and rail edges blurred |
+
+None is used; the options are left in, off by default. The stereo on this
+dark, repeating rock is no more reliable than the network, only wrong in
+other places.
+
+The tears at small depth are the viewer's: its tear test weighed only the
+step in the stored depth, so at a tiny depth it cut where it cuts at full
+depth. How far a step stretches is the step times the depth setting, so the
+test now weighs it by the depth (`uDepthK`) against the default (70%, K =
+10.7). There it tears as before, below it less, and at zero not at all.
+
 This applies to every node built from now on; ENSI 16, LEIS 77 and MAWW 101
 have not been rebuilt with it.
 
