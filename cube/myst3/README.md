@@ -180,7 +180,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
 | `colmap/sharpen_depth.py` | A site node's measured depth redrawn at 1280 px from the node's faces (the game's 640 px ones, enlarged): Depth Anything V2 Large at an input of 1036 px, fitted to the measured depth away from its outlines, seams closed; outlines that follow the picture, for Amateria's *Layered* version. Needs torch, transformers, opencv-python. |
 | `layers/build_node.py` | Builds a site node's Layered version from its file in `layers/nodes/` (every setting, and why it differs from the default): `colmap/sharpen_depth.py`, `colmap/model_backdrop.py`, `layers/build_layers.py`, then prints the `layers/stitch_layers.js` command. |
-| `layers/build_layers.py` | The four slots' face images of a Layered version: holes on the far side of every depth step, the backdrop from `model_backdrop.py` where other nodes saw it and LaMa elsewhere. Needs numpy, Pillow, opencv-python, torch. |
+| `layers/build_layers.py` | The four slots' face images of a Layered version: holes on the far side of every depth step, the backdrop from `model_backdrop.py` where other nodes saw it and LaMa elsewhere. `--light` gives a lamp against the sky, which the measured depth calls sky, the depth of what holds it. Needs numpy, Pillow, opencv-python, torch. |
 | `layers/grate_layers.py` | Voltaic's ENCH grate node, the one built its own way: holes from the wire mesh's colour, floor by push-pull. |
 | `layers/stitch_layers.js` | The face images into four 3×2 atlases through `stitcher.html` (Playwright). |
 | `colmap/node_consistency.py` | Which nodes of a model disagree with their neighbours: each node's depth-map points projected into its nearest nodes' depth maps, the share a neighbour sees past (or, with `--masks`, sky). Finds single misplaced nodes; misses runs of them, which agree with one another. Needs numpy, Pillow. |
@@ -198,7 +198,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/pano_depth.py` | A node's depth from one panoramic prediction (Depth Any Panoramas) over its six faces sewn together, fitted to the measured depth with one factor, beside the site's. |
 | `colmap/seam_band_error.py` | A depth map's distance from the measured depth near the cube's edges and inside. |
 | `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
-| `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
+| `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`; `--masks` leaves out what the neighbours' sky masks black out (sky, sea, water). Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
 | `colmap/sky_masks.py` | Feature masks that leave out sky, sea and water (SegFormer, ADE20K), for movie frames: matches on the sky fix which way a picture looks but not where. Needs torch, transformers. |
 | `colmap/node_stereo.py` | `patch_match_stereo` for one node's six faces and the images they share most points with, instead of every image. |
@@ -940,6 +940,35 @@ model put behind the arches is gone. LaMa still paints the rest: what is
 hidden from MASS 84 is mostly behind the house, which no node sees. Rebuilt
 from `layers/nodes/mass84.json` and shipped; the foreground atlases are
 unchanged.
+
+On a phone, looking along face 1 at the lamp post and the track overhead,
+three faults showed:
+
+- **Clouds:** the neighbours' stereo gave the lit clouds depths a little
+  behind the post and the track. The backdrop kept them there as a dark and
+  orange speckle in the sky.
+- **A second post:** stereo puts the post's reflection below the water, about
+  as far down as the post is high. Projected into MASS 84 it landed just
+  behind the post, and showed as a second post when the eye moved.
+- **The lamp glass:** the glass hangs pale in front of the sunset, and the
+  measured depth called it sky. The shade moved with the post, the glass
+  stayed on the sky, and the backdrop kept a copy of the glass where the lamp
+  had been taken out.
+
+`model_backdrop.py --masks` now leaves out every neighbour pixel its sky mask
+blacks out (`sky_masks.py`'s sky, sea and water), and LaMa paints those parts
+of the backdrop from MASS 84's own picture. `build_layers.py --light
+1:142,280,180,315` gives the glass the shade's depth. Within that box, the
+glass is the sky-depth pixels paler than the sky on the box's border, 2,247 px
+at 1280. The foreground's colour is unchanged, and its depth changed only at
+the glass.
+
+| face | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| seen by other nodes, moved model, sky and water masked | 2.7% | 0.0% | 9.5% | 2.6% | 17.3% | 14.5% |
+
+Less of the hidden area is real content now, but none of it is cloud or
+reflection. Rebuilt and shipped on 8 November 2026.
 
 ## Depth for the site's Amateria node (MAWW 101)
 

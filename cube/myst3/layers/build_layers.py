@@ -48,6 +48,15 @@ The four slots, per face:
              far side of the nearest jump, so the backdrop there lies where
              the hidden surface would be.
 
+A light against the sky (--light K:X0,Y0,X1,Y1, a box on face K in pixels of a
+640 px face): MASS 84's lamp glass, pale and glowing in front of the sunset,
+was sky in the measured depth, so the glass stayed on the sky while its shade
+moved with the post, and the backdrop kept the glass where the lamp had been
+taken out. In the box, the sky-depth pixels paler than the box's sky (their
+brightness less 100 times their saturation over the median of the sky on the
+box's border by more than 20), closed and filled, take one depth: the median of
+the solid pixels they touch (the shade).
+
 A jump: two pixels 2 px apart whose inverse distance differs by more than
 --jump, in units of the farthest distance the encoding keeps (q = 1 + 19 d,
 proportional to 1/r; the depth maps are d = (r_far/r - 1)/19). The viewer's
@@ -260,6 +269,34 @@ def removed_region(q, t, band, reach, belong=0.5):
     return whole & (dist <= band), whole, fq
 
 
+def light_fix(q, rgb, box, S):
+    """q with the pale glowing pixels at sky depth in box (x0, y0, x1, y1, at 640 px)
+    given the depth of the nearest pixel that has one; and how many changed."""
+    x0, y0, x1, y1 = (int(round(v * S)) for v in box)
+    qb = q[y0:y1, x0:x1]; c = rgb[y0:y1, x0:x1].astype(np.float32)
+    mx = c.max(2); sat = (mx - c.min(2)) / np.maximum(mx, 1)
+    pale = c.mean(2) - 100 * sat
+    sky = qb <= 1.0001
+    border = np.zeros(sky.shape, bool); border[[0, -1], :] = True; border[:, [0, -1]] = True
+    if not (sky & border).any():
+        return q, 0
+    glow = sky & (pale > np.median(pale[sky & border]) + 20)
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    glow = cv2.morphologyEx(glow.astype(np.uint8), cv2.MORPH_CLOSE, k) > 0
+    n, lab = cv2.connectedComponents((~glow).astype(np.uint8), connectivity=4)
+    outside = np.unique(lab[border & ~glow])
+    glow = (glow | ~np.isin(lab, outside)) & sky              # holes in it filled
+    if not glow.any():
+        return q, 0
+    # one depth for the whole light: that of the solid pixels it touches (the shade)
+    ring = (cv2.dilate(glow.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0) & ~sky
+    if not ring.any():
+        return q, 0
+    out = q.copy()
+    out[y0:y1, x0:x1] = np.where(glow, np.median(qb[ring]), qb)
+    return out, int(glow.sum())
+
+
 class Lama:
     def __init__(self, path):
         import torch
@@ -300,6 +337,8 @@ def main():
     ap.add_argument('--colour-suffix', default='_orig.jpeg'); ap.add_argument('--depth-suffix', default='_measured-depth.png')
     ap.add_argument('--hole', type=int, default=12, help='px of the far side of a step cut out of the foreground')
     ap.add_argument('--hole-step', type=int, default=6, help='px of the hole the near depth carries on under')
+    ap.add_argument('--light', action='extend', nargs='+', default=[],
+                    help='K:X0,Y0,X1,Y1: a light against the sky in this box of face K (640 px) given the depth of what holds it')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     col, dep = {}, {}
@@ -311,6 +350,12 @@ def main():
     S = N / 640
     sc = lambda v: max(1, int(round(v * S)))
     PAD_ = sc(PAD)
+    for spec in a.light:
+        k, box = spec.split(':')
+        k = int(k)
+        q, n = light_fix(1 + (RATIO - 1) * dep[k].astype(np.float32) / 255, col[k], [float(v) for v in box.split(',')], S)
+        dep[k] = np.clip(np.rint((q - 1) / (RATIO - 1) * 255), 0, 255).astype(np.uint8)
+        print(f'face {faces[k]}: {n} px of a light against the sky given the depth of what holds it')
     C = np.stack([col[k] for k in range(1, 7)]).astype(np.float32)
     D = np.stack([dep[k] for k in range(1, 7)]).astype(np.float32) / 255
     Q = 1 + (RATIO - 1) * D

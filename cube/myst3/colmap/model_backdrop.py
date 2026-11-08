@@ -5,7 +5,7 @@ model that saw it: colour and depth for build_layers.py's backdrop.
 
     python model_backdrop.py DENSE SPARSE_TXT NODE SHARP_DIR NODE_DEPTH_JSON OUT
         [--names N1 ... N6] [--depth-suffix _sharp-depth.png] [--neighbours 12]
-        [--behind 1.1] [--splat 2]
+        [--behind 1.1] [--splat 2] [--masks MASKS]
 
 DENSE is a run_dense.ps1 (or node_stereo.py) workspace: images/f<k>/<name>.jpg
 and stereo/depth_maps/f<k>/<name>.jpg.geometric.bin. SPARSE_TXT is the text
@@ -27,6 +27,14 @@ only if its node saw it within --max-angle (30) degrees of our own line of
 sight, and not when it has the foreground pixel's colour within --same (1.6)
 times its distance: then it is the foreground itself.
 Where no node saw anything behind, LaMa still paints.
+
+With --masks (sky_masks.py's: MASKS/f<k>/<name>.png, black on the sky, sea
+and water), no pixel a neighbour's mask blacks out is used. Stereo gives the
+clouds and the sea depths of their own: lit clouds came out a little behind
+MASS 84's lamp post and track and were kept there as a dark and orange
+speckle in the sky, and the post's reflection in the water, which stereo puts
+below the water as far again, landed just behind the post as a second post.
+LaMa paints sky and sea well from the node's own picture.
 
 Writes, per face, OUT/<name>_model-bg.png (RGBA: alpha 255 where a point
 landed) and OUT/<name>_model-bg-q.npy (float32 r_far / r, 0 where none), at the
@@ -75,6 +83,7 @@ def main():
     ap.add_argument('--splat', type=int, default=2)
     ap.add_argument('--same', type=float, default=1.6)
     ap.add_argument('--max-angle', type=float, default=30.0)
+    ap.add_argument('--masks', help="sky_masks.py's folder: the neighbours' pixels it blacks out (sky, sea, water) are not used")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     r_far = json.load(open(a.node_json))['r_far']
@@ -118,7 +127,7 @@ def main():
         fgc[k] = np.asarray(img).astype(np.int16)
     best_q = {k: np.zeros((N, N), np.float32) for k in fg}
     best_c = {k: np.zeros((N, N, 3), np.uint8) for k in fg}
-    used = 0
+    used = masked = 0
     for n in near:
         for k2 in range(1, 7):
             name = f'f{k2}/{n}'
@@ -128,7 +137,14 @@ def main():
             z = read_colmap_array(dm)
             img = np.asarray(Image.open(os.path.join(a.dense, 'images', f'f{k2}', n)).convert('RGB'))
             H, W = z.shape
-            v, u = np.nonzero(z > 0)
+            valid = z > 0
+            if a.masks:
+                mp = os.path.join(a.masks, f'f{k2}', n + '.png')
+                if os.path.exists(mp):
+                    mk = np.asarray(Image.open(mp).convert('L').resize((W, H), Image.NEAREST))
+                    valid &= mk > 127
+                    masked += 1
+            v, u = np.nonzero(valid)
             if not len(v):
                 continue
             used += 1
@@ -177,7 +193,7 @@ def main():
                         keep = q > best_q[k][yy, xx]
                         best_q[k][yy[keep], xx[keep]] = q[keep]
                         best_c[k][yy[keep], xx[keep]] = c[keep]
-    print(f'{used} neighbouring faces with depth projected')
+    print(f'{used} neighbouring faces with depth projected' + (f', {masked} with a sky and water mask' if a.masks else ''))
     for k, name in enumerate(a.names, 1):
         has = best_q[k] > 0
         rgba = np.dstack([best_c[k], np.where(has, 255, 0).astype(np.uint8)])
