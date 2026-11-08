@@ -922,6 +922,25 @@ inside. So MASS 84 keeps its redrawn depth. Where DAP could count is at nodes
 with no measured depth, most of the game's, where nothing but blending holds
 Depth Anything's six faces together; not yet tried.
 
+### MASS 84's backdrop from the moved model
+
+MASS 84 is in the MASS 82-90 run moved back on 8 November 2026, so its
+backdrop, projected from its neighbours in `dense_movies`, had them from the
+wrong place. `build_layers.py` now says, per face, how much of the hidden area
+inside near objects other nodes saw. With `model_backdrop.py` on
+`dense_movies_moved` (r_far scaled by the run's 1.089, `node_depth_moved.json`):
+
+| face | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| seen by other nodes, old model | 0.6% | 0.0% | 5.5% | 0.6% | 14.1% | 6.1% |
+| seen by other nodes, moved model | 4.1% | 0.0% | 9.8% | 3.5% | 19.2% | 18.3% |
+
+About 8% of the hidden area instead of 4%, and on face 5 a red figure the old
+model put behind the arches is gone. LaMa still paints the rest: what is
+hidden from MASS 84 is mostly behind the house, which no node sees. Rebuilt
+from `layers/nodes/mass84.json` and shipped; the foreground atlases are
+unchanged.
+
 ## Depth for the site's Amateria node (MAWW 101)
 
 The site's Amateria location is MAWW node 101, node 1 with the console closed

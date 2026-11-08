@@ -17,10 +17,10 @@
    "colour-suffix": "_orig.jpg"
   },
   "backdrop": {
-   "dense": "{colmap}/Amateria/dense_movies",
-   "sparse_txt": "{colmap}/Amateria/runs/video_lemt_nodesky/sparse_txt/ba",
+   "dense": "{colmap}/Amateria/dense_movies_moved",
+   "sparse_txt": "{colmap}/Amateria/dense_movies_moved/sparse_txt",
    "node": "4084",
-   "node_depth_json": "{out}/mass84/depth/node_depth.json",
+   "node_depth_json": "{out}/mass84/depth/node_depth_moved.json",
    "same": 1.6,
    "neighbours": 20,
    "max-angle": 45
@@ -34,10 +34,10 @@
   "prefix": "mass84-layered"
  },
  "why": {
-  "backdrop.dense": "The movie run (nodes with the ride and flyover frames) sees more behind the lamp post than the nodes alone.",
+  "backdrop.dense": "The movie model with the three misplaced runs moved back (8 November 2026; MASS 84 is in the MASS 82-90 run, moved 0.64 and scaled 1.089). node_depth_moved.json is node_depth.json with r_far multiplied by 1.089189 for that scale. Inside near objects 8% of the hidden area is now what other nodes saw, against 4% from the model before the move, and a stray figure projected from the wrong place is gone.",
   "backdrop.neighbours": "20 nodes and 45 degrees, not 12 and 30: the pillars behind the post are seen only by nodes farther round.",
   "backdrop.same": "1.6, not 4: at 4 the pillars, near the post's colour, were taken for the post and left out.",
   "layers.reach": "0: the reach rule made no visible difference here, so the nearest step is kept throughout."
  },
- "shipped": "Built from this file, all 30 face images match the shipped build bit for bit (checked 8 November 2026)."
+ "shipped": "Rebuilt from this file on 8 November 2026 with the backdrop from the moved model."
 }

@@ -379,7 +379,10 @@ def main():
             keep = masks[k][inner]
             bg[k - 1][keep] = painted[keep]
         done[k - 1] = True
-        print(f'face {faces[k]}: {int(M[k - 1].sum())} px removed and painted ({M[k - 1].mean() * 100:.1f}%)')
+        inside = wholes[k][inner] & M[k - 1]
+        print(f'face {faces[k]}: {int(M[k - 1].sum())} px removed and painted ({M[k - 1].mean() * 100:.1f}%); '
+              f'inside near objects {int(inside.sum())} px, {used[k - 1][inside].mean() * 100 if inside.any() else 0:.1f}% '
+              f'of it seen by other nodes, the rest painted')
     q8 = lambda x: np.clip(np.rint(x), 0, 255).astype(np.uint8)
     for k, n in faces.items():
         d = dep[k].astype(np.float32)
