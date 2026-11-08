@@ -970,6 +970,18 @@ the glass.
 Less of the hidden area is real content now, but none of it is cloud or
 reflection. Rebuilt and shipped on 8 November 2026.
 
+In the next look from the phone, the blue flame on the far post slid off its
+post as the eye moved. The measured depth has the post and the flame at sky
+depth, but `sharpen_depth.py`'s lamp rule (`light_fill`) took the flame for a
+light. SegFormer's piece for it also took in the rails crossing it, so 2,148 px
+of the flame between the rails were pulled forward to the rails' depth. The
+rule had never placed the lamp glass it was written for. MASS 84 is now built
+with `sharpen_depth.py --no-lights`, and the glass is placed by
+`build_layers.py --light` alone. The glass takes the 90th percentile of the
+solid pixels round it (q 3.16, the shade 3.01). Without the lamp rule the
+shade's soft rim was among those pixels, and their median put the glass
+behind its shade (2.12).
+
 ## Depth for the site's Amateria node (MAWW 101)
 
 The site's Amateria location is MAWW node 101, node 1 with the console closed

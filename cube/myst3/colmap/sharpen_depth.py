@@ -96,7 +96,13 @@ def light_fill(img, q, seg, seg_proc):
     SegFormer (ADE20K) finds lamps, lights, chandeliers and sconces; within
     each under 4% of the face, pixels as bright as its glow (over 0.8 of its
     99th percentile of lightness) whose r_far / r is under 0.6 of the light's
-    nearer part (its 90th percentile) take that value."""
+    nearer part (its 90th percentile) take that value.
+
+    On MASS 84 itself it did harm: SegFormer called the far post's blue flame
+    a light, the piece took in the rails crossing it, and 2,148 px of the
+    flame were pulled forward to the rails' depth, so as the eye moved the
+    flame slid off its post; and the lamp glass was not among the pixels
+    filled. That node is built with --no-lights and build_layers.py --light."""
     import cv2
     import torch
     ids = [int(i) for i, l in seg.config.id2label.items() if any(w in l for w in LIGHTS)]
@@ -145,6 +151,9 @@ def main():
     ap.add_argument('--model', default='depth-anything/Depth-Anything-V2-Large-hf')
     ap.add_argument('--band', type=int, default=96)
     ap.add_argument('--seg-model', default='nvidia/segformer-b2-finetuned-ade-512-512')
+    ap.add_argument('--no-lights', action='store_true',
+                    help="leave out light_fill (on MASS 84 it pulled the far post's blue flame forward to the rails crossing it; "
+                         "build_layers.py --light places that node's lamp glass instead)")
     ap.add_argument('--pad', type=float, default=0.0,
                     help='predict each face padded with this share of its size from its neighbours, then crop '
                          '(0: each face alone, as the site builds were made)')
@@ -203,7 +212,7 @@ def main():
                             'vs_measured_p90_pct': float(np.percentile(rel, 90) * 100)}
             print(f'{name}: 1/z = {A:.4g} p + {B:.4g} over {m1.sum()} px; against the measured depth '
                   f'median {np.median(rel) * 100:.1f}%, 90% within {np.percentile(rel, 90) * 100:.1f}%')
-        qn, lit = light_fill(img, qn, seg, seg_proc)
+        qn, lit = (qn, 0) if a.no_lights else light_fill(img, qn, seg, seg_proc)
         if lit:
             print(f'{name}: {lit} px of lamps and lights set to the depth round them')
             report.setdefault(name, {})['lights_filled_px'] = lit

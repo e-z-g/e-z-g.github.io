@@ -54,8 +54,8 @@ was sky in the measured depth, so the glass stayed on the sky while its shade
 moved with the post, and the backdrop kept the glass where the lamp had been
 taken out. In the box, the sky-depth pixels paler than the box's sky (their
 brightness less 100 times their saturation over the median of the sky on the
-box's border by more than 20), closed and filled, take one depth: the median of
-the solid pixels they touch (the shade).
+box's border by more than 20), closed and filled, take one depth: the 90th
+percentile of the solid pixels they touch (the shade).
 
 A jump: two pixels 2 px apart whose inverse distance differs by more than
 --jump, in units of the farthest distance the encoding keeps (q = 1 + 19 d,
@@ -288,12 +288,14 @@ def light_fix(q, rgb, box, S):
     glow = (glow | ~np.isin(lab, outside)) & sky              # holes in it filled
     if not glow.any():
         return q, 0
-    # one depth for the whole light: that of the solid pixels it touches (the shade)
+    # one depth for the whole light: that of the solid pixels it touches (the
+    # shade), its 90th percentile, as the median took in the shade's soft rim
+    # and put the glass behind it
     ring = (cv2.dilate(glow.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0) & ~sky
     if not ring.any():
         return q, 0
     out = q.copy()
-    out[y0:y1, x0:x1] = np.where(glow, np.median(qb[ring]), qb)
+    out[y0:y1, x0:x1] = np.where(glow, np.percentile(qb[ring], 90), qb)
     return out, int(glow.sum())
 
 

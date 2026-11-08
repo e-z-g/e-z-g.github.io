@@ -14,7 +14,8 @@
  "measured_depth": "node_depth.py {colmap}/Amateria/images 4084 {out}/mass84/depth --dense {colmap}/Amateria/dense_joined --sparse {colmap}/Amateria/runs/joined_floor_map/sparse_txt/ba --names MA-4084-1,...,MA-4084-6 (report: colmap/Amateria/mass84_depth.json)",
  "steps": {
   "sharpen": {
-   "colour-suffix": "_orig.jpg"
+   "colour-suffix": "_orig.jpg",
+   "no-lights": true
   },
   "backdrop": {
    "dense": "{colmap}/Amateria/dense_movies_moved",
@@ -43,7 +44,8 @@
   "backdrop.same": "1.6, not 4: at 4 the pillars, near the post's colour, were taken for the post and left out.",
   "layers.reach": "0: the reach rule made no visible difference here, so the nearest step is kept throughout.",
   "backdrop.masks": "Sky, sea and water from the neighbours are not used: stereo gave lit clouds a depth a little behind the lamp post and track, kept as a dark and orange speckle in the sky, and put the post's reflection just behind the post, a second post as the eye moved.",
-  "layers.light": "Face 1's lamp glass was sky in the measured depth: the shade moved with the post and the glass stayed on the sky, and the backdrop kept a copy of the glass. In this box the glass takes the shade's depth."
+  "layers.light": "Face 1's lamp glass was sky in the measured depth: the shade moved with the post and the glass stayed on the sky, and the backdrop kept a copy of the glass. In this box the glass takes the shade's depth.",
+  "sharpen.no-lights": "sharpen_depth.py's lamp rule took the far post's blue flame for a light, with the rails crossing it, and pulled 2,148 px of the flame forward to the rails' depth: the flame slid off its post as the eye moved. It missed the lamp glass, which layers.light places."
  },
- "shipped": "Rebuilt from this file on 8 November 2026 with the backdrop from the moved model, then again the same day with the neighbours' sky and water masked and the lamp glass given the shade's depth."
+ "shipped": "Rebuilt from this file on 8 November 2026 with the backdrop from the moved model, then again the same day with the neighbours' sky and water masked, the lamp glass given the shade's depth and sharpen_depth's lamp rule left out."
 }
