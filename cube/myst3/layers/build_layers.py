@@ -256,6 +256,13 @@ def removed_region(q, t, band, reach, belong=0.5):
     fq_of = np.zeros(order.max() + 1, np.float32); fq_of[order] = qmin[ys, xs]
     fq = fq_of[lab]
     nearer = q > fq + t / 2
+    # The far side of a step is never part of the near object. The test above
+    # asks only for t/2 more than the far side's least q; down MASS 84's floor
+    # gaps the sea's depth varies by about that, so stretches of gap passed,
+    # joined the slat through the steep pixel between, and got no hole: the
+    # holes along the gaps came out in pieces. (A middle layer that belongs
+    # to the near object is still added below.)
+    nearer &= ~far
     if reach > 0:
         # The farthest far side within reach, and the q of the nearest near side.
         BIG = np.float32(1e6)

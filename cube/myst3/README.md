@@ -1003,9 +1003,16 @@ the slat. `build_layers.py` finds steps of over 0.8 between pixels 2 apart, so
 a strip of every slat read as the far side of a step. The near objects broke
 into half-disc blobs, and the holes cut round them fell on the wood. The steps
 are now found on the depth after a 5 px median, which takes thin ridges away
-and leaves steps where they are; the depth itself is unchanged. On the floor
-the holes now lie in the gaps between the slats (10.2% of the face, against
-10.9%), and the slats are whole. The other faces lose a few stray fragments.
+and leaves steps where they are; the depth itself is unchanged. The slats were
+then whole, but the gaps had holes only in pieces. A pixel joined a near
+object when it read t/2 (0.4) nearer than the far side's least q. Down the
+gaps the sea's depth varies by about that much, so stretches of gap passed
+the test and joined the slat through the steep pixel between. They got no
+hole. Pixels on the far side of a step are now never part of the near
+object; a middle layer that belongs to it is still added, for ENSI 16's pod
+frame. The floor's holes are now full strips down every gap: 20.4% of the
+face, against 10.9% in the build before these changes. On the other faces
+the holes change by about a point or less.
 This applies to every node built from now on; ENSI 16, LEIS 77 and MAWW 101
 have not been rebuilt with it.
 
