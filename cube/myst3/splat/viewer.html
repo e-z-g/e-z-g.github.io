@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Amateria splat</title>
+<!--
+  A WebGL viewer for a splat served beside this page (serve_splat.py), for
+  phones and any browser without WebGPU: GaussianSplats3D on three.js, from a
+  CDN. ?file=NAME.ply picks the file (default amateria_phone_600k.ply); ?sh=N
+  the spherical-harmonic degree to use (0-2, default 0). The camera starts at
+  MASS 84 looking along its face 1; drag to turn round the point just ahead,
+  pinch or scroll to move. Coordinates are the joined COLMAP model's, y up.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 14px system-ui, sans-serif; color: #ddd; }
+  #msg { position: fixed; left: 0; right: 0; top: 0; padding: 8px 12px; background: rgba(0,0,0,.6); }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "@mkkellogg/gaussian-splats-3d": "https://unpkg.com/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+} }
+</script>
+</head>
+<body>
+<div id="msg">Loading…</div>
+<script type="module">
+import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
+const q = new URLSearchParams(location.search);
+const file = q.get('file') || 'amateria_phone_600k.ply';
+const msg = document.getElementById('msg');
+const say = (t) => { msg.textContent = t; };
+window.addEventListener('error', (e) => say('Error: ' + e.message));
+window.addEventListener('unhandledrejection', (e) => say('Error: ' + (e.reason && e.reason.message || e.reason)));
+// MASS 84's centre and the way its face 1 looks
+const eye = [-14.722, -2.219, -5.703], fwd = [-0.005, -0.012, -1.0];
+const viewer = new GaussianSplats3D.Viewer({
+  cameraUp: [0, 1, 0],
+  initialCameraPosition: eye,
+  initialCameraLookAt: eye.map((v, i) => v + fwd[i]),
+  sharedMemoryForWorkers: false,          // no cross-origin isolation on a plain server
+  sphericalHarmonicsDegree: Math.min(2, parseInt(q.get('sh') || '0', 10)),
+});
+viewer.addSplatScene(file, {
+  showLoadingUI: true,
+  progressiveLoad: true,
+  onProgress: (p) => say(`Loading ${file}: ${Math.round(p)}%`),
+}).then(() => {
+  viewer.start();
+  say(`${file}: drag to look round, pinch to move.`);
+  setTimeout(() => { msg.style.display = 'none'; }, 4000);
+}).catch((e) => say('Could not load ' + file + ': ' + e.message));
+</script>
+</body>
+</html>
