@@ -6,7 +6,8 @@ phone): the splats that show most, without view-dependent colour.
     python splat_reduce.py FULL.ply OUT.ply [--keep 1500000] [--sh 0]
 
 Splats are ranked by opacity times their largest extent (a faint or tiny splat
-changes little of any picture) and the --keep largest kept; spherical
+changes little of any picture) and the --keep largest kept; with --shell, the
+sky shell at the end is thinned on its own to --shell-keep larger splats; spherical
 harmonics above degree --sh are dropped. The full file stays the reference:
 this is only for display. Needs numpy.
 """
@@ -20,6 +21,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('full'); ap.add_argument('out')
     ap.add_argument('--keep', type=int, default=1500000); ap.add_argument('--sh', type=int, default=0)
+    ap.add_argument('--shell', type=int, default=0, help="the last N splats are sky_dome.py's shell")
+    ap.add_argument('--shell-keep', type=int, default=0,
+                    help='keep this many of the shell, evenly spread and grown to cover the same sky (counted in --keep)')
     a = ap.parse_args()
     with open(a.full, 'rb') as f:
         head = b''
@@ -29,6 +33,17 @@ def main():
         props = [p.decode() for p in re.findall(rb'property float (\S+)', head)]
         data = np.fromfile(f, dtype='<f4', count=n * len(props)).reshape(n, len(props))
     ix = {p: i for i, p in enumerate(props)}
+    shell = None
+    if a.shell:
+        shell, data = data[-a.shell:].copy(), data[:-a.shell]
+        n -= a.shell
+        if a.shell_keep and a.shell_keep < a.shell:
+            # the shell is a Fibonacci lattice: an even stride keeps it even
+            shell = shell[np.linspace(0, a.shell - 1, a.shell_keep).astype(int)]
+            grow = np.log(np.sqrt(a.shell / a.shell_keep))
+            for c in range(3):
+                shell[:, ix[f'scale_{c}']] += grow
+        a.keep -= len(shell)
     opac = 1 / (1 + np.exp(-data[:, ix['opacity']]))
     extent = np.exp(data[:, [ix['scale_0'], ix['scale_1'], ix['scale_2']]].max(1))
     order = np.argsort(-(opac * extent))[:a.keep]
@@ -38,6 +53,9 @@ def main():
     rest_keep = [f'f_rest_{c * per + k}' for c in range(3) for k in range(k_rest)]
     keep_props = [p for p in props if not p.startswith('f_rest_')] + rest_keep
     out = data[order][:, [ix[p] for p in keep_props]]
+    if shell is not None:
+        out = np.concatenate([out, shell[:, [ix[p] for p in keep_props]]])
+        n += a.shell
     names = [p for p in props if not p.startswith('f_rest_')] + [f'f_rest_{i}' for i in range(len(rest_keep))]
     lines = [l for l in head.split(b'\n') if not l.startswith(b'property')]
     hdr = b'\n'.join(l for l in lines if l and l != b'end_header')
