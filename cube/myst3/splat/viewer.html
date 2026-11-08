@@ -5,12 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Amateria splat</title>
 <!--
-  A WebGL viewer for a splat served beside this page (serve_splat.py), for
-  phones and any browser without WebGPU: GaussianSplats3D on three.js, from a
-  CDN. ?file=NAME.ply picks the file (default amateria_phone_1m.ply); ?sh=N
-  the spherical-harmonic degree to use (0-2, default 0). The camera starts at
-  MASS 84 looking along its face 1 (?eye=x,y,z and ?look=x,y,z to start elsewhere); drag to turn round the point just ahead,
-  pinch or scroll to move. Coordinates are the joined COLMAP model's, y up.
+  A WebGL viewer for a splat served beside this page (serve_splat.py): Spark
+  (sparkjs.dev, on three.js, from a CDN), which renders spherical harmonics up
+  to degree 3 and keeps each splat packed in about 56 bytes, so the full
+  3.3-million-splat file fits in a few hundred MB of graphics memory.
+  ?file=NAME.ply picks the file (default amateria_phone_1m.ply); ?sh=N limits
+  the spherical-harmonic degree (0-3, default 3); ?eye=x,y,z and ?look=x,y,z
+  set where it starts (default MASS 84, looking along its face 1). Drag to turn
+  round the point just ahead, pinch or scroll to move, right-drag or two
+  fingers to slide. Coordinates are the joined COLMAP model's, y up.
 -->
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 14px system-ui, sans-serif; color: #ddd; }
@@ -18,41 +21,62 @@
 </style>
 <script type="importmap">
 { "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "@mkkellogg/gaussian-splats-3d": "https://unpkg.com/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+  "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/2.4.0/spark.module.js"
 } }
 </script>
 </head>
 <body>
 <div id="msg">Loading…</div>
 <script type="module">
-import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
+
 const q = new URLSearchParams(location.search);
 const file = q.get('file') || 'amateria_phone_1m.ply';
 const msg = document.getElementById('msg');
-const say = (t) => { msg.textContent = t; };
+const say = (t) => { msg.textContent = t; msg.style.display = ''; };
 window.addEventListener('error', (e) => say('Error: ' + e.message));
 window.addEventListener('unhandledrejection', (e) => say('Error: ' + (e.reason && e.reason.message || e.reason)));
-// MASS 84's centre and the way its face 1 looks
 const num = (k, d) => (q.get(k) ? q.get(k).split(',').map(Number) : d);
-const eye = num('eye', [-14.722, -2.219, -5.703]), fwd = [-0.005, -0.012, -1.0];
-const look = num('look', eye.map((v, i) => v + fwd[i]));
-const viewer = new GaussianSplats3D.Viewer({
-  cameraUp: [0, 1, 0],
-  initialCameraPosition: eye,
-  initialCameraLookAt: look,
-  sharedMemoryForWorkers: false,          // no cross-origin isolation on a plain server
-  sphericalHarmonicsDegree: Math.min(2, parseInt(q.get('sh') || '0', 10)),
-});
-viewer.addSplatScene(file, {
-  showLoadingUI: true,
-  progressiveLoad: true,
-  onProgress: (p) => say(`Loading ${file}: ${Math.round(p)}%`),
-}).then(() => {
-  viewer.start();
-  say(`${file}: drag to look round, pinch to move.`);
-  setTimeout(() => { msg.style.display = 'none'; }, 4000);
+// MASS 84's centre and the way its face 1 looks
+const eye = num('eye', [-14.722, -2.219, -5.703]);
+const look = num('look', [eye[0] - 0.005, eye[1] - 0.012, eye[2] - 1.0]);
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+// the sky shell is 1,000 units out
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.02, 5000);
+camera.position.fromArray(eye);
+const spark = new SparkRenderer({ renderer });
+scene.add(spark);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.fromArray(look);
+controls.enableDamping = true;
+controls.update();
+
+const splats = new SplatMesh({ url: file });
+const sh = q.get('sh');
+if (sh !== null) { splats.maxSh = Math.max(0, Math.min(3, parseInt(sh, 10))); }
+scene.add(splats);
+say(`Loading ${file}…`);
+splats.initialized.then(() => {
+  if (sh !== null) splats.updateGenerator();
+  say(`${file}: ${splats.numSplats ? splats.numSplats.toLocaleString() + ' splats; ' : ''}drag to look round, pinch to move.`);
+  window.splatsLoaded = true;
+  setTimeout(() => { msg.style.display = 'none'; }, 5000);
 }).catch((e) => say('Could not load ' + file + ': ' + e.message));
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
 </script>
 </body>
 </html>
