@@ -69,6 +69,12 @@ confident pixels around it). In these dark, low-contrast faces the labels came
 out speckled, every speckle was a step and every step a tear: the rings and
 arcs broke into fragments. The measured depth's rounder outlines leave less
 wrong.
+Also tried and dropped: GrabCut (OpenCV) round each near object, with a band
+of 12 or 24 px either side of the depth's outline left to colour and the
+pairwise term to keep the shapes whole. On MASS 84 it dropped face 1's rails
+from the near objects and made the floor slats' outlines wobble. The slats'
+outlines were off for another reason, a thin ridge in the depth along their
+edges (see removed_region), and with that fixed they follow the picture.
 """
 import argparse
 import os
@@ -232,7 +238,13 @@ def removed_region(q, t, band, reach, belong=0.5):
     the pod's frame. So it is a choice per node: reach 0 is the nearest step,
     as MAWW 101's floor is built (--nearest-faces 2), while its other faces,
     the spire and the machinery among them, are cleaner with reach."""
-    near, far = jumps(q, t)
+    # Steps are found on the depth with a 5 px median: the sharpened depth has
+    # a ridge a pixel or two wide along the edge of MASS 84's floor slats,
+    # about 0.8 nearer than the slat, and against it a strip of every slat read
+    # as the far side of a step. The near objects broke into half-disc blobs
+    # and the holes cut round them fell on the wood. The median takes thin
+    # ridges away and leaves steps where they are.
+    near, far = jumps(cv2.medianBlur(q.astype(np.float32), 5), t)
     if not far.any():
         none = np.zeros(q.shape, bool)
         return none, none, q.copy()

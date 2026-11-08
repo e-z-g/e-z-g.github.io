@@ -996,6 +996,23 @@ dark paint. Two changes:
   look at the sea far below. That paints 53.4% of face 2 instead of 59.0%, and
   a hole on a slat now shows that slat's wood, at the backdrop's depth.
 
+The holes were on the wood for a reason other than the outlines. The
+sharpened depth's slat outlines follow the picture, but it has a ridge a
+pixel or two wide along each slat's edge, about 0.8 (in r_far / r) nearer than
+the slat. `build_layers.py` finds steps of over 0.8 between pixels 2 apart, so
+a strip of every slat read as the far side of a step. The near objects broke
+into half-disc blobs, and the holes cut round them fell on the wood. The steps
+are now found on the depth after a 5 px median, which takes thin ridges away
+and leaves steps where they are; the depth itself is unchanged. On the floor
+the holes now lie in the gaps between the slats (10.2% of the face, against
+10.9%), and the slats are whole. The other faces lose a few stray fragments.
+This applies to every node built from now on; ENSI 16, LEIS 77 and MAWW 101
+have not been rebuilt with it.
+
+Snapping the outlines to the picture with GrabCut was tried first and dropped:
+it dropped face 1's rails from the near objects and made the slats' outlines
+wobble.
+
 ## Depth for the site's Amateria node (MAWW 101)
 
 The site's Amateria location is MAWW node 101, node 1 with the console closed
