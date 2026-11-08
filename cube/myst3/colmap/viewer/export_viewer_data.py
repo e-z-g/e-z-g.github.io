@@ -5,7 +5,7 @@ Pack a dense reconstruction of a Myst III room for viewer/index.html.
     python export_viewer_data.py FUSED.ply FACE1_POSES.txt OUT_DIR [--mesh MESH.ply]
                                  [--names NODES.json] [--title TEXT]
                                  [--faces DIR --face-pattern 'f{f}/ENSI-{n:04d}.jpg']
-                                 [--fill FILL.ply --fill-max 600000] [--rooms MACA,MAIS]
+                                 [--fill FILL.ply [--fill-max N]] [--rooms MACA,MAIS]
 
 FACE1_POSES.txt is the face-1 lines of the sparse model's images.txt (one line per
 node: id, qw qx qy qz, tx ty tz, camera, f1/ROOM-NNNN.jpg). The world is the model's
@@ -28,7 +28,8 @@ Writes to OUT_DIR:
               node (what has no parallax, sky and far scenery, is exactly that),
               and lays each bottom face flat at the node's floor height
   fill.bin    (with --fill) depth_fill.py's points, thinned to one per cell of a grid
-              sized so that at most --fill-max remain, in points.bin's layout
+              sized so that at most --fill-max remain (all of them by default), in
+              points.bin's layout
 --rooms (with --names) keeps only those rooms: their nodes, and the points whose
 nearest node is one of them (the mesh is left out).
 Floor height: how far the dense points straight under a node (within a tenth of
@@ -108,7 +109,7 @@ def main():
     ap.add_argument('--mesh')
     ap.add_argument('--names'); ap.add_argument('--title', default='')
     ap.add_argument('--faces', help='folder holding the original faces')
-    ap.add_argument('--fill'); ap.add_argument('--fill-max', type=int, default=600000)
+    ap.add_argument('--fill'); ap.add_argument('--fill-max', type=int, default=0, help='thin the fill to this many points (0: keep all)')
     ap.add_argument('--rooms', help='only these rooms (needs --names)')
     ap.add_argument('--face-pattern', default='f{f}/{room}-{n:04d}.jpg',
                     help='path of a face under --faces; {f} face 1-6, {n} node, {room} the poses file\'s prefix')
@@ -208,7 +209,8 @@ def main():
         fx = to_view(fx)
         k = in_rooms(fx); fx, fc = fx[k], fc[k]
         cell = step / 200
-        while True:                              # coarsen the grid until few enough cells are filled
+        first = np.arange(len(fx))
+        while a.fill_max:                        # coarsen the grid until few enough cells are filled
             _, first = np.unique(np.floor(fx / cell).astype(np.int64), axis=0, return_index=True)
             if len(first) <= a.fill_max:
                 break
@@ -217,7 +219,7 @@ def main():
         with open(os.path.join(a.out, 'fill.bin'), 'wb') as fh:
             fh.write(fx.astype('<f4').tobytes()); fh.write(np.ascontiguousarray(fc, np.uint8).tobytes())
         scene['fill'] = int(len(fx))
-        print(f'fill: {len(fx)} points kept, one per {cell / step:.4f}-spacing cell')
+        print(f'fill: {len(fx)} points kept' + (f', one per {cell / step:.4f}-spacing cell' if a.fill_max else ''))
     json.dump(scene, open(os.path.join(a.out, 'scene.json'), 'w'), indent=1)
     print(f'{len(xyz)} points, {len(nodes)} nodes, nearest-node distance median {step:.3f}, '
           f'longest node pair {steps[-1]:.3f}')
