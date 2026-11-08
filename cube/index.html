@@ -1055,6 +1055,7 @@
               uniform int uIsForeground;
               uniform float uTearThreshold;
               uniform float uColorGutter;
+              uniform float uDepthK;
               varying vec2 vUv;
               ${atlasLogic}
               ${depthAtGlsl}
@@ -1077,7 +1078,14 @@
                     // a single channel a hole was depth zero, which also sank
                     // the foreground's own surface into a pit there, and its
                     // walls stretched across everything seen past them.
-                    if (maskAt(vUv, uFace) < 0.03) discard;
+                    //
+                    // Only with depth on: at zero nothing moves, so nothing
+                    // behind can show and the picture is drawn whole. Holes
+                    // are placed from the depth's outlines, which can miss
+                    // the picture's by several pixels (MASS 84's floor
+                    // slats), and at depth zero those holes took away wood
+                    // that the original faces show.
+                    if (uDepthK > 0.0 && maskAt(vUv, uFace) < 0.03) discard;
 
 
                     if (uTearThreshold > 0.0) {
