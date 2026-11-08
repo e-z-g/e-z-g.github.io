@@ -126,6 +126,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/video_frames.py` | A movie's frames as extra views of a laid-out room or age: frames, brightened copies, sequential and key-frame x face pairs. Needs opencv-python and ffmpeg. |
 | `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
 | `colmap/sharpen_depth.py` | A site node's measured depth redrawn at 1280 px from the 4K faces: Depth Anything V2 Large at an input of 1036 px, fitted to the measured depth away from its outlines, seams closed; outlines that follow the picture, for Amateria's *Layered* version. Needs torch, transformers, opencv-python. |
+| `colmap/node_consistency.py` | Which nodes of a model disagree with their neighbours: each node's depth-map points projected into its nearest nodes' depth maps, the share a neighbour sees past. Finds the misplaced nodes behind ghosts in a fused cloud. Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
 | `colmap/sky_masks.py` | Feature masks that leave out sky, sea and water (SegFormer, ADE20K), for movie frames: matches on the sky fix which way a picture looks but not where. Needs torch, transformers. |
@@ -643,6 +644,16 @@ frames and 191 flyover frames, sky taken out): 1,209 images, `patch_match_stereo
 586,055 from the nodes alone (`dense_joined`); a 12 MB Delaunay and a 148 MB
 Poisson mesh. Packed for `colmap/viewer/` as `amateria-movies`; not yet compared
 with `dense_joined` region by region.
+
+A ghost of a tower's top stood beside the tower in this cloud and in
+`dense_joined`, both on the 131-node model, but not in COLMAP's own 62-node
+model. Fused from the node faces alone (468 k points) it stayed, so it is not
+the movie frames. `node_consistency.py` projects each node's depth-map points
+into its five nearest nodes' depth maps and counts the points a neighbour sees
+past: a median 2.2% over the 131 nodes, but MACA 5 60%, MAIS 10 49% (few
+points), MAIS 11 36%, MACA 6 35%, MACA 1 33% and MALL 18 32%, misplaced or
+turned in the joined model. Fused without those six nodes' depth maps:
+1,141,506 points (`amateria-movies-clean`).
 
 ## Depth for the site's Amateria node (MAWW 101)
 
