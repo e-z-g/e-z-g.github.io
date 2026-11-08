@@ -358,10 +358,55 @@
         baseUrl: rawUrl + 'amateria/',
         type: 'side-numbered',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
-        hasDepth: false,
+        // MAWW node 101 (node 1 with its console closed), made by
+        // myst3/colmap/node_depth.py: Depth Anything per face, fitted to 133
+        // points triangulated on the platform it shares with MAWW 2, held
+        // together at the cube's seams, with the sky at infinity. Encoded so
+        // the slider at its top is true proportion (myst3/README.md).
+        hasDepth: true,
+        depthSuffix: '_measured-depth.png',
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' },
-          { label: '4K',       suffix: '_seamless.webp', ai: true }
+          { label: '4K',       suffix: '_seamless.webp', ai: true },
+          // The same node as two layers, so a near object no longer stretches
+          // across what it hid when the eye moves. The depth is redrawn at
+          // 1280px from the 4K faces (myst3/colmap/sharpen_depth.py, fitted
+          // to the measured depth), so its outlines follow the picture.
+          // Foreground: the 4K faces at 1280px and that depth, with a 6px
+          // hole (green 0) on the far side of every step and the near depth
+          // carried under it, so the mesh's ramp at a step is cut by the
+          // picture's pixels, as in Voltaic. Backdrop: the near side of
+          // every step taken out within 320px and painted in by LaMa, at the
+          // depth of the step's far side, on the foreground's scale
+          // (backdropFullDepth). Built by myst3/layers/build_layers.py,
+          // stitched 3x2 at 1296px by stitch_layers.js.
+          { label: 'Layered', backdropFullDepth: true, layers: {
+              fgColor: 'amateria-layered-fg-color.webp', fgDepth: 'amateria-layered-fg-depth.png',
+              bgColor: 'amateria-layered-bg-color.webp', bgDepth: 'amateria-layered-bg-depth.png' } }
+        ]
+      },
+      {
+        // MASS node 84, a node the 131-node model places: its depth is the
+        // dense model's own (COLMAP's per-face depth maps and sparse points,
+        // run_dense.ps1 on the joined model), with Depth Anything filling
+        // what no other node saw, made by myst3/colmap/node_depth.py --dense
+        // --sparse (myst3/README.md).
+        name: 'Amateria (MASS 84)',
+        baseUrl: rawUrl + 'amateria/',
+        type: 'faces',
+        faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
+        audio: rawUrl + 'amateria/audio_amateria.mp3',
+        hasDepth: true,
+        depthSuffix: '_measured-depth.png',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpg' },
+          // Two layers as for MAWW 101: depth redrawn at 1280px
+          // (sharpen_depth.py, fitted to the model-measured depth), a hole
+          // on the far side of every step, the backdrop painted by LaMa
+          // (myst3/layers/build_layers.py, stitch_layers.js at 1296px).
+          { label: 'Layered', backdropFullDepth: true, layers: {
+              fgColor: 'mass84-layered-fg-color.webp', fgDepth: 'mass84-layered-fg-depth.png',
+              bgColor: 'mass84-layered-bg-color.webp', bgDepth: 'mass84-layered-bg-depth.png' } }
         ]
       },
       {
@@ -395,17 +440,45 @@
         ]
       },
       {
+        // ENSI node 16, a node the 27-node Voltaic model places, beside the
+        // stone tower: depth from that model's dense run (COLMAP's per-face
+        // depth maps and sparse points) with Depth Anything filling the rest,
+        // by myst3/colmap/node_depth.py --dense --sparse; Layered built as
+        // Amateria's (sharpen_depth.py, myst3/layers/build_layers.py).
+        name: 'Voltaic (ENSI 16)',
+        baseUrl: rawUrl + 'voltaic/',
+        type: 'faces',
+        faces: ['ENSI-0016-1', 'ENSI-0016-2', 'ENSI-0016-3', 'ENSI-0016-4', 'ENSI-0016-5', 'ENSI-0016-6'],
+        audio: rawUrl + 'amateria/audio_amateria.mp3',
+        hasDepth: true,
+        depthSuffix: '_measured-depth.png',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpg' },
+          { label: 'Layered', backdropFullDepth: true, layers: {
+              fgColor: 'ensi16-layered-fg-color.webp', fgDepth: 'ensi16-layered-fg-depth.png',
+              bgColor: 'ensi16-layered-bg-color.webp', bgDepth: 'ensi16-layered-bg-depth.png' } }
+        ]
+      },
+      {
         name: "J'nanin",
         baseUrl: rawUrl + 'jnanin/',
         type: 'classic-leis',
         // audio_jnanin.mp3 has been sitting in the folder unreferenced; J'nanin
         // used to fall silent because this was null.
         audio: rawUrl + 'jnanin/audio_jnanin.mp3',
-        hasDepth: false,
+        // LEIS node 77, placed by a sky-masked model of the room's nodes 23-33,
+        // 76 and 77: depth from its dense matching (node_stereo.py, node 77
+        // and its eight nearest) fitted by myst3/colmap/node_depth.py. The fit
+        // is loose on faces 1, 3 and 5 (myst3/README.md).
+        hasDepth: true,
+        depthSuffix: '_measured-depth.png',
         versions: [
           { label: 'Original',    suffix: '-orig.jpg' },
           { label: '2K (HD)',     suffix: '-hdmod.webp', ai: true },
-          { label: '6K',          suffix: '-seamless.webp', ai: true }
+          { label: '6K',          suffix: '-seamless.webp', ai: true },
+          { label: 'Layered', backdropFullDepth: true, layers: {
+              fgColor: 'leis77-layered-fg-color.webp', fgDepth: 'leis77-layered-fg-depth.png',
+              bgColor: 'leis77-layered-bg-color.webp', bgDepth: 'leis77-layered-bg-depth.png' } }
         ]
       },
       {
@@ -807,6 +880,10 @@
     const ensureBgGeometry = () => {
       if (!bgGeometry) { bgGeometry = buildSphereCube(CUBE_SEGMENTS, 56); bgCubeMesh.geometry = bgGeometry; }
     };
+    // A backdrop on the foreground's depth scale sits 1% outside it, not at
+    // 56: far enough for the depth test to keep it behind where the two
+    // layers agree, near enough that its parallax is the foreground's.
+    const bgScaleFor = (fullDepth) => fullDepth ? 50.5 / 56 : 1;
     
     const dummyDepthData = new Uint8Array([0, 0, 0, 255]); 
     const dummyDepthTex = new THREE.DataTexture(dummyDepthData, 1, 1, THREE.RGBAFormat);
@@ -858,16 +935,14 @@
     // --- UNIFIED MATERIAL ENGINE ---
     // Atlas sampling GLSL lives in atlas-layout.js, shared with the stitcher.
 
-    // seamFill=true adds a tBgColor sampler so torn/discarded fg pixels fall back
-    // to the bg colour instead of showing black void.
-    const createMaterials = (colorMode, depthMode, seamFill = false, layoutId = '5x3') => {
+    const createMaterials = (colorMode, depthMode, layoutId = '5x3') => {
         const usesAtlas = colorMode === 'atlas' || depthMode === 'atlas';
         const atlasLogic = usesAtlas ? sampleAtlasGlsl(layoutId) : '';
         const mats = [];
         for (let i = 0; i < 6; i++) {
           // Each atlas carries its own gutter fraction (see setAtlasGutters):
-          // colour, depth and the seam-fill backdrop can each have been
-          // stitched at a different face size.
+          // colour and depth can each have been stitched at a different face
+          // size.
           const colorSample = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv, uColorGutter)` : `texture2D(tColor, vUv)`;
           // One depth reader for both stages, so the vertex filter, the fg mask
           // and the tear gradient can never drift apart.
@@ -895,8 +970,6 @@
                 return clamp((depthAt(uv, face) - uDepthMin) * uDepthInvRange, 0.0, 1.0);
               }`;
 
-          const extraUniforms = seamFill ? { tBgColor: { value: null } } : {};
-
           mats.push(new THREE.ShaderMaterial({
             uniforms: {
               tColor: { value: null },
@@ -913,8 +986,6 @@
               // depth atlas buildDepthAtlas() stitches, which needs none.
               uColorGutter: { value: 0.0 },
               uDepthGutter: { value: 0.0 },
-              uBgColorGutter: { value: 0.0 },
-              ...extraUniforms
             },
             transparent: true,
             vertexShader: `
@@ -983,8 +1054,6 @@
               uniform int uIsForeground;
               uniform float uTearThreshold;
               uniform float uColorGutter;
-              uniform float uBgColorGutter;
-              ${seamFill ? 'uniform sampler2D tBgColor;' : ''}
               varying vec2 vUv;
               ${atlasLogic}
               ${depthAtGlsl}
@@ -997,7 +1066,7 @@
                     // backdrop layer shows at its own depth and moves with
                     // its own parallax. It used to be painted over with the
                     // backdrop's colour at this same spot on the foreground
-                    // (the seam fill below), which glued whatever was seen
+                    // (the old seam fill), which glued whatever was seen
                     // through a hole to the hole — the floor under Voltaic's
                     // wire mesh moved with the mesh, the one thing a second
                     // layer is for.
@@ -1029,18 +1098,14 @@
                         alpha *= 1.0 - smoothstep(thresh * 0.5, thresh, texGrad);
                     }
 
-                    // Seam fill, for tears only: a crack ripped at a steep
-                    // depth edge takes the backdrop's colour at the same UV,
-                    // so it reads as continuous picture rather than a gap.
-                    ${seamFill ? `
-                    if (alpha < 0.05) {
-                      vec4 bgCol = sampleAtlas(tBgColor, uFace, vUv, uBgColorGutter);
-                      gl_FragColor = vec4(bgCol.rgb, 1.0);
-                      #include <tonemapping_fragment>
-                      #include <colorspace_fragment>
-                      return;
-                    }
-                    ` : `if (alpha < 0.05) discard;`}
+                    // A tear is cut through like a hole, so the backdrop shows
+                    // there at its own depth: what the near surface hid, moving
+                    // with its own parallax. It used to take the backdrop's
+                    // colour at the same UV on the foreground's surface (the
+                    // "seam fill"), so the stretched wall across a depth step
+                    // stayed in place, painted with whatever was behind it,
+                    // and the near object still smeared across what it hid.
+                    if (alpha < 0.05) discard;
                 } else {
                   if (alpha < 0.05) discard;
                 }
@@ -1062,19 +1127,19 @@
     // atlas layout is only known once an image has loaded. Build them on first
     // use for a given layout rather than compiling every combination up front.
     const MAT_KINDS = {
-        standard:      ['standard', 'standard', false],
-        atlasStandard: ['atlas',    'standard', false],
-        atlasFg:       ['atlas',    'atlas',    true],   // seamFill enabled
-        atlasBg:       ['atlas',    'atlas',    false],
+        standard:      ['standard', 'standard'],
+        atlasStandard: ['atlas',    'standard'],
+        atlasFg:       ['atlas',    'atlas'],
+        atlasBg:       ['atlas',    'atlas'],
         // Single-layer atlas with its own depth atlas (built-in `atlas` ages).
         // Same shaders as atlasBg, but not flagged isBg, so it displaces at the
         // full slider rate instead of the half rate the backdrop sphere uses.
-        atlasSolo:     ['atlas',    'atlas',    false],
+        atlasSolo:     ['atlas',    'atlas'],
         // Six separate colour faces — which keep their own mipmaps and
         // anisotropy — over a depth atlas stitched at load time. The atlas is
         // what lets the vertex stage read a neighbouring face's depth, which is
         // what welds the seams.
-        standardDepth: ['standard', 'atlas',    false],
+        standardDepth: ['standard', 'atlas'],
     };
     const matSetCache = new Map();
 
@@ -1082,8 +1147,8 @@
         const key = kind === 'standard' ? kind : `${kind}|${layoutId}`;
         let set = matSetCache.get(key);
         if (!set) {
-            const [colorMode, depthMode, seamFill] = MAT_KINDS[kind];
-            set = createMaterials(colorMode, depthMode, seamFill, layoutId);
+            const [colorMode, depthMode] = MAT_KINDS[kind];
+            set = createMaterials(colorMode, depthMode, layoutId);
             set.forEach(m => { m.userData.isBg = kind === 'atlasBg'; });
             matSetCache.set(key, set);
         }
@@ -1113,11 +1178,16 @@
     // sizes the camera's drift against it.
     let nearRadius = SPHERE_RADIUS;
 
-    // The bg sphere displaces at half the fg rate so it stays behind the fg.
+    // The bg sphere displaces at half the fg rate so it stays behind the fg —
+    // unless the version says its backdrop's depth is measured on the
+    // foreground's own scale (backdropFullDepth), when it displaces at the
+    // full rate from just outside the foreground (bgScaleFor()), so what a
+    // tear reveals lies where the hidden surface is, not twice as far.
+    let bgDepthRate = 0.5;
     function setDisplacement(val) {
         const fgK = depthRatioFor(val);
         eachMaterial(m => {
-            m.uniforms.uDepthK.value = m.userData.isBg ? depthRatioFor(val * 0.5) : fgK;
+            m.uniforms.uDepthK.value = m.userData.isBg ? depthRatioFor(val * bgDepthRate) : fgK;
         });
         nearRadius = SPHERE_RADIUS / (1 + fgK);
     }
@@ -1138,14 +1208,13 @@
     // first image's width and apply it to every sampler, so a depth atlas
     // stitched at a different face size than its colour — or any atlas the GPU
     // limit had shrunk — was read a few texels off along every cell edge.
-    function setAtlasGutters(mats, layoutId, { color, depth, bgColor } = {}) {
+    function setAtlasGutters(mats, layoutId, { color, depth } = {}) {
         const l = LAYOUTS[layoutId];
         const frac = (t) => isPlaceholder(t) ? 0 : gutterFracFor(l, sourceWidthOf(t));
-        const c = frac(color), d = frac(depth), b = frac(bgColor);
+        const c = frac(color), d = frac(depth);
         mats.forEach(m => {
             m.uniforms.uColorGutter.value = c;
             m.uniforms.uDepthGutter.value = d;
-            m.uniforms.uBgColorGutter.value = b;
         });
     }
 
@@ -1961,7 +2030,13 @@
       const type = fetchDepth ? loc.type : ((typeof version === 'object' && version.type) ? version.type : loc.type);
       
       let p;
-      if (type === 'side-numbered') { p = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s }; }
+      // 'faces': the location names its six files itself, without suffix, in
+      // the order front, bottom, back, right, left, top (node_depth.py's).
+      if (type === 'faces') {
+        const [front, bottom, back, right, left, top] = loc.faces.map(n => loc.baseUrl + n + s);
+        p = { front, bottom, back, right, left, top };
+      }
+      else if (type === 'side-numbered') { p = { front: loc.baseUrl+'MAWWnodes-8'+s, bottom: loc.baseUrl+'MAWWnodes-9'+s, back: loc.baseUrl+'MAWWnodes-10'+s, right: loc.baseUrl+'MAWWnodes-11'+s, left: loc.baseUrl+'MAWWnodes-12'+s, top: loc.baseUrl+'MAWWnodes-13'+s }; }
       else if (type === 'voltaic') { 
         p = { left: loc.baseUrl+'ENCHnodes-281'+s, front: loc.baseUrl+'ENCHnodes-277'+s, right: loc.baseUrl+'ENCHnodes-280'+s, back: loc.baseUrl+'ENCHnodes-279'+s, top: loc.baseUrl+'ENCHnodes-282'+s, bottom: loc.baseUrl+'ENCHnodes-278'+s }; 
       } 
@@ -2201,8 +2276,11 @@
             fgCubeMesh.material = getMatSet('atlasFg', layoutId);
             bgCubeMesh.material = getMatSet('atlasBg', layoutId);
             if (isDualLayer) ensureBgGeometry();
+            const bgFull = !!targetVersion.backdropFullDepth;
+            bgDepthRate = bgFull ? 1.0 : 0.5;
+            bgCubeMesh.scale.setScalar(bgScaleFor(bgFull));
             bgCubeMesh.visible = isDualLayer;
-            setAtlasGutters(fgCubeMesh.material, layoutId, { color: fgC, depth: fgD, bgColor: bgC });
+            setAtlasGutters(fgCubeMesh.material, layoutId, { color: fgC, depth: fgD });
             setAtlasGutters(bgCubeMesh.material, layoutId, { color: bgC, depth: bgD });
 
             // Both layers share one range, so the backdrop keeps sitting behind
@@ -2216,8 +2294,6 @@
               mat.uniforms.tDepth.value = fgD;
               mat.uniforms.uIsForeground.value = isDualLayer ? 1 : 0;
               mat.uniforms.uTearThreshold.value = currentTearVal;
-              // Wire bg colour into the seam-fill sampler
-              if (isDualLayer && mat.uniforms.tBgColor) mat.uniforms.tBgColor.value = bgC;
             });
 
             if (isDualLayer) {

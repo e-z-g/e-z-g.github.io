@@ -274,7 +274,7 @@ texels per quad is already more than the geometry can express.
 
 ## Material kinds
 
-`createMaterials(colorMode, depthMode, seamFill, layoutId)` builds one material
+`createMaterials(colorMode, depthMode, layoutId)` builds one material
 per face; `MAT_KINDS` names the combinations. A material bakes **one** atlas
 layout for both its samplers, which is the constraint behind the one gap below.
 
@@ -283,14 +283,14 @@ layout for both its samplers, which is the constraint behind the one gap below.
 | `standard` | six images | none | depthless ages (Amateria, J'nanin) |
 | `standardDepth` | six images | 3×2 atlas | ages with six depth faces (Voltaic) |
 | `atlasSolo` | atlas | same atlas | pre-stitched ages (Edanna) |
-| `atlasFg` | atlas | same atlas | LDI foreground (custom uploads, Voltaic *Layered*); `seamFill` on, for tears |
-| `atlasBg` | atlas | same atlas | custom LDI backdrop; displaces at a lower rate |
+| `atlasFg` | atlas | same atlas | LDI foreground (custom uploads, Voltaic and Amateria *Layered*) |
+| `atlasBg` | atlas | same atlas | LDI backdrop; displaces at half the slider unless the version has `backdropFullDepth` |
 | `atlasStandard` | 5×3 atlas | six images | video panoramas |
 
 Every atlas bound to one material must therefore be in the same layout, and
 `agreedLayout()` refuses a mismatch by name rather than rendering it scrambled.
 Within a layout, each atlas carries **its own gutter fraction**
-(`uColorGutter`, `uDepthGutter`, `uBgColorGutter`, passed into
+(`uColorGutter`, `uDepthGutter`, passed into
 `sampleAtlas()` per call): the 3×2 gutter is 8px at the face size the atlas was
 stitched at, so a colour atlas stitched at 1024 and a depth atlas at 512 inset
 by different fractions. `gutterFracFor()` takes the width *as stitched* —
@@ -312,8 +312,19 @@ equal to red, so for it this is the old rule, "depth near zero is nothing".
 - Keeping holes out of red means marking one need not move the mesh. With one
   channel a hole was depth 0, which also sank the foreground into a pit there,
   and the pit's walls stretched across the view.
-- A **tear** (`uTearThreshold`, at steep depth gradients) still takes the
-  backdrop's colour at the same UV, so a crack reads as continuous picture.
+- A **tear** (`uTearThreshold`, at steep depth gradients) is discarded in the
+  same way, so the backdrop shows there at its own depth. It used to take the
+  backdrop's colour at the same UV (`seamFill`, removed): the foreground's
+  stretched wall across the step stayed where it was, painted with what was
+  behind, and a near object still smeared across what it hid. In Voltaic's
+  *Layered* version that changed only the walkway's edge over the floor (about
+  1% of a view), where a sawtooth of backdrop colour became a dark band: its
+  backdrop there is the original picture of the edge.
+- A version with `backdropFullDepth: true` measured its backdrop's depth on
+  the foreground's scale. Its backdrop then displaces at the full slider rate
+  (`bgDepthRate`) from 1% outside the foreground (`bgScaleFor()`), not at half
+  the rate from radius 56, so what a tear reveals lies where the hidden surface
+  is; the depth test keeps it behind wherever the two layers agree.
 
 Voltaic's *Layered* version is built this way, from the same capture: the
 estimated depth could not see through the walkway's slat gaps or the floor
@@ -326,9 +337,100 @@ spoke edges. Its backdrop is that floor, reconstructed under the metal by a
 pyramid (push-pull) fill ~64 px around every hole — about as far as the floor
 slides at full head-tracking range — at the open floor's depth (~20 by the
 walkway, 30 straight down), blending back to the estimate over 64 px more so
-the backdrop has no step of its own. Built as face images, stitched 3×2 with
+the backdrop has no step of its own (`myst3/layers/grate_layers.py`). Built as face images, stitched 3×2 with
 `stitcher.html` at 656 px (640 of picture), exactly — the green mask survives
 the stitcher bit for bit.
+
+Amateria's *Layered* version (MAWW node 101) is the general case: every
+step in the depth is cut. Its depth is redrawn at 1280 px from the 4K faces
+(`myst3/colmap/sharpen_depth.py`: Depth Anything V2 Large at an input of 1036
+px, fitted to the measured depth), because the measured map's outlines, made
+at 518 px, were rounder than the picture: the spire roof's eaves reached ~10
+px past them, sat at sky depth and were left behind in blocks. Its foreground
+is those faces with a 6 px hole (green 0) on the far side of every step and
+the near depth carried 3 px under it, Voltaic's way: the mesh has a vertex
+every 2.5 px of a 640 px face and smooths depth over as much, so a step is a
+ramp of stretched triangles, and the tear test, reaching about a pixel from
+the step, left the rest of the ramp as jagged teeth. Its backdrop is the near side of every step
+(two pixels 2 apart whose inverse distance differs by more than 0.8 in units
+of the farthest kept distance; the tear slider's middle tears at 1 to 2)
+within 160 px of it (at 640 px a face, 320 at 1280), painted by LaMa with the whole near object hidden from
+it (shown part of one, LaMa carries it on into the gap: with a 64 px band a
+ghost of the machinery's box came back beside it), each face padded
+with 128 px of its neighbours and faces done earlier lending their finished
+backdrop, at the depth of the step's far side, with `backdropFullDepth`
+(`myst3/layers/build_layers.py`, stitched at 1296 px by `stitch_layers.js`).
+What it leaves: small bites out of the glass balls on the front face, where
+the depth steps between a ball and the rings around it. With steps inside a near object (Voltaic ENSI 16's pod: a ball in
+front of its frame in front of the sky) the far side of the nearest step is
+the frame, which then stayed out of the region, and LaMa painted a dark
+pod-shaped blob at the frame's depth that streaked as the eye moved;
+`--reach 48` lets a middle layer go with the near object when it belongs to
+it: when its gap to the near side is under half (`--belong 0.5`) its gap to
+the farthest far side within 48 px (96 at 1280), as the frame does (a little
+behind the ball, far in front of the sky). Taking every middle layer took the
+rocks round ENSI 16's walkway too, painted as sea at sea depth, which showed
+as a grey outline round the walkway; the rocks lie far behind the walkway
+next to how far the sea lies behind them, so they stay. Two layers cannot hold three, though: under
+MAWW 101's floor it took the beams below the slats for part of them and the
+gaps showed flat grey. The choice is per face: ENSI 16 and MAWW 101 are
+built with `--reach 48`, MAWW 101 with `--nearest-faces 2` so its floor keeps
+the nearest step (cleaner spire and machinery on the other faces); MASS 84
+keeps the nearest step throughout (`--reach 0`; reach made no visible
+difference).
+
+For nodes the 3D model places (MASS 84, ENSI 16) the backdrop is no longer
+only LaMa's invention: `myst3/colmap/model_backdrop.py` projects the dense
+depth maps of the twelve nearest nodes' faces into the site node, and each
+pixel keeps the nearest point lying behind the foreground (behind the nearer
+of the site depth and the model's own depth for the node, seen by its node
+within 30° of our line of sight, and not of the foreground's colour within
+four times its distance). Inside the near objects, wherever those points are
+dense, `build_layers.py --model-bg` puts that colour and depth in the backdrop
+and LaMa paints only the rest; scattered points it leaves to LaMa, since given
+as known they were clues LaMa joined up into a ghost of the object. The
+neighbours supply 2–9% of MASS 84's side faces and 4–16% of ENSI 16's: sea
+behind the stone tower, cliff and sea behind the walkways.
+
+Speckle along thin things (rails, walkway edges) came from cuts that broke
+into dotted lines: where a step was a little softer the 2-pixel jump test
+missed it, the hole stopped, and pixels of the near object's edge stayed
+behind between the dots. The holes are now found with hysteresis (a step of
+half the size counts where it joins a full one, one-pixel gaps closed), and
+hole specks and foreground islands under 20 px (80 at 1280) are removed.
+LaMa repaints 6 px past every edge (`--hide-fringe`, 12 at 1280) so it never
+copies the object's colour fringe, but the backdrop keeps only 2 px of that
+painting (`--fringe`), and the real far side beyond: a 12 px strip of painted
+water was darker than the water beside it and showed as a jagged line along
+the walkway. Gaps narrower than the cut between parts of a near object (the
+slit between ENSI 16's spire blades) are painted whole; left at the far
+side's depth they stayed behind as pale ghosts. The cut now follows each near object's
+whole outline rather than the pixels where the depth jumps, which left it
+dashed wherever the step was just under the threshold; and the object's depth
+carries on 6 px past its outline under a 12 px hole (12 and 24 at 1280). On
+a phone the mesh has a vertex every 2.5 px of a 640 px face and each vertex
+averages the depth a quad round it; with 3 px, the vertices just inside an
+outline took in some of the far side and the rim bent back in a
+vertex-spaced pattern as the eye moved, a wiggle along every thin thing. A
+near object's own outermost pixel (two at 1280) is cut too where it borders
+a hole (`--rim`): those pixels blend the object with what was behind it and
+showed as a pale torn fringe over a different backdrop. In `sharpen_depth.py`
+the glow of a lamp takes the depth of the lamp: Depth Anything read MASS 84's
+lantern glass as sky, and it stayed behind while its cap moved. Within each of
+SegFormer's lamps and lights under 4% of the face, pixels as bright as its
+glow that read under 0.6 of its nearer part's r_far / r take that part's
+value. Each limit came from a failure: J'nanin's hut, lit windows and all, was
+pulled forward in flat blobs when every lit thing was filled from the ring
+round it; and SegFormer's streetlight is the whole post, so without the
+brightness test the sky between the post and the rails came forward and
+broke MASS 84's overhead rails into dashes. MASS 84's
+backdrop now comes from the dense run with the movie frames and from the 20
+nearest nodes seen within 45° (11-18% of its side faces, against 2-11%): the
+pier and its rails carry on behind the building where LaMa had painted sky. Moving the measured
+depth's edges onto the picture's by colour was tried first (pixels within
+14–18 px of a jump relabelled near or far) and dropped: in these dark faces
+the labels came out speckled, each speckle tore, and the rings and arcs broke
+apart.
 
 **Known gap:** the video path's colour is a 5×3 atlas, so it cannot borrow the
 3×2 depth stitch and keeps its six per-face depth textures — which means the

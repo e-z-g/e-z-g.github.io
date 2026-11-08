@@ -1,0 +1,34 @@
+{
+ "node": "Amateria MAWW 101 (node 1 with the console closed)",
+ "repo_folder": "amateria",
+ "names": [
+  "MAWWnodes-8",
+  "MAWWnodes-9",
+  "MAWWnodes-10",
+  "MAWWnodes-11",
+  "MAWWnodes-12",
+  "MAWWnodes-13"
+ ],
+ "work": "{out}/amateria_layers",
+ "site": "{out}/amateria_layers",
+ "measured_depth": "node_depth.py on node 5001 from the ride's frames and two neighbours; see myst3/README.md, 'Depth for the site's Amateria node (MAWW 101)', and colmap/Amateria/maww101_depth.json",
+ "steps": {
+  "sharpen": {
+   "colour-suffix": "_seamless.webp"
+  },
+  "layers": {
+   "nearest-faces": [
+    2
+   ]
+  }
+ },
+ "stitch": {
+  "cell": 1296,
+  "prefix": "amateria-layered"
+ },
+ "why": {
+  "sharpen.colour-suffix": "The site's 4K faces (_seamless.webp, an AI upscale) reduced to 1280 px, not the 640 px captures. Not yet rebuilt from the captures as J'nanin was; asked, not answered.",
+  "layers.nearest-faces": "Face 2 (the floor) keeps the nearest step: with the 48 px reach rule the beams under the slats went into the backdrop for part of their length and the gaps showed flat grey. The other faces keep the reach rule (cleaner spire and machinery)."
+ },
+ "shipped": "The atlases on the site were built before sharpen_depth.py's lamp rule; built from this file now, the depth differs in about 0.01% of pixels round lamps and the painted backdrop by a few levels where that moves LaMa. Not yet rebuilt. (faces_v4 on the PC is the shipped build.)"
+}

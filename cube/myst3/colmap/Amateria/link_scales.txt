@@ -1,0 +1,410 @@
+157 links kept of 177
+  MACA:4-MACA:5 reversed (170 deg from its hotspots)
+  MACA:10-MACA:14 reversed (170 deg from its hotspots)
+  MAIS:2-MAIS:5 dropped (66 deg from its hotspots)
+  MASS:9-MASS:14 dropped (77 deg from its hotspots)
+  MATO:6-MATO:7 reversed (136 deg from its hotspots)
+  MACA:1-MACA:2: 586 matches, 488 with parallax, 118 fit the direction, 114 in front of both
+  MACA:1-MAIS:1: 1018 matches, 287 with parallax, 98 fit the direction, 97 in front of both
+  MACA:2-MACA:28: 599 matches, 573 with parallax, 211 fit the direction, 209 in front of both
+  MACA:3-MACA:4: 523 matches, 523 with parallax, 157 fit the direction, 156 in front of both
+  MACA:3-MACA:31: 876 matches, 865 with parallax, 591 fit the direction, 589 in front of both
+  MACA:4-MACA:5: 612 matches, 610 with parallax, 83 fit the direction, 1 in front of both
+  MACA:4-MACA:7: 689 matches, 689 with parallax, 119 fit the direction, 111 in front of both
+  MACA:5-MACA:6: 416 matches, 416 with parallax, 173 fit the direction, 172 in front of both
+  MACA:6-MACA:7: 563 matches, 560 with parallax, 266 fit the direction, 266 in front of both
+  MACA:7-MACA:8: 882 matches, 882 with parallax, 192 fit the direction, 190 in front of both
+  MACA:7-MALL:1: 302 matches, 146 with parallax, 24 fit the direction, 24 in front of both
+  MACA:8-MACA:9: 1003 matches, 1003 with parallax, 210 fit the direction, 209 in front of both
+  MACA:8-MACA:35: 781 matches, 779 with parallax, 387 fit the direction, 386 in front of both
+  MACA:9-MACA:10: 662 matches, 661 with parallax, 133 fit the direction, 133 in front of both
+  MACA:9-MACA:35: 800 matches, 800 with parallax, 246 fit the direction, 245 in front of both
+  MACA:10-MACA:11: 374 matches, 373 with parallax, 138 fit the direction, 138 in front of both
+  MACA:10-MACA:14: 377 matches, 377 with parallax, 86 fit the direction, 3 in front of both
+  MACA:11-MACA:12: 455 matches, 449 with parallax, 98 fit the direction, 92 in front of both
+  MACA:12-MACA:13: 450 matches, 445 with parallax, 122 fit the direction, 117 in front of both
+  MACA:13-MACA:14: 606 matches, 603 with parallax, 211 fit the direction, 208 in front of both
+  MACA:14-MACA:15: 1043 matches, 1004 with parallax, 391 fit the direction, 389 in front of both
+  MACA:14-MACA:19: 203 matches, 199 with parallax, 18 fit the direction, 18 in front of both
+  MACA:14-MACA:38: 877 matches, 877 with parallax, 302 fit the direction, 301 in front of both
+  MACA:15-MACA:16: 904 matches, 863 with parallax, 360 fit the direction, 358 in front of both
+  MACA:15-MACA:38: 2051 matches, 2019 with parallax, 1263 fit the direction, 1263 in front of both
+  MACA:16-MACA:17: 690 matches, 690 with parallax, 411 fit the direction, 411 in front of both
+  MACA:17-MACA:18: 914 matches, 890 with parallax, 613 fit the direction, 612 in front of both
+  MACA:18-MACA:19: 711 matches, 695 with parallax, 444 fit the direction, 442 in front of both
+  MACA:19-MACA:21: 875 matches, 817 with parallax, 369 fit the direction, 367 in front of both
+  MACA:19-MACA:24: 397 matches, 374 with parallax, 18 fit the direction, 13 in front of both
+  MACA:21-MACA:22: 904 matches, 859 with parallax, 329 fit the direction, 327 in front of both
+  MACA:22-MACA:23: 877 matches, 785 with parallax, 359 fit the direction, 352 in front of both
+  MACA:23-MACA:24: 796 matches, 607 with parallax, 267 fit the direction, 265 in front of both
+  MACA:24-MACA:25: 1410 matches, 818 with parallax, 494 fit the direction, 490 in front of both
+  MACA:25-MACA:41: 2746 matches, 1018 with parallax, 764 fit the direction, 763 in front of both
+  MACA:26-MACA:36: 1846 matches, 455 with parallax, 199 fit the direction, 192 in front of both
+  MACA:28-MACA:29: 475 matches, 475 with parallax, 195 fit the direction, 194 in front of both
+  MACA:29-MACA:30: 532 matches, 532 with parallax, 269 fit the direction, 268 in front of both
+  MACA:30-MACA:31: 587 matches, 584 with parallax, 401 fit the direction, 400 in front of both
+  MACA:37-MACA:38: 173 matches, 161 with parallax, 22 fit the direction, 22 in front of both
+  MACA:37-MASS:82: 399 matches, 385 with parallax, 215 fit the direction, 214 in front of both
+  MACA:41-MASS:1: 2637 matches, 587 with parallax, 315 fit the direction, 314 in front of both
+  MAIS:1-MAIS:2: 1570 matches, 385 with parallax, 49 fit the direction, 46 in front of both
+  MAIS:2-MAIS:3: 1813 matches, 395 with parallax, 83 fit the direction, 74 in front of both
+  MAIS:3-MAIS:4: 3152 matches, 709 with parallax, 299 fit the direction, 281 in front of both
+  MAIS:4-MAIS:5: 1529 matches, 462 with parallax, 87 fit the direction, 73 in front of both
+  MAIS:5-MAIS:30: 1679 matches, 931 with parallax, 522 fit the direction, 518 in front of both
+  MAIS:5-MAIS:31: 1349 matches, 715 with parallax, 315 fit the direction, 313 in front of both
+  MAIS:6-MAIS:7: 2201 matches, 851 with parallax, 384 fit the direction, 370 in front of both
+  MAIS:6-MAIS:30: 937 matches, 463 with parallax, 59 fit the direction, 54 in front of both
+  MAIS:7-MAIS:8: 1605 matches, 824 with parallax, 336 fit the direction, 333 in front of both
+  MAIS:8-MAIS:9: 808 matches, 721 with parallax, 156 fit the direction, 155 in front of both
+  MAIS:9-MAIS:10: 876 matches, 764 with parallax, 211 fit the direction, 206 in front of both
+  MAIS:10-MAIS:11: 528 matches, 526 with parallax, 116 fit the direction, 116 in front of both
+  MAIS:11-MAIS:12: 544 matches, 517 with parallax, 151 fit the direction, 149 in front of both
+  MAIS:12-MAIS:13: 451 matches, 373 with parallax, 105 fit the direction, 105 in front of both
+  MAIS:13-MAIS:14: 961 matches, 630 with parallax, 264 fit the direction, 263 in front of both
+  MAIS:14-MAIS:15: 1433 matches, 517 with parallax, 229 fit the direction, 228 in front of both
+  MAIS:15-MAIS:16: 2254 matches, 855 with parallax, 535 fit the direction, 533 in front of both
+  MAIS:16-MAIS:17: 2537 matches, 909 with parallax, 481 fit the direction, 480 in front of both
+  MAIS:17-MAIS:18: 2159 matches, 934 with parallax, 531 fit the direction, 531 in front of both
+  MAIS:18-MAIS:19: 752 matches, 705 with parallax, 253 fit the direction, 252 in front of both
+  MAIS:18-MAIS:22: 2528 matches, 783 with parallax, 280 fit the direction, 280 in front of both
+  MAIS:22-MAIS:23: 3956 matches, 774 with parallax, 447 fit the direction, 443 in front of both
+  MAIS:23-MAIS:24: 4449 matches, 779 with parallax, 494 fit the direction, 492 in front of both
+  MAIS:24-MAIS:25: 4324 matches, 666 with parallax, 467 fit the direction, 462 in front of both
+  MAIS:25-MAIS:26: 4739 matches, 892 with parallax, 642 fit the direction, 635 in front of both
+  MAIS:26-MAIS:27: 4589 matches, 861 with parallax, 589 fit the direction, 583 in front of both
+  MAIS:27-MAIS:28: 4658 matches, 918 with parallax, 630 fit the direction, 630 in front of both
+  MAIS:28-MAIS:29: 4514 matches, 878 with parallax, 567 fit the direction, 566 in front of both
+  MAIS:29-MASS:13: 4586 matches, 1172 with parallax, 901 fit the direction, 898 in front of both
+  MAIS:30-MAIS:31: 1228 matches, 582 with parallax, 219 fit the direction, 214 in front of both
+  MAIS:31-MAIS:32: 2828 matches, 921 with parallax, 493 fit the direction, 364 in front of both
+  MAIS:32-MAIS:33: 4772 matches, 1294 with parallax, 963 fit the direction, 415 in front of both
+  MAIS:33-MATO:2: 4763 matches, 1155 with parallax, 673 fit the direction, 670 in front of both
+  MALL:1-MALL:2: 1164 matches, 504 with parallax, 173 fit the direction, 169 in front of both
+  MALL:2-MALL:3: 2237 matches, 525 with parallax, 122 fit the direction, 122 in front of both
+  MALL:3-MALL:4: 4391 matches, 467 with parallax, 169 fit the direction, 166 in front of both
+  MALL:4-MALL:5: 4795 matches, 344 with parallax, 38 fit the direction, 34 in front of both
+  MALL:5-MALL:6: 4840 matches, 346 with parallax, 72 fit the direction, 71 in front of both
+  MALL:6-MALL:7: 5385 matches, 443 with parallax, 186 fit the direction, 181 in front of both
+  MALL:7-MALL:8: 5572 matches, 470 with parallax, 175 fit the direction, 173 in front of both
+  MALL:8-MALL:9: 5688 matches, 615 with parallax, 295 fit the direction, 291 in front of both
+  MALL:9-MALL:10: 5426 matches, 465 with parallax, 225 fit the direction, 221 in front of both
+  MALL:10-MALL:11: 5449 matches, 541 with parallax, 290 fit the direction, 287 in front of both
+  MALL:11-MALL:12: 5022 matches, 387 with parallax, 155 fit the direction, 150 in front of both
+  MALL:12-MALL:13: 4817 matches, 408 with parallax, 181 fit the direction, 179 in front of both
+  MALL:13-MALL:14: 2952 matches, 305 with parallax, 35 fit the direction, 33 in front of both
+  MALL:14-MALL:15: 1504 matches, 481 with parallax, 172 fit the direction, 167 in front of both
+  MALL:15-MALL:16: 625 matches, 396 with parallax, 64 fit the direction, 64 in front of both
+  MALL:16-MALL:18: 1077 matches, 1070 with parallax, 331 fit the direction, 330 in front of both
+  MASS:1-MASS:2: 3542 matches, 639 with parallax, 362 fit the direction, 359 in front of both
+  MASS:1-MASS:5: 321 matches, 304 with parallax, 34 fit the direction, 32 in front of both
+  MASS:2-MASS:3: 2944 matches, 872 with parallax, 578 fit the direction, 576 in front of both
+  MASS:3-MASS:5: 583 matches, 513 with parallax, 202 fit the direction, 197 in front of both
+  MASS:5-MASS:6: 630 matches, 522 with parallax, 54 fit the direction, 51 in front of both
+  MASS:5-MASS:18: 537 matches, 462 with parallax, 22 fit the direction, 18 in front of both
+  MASS:5-MASS:21: 675 matches, 620 with parallax, 164 fit the direction, 157 in front of both
+  MASS:5-MASS:22: 576 matches, 481 with parallax, 64 fit the direction, 63 in front of both
+  MASS:5-MASS:32: 485 matches, 457 with parallax, 4 fit the direction, 1 in front of both
+  MASS:5-MASS:35: 670 matches, 571 with parallax, 90 fit the direction, 87 in front of both
+  MASS:5-MASS:36: 664 matches, 586 with parallax, 142 fit the direction, 138 in front of both
+  MASS:6-MASS:7: 1797 matches, 529 with parallax, 146 fit the direction, 146 in front of both
+  MASS:7-MASS:8: 3390 matches, 407 with parallax, 84 fit the direction, 82 in front of both
+  MASS:8-MASS:9: 3219 matches, 588 with parallax, 203 fit the direction, 196 in front of both
+  MASS:8-MASS:44: 3083 matches, 529 with parallax, 58 fit the direction, 54 in front of both
+  MASS:9-MASS:10: 2765 matches, 684 with parallax, 294 fit the direction, 290 in front of both
+  MASS:9-MASS:44: 2842 matches, 528 with parallax, 94 fit the direction, 89 in front of both
+  MASS:10-MASS:11: 1849 matches, 461 with parallax, 98 fit the direction, 98 in front of both
+  MASS:11-MASS:12: 1497 matches, 420 with parallax, 65 fit the direction, 64 in front of both
+  MASS:13-MASS:41: 4894 matches, 1223 with parallax, 938 fit the direction, 935 in front of both
+  MASS:14-MASS:15: 248 matches, 243 with parallax, 47 fit the direction, 47 in front of both
+  MASS:14-MASS:28: 326 matches, 313 with parallax, 69 fit the direction, 67 in front of both
+  MASS:14-MASS:29: 235 matches, 230 with parallax, 36 fit the direction, 32 in front of both
+  MASS:15-MASS:16: 1686 matches, 519 with parallax, 122 fit the direction, 120 in front of both
+  MASS:16-MASS:17: 1603 matches, 458 with parallax, 63 fit the direction, 59 in front of both
+  MASS:17-MASS:18: 2198 matches, 764 with parallax, 401 fit the direction, 397 in front of both
+  MASS:18-MASS:19: 2855 matches, 760 with parallax, 344 fit the direction, 343 in front of both
+  MASS:18-MASS:42: 2241 matches, 646 with parallax, 210 fit the direction, 208 in front of both
+  MASS:19-MASS:20: 2953 matches, 789 with parallax, 389 fit the direction, 386 in front of both
+  MASS:19-MASS:42: 2241 matches, 570 with parallax, 234 fit the direction, 233 in front of both
+  MASS:20-MASS:21: 2364 matches, 804 with parallax, 424 fit the direction, 423 in front of both
+  MASS:22-MASS:23: 2139 matches, 651 with parallax, 215 fit the direction, 215 in front of both
+  MASS:23-MASS:24: 3022 matches, 503 with parallax, 183 fit the direction, 182 in front of both
+  MASS:24-MASS:25: 2770 matches, 673 with parallax, 259 fit the direction, 258 in front of both
+  MASS:24-MASS:45: 2586 matches, 449 with parallax, 67 fit the direction, 63 in front of both
+  MASS:25-MASS:26: 3104 matches, 735 with parallax, 279 fit the direction, 278 in front of both
+  MASS:25-MASS:45: 2435 matches, 493 with parallax, 84 fit the direction, 82 in front of both
+  MASS:26-MASS:27: 1897 matches, 428 with parallax, 80 fit the direction, 79 in front of both
+  MASS:27-MASS:28: 1675 matches, 465 with parallax, 95 fit the direction, 91 in front of both
+  MASS:29-MASS:30: 2238 matches, 546 with parallax, 97 fit the direction, 94 in front of both
+  MASS:30-MASS:31: 1651 matches, 459 with parallax, 85 fit the direction, 84 in front of both
+  MASS:31-MASS:32: 2422 matches, 737 with parallax, 381 fit the direction, 375 in front of both
+  MASS:32-MASS:33: 2944 matches, 817 with parallax, 400 fit the direction, 397 in front of both
+  MASS:32-MASS:43: 2348 matches, 662 with parallax, 245 fit the direction, 244 in front of both
+  MASS:33-MASS:34: 3026 matches, 568 with parallax, 209 fit the direction, 205 in front of both
+  MASS:33-MASS:43: 2561 matches, 484 with parallax, 138 fit the direction, 134 in front of both
+  MASS:34-MASS:35: 2404 matches, 624 with parallax, 290 fit the direction, 288 in front of both
+  MASS:36-MASS:37: 1817 matches, 759 with parallax, 395 fit the direction, 393 in front of both
+  MASS:37-MASS:38: 1960 matches, 753 with parallax, 346 fit the direction, 342 in front of both
+  MASS:38-MASS:39: 2029 matches, 761 with parallax, 389 fit the direction, 386 in front of both
+  MASS:38-MASS:46: 2032 matches, 441 with parallax, 93 fit the direction, 87 in front of both
+  MASS:39-MASS:40: 3060 matches, 994 with parallax, 606 fit the direction, 604 in front of both
+  MASS:39-MASS:46: 2342 matches, 558 with parallax, 148 fit the direction, 147 in front of both
+  MASS:40-MASS:41: 3472 matches, 924 with parallax, 551 fit the direction, 548 in front of both
+  MASS:82-MASS:83: 1984 matches, 549 with parallax, 311 fit the direction, 310 in front of both
+  MASS:83-MASS:84: 2372 matches, 723 with parallax, 425 fit the direction, 425 in front of both
+  MASS:84-MASS:89: 3402 matches, 1331 with parallax, 997 fit the direction, 992 in front of both
+  MASS:89-MASS:90: 3785 matches, 1429 with parallax, 999 fit the direction, 997 in front of both
+  MAWW:2-MAWW:3: 930 matches, 840 with parallax, 237 fit the direction, 232 in front of both
+  MATO:3-MATO:4: 389 matches, 389 with parallax, 46 fit the direction, 46 in front of both
+  MATO:4-MATO:5: 743 matches, 735 with parallax, 151 fit the direction, 149 in front of both
+  MATO:5-MATO:9: 1506 matches, 1501 with parallax, 895 fit the direction, 889 in front of both
+  MATO:6-MATO:7: 592 matches, 592 with parallax, 3 fit the direction, 0 in front of both
+  MATO:6-MATO:9: 1319 matches, 1315 with parallax, 452 fit the direction, 446 in front of both
+  MATO:10-MATO:11: 2186 matches, 990 with parallax, 496 fit the direction, 495 in front of both
+  MATO:11-MATO:12: 1037 matches, 705 with parallax, 273 fit the direction, 273 in front of both
+  at MACA:1: MACA:1-MACA:2 and MACA:1-MAIS:1 share 0 points
+  at MACA:2: MACA:1-MACA:2 and MACA:2-MACA:28 share 0 points
+  at MAIS:1: MACA:1-MAIS:1 and MAIS:1-MAIS:2 share 0 points
+  at MACA:28: MACA:2-MACA:28 and MACA:28-MACA:29 share 25 points
+  at MACA:3: MACA:3-MACA:4 and MACA:3-MACA:31 share 9 points
+  at MACA:4: MACA:3-MACA:4 and MACA:4-MACA:5 share 0 points
+  at MACA:4: MACA:3-MACA:4 and MACA:4-MACA:7 share 0 points
+  at MACA:4: MACA:4-MACA:5 and MACA:4-MACA:7 share 0 points
+  at MACA:31: MACA:3-MACA:31 and MACA:30-MACA:31 share 105 points
+  at MACA:5: MACA:4-MACA:5 and MACA:5-MACA:6 share 0 points
+  at MACA:7: MACA:4-MACA:7 and MACA:6-MACA:7 share 54 points
+  at MACA:7: MACA:4-MACA:7 and MACA:7-MACA:8 share 0 points
+  at MACA:7: MACA:4-MACA:7 and MACA:7-MALL:1 share 0 points
+  at MACA:7: MACA:6-MACA:7 and MACA:7-MACA:8 share 0 points
+  at MACA:7: MACA:6-MACA:7 and MACA:7-MALL:1 share 0 points
+  at MACA:7: MACA:7-MACA:8 and MACA:7-MALL:1 share 0 points
+  at MACA:6: MACA:5-MACA:6 and MACA:6-MACA:7 share 3 points
+  at MACA:8: MACA:7-MACA:8 and MACA:8-MACA:9 share 15 points
+  at MACA:8: MACA:7-MACA:8 and MACA:8-MACA:35 share 4 points
+  at MACA:8: MACA:8-MACA:9 and MACA:8-MACA:35 share 35 points
+  at MALL:1: MACA:7-MALL:1 and MALL:1-MALL:2 share 2 points
+  at MACA:9: MACA:8-MACA:9 and MACA:9-MACA:10 share 7 points
+  at MACA:9: MACA:8-MACA:9 and MACA:9-MACA:35 share 40 points
+  at MACA:9: MACA:9-MACA:10 and MACA:9-MACA:35 share 0 points
+  at MACA:35: MACA:8-MACA:35 and MACA:9-MACA:35 share 46 points
+  at MACA:10: MACA:9-MACA:10 and MACA:10-MACA:11 share 2 points
+  at MACA:10: MACA:9-MACA:10 and MACA:10-MACA:14 share 0 points
+  at MACA:10: MACA:10-MACA:11 and MACA:10-MACA:14 share 0 points
+  at MACA:11: MACA:10-MACA:11 and MACA:11-MACA:12 share 13 points
+  at MACA:14: MACA:10-MACA:14 and MACA:13-MACA:14 share 0 points
+  at MACA:14: MACA:10-MACA:14 and MACA:14-MACA:15 share 0 points
+  at MACA:14: MACA:10-MACA:14 and MACA:14-MACA:19 share 0 points
+  at MACA:14: MACA:10-MACA:14 and MACA:14-MACA:38 share 0 points
+  at MACA:14: MACA:13-MACA:14 and MACA:14-MACA:15 share 9 points
+  at MACA:14: MACA:13-MACA:14 and MACA:14-MACA:19 share 2 points
+  at MACA:14: MACA:13-MACA:14 and MACA:14-MACA:38 share 9 points
+  at MACA:14: MACA:14-MACA:15 and MACA:14-MACA:19 share 5 points
+  at MACA:14: MACA:14-MACA:15 and MACA:14-MACA:38 share 81 points
+  at MACA:14: MACA:14-MACA:19 and MACA:14-MACA:38 share 4 points
+  at MACA:12: MACA:11-MACA:12 and MACA:12-MACA:13 share 19 points
+  at MACA:13: MACA:12-MACA:13 and MACA:13-MACA:14 share 23 points
+  at MACA:15: MACA:14-MACA:15 and MACA:15-MACA:16 share 53 points
+  at MACA:15: MACA:14-MACA:15 and MACA:15-MACA:38 share 102 points
+  at MACA:15: MACA:15-MACA:16 and MACA:15-MACA:38 share 53 points
+  at MACA:19: MACA:14-MACA:19 and MACA:18-MACA:19 share 1 points
+  at MACA:19: MACA:14-MACA:19 and MACA:19-MACA:21 share 7 points
+  at MACA:19: MACA:14-MACA:19 and MACA:19-MACA:24 share 0 points
+  at MACA:19: MACA:18-MACA:19 and MACA:19-MACA:21 share 34 points
+  at MACA:19: MACA:18-MACA:19 and MACA:19-MACA:24 share 0 points
+  at MACA:19: MACA:19-MACA:21 and MACA:19-MACA:24 share 0 points
+  at MACA:38: MACA:14-MACA:38 and MACA:15-MACA:38 share 100 points
+  at MACA:38: MACA:14-MACA:38 and MACA:37-MACA:38 share 0 points
+  at MACA:38: MACA:15-MACA:38 and MACA:37-MACA:38 share 9 points
+  at MACA:16: MACA:15-MACA:16 and MACA:16-MACA:17 share 0 points
+  at MACA:17: MACA:16-MACA:17 and MACA:17-MACA:18 share 118 points
+  at MACA:18: MACA:17-MACA:18 and MACA:18-MACA:19 share 100 points
+  at MACA:21: MACA:19-MACA:21 and MACA:21-MACA:22 share 46 points
+  at MACA:24: MACA:19-MACA:24 and MACA:23-MACA:24 share 0 points
+  at MACA:24: MACA:19-MACA:24 and MACA:24-MACA:25 share 0 points
+  at MACA:24: MACA:23-MACA:24 and MACA:24-MACA:25 share 64 points
+  at MACA:22: MACA:21-MACA:22 and MACA:22-MACA:23 share 58 points
+  at MACA:23: MACA:22-MACA:23 and MACA:23-MACA:24 share 37 points
+  at MACA:25: MACA:24-MACA:25 and MACA:25-MACA:41 share 127 points
+  at MACA:41: MACA:25-MACA:41 and MACA:41-MASS:1 share 86 points
+  at MACA:29: MACA:28-MACA:29 and MACA:29-MACA:30 share 21 points
+  at MACA:30: MACA:29-MACA:30 and MACA:30-MACA:31 share 35 points
+  at MACA:37: MACA:37-MACA:38 and MACA:37-MASS:82 share 0 points
+  at MASS:82: MACA:37-MASS:82 and MASS:82-MASS:83 share 42 points
+  at MASS:1: MACA:41-MASS:1 and MASS:1-MASS:2 share 59 points
+  at MASS:1: MACA:41-MASS:1 and MASS:1-MASS:5 share 7 points
+  at MASS:1: MASS:1-MASS:2 and MASS:1-MASS:5 share 14 points
+  at MAIS:2: MAIS:1-MAIS:2 and MAIS:2-MAIS:3 share 5 points
+  at MAIS:3: MAIS:2-MAIS:3 and MAIS:3-MAIS:4 share 10 points
+  at MAIS:4: MAIS:3-MAIS:4 and MAIS:4-MAIS:5 share 6 points
+  at MAIS:5: MAIS:4-MAIS:5 and MAIS:5-MAIS:30 share 23 points
+  at MAIS:5: MAIS:4-MAIS:5 and MAIS:5-MAIS:31 share 9 points
+  at MAIS:5: MAIS:5-MAIS:30 and MAIS:5-MAIS:31 share 60 points
+  at MAIS:30: MAIS:5-MAIS:30 and MAIS:6-MAIS:30 share 6 points
+  at MAIS:30: MAIS:5-MAIS:30 and MAIS:30-MAIS:31 share 60 points
+  at MAIS:30: MAIS:6-MAIS:30 and MAIS:30-MAIS:31 share 5 points
+  at MAIS:31: MAIS:5-MAIS:31 and MAIS:30-MAIS:31 share 62 points
+  at MAIS:31: MAIS:5-MAIS:31 and MAIS:31-MAIS:32 share 37 points
+  at MAIS:31: MAIS:30-MAIS:31 and MAIS:31-MAIS:32 share 29 points
+  at MAIS:6: MAIS:6-MAIS:7 and MAIS:6-MAIS:30 share 5 points
+  at MAIS:7: MAIS:6-MAIS:7 and MAIS:7-MAIS:8 share 37 points
+  at MAIS:8: MAIS:7-MAIS:8 and MAIS:8-MAIS:9 share 8 points
+  at MAIS:9: MAIS:8-MAIS:9 and MAIS:9-MAIS:10 share 0 points
+  at MAIS:10: MAIS:9-MAIS:10 and MAIS:10-MAIS:11 share 1 points
+  at MAIS:11: MAIS:10-MAIS:11 and MAIS:11-MAIS:12 share 1 points
+  at MAIS:12: MAIS:11-MAIS:12 and MAIS:12-MAIS:13 share 2 points
+  at MAIS:13: MAIS:12-MAIS:13 and MAIS:13-MAIS:14 share 8 points
+  at MAIS:14: MAIS:13-MAIS:14 and MAIS:14-MAIS:15 share 36 points
+  at MAIS:15: MAIS:14-MAIS:15 and MAIS:15-MAIS:16 share 36 points
+  at MAIS:16: MAIS:15-MAIS:16 and MAIS:16-MAIS:17 share 133 points
+  at MAIS:17: MAIS:16-MAIS:17 and MAIS:17-MAIS:18 share 135 points
+  at MAIS:18: MAIS:17-MAIS:18 and MAIS:18-MAIS:19 share 40 points
+  at MAIS:18: MAIS:17-MAIS:18 and MAIS:18-MAIS:22 share 97 points
+  at MAIS:18: MAIS:18-MAIS:19 and MAIS:18-MAIS:22 share 16 points
+  at MAIS:22: MAIS:18-MAIS:22 and MAIS:22-MAIS:23 share 83 points
+  at MAIS:23: MAIS:22-MAIS:23 and MAIS:23-MAIS:24 share 90 points
+  at MAIS:24: MAIS:23-MAIS:24 and MAIS:24-MAIS:25 share 132 points
+  at MAIS:25: MAIS:24-MAIS:25 and MAIS:25-MAIS:26 share 158 points
+  at MAIS:26: MAIS:25-MAIS:26 and MAIS:26-MAIS:27 share 194 points
+  at MAIS:27: MAIS:26-MAIS:27 and MAIS:27-MAIS:28 share 154 points
+  at MAIS:28: MAIS:27-MAIS:28 and MAIS:28-MAIS:29 share 176 points
+  at MAIS:29: MAIS:28-MAIS:29 and MAIS:29-MASS:13 share 210 points
+  at MASS:13: MAIS:29-MASS:13 and MASS:13-MASS:41 share 264 points
+  at MAIS:32: MAIS:31-MAIS:32 and MAIS:32-MAIS:33 share 88 points
+  at MAIS:33: MAIS:32-MAIS:33 and MAIS:33-MATO:2 share 140 points
+  at MALL:2: MALL:1-MALL:2 and MALL:2-MALL:3 share 13 points
+  at MALL:3: MALL:2-MALL:3 and MALL:3-MALL:4 share 2 points
+  at MALL:4: MALL:3-MALL:4 and MALL:4-MALL:5 share 0 points
+  at MALL:5: MALL:4-MALL:5 and MALL:5-MALL:6 share 0 points
+  at MALL:6: MALL:5-MALL:6 and MALL:6-MALL:7 share 1 points
+  at MALL:7: MALL:6-MALL:7 and MALL:7-MALL:8 share 16 points
+  at MALL:8: MALL:7-MALL:8 and MALL:8-MALL:9 share 29 points
+  at MALL:9: MALL:8-MALL:9 and MALL:9-MALL:10 share 54 points
+  at MALL:10: MALL:9-MALL:10 and MALL:10-MALL:11 share 45 points
+  at MALL:11: MALL:10-MALL:11 and MALL:11-MALL:12 share 17 points
+  at MALL:12: MALL:11-MALL:12 and MALL:12-MALL:13 share 30 points
+  at MALL:13: MALL:12-MALL:13 and MALL:13-MALL:14 share 3 points
+  at MALL:14: MALL:13-MALL:14 and MALL:14-MALL:15 share 1 points
+  at MALL:15: MALL:14-MALL:15 and MALL:15-MALL:16 share 0 points
+  at MALL:16: MALL:15-MALL:16 and MALL:16-MALL:18 share 6 points
+  at MASS:2: MASS:1-MASS:2 and MASS:2-MASS:3 share 124 points
+  at MASS:5: MASS:1-MASS:5 and MASS:3-MASS:5 share 15 points
+  at MASS:5: MASS:1-MASS:5 and MASS:5-MASS:6 share 1 points
+  at MASS:5: MASS:1-MASS:5 and MASS:5-MASS:18 share 2 points
+  at MASS:5: MASS:1-MASS:5 and MASS:5-MASS:21 share 10 points
+  at MASS:5: MASS:1-MASS:5 and MASS:5-MASS:22 share 5 points
+  at MASS:5: MASS:1-MASS:5 and MASS:5-MASS:32 share 0 points
+  at MASS:5: MASS:1-MASS:5 and MASS:5-MASS:35 share 5 points
+  at MASS:5: MASS:1-MASS:5 and MASS:5-MASS:36 share 12 points
+  at MASS:5: MASS:3-MASS:5 and MASS:5-MASS:6 share 7 points
+  at MASS:5: MASS:3-MASS:5 and MASS:5-MASS:18 share 5 points
+  at MASS:5: MASS:3-MASS:5 and MASS:5-MASS:21 share 53 points
+  at MASS:5: MASS:3-MASS:5 and MASS:5-MASS:22 share 22 points
+  at MASS:5: MASS:3-MASS:5 and MASS:5-MASS:32 share 0 points
+  at MASS:5: MASS:3-MASS:5 and MASS:5-MASS:35 share 10 points
+  at MASS:5: MASS:3-MASS:5 and MASS:5-MASS:36 share 42 points
+  at MASS:5: MASS:5-MASS:6 and MASS:5-MASS:18 share 2 points
+  at MASS:5: MASS:5-MASS:6 and MASS:5-MASS:21 share 2 points
+  at MASS:5: MASS:5-MASS:6 and MASS:5-MASS:22 share 6 points
+  at MASS:5: MASS:5-MASS:6 and MASS:5-MASS:32 share 0 points
+  at MASS:5: MASS:5-MASS:6 and MASS:5-MASS:35 share 8 points
+  at MASS:5: MASS:5-MASS:6 and MASS:5-MASS:36 share 3 points
+  at MASS:5: MASS:5-MASS:18 and MASS:5-MASS:21 share 9 points
+  at MASS:5: MASS:5-MASS:18 and MASS:5-MASS:22 share 0 points
+  at MASS:5: MASS:5-MASS:18 and MASS:5-MASS:32 share 0 points
+  at MASS:5: MASS:5-MASS:18 and MASS:5-MASS:35 share 2 points
+  at MASS:5: MASS:5-MASS:18 and MASS:5-MASS:36 share 2 points
+  at MASS:5: MASS:5-MASS:21 and MASS:5-MASS:22 share 14 points
+  at MASS:5: MASS:5-MASS:21 and MASS:5-MASS:32 share 0 points
+  at MASS:5: MASS:5-MASS:21 and MASS:5-MASS:35 share 11 points
+  at MASS:5: MASS:5-MASS:21 and MASS:5-MASS:36 share 24 points
+  at MASS:5: MASS:5-MASS:22 and MASS:5-MASS:32 share 0 points
+  at MASS:5: MASS:5-MASS:22 and MASS:5-MASS:35 share 2 points
+  at MASS:5: MASS:5-MASS:22 and MASS:5-MASS:36 share 19 points
+  at MASS:5: MASS:5-MASS:32 and MASS:5-MASS:35 share 0 points
+  at MASS:5: MASS:5-MASS:32 and MASS:5-MASS:36 share 0 points
+  at MASS:5: MASS:5-MASS:35 and MASS:5-MASS:36 share 6 points
+  at MASS:3: MASS:2-MASS:3 and MASS:3-MASS:5 share 75 points
+  at MASS:6: MASS:5-MASS:6 and MASS:6-MASS:7 share 6 points
+  at MASS:18: MASS:5-MASS:18 and MASS:17-MASS:18 share 7 points
+  at MASS:18: MASS:5-MASS:18 and MASS:18-MASS:19 share 5 points
+  at MASS:18: MASS:5-MASS:18 and MASS:18-MASS:42 share 3 points
+  at MASS:18: MASS:17-MASS:18 and MASS:18-MASS:19 share 78 points
+  at MASS:18: MASS:17-MASS:18 and MASS:18-MASS:42 share 53 points
+  at MASS:18: MASS:18-MASS:19 and MASS:18-MASS:42 share 73 points
+  at MASS:21: MASS:5-MASS:21 and MASS:20-MASS:21 share 35 points
+  at MASS:22: MASS:5-MASS:22 and MASS:22-MASS:23 share 7 points
+  at MASS:32: MASS:5-MASS:32 and MASS:31-MASS:32 share 0 points
+  at MASS:32: MASS:5-MASS:32 and MASS:32-MASS:33 share 0 points
+  at MASS:32: MASS:5-MASS:32 and MASS:32-MASS:43 share 0 points
+  at MASS:32: MASS:31-MASS:32 and MASS:32-MASS:33 share 99 points
+  at MASS:32: MASS:31-MASS:32 and MASS:32-MASS:43 share 78 points
+  at MASS:32: MASS:32-MASS:33 and MASS:32-MASS:43 share 100 points
+  at MASS:35: MASS:5-MASS:35 and MASS:34-MASS:35 share 18 points
+  at MASS:36: MASS:5-MASS:36 and MASS:36-MASS:37 share 38 points
+  at MASS:7: MASS:6-MASS:7 and MASS:7-MASS:8 share 4 points
+  at MASS:8: MASS:7-MASS:8 and MASS:8-MASS:9 share 6 points
+  at MASS:8: MASS:7-MASS:8 and MASS:8-MASS:44 share 9 points
+  at MASS:8: MASS:8-MASS:9 and MASS:8-MASS:44 share 9 points
+  at MASS:9: MASS:8-MASS:9 and MASS:9-MASS:10 share 10 points
+  at MASS:9: MASS:8-MASS:9 and MASS:9-MASS:44 share 11 points
+  at MASS:9: MASS:9-MASS:10 and MASS:9-MASS:44 share 20 points
+  at MASS:44: MASS:8-MASS:44 and MASS:9-MASS:44 share 20 points
+  at MASS:10: MASS:9-MASS:10 and MASS:10-MASS:11 share 9 points
+  at MASS:11: MASS:10-MASS:11 and MASS:11-MASS:12 share 3 points
+  at MASS:41: MASS:13-MASS:41 and MASS:40-MASS:41 share 179 points
+  at MASS:14: MASS:14-MASS:15 and MASS:14-MASS:28 share 1 points
+  at MASS:14: MASS:14-MASS:15 and MASS:14-MASS:29 share 0 points
+  at MASS:14: MASS:14-MASS:28 and MASS:14-MASS:29 share 0 points
+  at MASS:15: MASS:14-MASS:15 and MASS:15-MASS:16 share 2 points
+  at MASS:28: MASS:14-MASS:28 and MASS:27-MASS:28 share 1 points
+  at MASS:29: MASS:14-MASS:29 and MASS:29-MASS:30 share 0 points
+  at MASS:16: MASS:15-MASS:16 and MASS:16-MASS:17 share 12 points
+  at MASS:17: MASS:16-MASS:17 and MASS:17-MASS:18 share 10 points
+  at MASS:19: MASS:18-MASS:19 and MASS:19-MASS:20 share 73 points
+  at MASS:19: MASS:18-MASS:19 and MASS:19-MASS:42 share 61 points
+  at MASS:19: MASS:19-MASS:20 and MASS:19-MASS:42 share 46 points
+  at MASS:42: MASS:18-MASS:42 and MASS:19-MASS:42 share 58 points
+  at MASS:20: MASS:19-MASS:20 and MASS:20-MASS:21 share 107 points
+  at MASS:23: MASS:22-MASS:23 and MASS:23-MASS:24 share 19 points
+  at MASS:24: MASS:23-MASS:24 and MASS:24-MASS:25 share 20 points
+  at MASS:24: MASS:23-MASS:24 and MASS:24-MASS:45 share 4 points
+  at MASS:24: MASS:24-MASS:25 and MASS:24-MASS:45 share 18 points
+  at MASS:25: MASS:24-MASS:25 and MASS:25-MASS:26 share 36 points
+  at MASS:25: MASS:24-MASS:25 and MASS:25-MASS:45 share 18 points
+  at MASS:25: MASS:25-MASS:26 and MASS:25-MASS:45 share 6 points
+  at MASS:45: MASS:24-MASS:45 and MASS:25-MASS:45 share 14 points
+  at MASS:26: MASS:25-MASS:26 and MASS:26-MASS:27 share 11 points
+  at MASS:27: MASS:26-MASS:27 and MASS:27-MASS:28 share 6 points
+  at MASS:30: MASS:29-MASS:30 and MASS:30-MASS:31 share 12 points
+  at MASS:31: MASS:30-MASS:31 and MASS:31-MASS:32 share 25 points
+  at MASS:33: MASS:32-MASS:33 and MASS:33-MASS:34 share 73 points
+  at MASS:33: MASS:32-MASS:33 and MASS:33-MASS:43 share 77 points
+  at MASS:33: MASS:33-MASS:34 and MASS:33-MASS:43 share 39 points
+  at MASS:43: MASS:32-MASS:43 and MASS:33-MASS:43 share 71 points
+  at MASS:34: MASS:33-MASS:34 and MASS:34-MASS:35 share 50 points
+  at MASS:37: MASS:36-MASS:37 and MASS:37-MASS:38 share 59 points
+  at MASS:38: MASS:37-MASS:38 and MASS:38-MASS:39 share 52 points
+  at MASS:38: MASS:37-MASS:38 and MASS:38-MASS:46 share 21 points
+  at MASS:38: MASS:38-MASS:39 and MASS:38-MASS:46 share 22 points
+  at MASS:39: MASS:38-MASS:39 and MASS:39-MASS:40 share 99 points
+  at MASS:39: MASS:38-MASS:39 and MASS:39-MASS:46 share 27 points
+  at MASS:39: MASS:39-MASS:40 and MASS:39-MASS:46 share 70 points
+  at MASS:46: MASS:38-MASS:46 and MASS:39-MASS:46 share 30 points
+  at MASS:40: MASS:39-MASS:40 and MASS:40-MASS:41 share 197 points
+  at MASS:83: MASS:82-MASS:83 and MASS:83-MASS:84 share 56 points
+  at MASS:84: MASS:83-MASS:84 and MASS:84-MASS:89 share 132 points
+  at MASS:89: MASS:84-MASS:89 and MASS:89-MASS:90 share 315 points
+  at MATO:4: MATO:3-MATO:4 and MATO:4-MATO:5 share 2 points
+  at MATO:5: MATO:4-MATO:5 and MATO:5-MATO:9 share 34 points
+  at MATO:9: MATO:5-MATO:9 and MATO:6-MATO:9 share 75 points
+  at MATO:6: MATO:6-MATO:7 and MATO:6-MATO:9 share 0 points
+  at MATO:11: MATO:10-MATO:11 and MATO:11-MATO:12 share 33 points
+160 pairs of links with at least 5 points in common
+link parts joined by shared points: 36; largest 79 links; others: [14, 7, 6, 6, 5, 5, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+  ratio off by a factor 1.01: MASS:3-MASS:5 vs MASS:5-MASS:18 at MASS:5
+  ratio off by a factor 1.01: MASS:1-MASS:5 vs MASS:5-MASS:22 at MASS:5
+  ratio off by a factor 1.01: MACA:41-MASS:1 vs MASS:1-MASS:5 at MASS:1
+  ratio off by a factor 1.01: MASS:5-MASS:35 vs MASS:5-MASS:36 at MASS:5
+  ratio off by a factor 1.01: MASS:5-MASS:18 vs MASS:5-MASS:21 at MASS:5
+  ratio off by a factor 1.01: MASS:3-MASS:5 vs MASS:5-MASS:6 at MASS:5
+72 nodes placed from 79 links; step misfit (in step lengths) median 0.000; worst MACA:14-MACA:19 0.01, MASS:25-MASS:45 0.01, MASS:24-MASS:45 0.00, MASS:24-MASS:25 0.00, MASS:5-MASS:18 0.00, MACA:16-MACA:17 0.00
+not placed: ['MACA:1', 'MACA:2', 'MACA:3', 'MACA:4', 'MACA:5', 'MACA:6', 'MACA:7', 'MACA:8', 'MACA:9', 'MACA:26', 'MACA:28', 'MACA:29', 'MACA:30', 'MACA:31', 'MACA:35', 'MACA:36', 'MAIS:1', 'MAIS:2', 'MAIS:3', 'MAIS:4', 'MAIS:5', 'MAIS:6', 'MAIS:7', 'MAIS:8', 'MAIS:9', 'MAIS:10', 'MAIS:11', 'MAIS:30', 'MAIS:31', 'MAIS:32', 'MAIS:33', 'MALL:1', 'MALL:2', 'MALL:3', 'MALL:4', 'MALL:5', 'MALL:6', 'MALL:7', 'MALL:8', 'MALL:9', 'MALL:10', 'MALL:11', 'MALL:12', 'MALL:13', 'MALL:14', 'MALL:15', 'MALL:16', 'MALL:17', 'MALL:18', 'MASS:8', 'MASS:9', 'MASS:10', 'MASS:11', 'MASS:12', 'MASS:14', 'MASS:44', 'MASS:57', 'MASS:82', 'MASS:83', 'MASS:84', 'MASS:89', 'MASS:90', 'MAWW:1', 'MAWW:2', 'MAWW:3', 'MATO:2', 'MATO:3', 'MATO:4', 'MATO:5', 'MATO:6', 'MATO:7', 'MATO:9', 'MATO:10', 'MATO:11', 'MATO:12']

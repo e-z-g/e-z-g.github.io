@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Myst III room reconstruction</title>
+<!--
+  Viewer for dense reconstructions packed by export_viewer_data.py. The data is not
+  in this repository (it is made from the game's pictures); serve_viewer.py serves
+  this page with each set at data/NAME/ and their list at data/sets.json; ?set=NAME
+  picks one, as does the list at the bottom left.
+  Orbit: drag to turn, pinch or wheel to zoom, two fingers or right drag to pan.
+  At a node: the camera stands at the node's centre; drag to look round.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #1d2026; color: #e8e8e8;
+    font: 14px/1.3 system-ui, sans-serif; overflow: hidden; touch-action: none; }
+  canvas { display: block; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(20,22,26,.88);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); }
+  #bar .row { display: flex; gap: 6px; align-items: center; overflow-x: auto; white-space: nowrap;
+    padding: 3px 0; }
+  #bar .row > * { flex: none; }
+  button { background: #333a44; color: #eee; border: 0; border-radius: 6px; padding: 8px 10px;
+    font: inherit; min-width: 38px; }
+  button.on { background: #4a7bd0; }
+  input[type=range] { width: 110px; }
+  select { background: #333a44; color: #eee; border: 0; border-radius: 6px; padding: 8px 6px; font: inherit; }
+  #status { position: fixed; top: 0; left: 0; right: 0; padding: 6px 8px; font-size: 12px;
+    background: rgba(20,22,26,.6); pointer-events: none; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="status">Loading…</div>
+<div id="bar">
+  <div class="row">
+    <select id="set"></select>
+    <button id="orbit" class="on">Overview</button>
+    <button id="showPts" class="on">Points</button>
+    <button id="showMesh">Mesh</button>
+    <button id="showNodes" class="on">Nodes</button>
+    <button id="showFill">Fill</button>
+    <button id="showFloors">Floors</button>
+    <button id="showBack" class="on">Backdrop</button>
+    <span>size</span><input id="size" type="range" min="0.004" max="0.12" step="0.002" value="0.03">
+  </div>
+  <div class="row" id="nodeRow"><span>Stand at node:</span></div>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const status = document.getElementById('status');
+const say = (s) => { status.textContent = s; };
+window.addEventListener('error', (e) => say('Error: ' + e.message));
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1d2026);
+const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 500);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+function resize() {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize); resize();
+
+async function fetchBin(url, label) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(url + ': ' + res.status);
+  const total = +res.headers.get('content-length') || 0;
+  const reader = res.body.getReader();
+  const parts = []; let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value); got += value.length;
+    say(`Loading ${label}: ${(got / 1e6).toFixed(1)}${total ? ' of ' + (total / 1e6).toFixed(1) : ''} MB`);
+  }
+  const buf = new Uint8Array(got); let o = 0;
+  for (const p of parts) { buf.set(p, o); o += p.length; }
+  return buf.buffer;
+}
+
+const ROOM_COLOURS = ['255,200,40', '90,200,255', '255,120,120', '140,230,120', '220,150,255', '255,170,90'];
+const roomColour = {};
+let labelSize = 0.35;
+function label(text, room) {
+  if (!(room in roomColour)) roomColour[room] = ROOM_COLOURS[Object.keys(roomColour).length % ROOM_COLOURS.length];
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = `rgba(${roomColour[room]},.9)`; g.beginPath(); g.arc(32, 32, 30, 0, 7); g.fill();
+  g.fillStyle = '#000'; g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 32, 34);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  s.scale.set(labelSize, labelSize, 1);
+  return s;
+}
+
+const sets = await (await fetch('data/sets.json')).json();
+const want = new URLSearchParams(location.search).get('set');
+const set = sets.find((x) => x.name === want) || sets[0];
+const picker = document.getElementById('set');
+for (const x of sets) {
+  const o = document.createElement('option'); o.value = x.name; o.textContent = x.title;
+  if (x === set) o.selected = true;
+  picker.appendChild(o);
+}
+picker.onchange = () => { location.search = '?set=' + encodeURIComponent(picker.value); };
+const base = `data/${encodeURIComponent(set.name)}/`;
+const info = await (await fetch(base + 'scene.json')).json();
+const n = info.points;
+const pbuf = await fetchBin(base + 'points.bin', 'points');
+const pg = new THREE.BufferGeometry();
+pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pbuf, 0, n * 3), 3));
+pg.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(pbuf, n * 12, n * 3), 3, true));
+const unit = info.nearest_node_median || 1.28;          // sizes follow the model's node spacing
+const pmat = new THREE.PointsMaterial({ size: 0.023 * unit, vertexColors: true });
+const sizeInput = document.getElementById('size');
+sizeInput.min = 0.003 * unit; sizeInput.max = 0.1 * unit; sizeInput.step = 0.002 * unit; sizeInput.value = 0.023 * unit;
+labelSize = 0.27 * unit;
+const points = new THREE.Points(pg, pmat);
+scene.add(points);
+
+const nodeGroup = new THREE.Group(); scene.add(nodeGroup);
+const nodeRow = document.getElementById('nodeRow');
+const buttons = {};
+for (const [id, nd] of Object.entries(info.nodes)) {
+  const name = nd.label || id;
+  const [room, num] = name.includes(':') ? name.split(':') : ['', name];
+  const s = label(num, room); s.position.fromArray(nd.centre); nodeGroup.add(s);
+  const b = document.createElement('button'); b.textContent = room ? `${room} ${num}` : num; nodeRow.appendChild(b);
+  b.style.borderBottom = room ? `3px solid rgb(${roomColour[room]})` : '';
+  b.onclick = () => standAt(id); buttons[id] = b;
+}
+
+let mesh = null;
+async function loadMesh() {
+  const m = info.mesh;
+  const buf = await fetchBin(base + 'mesh.bin', 'mesh');
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buf, 0, m.vertices * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(buf, m.vertices * 12, m.vertices * 3), 3, true));
+  const off = m.vertices * 15, pad = (4 - off % 4) % 4;
+  const idx = pad ? new Uint32Array(buf.slice(off, off + m.triangles * 12)) : new Uint32Array(buf, off, m.triangles * 3);
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+  scene.add(mesh);
+}
+
+function setOn(id, on) { document.getElementById(id).classList.toggle('on', on); }
+const lo = new THREE.Vector3().fromArray(info.extent_p2_p98[0]);
+const hi = new THREE.Vector3().fromArray(info.extent_p2_p98[1]);
+
+function overview() {
+  standing = null; if (typeof setBackdrop === 'function') setBackdrop(null);
+  camera.near = 0.01; nodeGroup.visible = document.getElementById('showNodes').classList.contains('on');
+  for (const b of Object.values(buttons)) b.classList.remove('on');
+  setOn('orbit', true);
+  controls.enableZoom = controls.enablePan = true;
+  controls.rotateSpeed = 1;
+  const mid = lo.clone().add(hi).multiplyScalar(0.5);   // the middle of what is loaded
+  controls.target.copy(mid);
+  const r = hi.clone().sub(lo).length() * 0.45;
+  camera.position.copy(mid).add(new THREE.Vector3(r * 0.3, r * 0.8, r * 0.6));
+  camera.fov = 60; camera.updateProjectionMatrix();
+  controls.update();
+  say(`${n.toLocaleString()} points, ${Object.keys(info.nodes).length} nodes. Drag to turn, pinch to zoom.`);
+}
+
+function standAt(id) {
+  const nd = info.nodes[id];
+  for (const [k, b] of Object.entries(buttons)) b.classList.toggle('on', k === id);
+  setOn('orbit', false);
+  const c = new THREE.Vector3().fromArray(nd.centre);
+  // node_from_world rows: the node frame's axes in the world; the front face looks along -z
+  const R = nd.node_from_world;
+  const fwd = new THREE.Vector3(-R[2][0], -R[2][1], -R[2][2]);
+  controls.target.copy(c);
+  camera.position.copy(c).addScaledVector(fwd, -0.001);
+  controls.enableZoom = controls.enablePan = false;
+  controls.rotateSpeed = -0.4;
+  camera.fov = 75; camera.updateProjectionMatrix();
+  controls.update();
+  standing = id; setBackdrop(id);
+  camera.near = 0.15 * unit; camera.updateProjectionMatrix();     // points right at the eye only blot the view
+  nodeGroup.visible = false;
+  say(`Node ${nd.label || id}, facing its front face. Drag to look round.`);
+}
+
+// a node's cube faces: face f looks along faceDir(f, s, t) in the node frame (s, t image
+// fractions, t down), as in face_geometry.py; node frame to world is node_from_world transposed
+function faceDir(f, s, t) {
+  return [null, [2 * s - 1, 1 - 2 * t, -1], [1 - 2 * s, -1, 1 - 2 * t], [1 - 2 * s, 1 - 2 * t, 1],
+    [1, 1 - 2 * t, 2 * s - 1], [-1, 1 - 2 * t, 1 - 2 * s], [1 - 2 * s, 1, 2 * t - 1]][f];
+}
+function toWorld(R, d) {
+  return new THREE.Vector3(R[0][0] * d[0] + R[1][0] * d[1] + R[2][0] * d[2],
+    R[0][1] * d[0] + R[1][1] * d[1] + R[2][1] * d[2], R[0][2] * d[0] + R[1][2] * d[1] + R[2][2] * d[2]);
+}
+const loader = new THREE.TextureLoader();
+function faceTexture(id, f) {
+  const tx = loader.load(base + `face-${id}-${f}.jpg`);
+  tx.colorSpace = THREE.SRGBColorSpace;
+  return tx;
+}
+// one face as a quad between image fractions lo..hi, at scale k from the node's centre
+function faceQuad(nd, id, f, k, lo, hi, opts) {
+  const pos = [], uv = [];
+  for (const [s, t] of [[lo, lo], [hi, lo], [hi, hi], [lo, hi]]) {
+    const v = toWorld(nd.node_from_world, faceDir(f, s, t)).multiplyScalar(k);
+    pos.push(v.x, v.y, v.z); uv.push(s, 1 - t);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex([0, 1, 2, 0, 2, 3]);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: faceTexture(id, f), side: THREE.DoubleSide, ...opts }));
+  m.position.fromArray(nd.centre);
+  return m;
+}
+// the backdrop: what a node sees with no parallax (sky, sea, far scenery) is its six faces at infinity
+let backdrop = null, backdropOn = true, standing = null;
+function setBackdrop(id) {
+  if (backdrop) { scene.remove(backdrop); backdrop.traverse((o) => { if (o.material) { o.material.map.dispose(); o.material.dispose(); o.geometry.dispose(); } }); backdrop = null; }
+  if (!id || !info.faces || !backdropOn) return;
+  backdrop = new THREE.Group();
+  for (let f = 1; f <= 6; f++) {
+    const q = faceQuad(info.nodes[id], id, f, 200, 0, 1, { depthTest: false, depthWrite: false });
+    q.renderOrder = -1; backdrop.add(q);
+  }
+  scene.add(backdrop);
+}
+// the floors: each node's bottom face laid flat at its floor height (the middle 60% of it,
+// which is mostly the floor right under the node)
+let floors = null;
+document.getElementById('showFloors').onclick = () => {
+  if (!info.faces) return say('No faces in this data.');
+  if (!floors) {
+    floors = new THREE.Group();
+    for (const [id, nd] of Object.entries(info.nodes)) floors.add(faceQuad(nd, id, 2, nd.floor, 0.2, 0.8, {}));
+    scene.add(floors); setOn('showFloors', true); return;
+  }
+  floors.visible = !floors.visible; setOn('showFloors', floors.visible);
+};
+document.getElementById('showBack').onclick = () => {
+  backdropOn = !backdropOn; setOn('showBack', backdropOn); setBackdrop(backdropOn ? standing : null);
+};
+// the fill: learned depth scaled to COLMAP's and kept where nodes agree (depth_fill.py)
+let fill = null;
+document.getElementById('showFill').onclick = async () => {
+  if (!info.fill) return say('No fill in this data.');
+  if (!fill) {
+    const fb = await fetchBin(base + 'fill.bin', 'fill');
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(fb, 0, info.fill * 3), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(fb, info.fill * 12, info.fill * 3), 3, true));
+    fill = new THREE.Points(g, pmat); scene.add(fill); setOn('showFill', true);
+    say(`Fill: ${info.fill.toLocaleString()} points from learned depth.`); return;
+  }
+  fill.visible = !fill.visible; setOn('showFill', fill.visible);
+};
+document.getElementById('orbit').onclick = overview;
+document.getElementById('showPts').onclick = () => { points.visible = !points.visible; setOn('showPts', points.visible); };
+document.getElementById('showNodes').onclick = () => { nodeGroup.visible = !nodeGroup.visible; setOn('showNodes', nodeGroup.visible); };
+document.getElementById('showMesh').onclick = async () => {
+  if (!info.mesh) return say('No mesh in this data.');
+  if (!mesh) { await loadMesh(); setOn('showMesh', true); say('Mesh loaded.'); return; }
+  mesh.visible = !mesh.visible; setOn('showMesh', mesh.visible);
+};
+document.getElementById('size').oninput = (e) => { pmat.size = +e.target.value; };
+
+overview();
+const startNode = new URLSearchParams(location.search).get('node');
+if (startNode && info.nodes[startNode]) standAt(startNode);
+if (new URLSearchParams(location.search).get('floors')) document.getElementById('showFloors').onclick();
+if (new URLSearchParams(location.search).get('fill')) document.getElementById('showFill').onclick();
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>

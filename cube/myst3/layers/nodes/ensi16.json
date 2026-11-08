@@ -1,0 +1,36 @@
+{
+ "node": "Voltaic ENSI 16",
+ "repo_folder": "voltaic",
+ "names": [
+  "ENSI-0016-1",
+  "ENSI-0016-2",
+  "ENSI-0016-3",
+  "ENSI-0016-4",
+  "ENSI-0016-5",
+  "ENSI-0016-6"
+ ],
+ "work": "{out}/ensi16",
+ "site": "{out}/ensi16/site",
+ "measured_depth": "node_depth.py {colmap}/ENSI/images 0016 {out}/ensi16/depth --dense {colmap}/ENSI/dense_1-27 --sparse {colmap}/ENSI/runs/joined_1-27/sparse_txt/ba --names ENSI-0016-1,...,ENSI-0016-6 (report: colmap/ENSI/ensi16_depth.json)",
+ "steps": {
+  "sharpen": {
+   "colour-suffix": "_orig.jpg"
+  },
+  "backdrop": {
+   "dense": "{colmap}/ENSI/dense_1-27",
+   "sparse_txt": "{colmap}/ENSI/runs/joined_1-27/sparse_txt/ba",
+   "node": "0016",
+   "node_depth_json": "{out}/ensi16/depth/node_depth.json",
+   "same": 4
+  },
+  "layers": {}
+ },
+ "stitch": {
+  "cell": 1296,
+  "prefix": "ensi16-layered"
+ },
+ "why": {
+  "backdrop.same": "4, set when points of the same surface, seen from neighbours, were taken for what lies behind it. MASS 84 went back to 1.6 afterwards for its pillars; ENSI 16 was not rebuilt then, so the two differ by history, not by need."
+ },
+ "shipped": "The atlases on the site were built before sharpen_depth.py's lamp rule; built from this file now, the depth differs in about 0.01% of pixels round lamps and the painted backdrop by a few levels where that moves LaMa. Not yet rebuilt. (faces13 on the PC is the shipped build.)"
+}

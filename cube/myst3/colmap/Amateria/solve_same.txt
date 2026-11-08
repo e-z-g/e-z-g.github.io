@@ -1,0 +1,318 @@
+  1001-1002:   586 matches,   121 inliers, in front 0.97, rotation between them   0.0 deg
+  1001-2001:  1018 matches,    94 inliers, in front 0.98, rotation between them   0.0 deg
+  1002-1004:   300 matches,    26 inliers, in front 0.72, rotation between them   0.0 deg
+  1002-1028:   599 matches,   209 inliers, in front 1.00, rotation between them   0.0 deg
+  1003-1004:   523 matches,   151 inliers, in front 1.00, rotation between them   0.0 deg
+  1003-1031:   876 matches,   589 inliers, in front 1.00, rotation between them   0.0 deg
+  1004-1005:   612 matches,    84 inliers, in front 0.99, rotation between them   0.0 deg
+  1004-1007:   689 matches,   117 inliers, in front 0.96, rotation between them   0.0 deg
+  1005-1006:   416 matches,   177 inliers, in front 0.99, rotation between them   0.0 deg
+  1006-1007:   563 matches,   271 inliers, in front 1.00, rotation between them   0.0 deg
+  1007-1008:   882 matches,   194 inliers, in front 1.00, rotation between them   0.0 deg
+  1007-1010:   413 matches,    72 inliers, in front 0.77, rotation between them   0.0 deg
+  1007-3001:   302 matches,    27 inliers, in front 1.00, rotation between them   0.0 deg
+  1008-1009:  1003 matches,   213 inliers, in front 1.00, rotation between them   0.0 deg
+  1008-1035:   781 matches,   388 inliers, in front 1.00, rotation between them   0.0 deg
+  1009-1010:   662 matches,   138 inliers, in front 1.00, rotation between them   0.0 deg
+  1009-1035:   800 matches,   248 inliers, in front 1.00, rotation between them   0.0 deg
+  1010-1011:   374 matches,   140 inliers, in front 1.00, rotation between them   0.0 deg
+  1010-1014:   377 matches,    69 inliers, in front 0.96, rotation between them   0.0 deg
+  1011-1012:   455 matches,   102 inliers, in front 1.00, rotation between them   0.0 deg
+  1012-1013:   450 matches,   129 inliers, in front 0.99, rotation between them   0.0 deg
+  1013-1014:   606 matches,   212 inliers, in front 0.99, rotation between them   0.0 deg
+  1014-1015:  1043 matches,   413 inliers, in front 1.00, rotation between them   0.0 deg
+  1014-1019:   203 matches,    22 inliers, in front 1.00, rotation between them   0.0 deg
+  1014-1038:   877 matches,   301 inliers, in front 1.00, rotation between them   0.0 deg
+  1015-1016:   904 matches,   388 inliers, in front 1.00, rotation between them   0.0 deg
+  1015-1038:  2051 matches,  1203 inliers, in front 1.00, rotation between them   0.0 deg
+  1016-1017:   690 matches,   411 inliers, in front 1.00, rotation between them   0.0 deg
+  1017-1018:   914 matches,   598 inliers, in front 1.00, rotation between them   0.0 deg
+  1018-1019:   711 matches,   439 inliers, in front 1.00, rotation between them   0.0 deg
+  1019-1021:   875 matches,   377 inliers, in front 0.99, rotation between them   0.0 deg
+  1019-1024:   397 matches,    20 inliers, in front 0.89, rotation between them   0.0 deg
+  1021-1022:   904 matches,   323 inliers, in front 1.00, rotation between them   0.0 deg
+  1022-1023:   877 matches,   351 inliers, in front 1.00, rotation between them   0.0 deg
+  1023-1024:   796 matches,   247 inliers, in front 0.99, rotation between them   0.0 deg
+  1024-1025:  1410 matches,   451 inliers, in front 0.99, rotation between them   0.0 deg
+  1025-1041:  2746 matches,   597 inliers, in front 0.99, rotation between them   0.0 deg
+  1026-1036:  1846 matches,   171 inliers, in front 0.97, rotation between them   0.0 deg
+  1028-1029:   475 matches,   193 inliers, in front 0.99, rotation between them   0.0 deg
+  1029-1030:   532 matches,   267 inliers, in front 1.00, rotation between them   0.0 deg
+  1030-1031:   587 matches,   392 inliers, in front 1.00, rotation between them   0.0 deg
+  1037-1038:   173 matches,    22 inliers, in front 1.00, rotation between them   0.0 deg
+  1037-4082:   399 matches,   213 inliers, in front 1.00, rotation between them   0.0 deg
+  1041-4001:  2637 matches,   249 inliers, in front 1.00, rotation between them   0.0 deg
+  2001-2002:  1570 matches,    46 inliers, in front 0.93, rotation between them   0.0 deg
+  2002-2003:  1813 matches,    84 inliers, in front 0.95, rotation between them   0.0 deg
+  2002-2005:  1618 matches,    45 inliers, in front 0.88, rotation between them   0.0 deg
+  2003-2004:  3152 matches,   227 inliers, in front 0.96, rotation between them   0.0 deg
+  2003-2019:   391 matches,    14 inliers, in front 0.69, rotation between them   0.0 deg
+  2004-2005:  1529 matches,    85 inliers, in front 0.87, rotation between them   0.0 deg
+  2005-2030:  1679 matches,   481 inliers, in front 0.99, rotation between them   0.0 deg
+  2005-2031:  1349 matches,   288 inliers, in front 0.99, rotation between them   0.0 deg
+  2006-2007:  2201 matches,   342 inliers, in front 0.98, rotation between them   0.0 deg
+  2006-2011:   827 matches,    27 inliers, in front 0.62, rotation between them   0.0 deg
+  2006-2030:   937 matches,    61 inliers, in front 0.95, rotation between them   0.0 deg
+  2007-2008:  1605 matches,   305 inliers, in front 0.99, rotation between them   0.0 deg
+  2008-2009:   808 matches,   163 inliers, in front 0.98, rotation between them   0.0 deg
+  2009-2010:   876 matches,   212 inliers, in front 0.99, rotation between them   0.0 deg
+  2010-2011:   528 matches,   115 inliers, in front 1.00, rotation between them   0.0 deg
+  2011-2012:   544 matches,   158 inliers, in front 0.98, rotation between them   0.0 deg
+  2011-2014:   295 matches,    13 inliers, in front 0.62, rotation between them   0.0 deg
+  2012-2013:   451 matches,   104 inliers, in front 0.98, rotation between them   0.0 deg
+  2013-2014:   961 matches,   263 inliers, in front 1.00, rotation between them   0.0 deg
+  2014-2015:  1433 matches,   226 inliers, in front 0.99, rotation between them   0.0 deg
+  2014-2018:   947 matches,    28 inliers, in front 0.54, rotation between them   0.0 deg
+  2015-2016:  2254 matches,   498 inliers, in front 0.99, rotation between them   0.0 deg
+  2016-2017:  2537 matches,   456 inliers, in front 0.98, rotation between them   0.0 deg
+  2017-2018:  2159 matches,   512 inliers, in front 0.99, rotation between them   0.0 deg
+  2018-2019:   752 matches,   229 inliers, in front 1.00, rotation between them   0.0 deg
+  2018-2022:  2528 matches,   266 inliers, in front 0.99, rotation between them   0.0 deg
+  2022-2023:  3956 matches,   421 inliers, in front 0.98, rotation between them   0.0 deg
+  2023-2024:  4449 matches,   459 inliers, in front 0.98, rotation between them   0.0 deg
+  2024-2025:  4324 matches,   415 inliers, in front 0.99, rotation between them   0.0 deg
+  2025-2026:  4739 matches,   572 inliers, in front 0.99, rotation between them   0.0 deg
+  2026-2027:  4589 matches,   559 inliers, in front 0.98, rotation between them   0.0 deg
+  2027-2028:  4658 matches,   611 inliers, in front 0.99, rotation between them   0.0 deg
+  2028-2029:  4514 matches,   560 inliers, in front 0.99, rotation between them   0.0 deg
+  2029-4013:  4586 matches,   706 inliers, in front 0.99, rotation between them   0.0 deg
+  2030-2031:  1228 matches,   229 inliers, in front 0.98, rotation between them   0.0 deg
+  2031-2032:  2828 matches,   360 inliers, in front 0.86, rotation between them   0.0 deg
+  2032-2033:  4772 matches,   410 inliers, in front 0.88, rotation between them   0.0 deg
+  2033-6002:  4763 matches,   599 inliers, in front 0.98, rotation between them   0.0 deg
+  3001-3002:  1164 matches,   175 inliers, in front 0.97, rotation between them   0.0 deg
+  3002-3003:  2237 matches,   129 inliers, in front 0.98, rotation between them   0.0 deg
+  3003-3004:  4391 matches,   184 inliers, in front 0.97, rotation between them   0.0 deg
+  3004-3005:  4795 matches,    53 inliers, in front 0.89, rotation between them   0.0 deg
+  3004-3008:  4391 matches,    38 inliers, in front 0.78, rotation between them   0.0 deg
+  3005-3006:  4840 matches,    89 inliers, in front 0.89, rotation between them   0.0 deg
+  3006-3007:  5385 matches,   179 inliers, in front 0.96, rotation between them   0.0 deg
+  3007-3008:  5572 matches,   148 inliers, in front 0.96, rotation between them   0.0 deg
+  3008-3009:  5688 matches,   243 inliers, in front 0.96, rotation between them   0.0 deg
+  3008-3015:  1395 matches,    34 inliers, in front 0.71, rotation between them   0.0 deg
+  3009-3010:  5426 matches,   210 inliers, in front 0.96, rotation between them   0.0 deg
+  3010-3011:  5449 matches,   280 inliers, in front 0.96, rotation between them   0.0 deg
+  3011-3012:  5022 matches,   148 inliers, in front 0.97, rotation between them   0.0 deg
+  3012-3013:  4817 matches,   180 inliers, in front 0.93, rotation between them   0.0 deg
+  3013-3014:  2952 matches,    46 inliers, in front 0.87, rotation between them   0.0 deg
+  3014-3015:  1504 matches,   171 inliers, in front 0.98, rotation between them   0.0 deg
+  3015-3016:   625 matches,    74 inliers, in front 0.97, rotation between them   0.0 deg
+  3015-3017:   909 matches,    39 inliers, in front 0.59, rotation between them   0.0 deg
+  3016-3018:  1077 matches,   332 inliers, in front 1.00, rotation between them   0.0 deg
+  4001-4002:  3542 matches,   346 inliers, in front 0.99, rotation between them   0.0 deg
+  4001-4005:   321 matches,    34 inliers, in front 0.97, rotation between them   0.0 deg
+  4002-4003:  2944 matches,   492 inliers, in front 1.00, rotation between them   0.0 deg
+  4003-4005:   583 matches,   199 inliers, in front 0.98, rotation between them   0.0 deg
+  4005-4006:   630 matches,    75 inliers, in front 0.96, rotation between them   0.0 deg
+  4005-4009:   545 matches,    17 inliers, in front 0.53, rotation between them   0.0 deg
+  4005-4018:   537 matches,    24 inliers, in front 0.86, rotation between them   0.0 deg
+  4005-4021:   675 matches,   157 inliers, in front 0.97, rotation between them   0.0 deg
+  4005-4022:   576 matches,    82 inliers, in front 1.00, rotation between them   0.0 deg
+  4005-4025:   450 matches,    15 inliers, in front 0.60, rotation between them   0.0 deg
+  4005-4032:   485 matches,    25 inliers, in front 0.95, rotation between them   0.0 deg
+  4005-4035:   670 matches,   112 inliers, in front 0.95, rotation between them   0.0 deg
+  4005-4036:   664 matches,   180 inliers, in front 0.99, rotation between them   0.0 deg
+  4005-4039:   508 matches,    24 inliers, in front 0.68, rotation between them   0.0 deg
+  4006-4007:  1797 matches,   143 inliers, in front 0.99, rotation between them   0.0 deg
+  4007-4008:  3390 matches,    97 inliers, in front 0.91, rotation between them   0.0 deg
+  4008-4009:  3219 matches,   227 inliers, in front 0.97, rotation between them   0.0 deg
+  4008-4044:  3083 matches,    71 inliers, in front 0.86, rotation between them   0.0 deg
+  4009-4010:  2765 matches,   329 inliers, in front 0.97, rotation between them   0.0 deg
+  4009-4014:   373 matches,    20 inliers, in front 0.85, rotation between them   0.0 deg
+  4009-4044:  2842 matches,    96 inliers, in front 0.86, rotation between them   0.0 deg
+  4010-4011:  1849 matches,   105 inliers, in front 0.95, rotation between them   0.0 deg
+  4011-4012:  1497 matches,    58 inliers, in front 0.93, rotation between them   0.0 deg
+  4012-4014:   436 matches,    29 inliers, in front 0.60, rotation between them   0.0 deg
+  4013-4041:  4894 matches,   919 inliers, in front 0.99, rotation between them   0.0 deg
+  4014-4015:   248 matches,    51 inliers, in front 1.00, rotation between them   0.0 deg
+  4014-4018:   204 matches,    10 inliers, in front 0.60, rotation between them   0.0 deg
+  4014-4025:   177 matches,     9 inliers, in front 0.80, rotation between them   0.0 deg
+  4014-4028:   326 matches,    79 inliers, in front 0.97, rotation between them   0.0 deg
+  4014-4029:   235 matches,    40 inliers, in front 0.97, rotation between them   0.0 deg
+  4014-4032:   164 matches,    10 inliers, in front 0.75, rotation between them   0.0 deg
+  4015-4016:  1686 matches,   105 inliers, in front 0.97, rotation between them   0.0 deg
+  4016-4017:  1603 matches,    67 inliers, in front 0.88, rotation between them   0.0 deg
+  4017-4018:  2198 matches,   362 inliers, in front 0.99, rotation between them   0.0 deg
+  4018-4019:  2855 matches,   304 inliers, in front 0.98, rotation between them   0.0 deg
+  4018-4042:  2241 matches,   198 inliers, in front 0.96, rotation between them   0.0 deg
+  4019-4020:  2953 matches,   372 inliers, in front 0.98, rotation between them   0.0 deg
+  4019-4042:  2241 matches,   245 inliers, in front 0.97, rotation between them   0.0 deg
+  4020-4021:  2364 matches,   402 inliers, in front 0.98, rotation between them   0.0 deg
+  4022-4023:  2139 matches,   216 inliers, in front 0.99, rotation between them   0.0 deg
+  4023-4024:  3022 matches,   196 inliers, in front 0.99, rotation between them   0.0 deg
+  4024-4025:  2770 matches,   224 inliers, in front 0.96, rotation between them   0.0 deg
+  4024-4045:  2586 matches,    75 inliers, in front 0.95, rotation between them   0.0 deg
+  4025-4026:  3104 matches,   297 inliers, in front 0.97, rotation between them   0.0 deg
+  4025-4045:  2435 matches,    74 inliers, in front 0.95, rotation between them   0.0 deg
+  4026-4027:  1897 matches,    97 inliers, in front 0.97, rotation between them   0.0 deg
+  4027-4028:  1675 matches,   100 inliers, in front 0.89, rotation between them   0.0 deg
+  4029-4030:  2238 matches,    93 inliers, in front 0.89, rotation between them   0.0 deg
+  4030-4031:  1651 matches,    99 inliers, in front 0.92, rotation between them   0.0 deg
+  4031-4032:  2422 matches,   327 inliers, in front 0.99, rotation between them   0.0 deg
+  4032-4033:  2944 matches,   350 inliers, in front 0.99, rotation between them   0.0 deg
+  4032-4043:  2348 matches,   216 inliers, in front 0.99, rotation between them   0.0 deg
+  4033-4034:  3026 matches,   186 inliers, in front 0.95, rotation between them   0.0 deg
+  4033-4043:  2561 matches,   150 inliers, in front 0.95, rotation between them   0.0 deg
+  4034-4035:  2404 matches,   265 inliers, in front 0.97, rotation between them   0.0 deg
+  4036-4037:  1817 matches,   323 inliers, in front 1.00, rotation between them   0.0 deg
+  4037-4038:  1960 matches,   304 inliers, in front 0.99, rotation between them   0.0 deg
+  4038-4039:  2029 matches,   397 inliers, in front 0.99, rotation between them   0.0 deg
+  4038-4046:  2032 matches,   139 inliers, in front 0.98, rotation between them   0.0 deg
+  4039-4040:  3060 matches,   542 inliers, in front 0.98, rotation between them   0.0 deg
+  4039-4046:  2342 matches,   143 inliers, in front 0.94, rotation between them   0.0 deg
+  4040-4041:  3472 matches,   521 inliers, in front 0.99, rotation between them   0.0 deg
+  4082-4083:  1984 matches,   294 inliers, in front 1.00, rotation between them   0.0 deg
+  4083-4084:  2372 matches,   415 inliers, in front 0.99, rotation between them   0.0 deg
+  4084-4089:  3402 matches,   870 inliers, in front 1.00, rotation between them   0.0 deg
+  4089-4090:  3785 matches,   922 inliers, in front 0.99, rotation between them   0.0 deg
+  5002-5003:   930 matches,   241 inliers, in front 0.99, rotation between them   0.0 deg
+  6002-6003:   317 matches,    12 inliers, in front 0.83, rotation between them   0.0 deg
+  6003-6004:   389 matches,    47 inliers, in front 1.00, rotation between them   0.0 deg
+  6004-6005:   743 matches,   157 inliers, in front 0.99, rotation between them   0.0 deg
+  6005-6009:  1506 matches,   647 inliers, in front 0.99, rotation between them   0.0 deg
+  6006-6007:   592 matches,    34 inliers, in front 0.83, rotation between them   0.0 deg
+  6006-6009:  1319 matches,   315 inliers, in front 0.99, rotation between them   0.0 deg
+  6007-6010:  1292 matches,    66 inliers, in front 0.67, rotation between them   0.0 deg
+  6010-6011:  2186 matches,   500 inliers, in front 0.99, rotation between them   0.0 deg
+  6011-6012:  1037 matches,   222 inliers, in front 1.00, rotation between them   0.0 deg
+159 of 177 links with at least 20 inliers and 0.8 in front; dropped: [(1002, 1004), (1007, 1010), (2003, 2019), (2006, 2011), (2011, 2014), (2014, 2018), (3004, 3008), (3008, 3015), (3015, 3017), (4005, 4009), (4005, 4025), (4005, 4039), (4012, 4014), (4014, 4018), (4014, 4025), (4014, 4032), (6002, 6003), (6007, 6010)]
+
+node rotations relative to node 1001 (yaw: + turns right; tilt: of the up axis):
+  1001: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1002: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1003: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1004: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1005: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1006: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1007: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1008: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1009: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1010: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1011: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1012: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1013: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1014: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1015: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1016: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1017: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1018: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1019: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1021: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1022: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1023: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1024: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1025: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1028: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1029: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1030: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1031: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1035: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1037: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1038: yaw   +0.00  pitch  +0.00  tilt  0.00
+  1041: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2001: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2002: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2003: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2004: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2005: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2006: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2007: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2008: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2009: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2010: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2011: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2012: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2013: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2014: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2015: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2016: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2017: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2018: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2019: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2022: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2023: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2024: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2025: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2026: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2027: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2028: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2029: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2030: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2031: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2032: yaw   +0.00  pitch  +0.00  tilt  0.00
+  2033: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3001: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3002: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3003: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3004: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3005: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3006: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3007: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3008: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3009: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3010: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3011: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3012: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3013: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3014: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3015: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3016: yaw   +0.00  pitch  +0.00  tilt  0.00
+  3018: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4001: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4002: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4003: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4005: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4006: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4007: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4008: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4009: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4010: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4011: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4012: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4013: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4014: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4015: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4016: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4017: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4018: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4019: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4020: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4021: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4022: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4023: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4024: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4025: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4026: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4027: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4028: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4029: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4030: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4031: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4032: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4033: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4034: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4035: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4036: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4037: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4038: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4039: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4040: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4041: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4042: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4043: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4044: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4045: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4046: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4082: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4083: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4084: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4089: yaw   +0.00  pitch  +0.00  tilt  0.00
+  4090: yaw   +0.00  pitch  +0.00  tilt  0.00
+  6002: yaw   +0.00  pitch  +0.00  tilt  0.00
+nodes turned by more than 5 deg or tilted more than 3: none
+not placed: [1026, 1036, 3017, 4057, 5001, 5002, 5003, 6003, 6004, 6005, 6006, 6007, 6009, 6010, 6011, 6012]
+rotation residuals over 150 links: median 0.00 deg, max 0.00 ((1001, 1002))
+links whose measured direction the solve does not follow (over 5 deg): 1010-1014 168, 4005-4032 86, 4009-4014 77, 2002-2005 70, 1019-1024 59, 1004-1005 36
+direction residuals: median 0.01 deg, max 167.56 ((1010, 1014))
+hotspot headings vs solved directions, in each node's own frame: 325 hotspots, median 4.6 deg, 90% within 17.6, worst 159.0
+age map: 131 nodes, turn +22.0 deg, residual median 3.42 steps, max 8.92 (node 1041)

@@ -1,0 +1,109 @@
+{
+ "face1": {
+  "image": "f1/ENSI-0016.jpg",
+  "sparse_points": 399,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.4476,
+  "sky_segformer": 0.25,
+  "check_median": 0.1462,
+  "check_p90": 0.7187,
+  "check_n": 1643,
+  "fit": [
+   0.0780061692109421,
+   -0.09673823551837403
+  ]
+ },
+ "face2": {
+  "image": "f2/ENSI-0016.jpg",
+  "sparse_points": 337,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.0,
+  "sky_segformer": 0.0,
+  "check_median": 0.2683,
+  "check_p90": 0.4239,
+  "check_n": 1665,
+  "fit": [
+   0.08266490736348023,
+   0.353652410159198
+  ]
+ },
+ "face3": {
+  "image": "f3/ENSI-0016.jpg",
+  "sparse_points": 115,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.3745,
+  "sky_segformer": 0.2244,
+  "check_median": 0.0475,
+  "check_p90": 0.1551,
+  "check_n": 1534,
+  "fit": [
+   0.10286905963754732,
+   0.0018684834101922556
+  ]
+ },
+ "face4": {
+  "image": "f4/ENSI-0016.jpg",
+  "sparse_points": 29,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.536,
+  "sky_segformer": 0.3084,
+  "check_median": 0.0429,
+  "check_p90": 0.167,
+  "check_n": 1525,
+  "fit": [
+   0.11682905476408155,
+   0.0026144850641705575
+  ]
+ },
+ "face5": {
+  "image": "f5/ENSI-0016.jpg",
+  "sparse_points": 659,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.2526,
+  "sky_segformer": 0.1798,
+  "check_median": 0.1095,
+  "check_p90": 0.2924,
+  "check_n": 1889,
+  "fit": [
+   0.07825097696255982,
+   -0.07118014991416664
+  ]
+ },
+ "face6": {
+  "image": "f6/ENSI-0016.jpg",
+  "sparse_points": 6,
+  "stereo_samples": 3000,
+  "cloud_cells": 0,
+  "sky": 0.9218,
+  "sky_segformer": 0.9215,
+  "check_median": 0.0119,
+  "check_p90": 0.0551,
+  "check_n": 1518,
+  "fit": [
+   0.12722774612951573,
+   0.000543687583530208
+  ]
+ },
+ "node": "0016",
+ "node_spacing": 1.2804283029551842,
+ "r_near": 0.9853538000736187,
+ "r_near_spacings": 0.7695501558341504,
+ "r_far": 19.707076001472373,
+ "ratio": 20.0,
+ "seams_fitted": {
+  "samples": 1147,
+  "median": 0.1673,
+  "p90": 0.2433
+ },
+ "seams": {
+  "samples": 1147,
+  "median": 0.0035,
+  "p90": 0.0449
+ },
+ "band": 48
+}

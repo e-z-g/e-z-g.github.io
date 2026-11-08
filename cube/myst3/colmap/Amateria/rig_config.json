@@ -1,0 +1,122 @@
+[
+ {
+  "cameras": [
+   {
+    "image_prefix": "f1/",
+    "camera_model_name": "PINHOLE",
+    "camera_params": [
+     320.0,
+     320.0,
+     320.0,
+     320.0
+    ],
+    "ref_sensor": true
+   },
+   {
+    "image_prefix": "f2/",
+    "camera_model_name": "PINHOLE",
+    "camera_params": [
+     320.0,
+     320.0,
+     320.0,
+     320.0
+    ],
+    "cam_from_rig_rotation": [
+     0.0,
+     0.0,
+     0.707106781187,
+     0.707106781187
+    ],
+    "cam_from_rig_translation": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "image_prefix": "f3/",
+    "camera_model_name": "PINHOLE",
+    "camera_params": [
+     320.0,
+     320.0,
+     320.0,
+     320.0
+    ],
+    "cam_from_rig_rotation": [
+     0.0,
+     0.0,
+     1.0,
+     0.0
+    ],
+    "cam_from_rig_translation": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "image_prefix": "f4/",
+    "camera_model_name": "PINHOLE",
+    "camera_params": [
+     320.0,
+     320.0,
+     320.0,
+     320.0
+    ],
+    "cam_from_rig_rotation": [
+     0.707106781187,
+     0.0,
+     -0.707106781187,
+     0.0
+    ],
+    "cam_from_rig_translation": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "image_prefix": "f5/",
+    "camera_model_name": "PINHOLE",
+    "camera_params": [
+     320.0,
+     320.0,
+     320.0,
+     320.0
+    ],
+    "cam_from_rig_rotation": [
+     0.707106781187,
+     0.0,
+     0.707106781187,
+     0.0
+    ],
+    "cam_from_rig_translation": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   {
+    "image_prefix": "f6/",
+    "camera_model_name": "PINHOLE",
+    "camera_params": [
+     320.0,
+     320.0,
+     320.0,
+     320.0
+    ],
+    "cam_from_rig_rotation": [
+     0.0,
+     0.0,
+     -0.707106781187,
+     0.707106781187
+    ],
+    "cam_from_rig_translation": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  ]
+ }
+]

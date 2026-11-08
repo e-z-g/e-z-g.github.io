@@ -1,0 +1,840 @@
+{
+ "room": "ENPP",
+ "nodes": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  106,
+  110,
+  10000
+ ],
+ "links": [
+  {
+   "from": 1,
+   "kind": "zip-room",
+   "opcode": 141,
+   "args": [
+    701,
+    35
+   ],
+   "heading": 99,
+   "pitch": 0
+  },
+  {
+   "from": 1,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    701,
+    41
+   ],
+   "heading": 95,
+   "pitch": -5
+  },
+  {
+   "from": 1,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 264,
+   "pitch": -19
+  },
+  {
+   "from": 1,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    3
+   ],
+   "heading": 299,
+   "pitch": -12
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    1
+   ],
+   "heading": 94,
+   "pitch": -18
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    3
+   ],
+   "heading": 0,
+   "pitch": -8
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    4
+   ],
+   "heading": 166,
+   "pitch": 57
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    4
+   ],
+   "heading": 164,
+   "pitch": 12
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    6
+   ],
+   "heading": 268,
+   "pitch": -15
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 181,
+   "pitch": -19
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 176,
+   "pitch": 39
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    1
+   ],
+   "heading": 133,
+   "pitch": -1
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    6
+   ],
+   "heading": 238,
+   "pitch": -2
+  },
+  {
+   "from": 4,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    5
+   ],
+   "heading": 275,
+   "pitch": 21
+  },
+  {
+   "from": 4,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 358,
+   "pitch": -74
+  },
+  {
+   "from": 4,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 178,
+   "pitch": -77
+  },
+  {
+   "from": 5,
+   "kind": "movie",
+   "opcode": 151,
+   "args": [
+    0,
+    -28
+   ],
+   "heading": 337,
+   "pitch": -60
+  },
+  {
+   "from": 5,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    0,
+    -28
+   ],
+   "heading": 337,
+   "pitch": -60
+  },
+  {
+   "from": 5,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    4
+   ],
+   "heading": 106,
+   "pitch": -54
+  },
+  {
+   "from": 6,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    11
+   ],
+   "heading": 269,
+   "pitch": -3
+  },
+  {
+   "from": 6,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 100,
+   "pitch": -17
+  },
+  {
+   "from": 6,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    3
+   ],
+   "heading": 66,
+   "pitch": -17
+  },
+  {
+   "from": 6,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    7
+   ],
+   "heading": 267,
+   "pitch": -19
+  },
+  {
+   "from": 6,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    106
+   ],
+   "heading": 180,
+   "pitch": -10
+  },
+  {
+   "from": 7,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    6
+   ],
+   "heading": 90,
+   "pitch": -19
+  },
+  {
+   "from": 7,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    8
+   ],
+   "heading": 271,
+   "pitch": -19
+  },
+  {
+   "from": 8,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    7
+   ],
+   "heading": 91,
+   "pitch": -16
+  },
+  {
+   "from": 8,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    9
+   ],
+   "heading": 267,
+   "pitch": -18
+  },
+  {
+   "from": 9,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    8
+   ],
+   "heading": 89,
+   "pitch": -15
+  },
+  {
+   "from": 9,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    10
+   ],
+   "heading": 268,
+   "pitch": -19
+  },
+  {
+   "from": 10,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    9
+   ],
+   "heading": 91,
+   "pitch": -18
+  },
+  {
+   "from": 10,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    11
+   ],
+   "heading": 267,
+   "pitch": -20
+  },
+  {
+   "from": 10,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    13
+   ],
+   "heading": 312,
+   "pitch": -22
+  },
+  {
+   "from": 11,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    6
+   ],
+   "heading": 89,
+   "pitch": -3
+  },
+  {
+   "from": 11,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    10
+   ],
+   "heading": 87,
+   "pitch": -18
+  },
+  {
+   "from": 11,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    12
+   ],
+   "heading": 270,
+   "pitch": -8
+  },
+  {
+   "from": 11,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    13
+   ],
+   "heading": 358,
+   "pitch": -18
+  },
+  {
+   "from": 12,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    11
+   ],
+   "heading": 98,
+   "pitch": -20
+  },
+  {
+   "from": 12,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    13
+   ],
+   "heading": 24,
+   "pitch": -19
+  },
+  {
+   "from": 12,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    16
+   ],
+   "heading": 266,
+   "pitch": -12
+  },
+  {
+   "from": 12,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    0,
+    10212
+   ],
+   "heading": 261,
+   "pitch": -22
+  },
+  {
+   "from": 13,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    11
+   ],
+   "heading": 165,
+   "pitch": -22
+  },
+  {
+   "from": 13,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    10
+   ],
+   "heading": 121,
+   "pitch": -18
+  },
+  {
+   "from": 13,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    12
+   ],
+   "heading": 213,
+   "pitch": -21
+  },
+  {
+   "from": 13,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    14
+   ],
+   "heading": 55,
+   "pitch": -49
+  },
+  {
+   "from": 14,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    13
+   ],
+   "heading": 119,
+   "pitch": 8
+  },
+  {
+   "from": 14,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    13
+   ],
+   "heading": 123,
+   "pitch": 62
+  },
+  {
+   "from": 14,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    15
+   ],
+   "heading": 179,
+   "pitch": -22
+  },
+  {
+   "from": 14,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    0,
+    -27
+   ],
+   "heading": 178,
+   "pitch": -11
+  },
+  {
+   "from": 15,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    14
+   ],
+   "heading": 0,
+   "pitch": -17
+  },
+  {
+   "from": 15,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    13
+   ],
+   "heading": 14,
+   "pitch": 48
+  },
+  {
+   "from": 15,
+   "kind": "walk",
+   "opcode": 164,
+   "args": [
+    15
+   ],
+   "heading": 160,
+   "pitch": -8
+  },
+  {
+   "from": 15,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    0,
+    10315
+   ],
+   "heading": 162,
+   "pitch": 1
+  },
+  {
+   "from": 16,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    12
+   ],
+   "heading": 90,
+   "pitch": -8
+  },
+  {
+   "from": 16,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    704,
+    1
+   ],
+   "heading": 149,
+   "pitch": -55
+  },
+  {
+   "from": 106,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    0,
+    20106
+   ],
+   "heading": 43,
+   "pitch": 300
+  },
+  {
+   "from": 106,
+   "kind": "movie",
+   "opcode": 151,
+   "args": [
+    0,
+    22106
+   ],
+   "heading": 43,
+   "pitch": 300
+  },
+  {
+   "from": 106,
+   "kind": "movie",
+   "opcode": 152,
+   "args": [
+    0,
+    21106
+   ],
+   "heading": 43,
+   "pitch": 300
+  },
+  {
+   "from": 106,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    6
+   ],
+   "heading": 0,
+   "pitch": 0
+  },
+  {
+   "from": 110,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    10
+   ],
+   "heading": 0,
+   "pitch": 0
+  }
+ ],
+ "walk_bearings": [
+  {
+   "from": 1,
+   "to": 2,
+   "heading": 269.0
+  },
+  {
+   "from": 1,
+   "to": 3,
+   "heading": 306.0
+  },
+  {
+   "from": 2,
+   "to": 3,
+   "heading": 0.5
+  },
+  {
+   "from": 2,
+   "to": 4,
+   "heading": 172.0
+  },
+  {
+   "from": 2,
+   "to": 6,
+   "heading": 274.0
+  },
+  {
+   "from": 3,
+   "to": 6,
+   "heading": 242.0
+  },
+  {
+   "from": 4,
+   "to": 5,
+   "heading": 280.5
+  },
+  {
+   "from": 6,
+   "to": 7,
+   "heading": 268.5
+  },
+  {
+   "from": 6,
+   "to": 106,
+   "heading": 180.0
+  },
+  {
+   "from": 7,
+   "to": 8,
+   "heading": 271.0
+  },
+  {
+   "from": 8,
+   "to": 9,
+   "heading": 268.0
+  },
+  {
+   "from": 9,
+   "to": 10,
+   "heading": 269.5
+  },
+  {
+   "from": 10,
+   "to": 11,
+   "heading": 267.0
+  },
+  {
+   "from": 10,
+   "to": 13,
+   "heading": 306.5
+  },
+  {
+   "from": 11,
+   "to": 12,
+   "heading": 274.0
+  },
+  {
+   "from": 11,
+   "to": 13,
+   "heading": 351.5
+  },
+  {
+   "from": 12,
+   "to": 13,
+   "heading": 28.5
+  },
+  {
+   "from": 12,
+   "to": 16,
+   "heading": 268.0
+  },
+  {
+   "from": 14,
+   "to": 15,
+   "heading": 179.5
+  },
+  {
+   "from": 15,
+   "to": 13,
+   "heading": 14
+  },
+  {
+   "from": 110,
+   "to": 10,
+   "heading": 0
+  }
+ ],
+ "sketch_positions": {
+  "1": [
+   0.0,
+   0.0
+  ],
+  "2": [
+   -0.9161445773301532,
+   -0.10788273854326456
+  ],
+  "3": [
+   -0.892727697679384,
+   0.6782146530723473
+  ],
+  "4": [
+   -0.7769715451522043,
+   -1.0981508157297317
+  ],
+  "6": [
+   -1.8446955195731576,
+   0.08530797559323633
+  ],
+  "5": [
+   -1.760226452716159,
+   -0.9159152902375843
+  ],
+  "7": [
+   -2.8443595860403112,
+   0.05913019958182743
+  ],
+  "106": [
+   -1.8446955195731574,
+   -0.9146920244067637
+  ],
+  "8": [
+   -3.8442136603978256,
+   0.07658182279669654
+  ],
+  "9": [
+   -4.843610399708392,
+   0.04168160019778519
+  ],
+  "10": [
+   -5.843577673472673,
+   0.03295440775378854
+  ],
+  "11": [
+   -6.667166165453703,
+   -0.14252289568337714
+  ],
+  "13": [
+   -6.822479179048087,
+   0.7509180994320981
+  ],
+  "110": [
+   -5.843577673472673,
+   -0.9670455922462114
+  ],
+  "12": [
+   -7.482184376890429,
+   -0.1003327543416674
+  ],
+  "15": [
+   -7.064401680188056,
+   -0.21937770119062727
+  ],
+  "16": [
+   -8.481575203909525,
+   -0.13523225104416817
+  ],
+  "14": [
+   -7.07312821568643,
+   0.780584221873544
+  ]
+ },
+ "walk_connected_groups": [
+  [
+   1,
+   2,
+   3,
+   4,
+   6,
+   5,
+   7,
+   106,
+   8,
+   9,
+   10,
+   11,
+   13,
+   110,
+   12,
+   15,
+   16,
+   14
+  ]
+ ]
+}

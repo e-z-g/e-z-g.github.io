@@ -1,0 +1,110 @@
+{
+ "face1": {
+  "image": "C:\\myst3_colmap\\Amateria\\site_maww101\\MAWWnodes-8_orig.jpeg",
+  "sparse_points": 0,
+  "stereo_samples": 0,
+  "cloud_cells": 0,
+  "sky": 0.5054,
+  "sky_segformer": 0.505,
+  "fit": [
+   0.016576497958806825,
+   -0.0011594490117542327
+  ],
+  "changed": 0.1434,
+  "transfer_fit": [
+   0.01836548297542047,
+   0.00037538885579425837
+  ],
+  "transfer_median": 0.05
+ },
+ "face2": {
+  "image": "C:\\myst3_colmap\\Amateria\\site_maww101\\MAWWnodes-9_orig.jpeg",
+  "sparse_points": 133,
+  "stereo_samples": 0,
+  "cloud_cells": 0,
+  "sky": 0.0,
+  "sky_segformer": 0.0,
+  "check_median": 0.1599,
+  "check_p90": 0.3706,
+  "check_n": 65,
+  "fit": [
+   0.013712401530244445,
+   0.05791683757405843
+  ],
+  "changed": 0.3567,
+  "transfer_fit": [
+   0.012850399540429745,
+   0.05901237875770052
+  ],
+  "transfer_median": 0.0077
+ },
+ "face3": {
+  "image": "C:\\myst3_colmap\\Amateria\\site_maww101\\MAWWnodes-10_orig.jpeg",
+  "sparse_points": 0,
+  "stereo_samples": 0,
+  "cloud_cells": 0,
+  "sky": 0.4942,
+  "sky_segformer": 0.4873,
+  "fit": [
+   0.00847245645005741,
+   0.01289300540473475
+  ],
+  "changed": 0.0
+ },
+ "face4": {
+  "image": "C:\\myst3_colmap\\Amateria\\site_maww101\\MAWWnodes-11_orig.jpeg",
+  "sparse_points": 0,
+  "stereo_samples": 0,
+  "cloud_cells": 0,
+  "sky": 0.5089,
+  "sky_segformer": 0.5068,
+  "fit": [
+   0.010216166477127437,
+   0.0008598002531025199
+  ],
+  "changed": 0.0
+ },
+ "face5": {
+  "image": "C:\\myst3_colmap\\Amateria\\site_maww101\\MAWWnodes-12_orig.jpeg",
+  "sparse_points": 0,
+  "stereo_samples": 0,
+  "cloud_cells": 0,
+  "sky": 0.5042,
+  "sky_segformer": 0.504,
+  "fit": [
+   0.007417383262326044,
+   0.0005362175556939488
+  ],
+  "changed": 0.0
+ },
+ "face6": {
+  "image": "C:\\myst3_colmap\\Amateria\\site_maww101\\MAWWnodes-13_orig.jpeg",
+  "sparse_points": 0,
+  "stereo_samples": 0,
+  "cloud_cells": 0,
+  "sky": 1.0,
+  "sky_segformer": 0.6416,
+  "fit": [
+   0.0,
+   0.0
+  ],
+  "changed": 0.0
+ },
+ "node": 5001,
+ "node_spacing": null,
+ "r_near": 6.350159240413534,
+ "r_near_spacings": null,
+ "r_far": 127.00318480827067,
+ "ratio": 20.0,
+ "seams_fitted": {
+  "samples": 640,
+  "median": 0.1667,
+  "p90": 0.627
+ },
+ "seams": {
+  "samples": 640,
+  "median": 0.0121,
+  "p90": 0.1031
+ },
+ "band": 48
+}

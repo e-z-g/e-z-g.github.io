@@ -1,0 +1,1603 @@
+{
+ "room": "ENCH",
+ "nodes": [
+  28,
+  29,
+  30,
+  31,
+  32,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  61,
+  62,
+  64,
+  65,
+  67,
+  68,
+  69,
+  70,
+  71,
+  72,
+  73,
+  74,
+  75,
+  76,
+  77,
+  78,
+  79,
+  80,
+  81,
+  82,
+  83,
+  84,
+  85,
+  86,
+  87,
+  88,
+  89,
+  90,
+  91,
+  92,
+  93,
+  94,
+  95,
+  96,
+  97,
+  193
+ ],
+ "links": [
+  {
+   "from": 28,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    701,
+    26
+   ],
+   "heading": 273,
+   "pitch": -15
+  },
+  {
+   "from": 28,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    29
+   ],
+   "heading": 95,
+   "pitch": -14
+  },
+  {
+   "from": 29,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    28
+   ],
+   "heading": 273,
+   "pitch": -18
+  },
+  {
+   "from": 29,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    30
+   ],
+   "heading": 103,
+   "pitch": -18
+  },
+  {
+   "from": 30,
+   "kind": "zip-room",
+   "opcode": 141,
+   "args": [
+    701,
+    21
+   ],
+   "heading": 278,
+   "pitch": 5
+  },
+  {
+   "from": 30,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    39
+   ],
+   "heading": 103,
+   "pitch": 2
+  },
+  {
+   "from": 30,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    83
+   ],
+   "heading": 216,
+   "pitch": -4
+  },
+  {
+   "from": 30,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    29
+   ],
+   "heading": 277,
+   "pitch": -15
+  },
+  {
+   "from": 30,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    31
+   ],
+   "heading": 100,
+   "pitch": -12
+  },
+  {
+   "from": 30,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    80
+   ],
+   "heading": 182,
+   "pitch": -28
+  },
+  {
+   "from": 31,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    30
+   ],
+   "heading": 277,
+   "pitch": -15
+  },
+  {
+   "from": 31,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    32
+   ],
+   "heading": 102,
+   "pitch": -13
+  },
+  {
+   "from": 32,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    31
+   ],
+   "heading": 279,
+   "pitch": -13
+  },
+  {
+   "from": 32,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    34
+   ],
+   "heading": 104,
+   "pitch": -16
+  },
+  {
+   "from": 34,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    32
+   ],
+   "heading": 285,
+   "pitch": -10
+  },
+  {
+   "from": 34,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    35
+   ],
+   "heading": 105,
+   "pitch": -14
+  },
+  {
+   "from": 35,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    34
+   ],
+   "heading": 285,
+   "pitch": -14
+  },
+  {
+   "from": 35,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    36
+   ],
+   "heading": 106,
+   "pitch": -13
+  },
+  {
+   "from": 36,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    35
+   ],
+   "heading": 286,
+   "pitch": -13
+  },
+  {
+   "from": 36,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    37
+   ],
+   "heading": 107,
+   "pitch": -14
+  },
+  {
+   "from": 37,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    36
+   ],
+   "heading": 284,
+   "pitch": -13
+  },
+  {
+   "from": 37,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    38
+   ],
+   "heading": 108,
+   "pitch": -16
+  },
+  {
+   "from": 38,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    37
+   ],
+   "heading": 283,
+   "pitch": -13
+  },
+  {
+   "from": 38,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    39
+   ],
+   "heading": 112,
+   "pitch": -18
+  },
+  {
+   "from": 39,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    30
+   ],
+   "heading": 286,
+   "pitch": 0
+  },
+  {
+   "from": 39,
+   "kind": "zip-room",
+   "opcode": 141,
+   "args": [
+    706,
+    46
+   ],
+   "heading": 180,
+   "pitch": -33
+  },
+  {
+   "from": 39,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    38
+   ],
+   "heading": 297,
+   "pitch": -14
+  },
+  {
+   "from": 39,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    706,
+    40
+   ],
+   "heading": 181,
+   "pitch": -58
+  },
+  {
+   "from": 61,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    78
+   ],
+   "heading": 273,
+   "pitch": 4
+  },
+  {
+   "from": 61,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    706,
+    60
+   ],
+   "heading": 91,
+   "pitch": -25
+  },
+  {
+   "from": 61,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    62
+   ],
+   "heading": 263,
+   "pitch": -17
+  },
+  {
+   "from": 61,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    64
+   ],
+   "heading": 323,
+   "pitch": -14
+  },
+  {
+   "from": 62,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    61
+   ],
+   "heading": 72,
+   "pitch": -30
+  },
+  {
+   "from": 62,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    65
+   ],
+   "heading": 258,
+   "pitch": -15
+  },
+  {
+   "from": 62,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    64
+   ],
+   "heading": 6,
+   "pitch": -19
+  },
+  {
+   "from": 64,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    61
+   ],
+   "heading": 148,
+   "pitch": -25
+  },
+  {
+   "from": 64,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    62
+   ],
+   "heading": 193,
+   "pitch": -21
+  },
+  {
+   "from": 65,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    62
+   ],
+   "heading": 73,
+   "pitch": -10
+  },
+  {
+   "from": 65,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    67
+   ],
+   "heading": 274,
+   "pitch": -8
+  },
+  {
+   "from": 67,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    65
+   ],
+   "heading": 95,
+   "pitch": -15
+  },
+  {
+   "from": 67,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    68
+   ],
+   "heading": 277,
+   "pitch": -8
+  },
+  {
+   "from": 68,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    67
+   ],
+   "heading": 97,
+   "pitch": -11
+  },
+  {
+   "from": 68,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    69
+   ],
+   "heading": 275,
+   "pitch": -6
+  },
+  {
+   "from": 69,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    68
+   ],
+   "heading": 96,
+   "pitch": -13
+  },
+  {
+   "from": 69,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    70
+   ],
+   "heading": 275,
+   "pitch": -6
+  },
+  {
+   "from": 70,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    69
+   ],
+   "heading": 96,
+   "pitch": -12
+  },
+  {
+   "from": 70,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    71
+   ],
+   "heading": 276,
+   "pitch": -6
+  },
+  {
+   "from": 71,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    70
+   ],
+   "heading": 95,
+   "pitch": -11
+  },
+  {
+   "from": 71,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    72
+   ],
+   "heading": 277,
+   "pitch": -5
+  },
+  {
+   "from": 72,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    71
+   ],
+   "heading": 97,
+   "pitch": -10
+  },
+  {
+   "from": 72,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    73
+   ],
+   "heading": 276,
+   "pitch": -8
+  },
+  {
+   "from": 73,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    72
+   ],
+   "heading": 97,
+   "pitch": -12
+  },
+  {
+   "from": 73,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    74
+   ],
+   "heading": 276,
+   "pitch": -9
+  },
+  {
+   "from": 74,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    73
+   ],
+   "heading": 97,
+   "pitch": -13
+  },
+  {
+   "from": 74,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    75
+   ],
+   "heading": 275,
+   "pitch": -10
+  },
+  {
+   "from": 75,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    74
+   ],
+   "heading": 96,
+   "pitch": -11
+  },
+  {
+   "from": 75,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    76
+   ],
+   "heading": 279,
+   "pitch": -14
+  },
+  {
+   "from": 76,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    75
+   ],
+   "heading": 97,
+   "pitch": -11
+  },
+  {
+   "from": 76,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    77
+   ],
+   "heading": 295,
+   "pitch": -12
+  },
+  {
+   "from": 77,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    76
+   ],
+   "heading": 107,
+   "pitch": -11
+  },
+  {
+   "from": 77,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    78
+   ],
+   "heading": 350,
+   "pitch": -19
+  },
+  {
+   "from": 78,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    61
+   ],
+   "heading": 98,
+   "pitch": -5
+  },
+  {
+   "from": 78,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    705,
+    15
+   ],
+   "heading": 304,
+   "pitch": -28
+  },
+  {
+   "from": 78,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    77
+   ],
+   "heading": 162,
+   "pitch": -21
+  },
+  {
+   "from": 78,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    79
+   ],
+   "heading": 4,
+   "pitch": -25
+  },
+  {
+   "from": 79,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    78
+   ],
+   "heading": 184,
+   "pitch": -24
+  },
+  {
+   "from": 80,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    81
+   ],
+   "heading": 184,
+   "pitch": -21
+  },
+  {
+   "from": 80,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    30
+   ],
+   "heading": 7,
+   "pitch": -26
+  },
+  {
+   "from": 80,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    29
+   ],
+   "heading": 302,
+   "pitch": -7
+  },
+  {
+   "from": 80,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    31
+   ],
+   "heading": 68,
+   "pitch": -15
+  },
+  {
+   "from": 81,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    80
+   ],
+   "heading": 11,
+   "pitch": -14
+  },
+  {
+   "from": 81,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    82
+   ],
+   "heading": 222,
+   "pitch": -18
+  },
+  {
+   "from": 82,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    81
+   ],
+   "heading": 38,
+   "pitch": -15
+  },
+  {
+   "from": 82,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    83
+   ],
+   "heading": 261,
+   "pitch": -14
+  },
+  {
+   "from": 83,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    30
+   ],
+   "heading": 55,
+   "pitch": -5
+  },
+  {
+   "from": 83,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    82
+   ],
+   "heading": 86,
+   "pitch": -15
+  },
+  {
+   "from": 83,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    84
+   ],
+   "heading": 11,
+   "pitch": -19
+  },
+  {
+   "from": 84,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    83
+   ],
+   "heading": 176,
+   "pitch": -23
+  },
+  {
+   "from": 84,
+   "kind": "movie",
+   "opcode": 151,
+   "args": [
+    85,
+    10084
+   ],
+   "heading": 104,
+   "pitch": -54
+  },
+  {
+   "from": 85,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    86
+   ],
+   "heading": 176,
+   "pitch": -16
+  },
+  {
+   "from": 85,
+   "kind": "movie",
+   "opcode": 151,
+   "args": [
+    84,
+    10085
+   ],
+   "heading": 126,
+   "pitch": -49
+  },
+  {
+   "from": 86,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    85
+   ],
+   "heading": 353,
+   "pitch": -13
+  },
+  {
+   "from": 86,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    87
+   ],
+   "heading": 146,
+   "pitch": -13
+  },
+  {
+   "from": 87,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    86
+   ],
+   "heading": 335,
+   "pitch": -11
+  },
+  {
+   "from": 87,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    88
+   ],
+   "heading": 140,
+   "pitch": -15
+  },
+  {
+   "from": 88,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    87
+   ],
+   "heading": 321,
+   "pitch": -12
+  },
+  {
+   "from": 88,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    89
+   ],
+   "heading": 131,
+   "pitch": -17
+  },
+  {
+   "from": 89,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    88
+   ],
+   "heading": 305,
+   "pitch": -16
+  },
+  {
+   "from": 89,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    90
+   ],
+   "heading": 100,
+   "pitch": -15
+  },
+  {
+   "from": 90,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    89
+   ],
+   "heading": 293,
+   "pitch": -17
+  },
+  {
+   "from": 90,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    91
+   ],
+   "heading": 99,
+   "pitch": -15
+  },
+  {
+   "from": 91,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    90
+   ],
+   "heading": 288,
+   "pitch": -17
+  },
+  {
+   "from": 91,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    92
+   ],
+   "heading": 100,
+   "pitch": -16
+  },
+  {
+   "from": 92,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    91
+   ],
+   "heading": 281,
+   "pitch": -13
+  },
+  {
+   "from": 92,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    93
+   ],
+   "heading": 95,
+   "pitch": -15
+  },
+  {
+   "from": 93,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    92
+   ],
+   "heading": 283,
+   "pitch": -13
+  },
+  {
+   "from": 93,
+   "kind": "movie",
+   "opcode": 151,
+   "args": [
+    193,
+    20093
+   ],
+   "heading": 26,
+   "pitch": -58
+  },
+  {
+   "from": 94,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    193
+   ],
+   "heading": 88,
+   "pitch": -22
+  },
+  {
+   "from": 94,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    95
+   ],
+   "heading": 268,
+   "pitch": -25
+  },
+  {
+   "from": 95,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    94
+   ],
+   "heading": 87,
+   "pitch": -20
+  },
+  {
+   "from": 95,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    96
+   ],
+   "heading": 268,
+   "pitch": -27
+  },
+  {
+   "from": 96,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    95
+   ],
+   "heading": 87,
+   "pitch": -19
+  },
+  {
+   "from": 96,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    97
+   ],
+   "heading": 291,
+   "pitch": -17
+  },
+  {
+   "from": 97,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    96
+   ],
+   "heading": 99,
+   "pitch": -25
+  },
+  {
+   "from": 97,
+   "kind": "walk-room",
+   "opcode": 165,
+   "args": [
+    708,
+    1
+   ],
+   "heading": 177,
+   "pitch": -56
+  },
+  {
+   "from": 193,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    94
+   ],
+   "heading": 270,
+   "pitch": -23
+  }
+ ],
+ "walk_bearings": [
+  {
+   "from": 28,
+   "to": 29,
+   "heading": 94.0
+  },
+  {
+   "from": 29,
+   "to": 30,
+   "heading": 100.0
+  },
+  {
+   "from": 30,
+   "to": 31,
+   "heading": 98.5
+  },
+  {
+   "from": 30,
+   "to": 80,
+   "heading": 184.5
+  },
+  {
+   "from": 31,
+   "to": 32,
+   "heading": 100.5
+  },
+  {
+   "from": 32,
+   "to": 34,
+   "heading": 104.5
+  },
+  {
+   "from": 34,
+   "to": 35,
+   "heading": 105.0
+  },
+  {
+   "from": 35,
+   "to": 36,
+   "heading": 106.0
+  },
+  {
+   "from": 36,
+   "to": 37,
+   "heading": 105.5
+  },
+  {
+   "from": 37,
+   "to": 38,
+   "heading": 105.5
+  },
+  {
+   "from": 38,
+   "to": 39,
+   "heading": 114.5
+  },
+  {
+   "from": 61,
+   "to": 62,
+   "heading": 257.5
+  },
+  {
+   "from": 61,
+   "to": 64,
+   "heading": 325.5
+  },
+  {
+   "from": 62,
+   "to": 65,
+   "heading": 255.5
+  },
+  {
+   "from": 62,
+   "to": 64,
+   "heading": 9.5
+  },
+  {
+   "from": 65,
+   "to": 67,
+   "heading": 274.5
+  },
+  {
+   "from": 67,
+   "to": 68,
+   "heading": 277.0
+  },
+  {
+   "from": 68,
+   "to": 69,
+   "heading": 275.5
+  },
+  {
+   "from": 69,
+   "to": 70,
+   "heading": 275.5
+  },
+  {
+   "from": 70,
+   "to": 71,
+   "heading": 275.5
+  },
+  {
+   "from": 71,
+   "to": 72,
+   "heading": 277.0
+  },
+  {
+   "from": 72,
+   "to": 73,
+   "heading": 276.5
+  },
+  {
+   "from": 73,
+   "to": 74,
+   "heading": 276.5
+  },
+  {
+   "from": 74,
+   "to": 75,
+   "heading": 275.5
+  },
+  {
+   "from": 75,
+   "to": 76,
+   "heading": 278.0
+  },
+  {
+   "from": 76,
+   "to": 77,
+   "heading": 291.0
+  },
+  {
+   "from": 77,
+   "to": 78,
+   "heading": 346.0
+  },
+  {
+   "from": 78,
+   "to": 79,
+   "heading": 4.0
+  },
+  {
+   "from": 80,
+   "to": 81,
+   "heading": 187.5
+  },
+  {
+   "from": 80,
+   "to": 29,
+   "heading": 302
+  },
+  {
+   "from": 80,
+   "to": 31,
+   "heading": 68
+  },
+  {
+   "from": 81,
+   "to": 82,
+   "heading": 220.0
+  },
+  {
+   "from": 82,
+   "to": 83,
+   "heading": 263.5
+  },
+  {
+   "from": 83,
+   "to": 84,
+   "heading": 3.5
+  },
+  {
+   "from": 85,
+   "to": 86,
+   "heading": 174.5
+  },
+  {
+   "from": 86,
+   "to": 87,
+   "heading": 150.5
+  },
+  {
+   "from": 87,
+   "to": 88,
+   "heading": 140.5
+  },
+  {
+   "from": 88,
+   "to": 89,
+   "heading": 128.0
+  },
+  {
+   "from": 89,
+   "to": 90,
+   "heading": 106.5
+  },
+  {
+   "from": 90,
+   "to": 91,
+   "heading": 103.5
+  },
+  {
+   "from": 91,
+   "to": 92,
+   "heading": 100.5
+  },
+  {
+   "from": 92,
+   "to": 93,
+   "heading": 99.0
+  },
+  {
+   "from": 94,
+   "to": 193,
+   "heading": 89.0
+  },
+  {
+   "from": 94,
+   "to": 95,
+   "heading": 267.5
+  },
+  {
+   "from": 95,
+   "to": 96,
+   "heading": 267.5
+  },
+  {
+   "from": 96,
+   "to": 97,
+   "heading": 285.0
+  }
+ ],
+ "sketch_positions": {
+  "28": [
+   0.0,
+   0.0
+  ],
+  "29": [
+   0.9975640972867659,
+   -0.06975648794473778
+  ],
+  "30": [
+   1.9429727726677968,
+   -0.06247499537073847
+  ],
+  "80": [
+   1.885011314459535,
+   -0.7806054355197863
+  ],
+  "31": [
+   2.8720919168359202,
+   -0.30814162862263456
+  ],
+  "81": [
+   1.75448512875026,
+   -1.7720502988596405
+  ],
+  "32": [
+   3.855346850133788,
+   -0.4903771618855899
+  ],
+  "82": [
+   1.1116975234429174,
+   -2.538094743300994
+  ],
+  "34": [
+   4.8234945127740305,
+   -0.7407571726624742
+  ],
+  "83": [
+   0.1181256699559283,
+   -2.6512979577300886
+  ],
+  "35": [
+   5.789420357368411,
+   -0.999576223292606
+  ],
+  "84": [
+   0.17917420949078516,
+   -1.6531631593082217
+  ],
+  "36": [
+   6.750682067284837,
+   -1.27521358333054
+  ],
+  "37": [
+   7.714312529895238,
+   -1.5424519622478292
+  ],
+  "38": [
+   8.677942987804752,
+   -1.8096903397456021
+  ],
+  "39": [
+   9.587904258681295,
+   -2.224383582401841
+  ],
+  "61": [
+   0.0,
+   0.0
+  ],
+  "62": [
+   -0.8947057698250855,
+   -0.1983514938060642
+  ],
+  "64": [
+   -0.6480322004446204,
+   0.8060301481765915
+  ],
+  "65": [
+   -1.862888320414408,
+   -0.44873923726800413
+  ],
+  "67": [
+   -2.8598394949788153,
+   -0.3702876438718329
+  ],
+  "68": [
+   -3.852418043809238,
+   -0.2484254827505935
+  ],
+  "69": [
+   -4.847844842222248,
+   -0.15258651409720667
+  ],
+  "70": [
+   -5.843269514552057,
+   -0.05674707410252203
+  ],
+  "71": [
+   -6.83869175989602,
+   0.03909290394197105
+  ],
+  "72": [
+   -7.83126126177914,
+   0.16095707072314044
+  ],
+  "73": [
+   -8.824853535091764,
+   0.2741557580101142
+  ],
+  "74": [
+   -9.818442676113031,
+   0.3873551397093632
+  ],
+  "75": [
+   -10.813852865900369,
+   0.4831977904064153
+  ],
+  "76": [
+   -11.80413150996817,
+   0.6223685468730995
+  ],
+  "77": [
+   -12.737719013936564,
+   0.9807349273808116
+  ],
+  "78": [
+   -12.979644448271829,
+   1.9510298691380137
+  ],
+  "79": [
+   -12.909887974527704,
+   2.9485939193978377
+  ],
+  "85": [
+   0.0,
+   0.0
+  ],
+  "86": [
+   0.09584575252022393,
+   -0.995396198367179
+  ],
+  "87": [
+   0.5882693126236911,
+   -1.8657518943070788
+  ],
+  "88": [
+   1.2243475329014548,
+   -2.637376477694799
+  ],
+  "89": [
+   2.012358286508177,
+   -3.253037953020457
+  ],
+  "90": [
+   2.97117802137637,
+   -3.5370532977243796
+  ],
+  "91": [
+   3.943547941774047,
+   -3.770498661580285
+  ],
+  "92": [
+   4.926802849338001,
+   -3.9527341870724326
+  ],
+  "93": [
+   5.914491189933139,
+   -4.109168652112664
+  ],
+  "94": [
+   0.0,
+   0.0
+  ],
+  "193": [
+   0.9998476951563913,
+   0.0174524064372836
+  ],
+  "95": [
+   -0.9990482215818578,
+   -0.04361938736533613
+  ],
+  "96": [
+   -1.9980964431637156,
+   -0.08723877473067226
+  ],
+  "97": [
+   -2.964022269452784,
+   0.17158027037184803
+  ]
+ },
+ "walk_connected_groups": [
+  [
+   61,
+   62,
+   64,
+   65,
+   67,
+   68,
+   69,
+   70,
+   71,
+   72,
+   73,
+   74,
+   75,
+   76,
+   77,
+   78,
+   79
+  ],
+  [
+   28,
+   29,
+   30,
+   80,
+   31,
+   81,
+   32,
+   82,
+   34,
+   83,
+   35,
+   84,
+   36,
+   37,
+   38,
+   39
+  ],
+  [
+   85,
+   86,
+   87,
+   88,
+   89,
+   90,
+   91,
+   92,
+   93
+  ],
+  [
+   94,
+   193,
+   95,
+   96,
+   97
+  ]
+ ]
+}

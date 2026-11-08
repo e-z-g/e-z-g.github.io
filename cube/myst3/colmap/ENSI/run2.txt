@@ -1,0 +1,86 @@
+tag run2  features from images_feat  peak 0.002  mapper 
+model 0: 18 nodes: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+model 1: 7 nodes: [20, 21, 22, 23, 24, 25, 26]
+not placed: [19, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41]
+
+features per node (six faces):
+  1:30420  2:29911  3:28160  4:27884  5:28068  6:28460  7:26768  8:28594  9:28790  10:30977  11:30244  12:30965  13:32410  14:35170  15:39580  16:27349  17:36168  18:36716  19:41470  20:37185  21:35602  22:40850  23:37032  24:36542  25:32712  26:30821  27:42997  28:48735  29:48294  30:45273  31:40887  32:22197  33:15543  34:13269  35:18272  36:27027  37:31420  38:35758  39:34382  40:20222  41:6045
+
+linked pairs, verified matches summed over their 36 face pairs:
+    1 -   2    4850   0/0
+    1 -  10    5576   0/0
+    2 -   3    4267   0/0
+    3 -   4    4297   0/0
+    4 -   5    4008   0/0
+    5 -   6    1083   0/0
+    5 -   8    2815   0/0
+    5 -  16    1587   0/0
+    6 -   7    1380   0/0
+    6 -  16    3076   0/0
+    7 -   8    1297   0/0
+    7 -  16    2145   0/0
+    8 -   9    4956   0/0
+    8 -  16    2180   0/0
+   10 -  11    4323   0/0
+   11 -  12    4238   0/0
+   12 -  13    4780   0/0
+   12 -  16     611   0/0
+   12 -  21     165   0/1
+   13 -  14    3579   0/0
+   14 -  15    3578   0/0
+   15 -  17     895   0/0
+   17 -  18    2393   0/0
+   18 -  19    1226   0/-
+   19 -  20     863   -/1
+   20 -  21     797   1/1
+   21 -  22     606   1/1
+   21 -  27     237   1/-
+   21 -  30      59   1/-
+   22 -  23     575   1/1
+   23 -  24    1377   1/1
+   24 -  25    2791   1/1
+   25 -  26    3364   1/1
+   27 -  28     134   -/-
+   28 -  29     151   -/-
+   29 -  30     107   -/-
+   30 -  31      64   -/-
+   30 -  35      20   -/-
+   31 -  32      58   -/-
+   32 -  33      78   -/-
+   33 -  34      19   -/-
+   34 -  35      70   -/-
+   35 -  36      71   -/-
+   35 -  37     154   -/-
+   37 -  38     142   -/-
+   38 -  39     220   -/-
+   39 -  40     162   -/-
+   40 -  41      53   -/-
+
+run2 model 0: 18 nodes
+1. rotation spread: median 0.01 deg, max 0.04 (worst nodes 17 0.0, 18 0.0, 6 0.0)
+2. bearings: 47 hotspots, error median 4.8 deg, 90% within 17.4, worst 57.3
+       4 ->   3 walk hotspot    56  model 358.7  ( -57.3)  climb  -0.0
+      18 ->  17 walk hotspot   300  model 331.5  ( +31.5)  climb  +0.3
+      15 ->  17 walk hotspot   131  model 111.6  ( -19.4)  climb -25.3
+       2 ->   3 walk hotspot   257  model 275.7  ( +18.7)  climb  +0.7
+       6 ->   5 walk hotspot    95  model  77.6  ( -17.4)  climb  +0.2
+      10 ->  11 walk hotspot    84  model  68.9  ( -15.1)  climb  -0.8
+       5 ->   6 walk hotspot   271  model 257.6  ( -13.4)  climb  -0.1
+      11 ->  10 walk hotspot   262  model 248.9  ( -13.1)  climb  +0.8
+3. age map: 18 nodes; fitted turn +1.6 deg, 1 map step = 1.075 model units; residual median 0.36 steps, max 0.89 (node 18)
+   heights above the lowest node, in map steps: 1:1.18, 2:1.19, 3:1.20, 4:1.20, 5:1.20, 6:1.20, 7:1.20, 8:1.20, 9:1.20, 10:0.80, 11:0.79, 12:0.80, 13:0.43, 14:0.42, 15:0.42, 16:1.20, 17:0.01, 18:0.00
+
+run2 model 1: 7 nodes
+1. rotation spread: median 0.03 deg, max 0.08 (worst nodes 21 0.1, 20 0.1, 22 0.0)
+2. bearings: 12 hotspots, error median 4.2 deg, 90% within 9.2, worst 12.8
+      24 ->  23 walk hotspot   288  model 275.2  ( -12.8)  climb  +1.8
+      25 ->  24 walk hotspot   278  model 268.8  (  -9.2)  climb  -0.0
+      26 ->  25 walk hotspot   280  model 272.5  (  -7.5)  climb  -0.0
+      21 ->  22 walk hotspot   119  model 125.6  (  +6.6)  climb -11.6
+      23 ->  24 walk hotspot   100  model  95.2  (  -4.8)  climb  -1.8
+      23 ->  22 walk hotspot   299  model 294.8  (  -4.2)  climb +10.7
+      21 ->  20 walk hotspot   319  model 314.8  (  -4.2)  climb  -7.1
+      22 ->  21 walk hotspot   302  model 305.6  (  +3.6)  climb +11.7
+3. age map: 7 nodes; fitted turn -2.8 deg, 1 map step = 1.860 model units; residual median 0.07 steps, max 0.16 (node 23)
+   heights above the lowest node, in map steps: 20:0.36, 21:0.46, 22:0.25, 23:0.03, 24:0.00, 25:0.00, 26:0.00
+

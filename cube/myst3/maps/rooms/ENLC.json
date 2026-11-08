@@ -1,0 +1,553 @@
+{
+ "room": "ENLC",
+ "nodes": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  203,
+  303,
+  10001,
+  10002,
+  10003,
+  10005,
+  10007,
+  10009,
+  11001,
+  11005,
+  11007,
+  11009,
+  12001,
+  12005,
+  12007,
+  12009,
+  13005,
+  13007,
+  13009,
+  14005,
+  14007,
+  14009,
+  15007,
+  16007,
+  17007
+ ],
+ "links": [
+  {
+   "from": 1,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 270,
+   "pitch": -22
+  },
+  {
+   "from": 1,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    11
+   ],
+   "heading": 73,
+   "pitch": 80
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    1
+   ],
+   "heading": 89,
+   "pitch": -6
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    3
+   ],
+   "heading": 88,
+   "pitch": -51
+  },
+  {
+   "from": 2,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    701,
+    36
+   ],
+   "heading": 271,
+   "pitch": -1
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 91,
+   "pitch": 66
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 91,
+   "pitch": 8
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    203
+   ],
+   "heading": 174,
+   "pitch": -19
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    303
+   ],
+   "heading": 174,
+   "pitch": -19
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    4
+   ],
+   "heading": 176,
+   "pitch": -17
+  },
+  {
+   "from": 4,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    5
+   ],
+   "heading": 84,
+   "pitch": -4
+  },
+  {
+   "from": 4,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    5
+   ],
+   "heading": 84,
+   "pitch": -4
+  },
+  {
+   "from": 4,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    3
+   ],
+   "heading": 358,
+   "pitch": -9
+  },
+  {
+   "from": 5,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    4
+   ],
+   "heading": 259,
+   "pitch": -17
+  },
+  {
+   "from": 5,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    6
+   ],
+   "heading": 95,
+   "pitch": -12
+  },
+  {
+   "from": 6,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    5
+   ],
+   "heading": 266,
+   "pitch": -19
+  },
+  {
+   "from": 7,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    8
+   ],
+   "heading": 89,
+   "pitch": -16
+  },
+  {
+   "from": 8,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    7
+   ],
+   "heading": 267,
+   "pitch": -23
+  },
+  {
+   "from": 9,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    10
+   ],
+   "heading": 90,
+   "pitch": -16
+  },
+  {
+   "from": 10,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    9
+   ],
+   "heading": 266,
+   "pitch": -22
+  },
+  {
+   "from": 11,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    15
+   ],
+   "heading": 91,
+   "pitch": -1
+  },
+  {
+   "from": 11,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    12
+   ],
+   "heading": 269,
+   "pitch": -5
+  },
+  {
+   "from": 11,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    13
+   ],
+   "heading": 89,
+   "pitch": -11
+  },
+  {
+   "from": 11,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    1
+   ],
+   "heading": 269,
+   "pitch": -74
+  },
+  {
+   "from": 12,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    11
+   ],
+   "heading": 89,
+   "pitch": -11
+  },
+  {
+   "from": 13,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    11
+   ],
+   "heading": 269,
+   "pitch": -4
+  },
+  {
+   "from": 13,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    14
+   ],
+   "heading": 89,
+   "pitch": -2
+  },
+  {
+   "from": 14,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    13
+   ],
+   "heading": 271,
+   "pitch": -13
+  },
+  {
+   "from": 14,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    15
+   ],
+   "heading": 90,
+   "pitch": -10
+  },
+  {
+   "from": 15,
+   "kind": "zip",
+   "opcode": 140,
+   "args": [
+    11
+   ],
+   "heading": 270,
+   "pitch": -1
+  },
+  {
+   "from": 15,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    14
+   ],
+   "heading": 269,
+   "pitch": -8
+  },
+  {
+   "from": 15,
+   "kind": "walk-room",
+   "opcode": 139,
+   "args": [
+    707,
+    78
+   ],
+   "heading": 89,
+   "pitch": -2
+  },
+  {
+   "from": 203,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    3
+   ],
+   "heading": 0,
+   "pitch": 0
+  },
+  {
+   "from": 303,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    3
+   ],
+   "heading": 0,
+   "pitch": 0
+  }
+ ],
+ "walk_bearings": [
+  {
+   "from": 1,
+   "to": 2,
+   "heading": 269.5
+  },
+  {
+   "from": 1,
+   "to": 11,
+   "heading": 81.0
+  },
+  {
+   "from": 3,
+   "to": 203,
+   "heading": 177.0
+  },
+  {
+   "from": 3,
+   "to": 303,
+   "heading": 177.0
+  },
+  {
+   "from": 3,
+   "to": 4,
+   "heading": 177.0
+  },
+  {
+   "from": 4,
+   "to": 5,
+   "heading": 81.5
+  },
+  {
+   "from": 5,
+   "to": 6,
+   "heading": 90.5
+  },
+  {
+   "from": 7,
+   "to": 8,
+   "heading": 88.0
+  },
+  {
+   "from": 9,
+   "to": 10,
+   "heading": 88.0
+  },
+  {
+   "from": 11,
+   "to": 12,
+   "heading": 269.0
+  },
+  {
+   "from": 11,
+   "to": 13,
+   "heading": 89.0
+  },
+  {
+   "from": 13,
+   "to": 14,
+   "heading": 90.0
+  },
+  {
+   "from": 14,
+   "to": 15,
+   "heading": 89.5
+  }
+ ],
+ "sketch_positions": {
+  "1": [
+   0.0,
+   0.0
+  ],
+  "2": [
+   -0.9999619230641713,
+   -0.008726535498373576
+  ],
+  "11": [
+   0.9876883405951379,
+   0.15643446504023092
+  ],
+  "12": [
+   -0.012159354561253388,
+   0.13898205860294743
+  ],
+  "13": [
+   1.9875360357515293,
+   0.17388687147751453
+  ],
+  "14": [
+   2.9875360357515293,
+   0.17388687147751458
+  ],
+  "15": [
+   3.9874979588157005,
+   0.1826134069758885
+  ],
+  "3": [
+   0.0,
+   0.0
+  ],
+  "203": [
+   0.05233595624294381,
+   -0.9986295347545738
+  ],
+  "303": [
+   0.05233595624294381,
+   -0.9986295347545738
+  ],
+  "4": [
+   0.05233595624294377,
+   -0.9986295347545738
+  ],
+  "5": [
+   1.0413518196048606,
+   -0.8508201236249633
+  ],
+  "6": [
+   2.0413137426690318,
+   -0.8595466591233373
+  ],
+  "7": [
+   0.0,
+   0.0
+  ],
+  "8": [
+   0.9993908270190958,
+   0.03489949670250108
+  ],
+  "9": [
+   0.0,
+   0.0
+  ],
+  "10": [
+   0.9993908270190958,
+   0.03489949670250108
+  ]
+ },
+ "walk_connected_groups": [
+  [
+   1,
+   2,
+   11,
+   12,
+   13,
+   14,
+   15
+  ],
+  [
+   3,
+   203,
+   303,
+   4,
+   5,
+   6
+  ],
+  [
+   7,
+   8
+  ],
+  [
+   9,
+   10
+  ]
+ ]
+}

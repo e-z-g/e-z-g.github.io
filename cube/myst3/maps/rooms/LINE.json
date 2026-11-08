@@ -1,0 +1,87 @@
+{
+ "room": "LINE",
+ "nodes": [
+  1,
+  2,
+  3,
+  30,
+  103,
+  10003
+ ],
+ "links": [
+  {
+   "from": 1,
+   "kind": "movie",
+   "opcode": 151,
+   "args": [
+    2,
+    11001
+   ],
+   "heading": 93,
+   "pitch": -27
+  },
+  {
+   "from": 2,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    3
+   ],
+   "heading": 116,
+   "pitch": -14
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 138,
+   "args": [
+    2
+   ],
+   "heading": 295,
+   "pitch": -19
+  },
+  {
+   "from": 3,
+   "kind": "walk",
+   "opcode": 164,
+   "args": [
+    103
+   ],
+   "heading": 67,
+   "pitch": -13
+  }
+ ],
+ "walk_bearings": [
+  {
+   "from": 2,
+   "to": 3,
+   "heading": 115.5
+  },
+  {
+   "from": 3,
+   "to": 103,
+   "heading": 67
+  }
+ ],
+ "sketch_positions": {
+  "2": [
+   0.0,
+   0.0
+  ],
+  "3": [
+   0.9025852843498607,
+   -0.4305110968082949
+  ],
+  "103": [
+   1.8230901378023012,
+   -0.0397799683190212
+  ]
+ },
+ "walk_connected_groups": [
+  [
+   2,
+   3,
+   103
+  ]
+ ]
+}

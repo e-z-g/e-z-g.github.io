@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="409" height="592" font-family="sans-serif" font-size="11"><rect width="100%" height="100%" fill="#fff"/>
+<text x="8" y="16" font-size="14" font-weight="bold">ENDD</text>
+<line x1="308.5" y1="454.9" x2="153.2" y2="522.2" stroke="#c77" stroke-dasharray="4 3"/>
+<line x1="153.2" y1="522.2" x2="308.5" y2="454.9" stroke="#c77" stroke-dasharray="4 3"/>
+<line x1="268.0" y1="50.0" x2="262.4" y2="407.2" stroke="#c77" stroke-dasharray="4 3"/>
+<line x1="262.4" y1="407.2" x2="268.0" y2="50.0" stroke="#c77" stroke-dasharray="4 3"/>
+<line x1="268.0" y1="50.0" x2="267.0" y2="110.0" stroke="#333"/>
+<line x1="267.0" y1="110.0" x2="268.0" y2="170.0" stroke="#333"/>
+<line x1="268.0" y1="170.0" x2="268.6" y2="230.0" stroke="#333"/>
+<line x1="268.6" y1="230.0" x2="269.6" y2="290.0" stroke="#333"/>
+<line x1="269.6" y1="290.0" x2="269.1" y2="350.0" stroke="#333"/>
+<line x1="269.1" y1="350.0" x2="312.4" y2="399.4" stroke="#333"/>
+<line x1="269.1" y1="350.0" x2="262.4" y2="407.2" stroke="#333"/>
+<line x1="262.4" y1="407.2" x2="312.4" y2="399.4" stroke="#333"/>
+<line x1="262.4" y1="407.2" x2="308.5" y2="454.9" stroke="#333"/>
+<line x1="312.4" y1="399.4" x2="308.5" y2="454.9" stroke="#333"/>
+<line x1="308.5" y1="454.9" x2="368.5" y2="454.3" stroke="#333"/>
+<line x1="308.5" y1="454.9" x2="269.2" y2="500.1" stroke="#333"/>
+<line x1="269.2" y1="500.1" x2="213.2" y2="521.6" stroke="#333"/>
+<line x1="213.2" y1="521.6" x2="153.2" y2="522.2" stroke="#333"/>
+<line x1="153.2" y1="522.2" x2="160.0" y2="462.6" stroke="#333"/>
+<line x1="160.0" y1="462.6" x2="100.0" y2="461.0" stroke="#333"/>
+<line x1="100.0" y1="461.0" x2="40.0" y2="462.6" stroke="#333"/>
+<circle cx="268.0" cy="50.0" r="9" fill="#fff" stroke="#333"/><text x="268.0" y="54.0" text-anchor="middle">40</text>
+<circle cx="267.0" cy="110.0" r="9" fill="#fff" stroke="#333"/><text x="267.0" y="114.0" text-anchor="middle">41</text>
+<circle cx="268.0" cy="170.0" r="9" fill="#fff" stroke="#333"/><text x="268.0" y="174.0" text-anchor="middle">42</text>
+<circle cx="268.6" cy="230.0" r="9" fill="#fff" stroke="#333"/><text x="268.6" y="234.0" text-anchor="middle">43</text>
+<circle cx="269.6" cy="290.0" r="9" fill="#fff" stroke="#333"/><text x="269.6" y="294.0" text-anchor="middle">44</text>
+<circle cx="269.1" cy="350.0" r="9" fill="#fff" stroke="#333"/><text x="269.1" y="354.0" text-anchor="middle">45</text>
+<circle cx="312.4" cy="399.4" r="9" fill="#fff" stroke="#333"/><text x="312.4" y="403.4" text-anchor="middle">47</text>
+<circle cx="262.4" cy="407.2" r="9" fill="#fff" stroke="#333"/><text x="262.4" y="411.2" text-anchor="middle">46</text>
+<circle cx="308.5" cy="454.9" r="9" fill="#fff" stroke="#333"/><text x="308.5" y="458.9" text-anchor="middle">48</text>
+<circle cx="368.5" cy="454.3" r="9" fill="#fff" stroke="#333"/><text x="368.5" y="458.3" text-anchor="middle">49</text>
+<circle cx="269.2" cy="500.1" r="9" fill="#fff" stroke="#333"/><text x="269.2" y="504.1" text-anchor="middle">50</text>
+<circle cx="213.2" cy="521.6" r="9" fill="#fff" stroke="#333"/><text x="213.2" y="525.6" text-anchor="middle">51</text>
+<circle cx="153.2" cy="522.2" r="9" fill="#fff" stroke="#333"/><text x="153.2" y="526.2" text-anchor="middle">55</text>
+<circle cx="160.0" cy="462.6" r="9" fill="#fff" stroke="#333"/><text x="160.0" y="466.6" text-anchor="middle">58</text>
+<circle cx="100.0" cy="461.0" r="9" fill="#fff" stroke="#333"/><text x="100.0" y="465.0" text-anchor="middle">59</text>
+<circle cx="40.0" cy="462.6" r="9" fill="#fff" stroke="#333"/><text x="40.0" y="466.6" text-anchor="middle">60</text>
+<text x="8" y="582" fill="#666">Not reached by walking (close-ups and the like): 52, 53, 10000, 10001, 10003, 10046, 10047, 10048, 10049, 10052, 10058</text>
+</svg>

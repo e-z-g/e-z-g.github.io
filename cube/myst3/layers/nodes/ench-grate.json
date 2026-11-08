@@ -1,0 +1,25 @@
+{
+ "node": "Voltaic ENCH grate (faces 277-282)",
+ "repo_folder": "voltaic",
+ "builder": "grate_layers.py",
+ "names": [
+  "277",
+  "278",
+  "279",
+  "280",
+  "281",
+  "282"
+ ],
+ "work": "{out}/ench_grate",
+ "steps": {
+  "layers": {}
+ },
+ "stitch": {
+  "cell": 656,
+  "prefix": "voltaic-layered"
+ },
+ "why": {
+  "builder": "Its holes are the wire mesh, found by colour (dark wire on lit floor), which the depth cannot see; build_layers.py finds holes from steps in the depth."
+ },
+ "shipped": "Built from this file, both depth atlases match the shipped ones cell for cell (checked 8 November 2026; the colour atlases are WebP, so not compared)."
+}
