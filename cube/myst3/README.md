@@ -811,16 +811,18 @@ stopped without an error at step 10,000 while the GPU was shared with
 
 `splat/splat_render.py` renders a splat from the dataset's cameras beside the
 real image. Five held-out images and one trained one, PSNR at step 5,000 and
-30,000:
+30,000 (512 px; the numbers first given were from a renderer that summed the
+log transparency in single precision, which spoiled the lower rows of a render,
+by up to a dB here; these are from the corrected one):
 
 | image | 5,000 | 30,000 |
 |---|---|---|
 | MASS 35 face 1 (held out) | 22.1 | 22.9 |
 | MASS 31 face 3 (held out) | 16.6 | 17.9 |
-| MACA 41 face 4 (held out) | 18.6 | 19.4 |
+| MACA 41 face 4 (held out) | 18.6 | 19.5 |
 | MAIS 29 face 1 (held out) | 16.2 | 16.9 |
-| flyover frame 145 (held out) | 23.1 | 23.6 |
-| MASS 84 face 1 (trained) | 19.7 | 21.2 |
+| flyover frame 145 (held out) | 23.2 | 23.9 |
+| MASS 84 face 1 (trained) | 19.7 | 21.3 |
 
 The structure holds in every view (the poses agree): the MASS 84 door, the
 MACA 41 tower, the MAIS 29 floor tiles and pillars. The sky is wrong in all of
@@ -835,10 +837,10 @@ dB; MASS 35, MASS 31, MACA 41, MAIS 29, flyover frame 145, MASS 84):
 
 | sky | 35 | 31 | 41 | 29 | 145 | 84 | mean |
 |---|---|---|---|---|---|---|---|
-| trained in, as above | 22.9 | 17.9 | 19.4 | 16.9 | 23.6 | 21.2 | 20.3 |
-| masked (`--masks`), a sky shell added | 19.3 | 17.7 | 22.2 | 18.7 | 23.8 | 22.9 | 20.8 |
-| transparent (`--alpha`), a sky shell added | 17.9 | 17.0 | 21.2 | 22.8 | 23.1 | 21.4 | 20.6 |
-| masked, shell, floaters taken out | 18.4 | 17.8 | 20.9 | 22.4 | 25.4 | 22.5 | 21.2 |
+| trained in, as above | 22.9 | 17.9 | 19.5 | 16.9 | 23.9 | 21.3 | 20.4 |
+| masked (`--masks`), a sky shell added | 19.6 | 18.0 | 23.1 | 18.9 | 24.4 | 23.4 | 21.2 |
+| transparent (`--alpha`), a sky shell added | 18.0 | 17.0 | 22.6 | 23.0 | 24.3 | 21.7 | 21.1 |
+| masked, shell, floaters taken out | 18.7 | 18.0 | 21.6 | 22.9 | 26.4 | 22.9 | 21.8 |
 
 `splat/sky_dome.py` gives a splat trained without the sky its sky back: every
 image's masked pixels, as world directions, averaged into an equirectangular
@@ -860,6 +862,21 @@ so far is that one with the shell: 3,308,810 splats, 745 MB
 copy for phones of the 1.5 million that show most, without view-dependent
 colour (84 MB). Under roofs that few views see (MASS 31, 35) every version is
 soft.
+
+### A node's depth from the splat (MASS 84)
+
+Whether the splat could give a site node better depth was tried on MASS 84:
+its six faces rendered from the best splat at 1280 px with `splat_render.py
+--depth` (where each pixel becomes half covered), and set beside the measured
+and the redrawn depth by `splat/node_depth_compare.py`, one scale fitted (the
+node's run was rescaled by 1.089). The splat's faces agree at their seams
+unblended (median step 1.3%, 90% within 11.7%, where Depth Anything's step 6.1%
+before blending), and the walls and the house are right; but it is a median
+15.5% from the measured depth (90% within 96%) against 4.1% for the redrawn
+depth, with splats just in front of the camera and holes on the floor and
+round the node: what only the node itself saw, the splat fits in colour with
+splats at any depth. So the redrawn depth stays. A splat held to the measured
+depth in training (a depth loss; Brush has none) might do better.
 
 ## Depth for the site's Amateria node (MAWW 101)
 
