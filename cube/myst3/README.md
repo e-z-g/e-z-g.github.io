@@ -126,7 +126,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/video_frames.py` | A movie's frames as extra views of a laid-out room or age: frames, brightened copies, sequential and key-frame x face pairs. Needs opencv-python and ffmpeg. |
 | `colmap/register_video.ps1` | Measures a movie's camera from the movie alone, then continues a finished model with the frames (the mapper with the model's frames held). |
 | `colmap/sharpen_depth.py` | A site node's measured depth redrawn at 1280 px from the 4K faces: Depth Anything V2 Large at an input of 1036 px, fitted to the measured depth away from its outlines, seams closed; outlines that follow the picture, for Amateria's *Layered* version. Needs torch, transformers, opencv-python. |
-| `colmap/node_consistency.py` | Which nodes of a model disagree with their neighbours: each node's depth-map points projected into its nearest nodes' depth maps, the share a neighbour sees past. Finds the misplaced nodes behind ghosts in a fused cloud. Needs numpy, Pillow. |
+| `colmap/node_consistency.py` | Which nodes of a model disagree with their neighbours: each node's depth-map points projected into its nearest nodes' depth maps, the share a neighbour sees past (or, with `--masks`, sky). Finds single misplaced nodes; misses runs of them, which agree with one another. Needs numpy, Pillow. |
+| `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
 | `colmap/sky_masks.py` | Feature masks that leave out sky, sea and water (SegFormer, ADE20K), for movie frames: matches on the sky fix which way a picture looks but not where. Needs torch, transformers. |
@@ -654,6 +655,33 @@ past: a median 2.2% over the 131 nodes, but MACA 5 60%, MAIS 10 49% (few
 points), MAIS 11 36%, MACA 6 35%, MACA 1 33% and MALL 18 32%, misplaced or
 turned in the joined model. Fused without those six nodes' depth maps:
 1,141,506 points (`amateria-movies-clean`).
+
+The ghost stayed, smaller. The 62 nodes the two models share sit in the same
+places in both (within 0.05 units, 1% of a node spacing, after a similarity
+fit), so the ghosts come from the other 69 nodes. A run of misplaced nodes
+agrees with itself, so the nearest-neighbour test misses it. `ghost_points.py`
+tests each fused point against all 372 faces of the 62 nodes instead: a point
+two or more of those faces see past (or see sky at, more than 8 px inside
+`sky_masks.py`'s mask) and none agrees with is a ghost. In `dense_joined`,
+12,389 of the 475,623 points those faces see are ghosts, and they come in
+runs:
+
+| nodes | share of the points they made that are ghosts |
+|---|---|
+| MALL 5–13 | 38–55% |
+| MAIS 1–5 | 29–43% |
+| MAIS 30–33, MATO 2 | 29–38% |
+| MASS 7–12, 44 | 4–13% |
+| MASS 82–90, MACA 37 | 3–6% |
+
+against 0.0% for the 62 nodes themselves. These runs are in the rooms the
+joined model fits worst (MAIS's steps 2.7 times the others', above). Fused
+from the movie workspace without MALL 5–13, MAIS 1–5 and 30–33, MATO 2 and the
+six nodes above: 1,074,211 points, of which 73,791 are still ghosts, 63,546 of
+them made by the ride's frames (28.5% of the ride's points; the flyover's
+2.0%). With those dropped: 1,000,420 points (`amateria-movies-noghost`). The
+filter only reaches what the 62 nodes see; the runs themselves still need
+placing again, not just leaving out.
 
 ## Depth for the site's Amateria node (MAWW 101)
 
