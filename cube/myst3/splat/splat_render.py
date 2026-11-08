@@ -8,6 +8,7 @@ from PIL import Image
 ap = argparse.ArgumentParser()
 ap.add_argument('ply'); ap.add_argument('dataset'); ap.add_argument('out'); ap.add_argument('names', nargs='+')
 ap.add_argument('--size', type=int, default=512); ap.add_argument('--chunk', type=int, default=400000)
+ap.add_argument('--depth', action='store_true', help='also save each view\'s depth (where it becomes half covered, along the camera axis) as NAME_depth.npy, 0 where it never does')
 a = ap.parse_args()
 dev = 'cuda'
 
@@ -126,18 +127,27 @@ def render(name):
     K = torch.cat(keys); A = torch.cat(alphas); Cc = torch.cat(cols)
     o1 = torch.argsort(K[:, 1]); K, A, Cc = K[o1], A[o1], Cc[o1]          # by depth, then stably by pixel
     o2 = torch.argsort(K[:, 0], stable=True); pix = K[o2, 0].long(); A = A[o2]; Cc = Cc[o2]
-    lg = torch.log1p(-A)
+    # in double: the running sum over every sample of a view reaches millions, where single
+    # precision loses the per-pixel differences (at 1280 px everything past a third of the rows)
+    lg = torch.log1p(-A).double()
     cum = torch.cumsum(lg, 0)
     start = torch.ones_like(pix, dtype=torch.bool); start[1:] = pix[1:] != pix[:-1]
     first = torch.cummax(torch.where(start, torch.arange(len(pix), device=dev), torch.zeros_like(pix)), 0).values
     before = cum - lg - (cum[first] - lg[first])                            # log transmittance in front of each
-    w = A * torch.exp(before)
+    w = A * torch.exp(before).float()
     img.index_add_(0, pix, w[:, None] * Cc)
+    if a.depth:
+        zs = K[o2, 1]
+        cross = (before > np.log(0.5)) & (before + lg <= np.log(0.5))   # where the view becomes half covered
+        dep = torch.zeros(H2 * W2, device=dev)
+        dep[pix[cross]] = zs[cross]
     out = (img.reshape(H2, W2, 3).clamp(0, 1) * 255).byte().cpu().numpy()
     real = Image.open(os.path.join(a.dataset, 'images', name)).convert('RGB').resize((W2, H2), Image.LANCZOS)
     both = Image.new('RGB', (W2 * 2 + 8, H2), 'black'); both.paste(real, (0, 0)); both.paste(Image.fromarray(out), (W2 + 8, 0))
     fn = os.path.join(a.out, name.replace('/', '_').replace('.jpg', '.png'))
     both.save(fn)
+    if a.depth:
+        np.save(fn[:-4] + '_depth.npy', dep.reshape(H2, W2).cpu().numpy())
     r = np.asarray(real, float); o = out.astype(float)
     psnr = 10 * np.log10(255 ** 2 / ((r - o) ** 2).mean())
     print(f'{name}: {len(pix)} footprint samples, PSNR {psnr:.1f} dB -> {fn}', flush=True)
