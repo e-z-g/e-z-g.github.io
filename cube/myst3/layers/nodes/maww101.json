@@ -30,5 +30,5 @@
   "sharpen.colour-suffix": "The game's own 640 px faces (_orig.jpeg), as for J'nanin; until 8 November 2026 the 4K AI upscale (_seamless.webp) reduced to 1280 px, dropped at the maintainer's request.",
   "layers.nearest-faces": "Face 2 (the floor) keeps the nearest step: with the 48 px reach rule the beams under the slats went into the backdrop for part of their length and the gaps showed flat grey. The other faces keep the reach rule (cleaner spire and machinery)."
  },
- "shipped": "Built from this file on 8 November 2026 (from the 640 px faces, with the lamp rule) and shipped; the build before, from the AI 4K faces, is faces_v4 on the PC."
+ "shipped": "Built from the 640 px faces on 8 November 2026, then rebuilt the same day with build_layers.py's two step changes (steps found after a 5 px median; the far side of a step never part of the near object): holes 9.1% of the atlas, against 7.0%; the console's ring of holes is whole where it was dashed. The build from the AI 4K faces is faces_v4 on the PC."
 }

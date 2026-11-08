@@ -32,5 +32,5 @@
  "why": {
   "backdrop.same": "4, set when points of the same surface, seen from neighbours, were taken for what lies behind it. MASS 84 went back to 1.6 afterwards for its pillars; ENSI 16 was not rebuilt then, so the two differ by history, not by need."
  },
- "shipped": "The atlases on the site were built before sharpen_depth.py's lamp rule; built from this file now, the depth differs in about 0.01% of pixels round lamps and the painted backdrop by a few levels where that moves LaMa. Not yet rebuilt. (faces13 on the PC is the shipped build.)"
+ "shipped": "Rebuilt from this file on 8 November 2026 with build_layers.py's two step changes (steps found after a 5 px median; the far side of a step never part of the near object) and sharpen_depth.py's lamp rule: holes 11.1% of the atlas, against 9.8%."
 }

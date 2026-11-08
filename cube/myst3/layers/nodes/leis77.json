@@ -35,5 +35,5 @@
   "sharpen.colour-suffix": "The 640 px captures (-orig.jpg). Never the site's high-resolution J'nanin images (-seamless, -6144, -4096, -hdmod), which are AI upscales.",
   "backdrop": "Settings as MASS 84's."
  },
- "shipped": "Built from this file, all 30 face images match the shipped build bit for bit (checked 8 November 2026)."
+ "shipped": "Rebuilt from this file on 8 November 2026 with build_layers.py's two step changes (steps found after a 5 px median; the far side of a step never part of the near object): holes 7.3% of the atlas, against 7.1%."
 }

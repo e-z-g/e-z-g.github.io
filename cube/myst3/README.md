@@ -1013,6 +1013,14 @@ object; a middle layer that belongs to it is still added, for ENSI 16's pod
 frame. The floor's holes are now full strips down every gap: 20.4% of the
 face, against 10.9% in the build before these changes. On the other faces
 the holes change by about a point or less.
+
+ENSI 16, LEIS 77 and MAWW 101 were rebuilt with both changes from their
+files in `layers/nodes/` the same day. Their holes cover 11.1%, 7.3% and 9.1%
+of the atlases, against 9.8%, 7.1% and 7.0%, and their foreground colour is
+unchanged. On MAWW 101 the ring of holes round the console is whole where it
+was dashed, and on ENSI 16 the walkway's railing is outlined along its whole
+length. Voltaic's grate has its own builder (`grate_layers.py`) and is not
+affected.
 This applies to every node built from now on; ENSI 16, LEIS 77 and MAWW 101
 have not been rebuilt with it.
 
