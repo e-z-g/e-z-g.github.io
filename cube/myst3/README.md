@@ -1054,9 +1054,8 @@ of face 4 the wall runs 2.6 to 3.0, against 2.4 to 3.6; the rails, the house
 and the floor keep their outlines. At the default depth and tear settings,
 2.1% of face 4's wall tears (3.9% before) and 1.7% of face 3's (2.1%). It is a
 rule, not a measurement: every fine relief is halved, the real with the drawn.
-It is on the site as its own location, "Amateria (MASS 84, relief halved)"
-(`layers/nodes/mass84-relief.json`, files `MA-4084-*_relief-depth.png` and
-`mass84-relief-layered-*`), to compare with MASS 84 as it was.
+It was on the site as its own location to compare, and was taken off on
+8 November 2026 after the maintainer looked at it and did not prefer it.
 
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
