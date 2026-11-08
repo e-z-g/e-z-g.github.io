@@ -187,6 +187,9 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/node_resect.py` | Places nodes again from matches to a trusted model's points with their turns held (a line per match). Works where a node shares near scenery with the trusted nodes; Amateria's misplaced runs share almost none (matched with `runs/rematch`'s 154,008 extra pairs, they get 2–30 agreeing lines from one or two trusted nodes). Only near points count: far scenery puts every node on the trusted camera that saw it. |
 | `colmap/node_align.py` | Fits a node's, or a run of nodes', own dense points onto the trusted nodes' (ICP, then the trusted faces' see-through test). Per node the search games the score by shrinking nodes; with `--runs` a run moves as one, with runs already in place as controls; a move is kept only if inliers rise and the scale is off its bound. |
 | `colmap/apply_moves.py` | A copy of a dense workspace with nodes moved (from `node_resect.py`, or turned and scaled by `node_align.py --runs`) and their depth maps scaled, for `stereo_fusion` without stereo again. Made `dense_moved`. |
+| `splat/splat_dataset.py` | A COLMAP text dataset for a Gaussian splat trainer (Brush): the faces of chosen nodes and movie frames, their poses, a ghost-free cloud as starting points. |
+| `splat/pad_small.py` | Pads JPEGs under 20 KB with zero bytes after their end marker, which Brush 0.3.0 needs. |
+| `splat/splat_render.py` | Renders a 3DGS `.ply` from COLMAP cameras beside the real images, with PSNR (torch, CUDA). |
 | `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
@@ -784,6 +787,42 @@ the ride's frames (30.4% of the ride's points). The moved runs' own share is
 under 1.1%. With the ghosts dropped: 1,018,364 points
 (`amateria-movies-moved`), against 1,000,420 without the three runs. The
 ride's frames are now the main source of ghosts.
+
+## A Gaussian splat of Amateria (8 November 2026)
+
+`splat/splat_dataset.py` writes a COLMAP text dataset for a splat trainer from
+`dense_movies_moved`: the six faces of the 62 trusted and 15 moved nodes and
+the flyover's 191 frames (653 images; the ride's frames and the nodes still
+misplaced left out), poses from the moved model, and as starting points the
+ghost-free cloud thinned to one per 0.04-unit cell (549,082). Trained with
+Brush 0.3.0 on the PC (its Windows build; WebGPU, no CUDA build needed), 30,000
+steps, every 30th image held out. Brush 0.3.0 reads the first 16,387 bytes of
+each image with an exact-length read, so smaller JPEGs (14 sky faces) fail with
+"early eof"; `splat/pad_small.py` pads them past their end marker. The first run
+stopped without an error at step 10,000 while the GPU was shared with
+`node_align.py` and a render; it was resumed from that export (as `init.ply`,
+`--start-iter 10000`) with the GPU to itself, 40 minutes to step 30,000:
+7,042,375 splats, spherical harmonics to degree 3, a 1.6 GB `.ply` (on the PC,
+`C:\myst3_out\splat\amateria_final.ply`).
+
+`splat/splat_render.py` renders a splat from the dataset's cameras beside the
+real image. Five held-out images and one trained one, PSNR at step 5,000 and
+30,000:
+
+| image | 5,000 | 30,000 |
+|---|---|---|
+| MASS 35 face 1 (held out) | 22.1 | 22.9 |
+| MASS 31 face 3 (held out) | 16.6 | 17.9 |
+| MACA 41 face 4 (held out) | 18.6 | 19.4 |
+| MAIS 29 face 1 (held out) | 16.2 | 16.9 |
+| flyover frame 145 (held out) | 23.1 | 23.6 |
+| MASS 84 face 1 (trained) | 19.7 | 21.2 |
+
+The structure holds in every view (the poses agree): the MASS 84 door, the
+MACA 41 tower, the MAIS 29 floor tiles and pillars. The sky is wrong in all of
+them, blotchy or tinted, and most of the error: it has no depth, so the splat
+puts it at a finite distance that only the trained views agree with. Things
+under roofs that few views see (MASS 31, 35) stay soft.
 
 ## Depth for the site's Amateria node (MAWW 101)
 
