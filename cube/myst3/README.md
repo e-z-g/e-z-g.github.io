@@ -195,6 +195,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `splat/splat_reduce.py` | A display copy of a splat for a device that cannot load the whole: the splats that show most, without view-dependent colour. |
 | `splat/serve_splat.py` | Serves splat files with the cross-origin and byte-range headers a web splat viewer needs, for a tunnel. |
 | `colmap/tower_model.ps1` | A sparse model of Amateria's tower (MATO) with MAIS 32 and 33 beside its door, for setting it into the joined model. |
+| `colmap/pano_depth.py` | A node's depth from one panoramic prediction (Depth Any Panoramas) over its six faces sewn together, fitted to the measured depth with one factor, beside the site's. |
+| `colmap/seam_band_error.py` | A depth map's distance from the measured depth near the cube's edges and inside. |
 | `colmap/ghost_points.py` | The points of a fused cloud that a set of trusted nodes see straight through (a farther depth, or sky), written out as a cloud, and for each node or movie the share of the points it helped make that are such ghosts (from `fused.ply.vis`). Needs numpy, Pillow. |
 | `colmap/model_backdrop.py` | What is really behind a site node's near objects: the nearest nodes' dense depth maps projected into its faces, each pixel keeping the nearest point behind the foreground, for `build_layers.py --model-bg`. Needs numpy, Pillow, opencv-python. |
 | `colmap/filter_sky.py` | Takes sky out of a database and model whose node faces were matched before there were masks: drops verified matches with an end on `sky_masks.py`'s black, and model points seen mostly there. Needs numpy, Pillow. |
@@ -893,6 +895,32 @@ have no matches to speak of (MATO 2-3: 0 verified, 3-4: 40, 6-7: 17, against
 open lookout over the sea), and no room sees into the next. Joining them needs
 the age map's steps and headings (no heights), or, for the lookout, the outside
 it sees.
+
+### One depth prediction for the whole panorama (MASS 84)
+
+`colmap/pano_depth.py` sews a node's six faces into one equirectangular picture
+and has Depth Any Panoramas (Insta360, December 2025: Depth Anything V2 with a
+DINOv3 encoder, trained on panoramas; repository and weights from Hugging Face,
+`Insta360-Research/DAP-weights`, on the PC in `C:\myst3_out\dap`) predict the
+distance along every ray, then samples it back onto the faces with one factor
+fitted to the measured depth. (DAP imports einops without using it, and
+DINOv3's hub entry pulls in its evaluation code; the script stubs the one and
+builds the backbone directly instead of the other.) On MASS 84:
+
+| depth | seams: median, 90% | from the measured: median, 90% |
+|---|---|---|
+| measured (node_depth.py) | 0.0%, 2.8% | — |
+| redrawn per face, blended (the site's) | 0.0%, 2.0% | 4.1%, 12.8% |
+| DAP, 512 x 1024 | 0.2%, 0.6% (unblended) | 9.8%, 41.5% |
+| DAP, 1024 x 2048 | 0.2%, 0.4% (unblended) | 8.9%, 39.7% |
+
+The panoramic depth is seamless with no blending, but coarse: the walkway's
+slats merge into one slab and the rails thicken. And the blending costs the
+redrawn depth nothing measurable here: `colmap/seam_band_error.py` puts it a
+median 3.8% from the measured depth within 96 px of a face's edge and 4.2%
+inside. So MASS 84 keeps its redrawn depth. Where DAP could count is at nodes
+with no measured depth, most of the game's, where nothing but blending holds
+Depth Anything's six faces together; not yet tried.
 
 ## Depth for the site's Amateria node (MAWW 101)
 
