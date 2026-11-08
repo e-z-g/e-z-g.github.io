@@ -1057,6 +1057,36 @@ rule, not a measurement: every fine relief is halved, the real with the drawn.
 It was on the site as its own location to compare, and was taken off on
 8 November 2026 after the maintainer looked at it and did not prefer it.
 
+The depth can instead be held to the model's fused point cloud
+(`colmap/cloud_depth.py`), the points that several views agree on, rather
+than to COLMAP's single-view depth map. Projected into MASS 84's faces
+(`dense_movies_moved/fused_ridefilter.ply`, distances divided by the run's
+1.089189), the cloud lands on 17–23% of the side faces' pixels. Along row 260
+of face 4 it has the wall receding smoothly from 1.6 to 2.5. It is filtered
+in three ways:
+
+- the sky and water masks;
+- a point under 0.6 times (in r_far / r) the nearest point within 5 px is
+  dropped; with 15 px, wall points beside the rails and the track went too;
+- a point more than 2.5 times nearer or farther than the old depth is
+  dropped: points seen through the house, where the house wall has none of
+  its own.
+
+The depth is then held to what is left by `follow_stereo` with a weak pull
+(0.01) and an almost free step between surfaces (0.0001), so each surface the
+network drew takes the mean of the points on it. Held at 1, every point's
+noise showed as blotches; with the step at 0.01, a slab's long edge outweighed
+the points on it and the slabs stayed. The floor and the sky face, with too
+few points (under 5%), are held at their edges to their neighbours, and r_far
+is set again from the new depth, so the track and floor, nearer than before,
+no longer clip. Face 3's wall comes out about twice as far as Depth Anything
+had it (3 to 4 against 6.3 along row 350), which was that face's poorest fit
+(12.5% median, 59% at the 90th percentile from the stereo). The layered
+version's depth is held to it with `sharpen_depth.py --follow-measured 1`.
+It is on the site as "Amateria (MASS 84, depth from the point cloud)"
+(`layers/nodes/mass84-cloud.json`, files `MA-4084-*_cloud-depth.png` and
+`mass84-cloud-layered-*`), to compare with MASS 84.
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the

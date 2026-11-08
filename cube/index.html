@@ -411,6 +411,25 @@
         ]
       },
       {
+        // MASS 84 with its depth held to the model's fused point cloud, to
+        // compare (myst3/colmap/cloud_depth.py, layers/nodes/mass84-cloud.json).
+        // Depth Anything draws the rock wall as a slab per column; the cloud,
+        // the points several views agree on, has it receding smoothly.
+        name: 'Amateria (MASS 84, depth from the point cloud)',
+        baseUrl: rawUrl + 'amateria/',
+        type: 'faces',
+        faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
+        audio: rawUrl + 'amateria/audio_amateria.mp3',
+        hasDepth: true,
+        depthSuffix: '_cloud-depth.png',
+        versions: [
+          { label: 'Original', suffix: '_orig.jpg' },
+          { label: 'Layered', backdropFullDepth: true, layers: {
+              fgColor: 'mass84-cloud-layered-fg-color.webp', fgDepth: 'mass84-cloud-layered-fg-depth.png',
+              bgColor: 'mass84-cloud-layered-bg-color.webp', bgDepth: 'mass84-cloud-layered-bg-depth.png' } }
+        ]
+      },
+      {
         name: 'Voltaic',
         baseUrl: rawUrl + 'voltaic/',
         type: 'voltaic',

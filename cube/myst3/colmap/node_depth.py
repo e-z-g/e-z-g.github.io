@@ -263,14 +263,14 @@ def compress_relief(q, factor=0.5, range_log=0.5, sigma_px=12, passes=2):
     return np.where(ok, np.exp(base + factor * (lq0 - base)), 0.0)
 
 
-def follow_stereo(d, s, ok, has, lam=1.0, sigma=0.1, rounds=3, tol=0.15):
+def follow_stereo(d, s, ok, has, lam=1.0, sigma=0.1, rounds=3, tol=0.15, floor=0.01):
     """Inverse depth that is d (the fitted network depth) plus a correction e,
     held to s (the stereo's, same units) at the pixels in `has`, over the
     pixels in `ok` (not sky). It minimises, over e, the sum over neighbouring
     pixel pairs of w_ij (e_i - e_j)^2 plus lam times the sum over measured
     pixels of c_i (e_i - (s_i - d_i))^2: a sparse linear system, solved
     directly (scipy). w_ij = exp(-(|d_i - d_j| / (sigma min(d_i, d_j)))^2),
-    a step of sigma (10%) of the value, floored at 0.01,
+    a step of sigma (10%) of the value, floored at `floor`,
     so the correction is smooth within each surface the network drew and free
     to change across its steps: each surface takes the level the stereo
     measured on it. Where the network split one surface into slabs (MASS 84's
@@ -291,7 +291,7 @@ def follow_stereo(d, s, ok, has, lam=1.0, sigma=0.1, rounds=3, tol=0.15):
         pa, pb = idx[a0, a1], idx[b0, b1]
         m = (pa >= 0) & (pb >= 0)
         da, db = d[a0, a1], d[b0, b1]
-        w = np.maximum(np.exp(-(np.abs(da - db) / (sigma * np.maximum(np.minimum(da, db), 1e-9))) ** 2), 0.01)[m]
+        w = np.maximum(np.exp(-(np.abs(da - db) / (sigma * np.maximum(np.minimum(da, db), 1e-9))) ** 2), floor)[m]
         i, j = pa[m], pb[m]
         rows += [i, j, i, j]; cols += [i, j, j, i]; vals += [w, w, -w, -w]
     L = sp.csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))), shape=(n, n))
