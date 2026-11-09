@@ -270,6 +270,7 @@
         </svg>
       </button>
       <button id="xr-toggle" title="AR: walk the phone around to move through the scene" aria-label="Enter AR">AR</button>
+      <button id="walk-toggle" style="display:none;" title="Walk to the next node and back, looking round as you go">Walk</button>
       <button id="stereo-toggle" title="Side-by-side 3D with the phone upright: parallel (left picture for the left eye), then cross-eyed, then off" aria-label="Side-by-side 3D">3D</button>
       <button id="fullscreen-toggle" title="Fullscreen (F)" aria-label="Toggle fullscreen">
         <svg viewBox="0 0 24 24" style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; vertical-align:middle;">
@@ -411,6 +412,8 @@
         // --sparse (myst3/README.md).
         name: 'Amateria (MASS 84)',
         depthSource: 'measured',
+        // Walk: to MASS 89, 1.05 units along the pier (myst3/colmap/walk_scene.py)
+        walk: { scene: 'amateria/walk/', label: 'MASS 89' },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -1661,6 +1664,124 @@
     }
     fullscreenBtn.addEventListener('click', toggleFullscreen);
 
+    // ── Walk to the next node ──
+    //
+    // A location with `walk` names a folder (walk_scene.py's): each node's six
+    // faces and depths, and where the model has each node. On the first walk
+    // each node becomes a mesh, every vertex pushed out along its ray to its
+    // depth's distance, placed where the model has it. While walking, the
+    // camera keeps the viewer's own look (drag, gyroscope, zoom) and moves in a
+    // straight line between the two centres; both meshes are drawn from it,
+    // each into its own picture, blended by how far along it is. Back at the
+    // start the viewer's own panorama takes over again.
+    const walkBtn = document.getElementById('walk-toggle');
+    const WALK_SEG = 160, WALK_SKY = 400, WALK_MS = 3500;
+    const walk = { key: null, ready: false, loading: false, scenes: [], centres: [], t: 0, anim: null, targets: null };
+    const walkVert = `
+      uniform sampler2D tDepth; uniform int uFace; uniform mat3 uMatrix; uniform vec3 uCentre;
+      uniform float uRfar; uniform float uRatio; uniform float uSky;
+      varying vec2 vUv;
+      vec3 dirOf(int k, float s, float t) {
+        if (k == 1) return vec3(2.0*s-1.0, 1.0-2.0*t, -1.0);
+        if (k == 2) return vec3(1.0-2.0*s, -1.0, 1.0-2.0*t);
+        if (k == 3) return vec3(1.0-2.0*s, 1.0-2.0*t, 1.0);
+        if (k == 4) return vec3(1.0, 1.0-2.0*t, 2.0*s-1.0);
+        if (k == 5) return vec3(-1.0, 1.0-2.0*t, 1.0-2.0*s);
+        return vec3(1.0-2.0*s, 1.0, 2.0*t-1.0);
+      }
+      void main() {
+        vUv = uv;
+        float d = texture2D(tDepth, uv).r;
+        float r = d < 0.5/255.0 ? uSky : uRfar / (1.0 + (uRatio - 1.0) * d);
+        vec3 p = uCentre + uMatrix * normalize(dirOf(uFace, uv.x, 1.0 - uv.y)) * r;
+        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+      }`;
+    const walkFrag = `uniform sampler2D tColor; varying vec2 vUv;
+      void main() { gl_FragColor = vec4(texture2D(tColor, vUv).rgb, 1.0); }`;
+    const walkBlend = new THREE.ShaderMaterial({
+      uniforms: { a: { value: null }, b: { value: null }, t: { value: 0 } },
+      vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: 'uniform sampler2D a, b; uniform float t; varying vec2 v; void main(){ gl_FragColor = mix(texture2D(a, v), texture2D(b, v), t); }',
+      depthTest: false, depthWrite: false });
+    const walkQuadScene = new THREE.Scene();
+    walkQuadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), walkBlend));
+    const walkQuadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const walkTargetSize = () => [Math.max(1, Math.round(window.innerWidth * renderer.getPixelRatio())),
+                                  Math.max(1, Math.round(window.innerHeight * renderer.getPixelRatio()))];
+
+    async function loadWalk(cfg) {
+      walk.loading = true; walkBtn.textContent = 'Loading…';
+      const base = rawUrl + cfg.scene;
+      const scn = await (await fetch(base + 'scene.json')).json();
+      const tex = (url, nearest) => new Promise((ok, no) => textureLoader.load(url, (tx) => {
+        tx.colorSpace = THREE.NoColorSpace;
+        if (nearest) { tx.minFilter = tx.magFilter = THREE.NearestFilter; tx.generateMipmaps = false; }
+        ok(tx);
+      }, undefined, no));
+      walk.scenes = []; walk.centres = [];
+      for (const n of scn.nodes.slice(0, 2)) {
+        const sc = new THREE.Scene();
+        const m = n.matrix;
+        const mat3 = new THREE.Matrix3().set(m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[2][1], m[2][2]);
+        const c = new THREE.Vector3(...n.centre);
+        walk.centres.push(c);
+        const faces = await Promise.all([1, 2, 3, 4, 5, 6].map(k => Promise.all([
+          tex(`${base}MA-${n.node}-${k}.jpg`, false), tex(`${base}MA-${n.node}-${k}-depth.png`, true)])));
+        faces.forEach(([col, dep], i) => {
+          const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, WALK_SEG, WALK_SEG), new THREE.ShaderMaterial({
+            uniforms: { tColor: { value: col }, tDepth: { value: dep }, uFace: { value: i + 1 }, uMatrix: { value: mat3 },
+                        uCentre: { value: c }, uRfar: { value: n.r_far }, uRatio: { value: n.ratio }, uSky: { value: WALK_SKY } },
+            vertexShader: walkVert, fragmentShader: walkFrag, side: THREE.DoubleSide }));
+          mesh.frustumCulled = false;
+          sc.add(mesh);
+        });
+        walk.scenes.push(sc);
+      }
+      const [w, h] = walkTargetSize();
+      walk.targets = [new THREE.WebGLRenderTarget(w, h), new THREE.WebGLRenderTarget(w, h)];
+      walk.key = cfg.scene; walk.ready = true; walk.loading = false;
+    }
+
+    function walkLabel() {
+      const cfg = currentLocation && currentLocation.walk;
+      walkBtn.style.display = cfg ? 'inline-flex' : 'none';
+      if (cfg && !walk.loading) walkBtn.textContent = walk.t > 0.5 ? 'Walk back' : 'Walk';
+      walkBtn.title = cfg ? (walk.t > 0.5 ? 'Walk back' : `Walk to ${cfg.label}, looking round as you go`) : '';
+    }
+
+    walkBtn.addEventListener('click', async () => {
+      const cfg = currentLocation && currentLocation.walk;
+      if (!cfg || walk.loading) return;
+      if (!walk.ready || walk.key !== cfg.scene) {
+        try { await loadWalk(cfg); } catch (e) { walk.loading = false; walkLabel(); showLoadError('Walk', null, String(e && e.message || e)); return; }
+      }
+      walk.anim = { from: walk.t, to: walk.t < 0.5 ? 1 : 0, at: performance.now() };
+      walkBtn.textContent = walk.anim.to ? 'Walking…' : 'Walking back…';
+    });
+
+    // Called from render() after the look is set; true when it drew the frame.
+    function renderWalk(now) {
+      if (!walk.ready || (walk.t <= 0 && !walk.anim)) return false;
+      if (walk.anim) {
+        const u = Math.min((now - walk.anim.at) / WALK_MS, 1);
+        const e = u * u * (3 - 2 * u);
+        walk.t = walk.anim.from + (walk.anim.to - walk.anim.from) * e;
+        if (u >= 1) { walk.anim = null; walkLabel(); }
+      }
+      if (walk.t <= 0 && !walk.anim) return false;      // home again: the panorama takes over
+      const keep = camera.position.clone();
+      camera.position.lerpVectors(walk.centres[0], walk.centres[1], walk.t);
+      camera.updateMatrixWorld();
+      for (let i = 0; i < 2; i++) { renderer.setRenderTarget(walk.targets[i]); renderer.render(walk.scenes[i], camera); }
+      renderer.setRenderTarget(null);
+      walkBlend.uniforms.a.value = walk.targets[0].texture;
+      walkBlend.uniforms.b.value = walk.targets[1].texture;
+      walkBlend.uniforms.t.value = walk.t;
+      renderer.render(walkQuadScene, walkQuadCam);
+      camera.position.copy(keep);
+      return true;
+    }
+
     // Side-by-side 3D, the phone upright: each eye gets half the screen, the
     // left picture drawn from half an eye spacing to the left. 'parallel' is
     // for a stereoscope or parallel free-viewing; 'cross' swaps the halves
@@ -1728,7 +1849,7 @@
       currentVersionIndex = Math.max(0, Math.min(loc.versions.length - 1, versionIndex));
       // Each location starts at its own depth: off where the depth is mostly a
       // network's guess (depthDefault 0), else the usual 70%.
-      if (isLocChange) applyDepthDefault(loc);
+      if (isLocChange) { applyDepthDefault(loc); walk.t = 0; walk.anim = null; }
       updateUI();
       loadPanorama(isLocChange ? 'block' : 'fade');
     }
@@ -3049,7 +3170,9 @@
         updateDebug(tiltNow);
       }
 
-      if (isTransitioning) {
+      if (!isTransitioning && renderWalk(tiltNow)) {
+        // the walk drew this frame
+      } else if (isTransitioning) {
         renderer.setRenderTarget(rtNew);
         renderer.render(scene, camera);
         renderer.setRenderTarget(null);
@@ -3090,6 +3213,7 @@
 
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();   // renderStereo sets its own
+      if (walk.targets) { const [w, h] = walkTargetSize(); walk.targets.forEach(r => r.setSize(w, h)); }
       renderer.setSize(window.innerWidth, window.innerHeight);
       rtOld.setSize(rtWidth(), rtHeight()); rtNew.setSize(rtWidth(), rtHeight());
       setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
@@ -3099,6 +3223,7 @@
     });
 
     function updateUI() {
+      walkLabel();
       const locSelect = document.getElementById('location-selector');
       if (locSelect.options.length === 0) {
         locations.forEach((loc, i) => { const opt = document.createElement('option'); opt.value = i; opt.textContent = loc.name; if (loc === currentLocation) opt.selected = true; locSelect.appendChild(opt); });
