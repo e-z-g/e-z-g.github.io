@@ -52,7 +52,13 @@ settle them: the median step across the seams before blending went from 11.1%
 to 9.5% on MAWW 101, 7.7% to 6.0% on ENSI 16 and 19.0% to 16.2% on LEIS 77, but
 from 6.1% to 14.4% on MASS 84, and the fit to the measured depth got worse on
 most faces. The default stays unpadded; a model made for panoramas is the next
-thing to try. The per-node settings are each a patch for one
+thing to try. Laid out as one 5x3 grid instead (the walls in a row, the top
+and bottom above and below each wall turned to meet it, as the stitcher's
+atlas; `colmap/grid_depth_test.py`), Depth Anything V2 Large at 364 px a cell
+did worse on MASS 84 than each face alone at the same size: seams before
+blending 14.4% median and 35.8% at the 90th percentile against 6.9% and
+19.6%, and 7.8% from the measured depth against 4.0%. The grid is no one
+camera's picture; across it the network's scale drifts. The per-node settings are each a patch for one
 node's fault; more neighbouring views in the model, which let
 `model_backdrop.py` show what is really behind, are the way to fewer of them.
 
