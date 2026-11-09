@@ -1296,6 +1296,32 @@ surfaces at 0.25–0.9 of the live depth's distance, and the live depth scored
 better at 0.7 times its distance than at 1, so the live depth may be too far;
 a denser J'nanin model would settle it.
 
+**Why the two nodes of a walk do not line up** (9 November 2026). Each
+node's depth is made from that node's picture alone, a depth network fitted
+to the model's sparse points. MASS 84's drawn into MASS 89's faces
+(`walk_consistency.py` in the reference scripts): 31-44% of the pixels both
+see agree within 3%, the median gap 4-6% on walls, 19% on the floor, and the
+water, which takes the depth of what it reflects, lands far behind. The
+fused cloud covers 9-16% of a face here, so it cannot settle the rest.
+Two tries at one shared geometry for the walk:
+
+- `colmap/walk_joint.py`: each node's points drawn into the other's faces,
+  and where the two are within 25% both pulled to their mean, with the water
+  as one plane (its level from where it meets piers and shore). Within 3%
+  went to about 70%, the median gap to 1%. The ride car, 25% or more apart,
+  was left as two cars.
+- `colmap/walk_flow.py`: RAFT optical flow between the two nodes' panoramas
+  drawn looking the same way, both ways, and the two rays of each match
+  intersected. The flow came back to its start within 3 px on about half the
+  pixels (4-10% on the floor), and those agree better (within 3%: 51-55% on
+  the walls and door), but the car is again drawn twice.
+
+The step between the nodes, 1.05 units, is large next to the near things
+(the walkway and car 1-3 units off): each node sees sides of them the other
+does not, so two panoramas cannot be made to coincide there, and any change
+from one node's picture to the other shows. The walk's blend is left as it
+was; these depths are not used.
+
 **Starting depth from the score.** The viewer draws depth d as
 r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is
 r_far / (1 + 19 d), so only the slider's top is the measured shape and the
