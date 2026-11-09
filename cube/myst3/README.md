@@ -1201,6 +1201,20 @@ Its dense run reuses `dense_movies2`'s depth maps and computes only the 1,414
 new frames' (`dense_movies3`); `dense_movies2` had computed every view again,
 2 hours 9 minutes where its 97 new frames needed about 12.
 
+`dense_movies3` (2,726 images): the 1,026 old views' depth maps copied
+from `dense_movies2`, the other 1,700 computed in 185 minutes; moved as before
+(MASS 11090's frames with their run) and fused from 2,636 images
+(`dense_movies3_moved`, 161 MB of points, a 347,640-vertex Delaunay mesh). Its
+mesh reaches 100% of MASS 84's faces 3 and 4. MASS 84 held to it scores 13.6
+on the 10 nearby node faces and 20.6 on the flyover's 7 frames (live 13.9 and
+22.6; the first model's mesh 11.8 and 22.4), better than live on 8 faces and
+all 7 frames. It was built for the site and not shipped: the mesh is made of
+flat patches, and held to them the depth steps where two patches meet. Face
+3's wall and face 4's house wall came out blotchy, the track's slats and gaps
+one flat wedge, and the layered version cut holes along the patch edges in
+the middle of walls and the walkway floor. The score, an average over the
+pixels, does not see a few sharp new steps; the viewer shows them as tears.
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the
