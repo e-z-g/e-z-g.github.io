@@ -1163,6 +1163,25 @@ sees what no node does. MASS 11090's first frames are 1.65 units from MASS 84,
 the nearest views of it there are. `run_dense.ps1` on the model with them
 (`dense_movies2`) was started for a mesh with more views.
 
+**The dense run with the movies** (`dense_movies2`, on the model with MASS
+11090 and 16 frames of MASS 10157 added): `patch_match_stereo` 2 hours 9
+minutes for 1,026 views. The three runs were moved as in `dense_movies_moved`
+(`moves_to_runs.py` regroups that workspace's `moves.json`; MASS 11090's 81
+frames, registered among the misplaced MASS 82-90, moved with that run by the
+similarity fitted to its nodes, scale 1.0892) and fused without the 90 images
+left out before: `dense_movies2_moved`, a 283,433-vertex Delaunay mesh. MASS
+84 held to it as above, scored in that model:
+
+| depth | 10 nearby node faces | 7 flyover frames | all 26 views |
+|---|---|---|---|
+| live | 13.8 | 22.5 | 21.1 |
+| mesh of `dense_joined` + network | **11.6** | 22.4 | 21.0 |
+| mesh of `dense_movies2_moved` + network | 13.3 | **20.5** | 20.9 |
+
+The new mesh does better on the flyover's frames and loses the old one's gain
+on the nearby nodes' faces; over every view the three are within 1%. The
+extra movie frames did not settle it.
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the
