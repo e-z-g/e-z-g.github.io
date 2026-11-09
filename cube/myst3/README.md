@@ -1215,6 +1215,19 @@ one flat wedge, and the layered version cut holes along the patch edges in
 the middle of walls and the walkway floor. The score, an average over the
 pixels, does not see a few sharp new steps; the viewer shows them as tears.
 
+MALL's turret frames do not belong in the cloud yet. Of `dense_movies3_moved`'s
+5,967,390 points, 3,030,136 were made by those frames alone, lying a median
+4.0 units (2.4 node spacings) from the nearest node: a spray in the air. MACA's
+lift frames made 236,981, a median 1.0 from MACA's nodes. Three causes: MALL
+4-16 is the run left misplaced (the trusted faces see through 71% of its
+points) and the turret frames were registered against it; the turret's barrel
+and seat move with the camera in every frame, as the ride's glass ball did,
+and need a mask; and MALL 14017's camera came out at f 815 against about 390
+for the rest. Fused without them (1,315 images): 1,636,011 points, in the
+viewer as `amateria-movies3-moved` (the cloud with them kept as
+`fused_withmall.ply`). They can come back once MALL is placed and the turret
+masked.
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the
