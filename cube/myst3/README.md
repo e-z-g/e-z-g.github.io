@@ -1322,6 +1322,34 @@ does not, so two panoramas cannot be made to coincide there, and any change
 from one node's picture to the other shows. The walk's blend is left as it
 was; these depths are not used.
 
+**The nodes are placed right; their depths are not.**
+`colmap/pair_pose_check.py` matches MASS 84's and MASS 89's panoramas with RAFT
+(both drawn looking the same way, six ways) and finds the step between them
+from the matches alone: 0.1 degrees from the model's direction, no turn
+between the nodes (0.01 degrees), and the matches a median 0.03 degrees (a
+fifth of a pixel) from their epipolar lines under the model's poses, in both
+the joined model and the one with every movie. So the doubling in the walk is
+the per-node depth, not where the nodes stand.
+
+**A splat of the walk** (`splat/splat_local.py`: the pictures within a
+radius of the two nodes, the nodes' faces repeated; `--sky-only` keeps the
+masks above the horizon only, so the water is trained on;
+`splat/ply_to_spz.py` writes Spark's compressed format, 1M splats in 16.7 MB
+against 53 MB; `splat/splat_walk_scene.py` places the nodes in its frame). The
+viewer has the code to draw it for the whole walk (Spark on its own canvas,
+with three.js 0.180 scoped to it in the import map) when a location's `walk`
+names `splat: true` and its folder has `splat.json`; none does yet. At the
+nodes' own faces the splats so far fall well short of the photos:
+
+| trained on | MASS 84 f1 | f4 | MASS 89 f1 | f4 |
+|---|---|---|---|---|
+| within 5, movie frames, water masked | 22.8 dB | 25.9 | 22.3 | 27.2 |
+| the same, water trained | 19.2 | 24.2 | 19.5 | 26.8 |
+| within 5, nodes only, water trained | 19.9 | 22.3 | 20.1 | 25.5 |
+
+with the underside of the roof and the walkway smeared where other views
+disagree with these.
+
 **Starting depth from the score.** The viewer draws depth d as
 r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is
 r_far / (1 + 19 d), so only the slider's top is the measured shape and the

@@ -209,7 +209,13 @@
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/2.4.0/spark.module.js"
+    },
+    "scopes": {
+      "https://sparkjs.dev/": { "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+                                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/" },
+      "https://cdn.jsdelivr.net/npm/three@0.180.0/": { "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js" }
     }
   }
   </script>
@@ -1783,6 +1789,48 @@
       walk.key = cfg.scene; walk.ready = true; walk.loading = false;
     }
 
+    // The walk drawn from one 3D model (myst3/splat/splat_local.py: a Gaussian
+    // splat of the pictures round the two nodes, the two nodes' own faces held
+    // tightest), so nothing changes from one picture to another on the way:
+    // the panorama until the walk starts, the splat for the whole walk, and at
+    // the far end the arriving node's own picture. Spark draws it, on its own
+    // canvas over the viewer's, with the three.js it needs (0.180, scoped to
+    // it in the import map). Coordinates: the splat is in the model's frame,
+    // the viewer's in the leaving node's (m = C + M n).
+    const walkSplat = { ready: false, failed: false, canvas: null };
+    async function loadWalkSplat(cfg) {
+      const base = rawUrl + cfg.scene;
+      const info = await (await fetch(base + 'splat.json')).json();
+      const T = await import('https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js');
+      const { SparkRenderer, SplatMesh } = await import('@sparkjsdev/spark');
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;';
+      container.appendChild(canvas);
+      const r = new T.WebGLRenderer({ canvas, antialias: false });
+      r.setPixelRatio(renderer.getPixelRatio()); r.setSize(window.innerWidth, window.innerHeight);
+      const sc = new T.Scene();
+      const cam = new T.PerspectiveCamera(camera.fov, camera.aspect, 0.02, 5000);
+      sc.add(new SparkRenderer({ renderer: r }));
+      const mesh = new SplatMesh({ url: base + info.splat });
+      // model -> leaving node's frame: n = M^T (m - C)
+      const M = info.matrix, C = new T.Vector3(...info.centres[0]);
+      const Mt = new T.Matrix4().set(M[0][0], M[1][0], M[2][0], 0, M[0][1], M[1][1], M[2][1], 0, M[0][2], M[1][2], M[2][2], 0, 0, 0, 0, 1);
+      mesh.applyMatrix4(new T.Matrix4().makeTranslation(-C.x, -C.y, -C.z).premultiply(Mt));
+      sc.add(mesh);
+      await mesh.initialized;
+      const B = new T.Vector3(...info.centres[1]).sub(C).applyMatrix4(Mt);
+      Object.assign(walkSplat, { ready: true, canvas, r, sc, cam, mesh, B, T });
+    }
+    function drawWalkSplat(t) {
+      const w = walkSplat;
+      w.cam.fov = camera.fov; w.cam.aspect = camera.aspect; w.cam.updateProjectionMatrix();
+      w.cam.quaternion.set(camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w);
+      w.cam.position.copy(w.B).multiplyScalar(t);
+      w.canvas.style.display = '';
+      w.r.render(w.sc, w.cam);
+    }
+    function hideWalkSplat() { if (walkSplat.canvas) walkSplat.canvas.style.display = 'none'; }
+
     function walkLabel() {
       const cfg = currentLocation && currentLocation.walk;
       walkBtn.style.display = cfg ? 'inline-flex' : 'none';
@@ -1795,25 +1843,34 @@
       if (!cfg || walk.loading) return;
       if (!walk.ready || walk.key !== cfg.scene) {
         try { await loadWalk(cfg); } catch (e) { walk.loading = false; walkLabel(); showLoadError('Walk', null, String(e && e.message || e)); return; }
+        if (cfg.splat && !walkSplat.ready && !walkSplat.failed) {
+          walkBtn.textContent = 'Loading…';
+          try { await loadWalkSplat(cfg); } catch (e) { walkSplat.failed = true; console.warn('walk splat', e); }
+        }
       }
       walk.anim = { from: walk.t, to: walk.t < 0.5 ? 1 : 0, at: performance.now() };
       walk.dir = walk.anim.to;                              // which node is being walked to
+      walk.hold = false;
       walkBtn.textContent = walk.anim.to ? 'Walking…' : 'Walking back…';
     });
 
     // For tests: hold the walk at a point along it (0 the start, 1 the end).
-    window.walkAt = (t, toB = 1) => { if (walk.ready) { walk.anim = null; walk.t = t; walk.dir = toB; } return walk.ready; };
+    window.walkAt = (t, toB = 1) => { if (walk.ready) { walk.anim = null; walk.t = t; walk.dir = toB; walk.hold = false; } return walk.ready; };
+    // For tests: the splat drawn at a point along the walk, as while walking.
+    window.walkSplatAt = (t) => { if (!walkSplat.ready) return false; walk.anim = null; walk.t = t; walk.hold = true; return true; };
 
     // Called from render() after the look is set; true when it drew the frame.
     function renderWalk(now) {
-      if (!walk.ready || (walk.t <= 0 && !walk.anim)) return false;
+      if (!walk.ready || (walk.t <= 0 && !walk.anim)) { hideWalkSplat(); return false; }
       if (walk.anim) {
         const u = Math.min((now - walk.anim.at) / WALK_MS, 1);
         const e = u * u * (3 - 2 * u);
         walk.t = walk.anim.from + (walk.anim.to - walk.anim.from) * e;
         if (u >= 1) { walk.anim = null; walkLabel(); }
       }
-      if (walk.t <= 0 && !walk.anim) return false;      // home again: the panorama takes over
+      if (walk.t <= 0 && !walk.anim) { hideWalkSplat(); return false; }   // home again: the panorama takes over
+      if (walkSplat.ready && (walk.anim || walk.hold)) { drawWalkSplat(walk.t); return true; }   // on the way: the splat alone
+      hideWalkSplat();
       const keep = camera.position.clone();
       camera.position.lerpVectors(walk.centres[0], walk.centres[1], walk.t);
       camera.updateMatrixWorld();
@@ -3265,6 +3322,7 @@
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();   // renderStereo sets its own
       if (walk.targets) { const [w, h] = walkTargetSize(); walk.targets.forEach(r => r.setSize(w, h)); }
+      if (walkSplat.r) walkSplat.r.setSize(window.innerWidth, window.innerHeight);
       renderer.setSize(window.innerWidth, window.innerHeight);
       rtOld.setSize(rtWidth(), rtHeight()); rtNew.setSize(rtWidth(), rtHeight());
       setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
