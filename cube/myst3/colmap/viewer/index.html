@@ -62,6 +62,25 @@ window.addEventListener('error', (e) => say('Error: ' + e.message));
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.prepend(renderer.domElement);
+// A lost or refused graphics context only ever showed as an empty grey window.
+renderer.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); say('The graphics context was lost (the phone ran short of graphics memory?). Close other 3D tabs and reload.'); });
+// ?debug: what the phone's graphics say, once a second, under the status line
+const debugOn = new URLSearchParams(location.search).has('debug');
+if (debugOn) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;left:0;right:0;top:28px;padding:4px 8px;font:11px monospace;background:rgba(0,0,0,.6);color:#9f9;z-index:9;white-space:pre-wrap';
+  document.body.appendChild(el);
+  const gl = renderer.getContext();
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  setInterval(() => {
+    const i = renderer.info;
+    el.textContent = `GPU ${gpu}; WebGL ${renderer.capabilities.isWebGL2 ? 2 : 1}; point size up to ${gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1]}` +
+      `\ncanvas ${renderer.domElement.width}x${renderer.domElement.height}; drawn: ${i.render.calls} calls, ${i.render.points} points, ${i.render.triangles} triangles; ` +
+      `geometries ${i.memory.geometries}, textures ${i.memory.textures}; lost ${gl.isContextLost()}` +
+      `\ncamera ${camera.position.toArray().map(v => v.toFixed(2))}, looking at ${controls.target.toArray().map(v => v.toFixed(2))}, near ${camera.near} far ${camera.far}`;
+  }, 1000);
+}
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1d2026);
 const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 500);
