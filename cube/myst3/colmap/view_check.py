@@ -76,10 +76,10 @@ def read_model(txt):
     return cams, imgs
 
 
-def splat(P, cols, R, t, cam, src_f):
+def splat(P, cols, R, t, cam, src_f, grow=1.0):
     """Points P (n x 3, model frame) with colours, drawn into camera (R, t, cam):
     image and coverage. Each point covers its footprint (src pixel at its
-    distance), nearest first."""
+    distance) times grow, nearest first."""
     w, h, fx, fy, cx, cy = cam
     Y = P @ R.T + t
     z = Y[:, 2]
@@ -89,7 +89,7 @@ def splat(P, cols, R, t, cam, src_f):
     x = fx * Y[:, 0] / z + cx; y = fy * Y[:, 1] / z + cy
     inside = (x > -4) & (x < w + 4) & (y > -4) & (y < h + 4)
     x, y, z, c, r = x[inside], y[inside], z[inside], c[inside], r[inside]
-    rad = np.clip(np.ceil(0.5 * fx * (r / src_f) / z), 1, 4).astype(int)
+    rad = np.clip(np.ceil(0.5 * grow * fx * (r / src_f) / z), 1, 4).astype(int)
     order = np.argsort(-z)                         # far first, near written over
     x, y, z, c, rad = x[order], y[order], z[order], c[order], rad[order]
     img = np.zeros((h, w, 3), np.float32); zb = np.full((h, w), np.inf, np.float32)
