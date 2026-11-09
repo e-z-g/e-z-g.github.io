@@ -11,11 +11,12 @@
  ],
  "work": "{out}/mass84",
  "site": "{out}/mass84/site",
- "measured_depth": "node_depth.py {colmap}/Amateria/images 4084 {out}/mass84/depth --dense {colmap}/Amateria/dense_joined --sparse {colmap}/Amateria/runs/joined_floor_map/sparse_txt/ba --names MA-4084-1,...,MA-4084-6 (report: colmap/Amateria/mass84_depth.json)",
+ "measured_depth": "agree_depth.py {out}/mass84/site_live_backup {out}/mass84/agree_cloud --names MA-4084-1 ... MA-4084-6 --mesh {out}/mass84/mesh_delaunay --node-depth {out}/mass84/depth/node_depth.json --tau 0.1 --keep-above 0.5 --lam 0.0001 --cloud {colmap}/Amateria/dense_movies3_moved/fused.ply --sparse {colmap}/Amateria/dense_movies3_moved/sparse_txt --scale 1.089189 --masks {colmap}/Amateria/masks --node 4084, copied into site/; the mesh is mesh_delaunay from mesh_depth.py on dense_joined/meshed-delaunay.ply; site_live_backup/ holds node_depth.py's depth, the one before (report colmap/Amateria/mass84_depth.json). node_depth_moved.json is agree_depth.json with r_far multiplied by 1.089189.",
  "steps": {
   "sharpen": {
    "colour-suffix": "_orig.jpg",
-   "no-lights": true
+   "no-lights": true,
+   "follow-measured": 1
   },
   "backdrop": {
    "dense": "{colmap}/Amateria/dense_movies_moved",
@@ -49,7 +50,9 @@
   "backdrop.masks": "Sky, sea and water from the neighbours are not used: stereo gave lit clouds a depth a little behind the lamp post and track, kept as a dark and orange speckle in the sky, and put the post's reflection just behind the post, a second post as the eye moved.",
   "layers.light": "Face 1's lamp glass was sky in the measured depth: the shade moved with the post and the glass stayed on the sky, and the backdrop kept a copy of the glass. In this box the glass takes the shade's depth.",
   "sharpen.no-lights": "sharpen_depth.py's lamp rule took the far post's blue flame for a light, with the rails crossing it, and pulled 2,148 px of the flame forward to the rails' depth: the flame slid off its post as the eye moved. It missed the lamp glass, which layers.light places.",
-  "layers.keep-gaps": "Face 2, the floor: the gaps between the slats look at the sea far below. As slits they were painted, so the backdrop under the floor was plain dark, and every hole on a slat (the depth's slat outlines are several px off the picture's) showed dark paint instead of wood."
+  "layers.keep-gaps": "Face 2, the floor: the gaps between the slats look at the sea far below. As slits they were painted, so the backdrop under the floor was plain dark, and every hole on a slat (the depth's slat outlines are several px off the picture's) showed dark paint instead of wood.",
+  "measured_depth": "node_depth.py's depth (Depth Anything fitted to the stereo) with each step it has that neither the model's mesh nor its fused cloud bears out, and that is under half the value, flattened to the mesh's surface (agree_depth.py --cloud): Depth Anything's slabs on the rock wall go; the rails, slats and the lamp post (in the cloud, not the mesh) stay. Scored by view_check.py --connected (drawn as the viewer draws, a false step smearing) over 52 views: 24.57 against 25.30 for the depth before (9 November 2026). Holding the depth to the mesh's levels too did worse (25.5-25.9); without the cloud's vote the lamp post was flattened into the wall.",
+  "sharpen.follow-measured": "Depth Anything V2 Large, fitted with one scale and offset, would bring its slabs back; held to the measured depth away from its outlines it keeps the agreement's."
  },
- "shipped": "Rebuilt from this file on 8 November 2026 with the backdrop from the moved model, then again the same day with the neighbours' sky and water masked, the lamp glass given the shade's depth and sharpen_depth's lamp rule left out."
+ "shipped": "Rebuilt 9 November 2026 from the agreement depth. The build before is in git history; its depth maps are site_live_backup/ on the PC."
 }

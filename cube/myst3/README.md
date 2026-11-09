@@ -1249,6 +1249,38 @@ viewer as `amateria-movies3-moved` (the cloud with them kept as
 `fused_withmall.ply`). They can come back once MALL is placed and the turret
 masked.
 
+**A score that counts stretching** (`view_check.py --connected`): the faces
+drawn as the viewer draws them, a surface through every pixel and its
+neighbours, so a false step smears across what it covers in another camera's
+view, the sky at r_far as the viewer puts it. With it the ranking matches what
+the eye saw: over 52 views, live 24.7, the first model's mesh with the network
+25.0, the mesh with every movie 25.3 (the one that looked blotchy).
+
+**Steps the network and the model agree on** (`colmap/agree_depth.py`): the
+live depth rebuilt from its own gradients, except where it steps by more than
+10% and neither the mesh (reliable there) nor the fused cloud (something near
+within a few px of the step's near side) bears the step out; there the mesh's
+gradient is used. Steps over half the value stay whatever the mesh says.
+
+| version | over 52 views |
+|---|---|
+| live | 25.30 |
+| network steps the mesh lacks flattened, levels held to the mesh | 25.5–25.9 |
+| the same, levels left as the network's | 24.72 |
+| the same, steps beside thin near things (11 or 17 px) kept | 24.69 |
+| the same, steps the fused cloud bears out kept | **24.57** |
+
+Holding the levels to the mesh is what spoiled the first try. The thin-thing
+rule did not save the lamp post on face 4, 24 px wide at 640, as wide as the
+rock wall's made-up slabs; the cloud has the post (near) and the slabs (a
+smooth wall), so its vote tells them apart. With it about half as many steps
+are flattened (face 4: 4,355 pairs against 9,187), the rails and slats keep
+their holes in the layered build, and the post stays in front of the wall at
+a shallower step (2.7 against 2.2, where it was 3.8 against 2.7), too small
+now to cut a hole round. MASS 84 is shipped with it (Original, Layered and the
+walk, MASS 89 made the same way); the depth before is `site_live_backup/` on
+the PC.
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the

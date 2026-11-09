@@ -112,6 +112,37 @@ def splat(P, cols, R, t, cam, src_f, grow=1.0):
     return img, np.isfinite(zb)
 
 
+def stretch_points(Pg, Cg, R, t, cam, longest=96):
+    """The node's faces drawn as the viewer draws them, a surface through every
+    pixel and its right and lower neighbours: where two neighbours land 2 px
+    or more apart in the view, points along the line between them (in 3D,
+    so the stretch is where the surface is), their colours blended, at most
+    `longest` a line. Pg, Cg: (6, N, N, 3) positions (NaN where none) and
+    colours. Returns the extra points and colours."""
+    w, h, fx, fy, cx, cy = cam
+    Y = Pg @ R.T + t
+    z = Y[..., 2]
+    with np.errstate(all='ignore'):
+        x = fx * Y[..., 0] / z + cx; y = fy * Y[..., 1] / z + cy
+    good = np.isfinite(z) & (z > 1e-3)
+    inside = good & (x > -50) & (x < w + 50) & (y > -50) & (y < h + 50)
+    outP, outC = [], []
+    for a_, b_ in ((np.s_[:, :, :-1], np.s_[:, :, 1:]), (np.s_[:, :-1, :], np.s_[:, 1:, :])):
+        L = np.hypot(x[b_] - x[a_], y[b_] - y[a_])
+        ok = good[a_] & good[b_] & (inside[a_] | inside[b_]) & (L >= 2)
+        if not ok.any():
+            continue
+        m = np.minimum(np.ceil(L[ok]), longest).astype(int) - 1          # points inside each line
+        P1, P2 = Pg[a_][ok], Pg[b_][ok]; C1, C2 = Cg[a_][ok], Cg[b_][ok]
+        e = np.repeat(np.arange(len(m)), m)
+        start = np.repeat(np.cumsum(m) - m, m)
+        f = ((np.arange(len(e)) - start + 1) / np.repeat(m + 1, m))[:, None]
+        outP.append(P1[e] + f * (P2[e] - P1[e])); outC.append(C1[e] + f * (C2[e] - C1[e]))
+    if not outP:
+        return np.zeros((0, 3)), np.zeros((0, 3), np.float32)
+    return np.concatenate(outP), np.concatenate(outC).astype(np.float32)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('dense'); ap.add_argument('sparse')
@@ -120,6 +151,9 @@ def main():
     ap.add_argument('--scale', type=float, default=1.0)
     ap.add_argument('--radius', type=float, default=3.0); ap.add_argument('--frames', type=int, default=40)
     ap.add_argument('--out')
+    ap.add_argument('--connected', action='store_true',
+                    help="draw the faces as the viewer does, a surface joining neighbouring pixels (stretched across "
+                         "steps), the sky at r_far as the viewer puts it, not as separate points: a false step then smears")
     a = ap.parse_args()
     cams, imgs = read_model(a.sparse)
     own = {k: f'f{k}/MA-{a.node}.jpg' for k in range(1, 7)}
@@ -150,9 +184,9 @@ def main():
         face_dirs[k] = d / np.linalg.norm(d, axis=1, keepdims=True)
         face_cols[k] = img.reshape(-1, 3)
     src_f = FACE_F * N / 640
-    points = {}
+    points, grids = {}, {}
     for name, ddir, suffix, rjson in a.variant:
-        P, cols = [], []
+        P, cols, gP, gC = [], [], [], []
         r_far = json.load(open(rjson))['r_far'] if name != 'infinity' else 1.0
         for k, nm in enumerate(a.names, 1):
             if name == 'infinity':
@@ -160,10 +194,15 @@ def main():
             else:
                 d8 = np.asarray(Image.open(os.path.join(ddir, nm + suffix)).convert('L').resize((N, N), Image.NEAREST)).astype(float).ravel()
                 q = 1 + (RATIO - 1) * d8 / 255
-                r = np.where(d8 > 0, r_far / q * a.scale, np.nan)
+                # the viewer puts the sky (0) at r_far, the farthest it draws
+                r = np.where(d8 > 0, r_far / q * a.scale, r_far * a.scale if a.connected else np.nan)
             keep = np.isfinite(r)
             P.append(C + face_dirs[k][keep] * r[keep, None]); cols.append(face_cols[k][keep])
+            if a.connected:
+                gP.append((C + face_dirs[k] * r[:, None]).reshape(N, N, 3)); gC.append(face_cols[k].reshape(N, N, 3))
         points[name] = (np.concatenate(P), np.concatenate(cols))
+        if a.connected:
+            grids[name] = (np.stack(gP), np.stack(gC))
     names = [v[0] for v in a.variant]
     print('view'.ljust(28) + 'dist ' + ''.join(n[:14].rjust(15) for n in names) + '   covered', flush=True)
     sums = {n: [] for n in names}
@@ -180,7 +219,13 @@ def main():
         if target.shape[:2] != (cam[1], cam[0]):
             print(f'{view}: picture {target.shape[1]}x{target.shape[0]}, camera {cam[0]}x{cam[1]}', flush=True)
             continue
-        renders = {n: splat(*points[n], R, t, cam, src_f) for n in names}
+        if a.connected:
+            renders = {}
+            for n in names:
+                eP, eC = stretch_points(*grids[n], R, t, cam)
+                renders[n] = splat(np.concatenate([points[n][0], eP]), np.concatenate([points[n][1], eC]), R, t, cam, src_f)
+        else:
+            renders = {n: splat(*points[n], R, t, cam, src_f) for n in names}
         # the pixels every real depth covers; the turn alone puts everything
         # far off and lands elsewhere in a view from the side, so it is judged
         # on what it covers of those
