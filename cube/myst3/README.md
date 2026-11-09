@@ -1296,6 +1296,24 @@ surfaces at 0.25–0.9 of the live depth's distance, and the live depth scored
 better at 0.7 times its distance than at 1, so the live depth may be too far;
 a denser J'nanin model would settle it.
 
+**Starting depth from the score.** The viewer draws depth d as
+r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is
+r_far / (1 + 19 d), so only the slider's top is the measured shape and the
+usual 70% (K 10.7) flattens it. `view_check.py --connected` with variants
+named `name@K` draws the depth at the viewer's strength K:
+
+| node | none | K 3 | K 6 | K 10.7 (70%) | K 19 (100%) |
+|---|---|---|---|---|---|
+| MASS 84, 52 views | 30.71 | 25.68 | 25.36 | **25.03** | 25.25 |
+| ENSI 16, 36 views | 36.18 | 33.69 | 33.35 | 32.62 | **29.64** |
+| LEIS 77, 29 views | 45.66 | 43.43 | 42.63 | 40.93 | **37.59** |
+
+So MASS 84 starts at 70%, ENSI 16 and J'nanin (LEIS 77) at 100%, all marked
+measured; J'nanin had started off, for its loose fit on three faces, but its
+depth helps at every strength. The locations with a network's estimate and
+no model (Amateria's MAWW 101, Voltaic's first node, Edanna) start off and
+are marked estimated (9 November 2026).
+
 **The walk between two nodes** (the viewer's Walk button at MASS 84;
 `colmap/walk_scene.py` writes its folder, `colmap/walk_render.py` renders one
 offline). Each node is a mesh pushed out by its depth, drawn from the moving

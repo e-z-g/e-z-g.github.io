@@ -411,7 +411,9 @@
         // what no other node saw, made by myst3/colmap/node_depth.py --dense
         // --sparse (myst3/README.md).
         name: 'Amateria (MASS 84)',
-        depthSource: 'measured',
+        // Scored as J'nanin's: 25.0 at the usual 70%, 25.3 at the top, 30.7
+        // with none; 70% is the best of the strengths tried.
+        depthSource: 'measured', depthDefault: 0.7,
         // Walk: to MASS 89, 1.05 units along the pier (myst3/colmap/walk_scene.py)
         walk: { scene: 'amateria/walk/', label: 'MASS 89' },
         baseUrl: rawUrl + 'amateria/',
@@ -437,6 +439,8 @@
         type: 'voltaic',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
         hasDepth: true,
+        // A network's estimate, not placed in a model: starts off.
+        depthSource: 'estimated', depthDefault: 0,
         depthSuffix: '-depth.jpeg',
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' },
@@ -468,7 +472,9 @@
         // by myst3/colmap/node_depth.py --dense --sparse; Layered built as
         // Amateria's (sharpen_depth.py, myst3/layers/build_layers.py).
         name: 'Voltaic (ENSI 16)',
-        depthSource: 'measured',
+        // Scored as J'nanin's: 29.6 at the slider's top, 32.6 at 70%, 36.2 with
+        // none, so it starts at the top.
+        depthSource: 'measured', depthDefault: 1,
         baseUrl: rawUrl + 'voltaic/',
         type: 'faces',
         faces: ['ENSI-0016-1', 'ENSI-0016-2', 'ENSI-0016-3', 'ENSI-0016-4', 'ENSI-0016-5', 'ENSI-0016-6'],
@@ -492,9 +498,12 @@
         // LEIS node 77, placed by a sky-masked model of the room's nodes 23-33,
         // 76 and 77: depth from its dense matching (node_stereo.py, node 77
         // and its eight nearest) fitted by myst3/colmap/node_depth.py. The fit
-        // is loose on faces 1, 3 and 5 (myst3/README.md), so depth starts off.
+        // is loose on faces 1, 3 and 5 (myst3/README.md), but drawn into the
+        // neighbouring nodes' views as the viewer draws it (view_check.py
+        // --connected, 29 views) it beats no depth at every strength, and most
+        // at the top: 37.6 against 45.7 with none, 40.9 at the usual 70%.
         hasDepth: true,
-        depthSource: 'estimated', depthDefault: 0,
+        depthSource: 'measured', depthDefault: 1,
         depthSuffix: '_measured-depth.png',
         versions: [
           { label: 'Original',    suffix: '-orig.jpg' },
@@ -514,6 +523,8 @@
         type: 'atlas',
         audio: null,
         hasDepth: true,
+        // A network's estimate, not placed in a model: starts off.
+        depthSource: 'estimated', depthDefault: 0,
         versions: [
           { label: 'Original', color: 'edanna.jpeg', depth: 'edanna_depth.png' }
         ]
@@ -1886,7 +1897,9 @@
       currentLocation = loc;
       currentVersionIndex = Math.max(0, Math.min(loc.versions.length - 1, versionIndex));
       // Each location starts at its own depth: off where the depth is mostly a
-      // network's guess (depthDefault 0), else the usual 70%.
+      // network's guess (depthDefault 0); where it is measured, at the strength
+      // that matched the neighbouring nodes' views best (view_check.py; 70%
+      // when not given).
       if (isLocChange) { applyDepthDefault(loc); walk.t = 0; walk.anim = null; }
       updateUI();
       loadPanorama(isLocChange ? 'block' : 'fade');
