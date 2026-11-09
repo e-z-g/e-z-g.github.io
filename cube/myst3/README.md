@@ -1281,6 +1281,21 @@ now to cut a hole round. MASS 84 is shipped with it (Original, Layered and the
 walk, MASS 89 made the same way); the depth before is `site_live_backup/` on
 the PC.
 
+**The agreement on other Ages** (`--prefix ENSI-`/`LEIS-` for their picture
+names). Voltaic's ENSI 16, on the model of rooms 1–27 (its own mesh and fused
+cloud): 30.50 against 30.92 for the depth before over 36 views, the faces
+much as before (walkway, rails and the mast kept, the bottom face smoother
+round the hub), holes 9.7% of the atlas against 11.1%: shipped. J'nanin's
+LEIS 77, on its 13-node model (`stereo_fusion` and `delaunay_mesher` run on
+it for this, 104,934 points): 32.06 against 33.57 over 27 views, but the mesh
+spans the water under the bridge, and on the bottom face the water rose to
+the bridge and the gaps between its slats blurred away (their holes in the
+layered build went with them). The score did not catch it, as the views
+round LEIS 77 see little of that water. Not shipped. The mesh put J'nanin's
+surfaces at 0.25–0.9 of the live depth's distance, and the live depth scored
+better at 0.7 times its distance than at 1, so the live depth may be too far;
+a denser J'nanin model would settle it.
+
 **The walk between two nodes** (the viewer's Walk button at MASS 84;
 `colmap/walk_scene.py` writes its folder, `colmap/walk_render.py` renders one
 offline). Each node is a mesh pushed out by its depth, drawn from the moving

@@ -47,6 +47,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('mesh'); ap.add_argument('sparse'); ap.add_argument('out')
     ap.add_argument('--node', required=True); ap.add_argument('--names', nargs=6, required=True)
+    ap.add_argument('--prefix', default='MA-', help="the node's pictures in the model are f<k>/<prefix><node>.jpg (ENSI-, LEIS-)")
     ap.add_argument('--node-depth', required=True)
     ap.add_argument('--size', type=int, default=640); ap.add_argument('--scale', type=float, default=1.0)
     ap.add_argument('--dense'); ap.add_argument('--max-dist', type=float, default=0.0)
@@ -59,7 +60,7 @@ def main():
     V = np.asarray(mesh.vertices); tri_np = np.asarray(mesh.triangles)
     scene = o3d.t.geometry.RaycastingScene()
     scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
-    want = {f'f{k}/MA-{a.node}.jpg': k for k in range(1, 7)}
+    want = {f'f{k}/{a.prefix}{a.node}.jpg': k for k in range(1, 7)}
     poses = {}
     with open(os.path.join(a.sparse, 'images.txt')) as fh:
         for line in fh:
@@ -99,7 +100,7 @@ def main():
         Image.fromarray(d8).save(os.path.join(a.out, f'{name}_mesh-depth.png'))
         rec = {'hit': float(np.mean(z > 0))}
         if a.dense:
-            dm = os.path.join(a.dense, 'stereo', 'depth_maps', f'f{k}', f'MA-{a.node}.jpg.geometric.bin')
+            dm = os.path.join(a.dense, 'stereo', 'depth_maps', f'f{k}', f'{a.prefix}{a.node}.jpg.geometric.bin')
             if os.path.exists(dm):
                 zs = read_colmap_array(dm).astype(float) / a.scale
                 if zs.shape != z.shape:

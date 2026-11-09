@@ -147,6 +147,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('dense'); ap.add_argument('sparse')
     ap.add_argument('--node', required=True); ap.add_argument('--names', nargs=6, required=True)
+    ap.add_argument('--prefix', default='MA-', help="the node's pictures in the model are f<k>/<prefix><node>.jpg (ENSI-, LEIS-)")
     ap.add_argument('--variant', nargs=4, action='append', required=True, metavar=('NAME', 'DIR', 'SUFFIX', 'R_FAR_JSON'))
     ap.add_argument('--scale', type=float, default=1.0)
     ap.add_argument('--radius', type=float, default=3.0); ap.add_argument('--frames', type=int, default=40)
@@ -156,7 +157,7 @@ def main():
                          "steps), the sky at r_far as the viewer puts it, not as separate points: a false step then smears")
     a = ap.parse_args()
     cams, imgs = read_model(a.sparse)
-    own = {k: f'f{k}/MA-{a.node}.jpg' for k in range(1, 7)}
+    own = {k: f'f{k}/{a.prefix}{a.node}.jpg' for k in range(1, 7)}
     C = -imgs[own[1]][0].T @ imgs[own[1]][1]
     centre = lambda n: -imgs[n][0].T @ imgs[n][1]
     nodes, frames = [], []

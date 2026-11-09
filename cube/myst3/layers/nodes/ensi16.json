@@ -11,16 +11,17 @@
  ],
  "work": "{out}/ensi16",
  "site": "{out}/ensi16/site",
- "measured_depth": "node_depth.py {colmap}/ENSI/images 0016 {out}/ensi16/depth --dense {colmap}/ENSI/dense_1-27 --sparse {colmap}/ENSI/runs/joined_1-27/sparse_txt/ba --names ENSI-0016-1,...,ENSI-0016-6 (report: colmap/ENSI/ensi16_depth.json)",
+ "measured_depth": "agree_depth.py {out}/ensi16/site_live_backup {out}/ensi16/agree --names ENSI-0016-1 ... ENSI-0016-6 --mesh {out}/ensi16/mesh_delaunay (mesh_depth.py on {colmap}/ENSI/dense_1-27/meshed-delaunay.ply) --node-depth {out}/ensi16/depth/node_depth.json --tau 0.1 --keep-above 0.5 --lam 0.0001 --cloud {colmap}/ENSI/dense_1-27/fused.ply --sparse {colmap}/ENSI/runs/joined_1-27/sparse_txt/ba --scale 1 --node 0016 --prefix ENSI-, copied into site/. site_live_backup/ holds the depth before, made by: node_depth.py {colmap}/ENSI/images 0016 {out}/ensi16/depth --dense {colmap}/ENSI/dense_1-27 --sparse {colmap}/ENSI/runs/joined_1-27/sparse_txt/ba --names ENSI-0016-1,...,ENSI-0016-6 (report: colmap/ENSI/ensi16_depth.json). depth/node_depth_agree.json is agree/agree_depth.json, for the backdrop.",
  "steps": {
   "sharpen": {
-   "colour-suffix": "_orig.jpg"
+   "colour-suffix": "_orig.jpg",
+   "follow-measured": 1
   },
   "backdrop": {
    "dense": "{colmap}/ENSI/dense_1-27",
    "sparse_txt": "{colmap}/ENSI/runs/joined_1-27/sparse_txt/ba",
    "node": "0016",
-   "node_depth_json": "{out}/ensi16/depth/node_depth.json",
+   "node_depth_json": "{out}/ensi16/depth/node_depth_agree.json",
    "same": 4
   },
   "layers": {}
@@ -30,7 +31,9 @@
   "prefix": "ensi16-layered"
  },
  "why": {
-  "backdrop.same": "4, set when points of the same surface, seen from neighbours, were taken for what lies behind it. MASS 84 went back to 1.6 afterwards for its pillars; ENSI 16 was not rebuilt then, so the two differ by history, not by need."
+  "backdrop.same": "4, set when points of the same surface, seen from neighbours, were taken for what lies behind it. MASS 84 went back to 1.6 afterwards for its pillars; ENSI 16 was not rebuilt then, so the two differ by history, not by need.",
+  "measured_depth": "The depth before with each step that neither the model's mesh nor its fused cloud bears out, and that is under half the value, flattened to the mesh's surface (agree_depth.py --cloud, as MASS 84). Scored by view_check.py --connected: 30.50 against 30.92 for the depth before over 36 views of the neighbouring nodes (9 November 2026).",
+  "sharpen.follow-measured": "Depth Anything V2 Large, fitted with one scale and offset, would bring back the steps the agreement flattened."
  },
- "shipped": "Rebuilt from this file on 8 November 2026 with build_layers.py's two step changes (steps found after a 5 px median; the far side of a step never part of the near object) and sharpen_depth.py's lamp rule: holes 11.1% of the atlas, against 9.8%."
+ "shipped": "Rebuilt 9 November 2026 from the agreement depth. The build before is in git history; its depth maps are site_live_backup/ on the PC."
 }

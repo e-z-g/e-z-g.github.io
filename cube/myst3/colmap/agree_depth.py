@@ -122,6 +122,7 @@ def main():
     ap.add_argument('--sparse', help="with --cloud: the cloud's text model, with the node's faces (f<k>/MA-<node>.jpg)")
     ap.add_argument('--scale', type=float, default=1.0, help="with --cloud: the model's units in the site depth's")
     ap.add_argument('--masks'); ap.add_argument('--node')
+    ap.add_argument('--prefix', default='MA-', help="the node's pictures in the model are f<k>/<prefix><node>.jpg (ENSI-, LEIS-)")
     ap.add_argument('--band', type=int, default=48)
     ap.add_argument('--depth-suffix', default='_measured-depth.png')
     a = ap.parse_args()
@@ -131,7 +132,7 @@ def main():
     poses, xyz = {}, None
     if a.cloud:
         from node_depth import qvec2rot, read_ply_xyz
-        want = {f'f{k}/MA-{a.node}.jpg': k for k in range(1, 7)}
+        want = {f'f{k}/{a.prefix}{a.node}.jpg': k for k in range(1, 7)}
         with open(os.path.join(a.sparse, 'images.txt')) as fh:
             for line in fh:
                 p = line.split()
@@ -153,7 +154,7 @@ def main():
         good = (zm > 0) & (span < a.max_span) & ~sky
         mmask = np.ones((N, N), bool)
         if a.masks and a.node:
-            mp = os.path.join(a.masks, f'f{k}', f'MA-{a.node}.jpg.png')
+            mp = os.path.join(a.masks, f'f{k}', f'{a.prefix}{a.node}.jpg.png')
             if os.path.exists(mp):
                 mmask = np.asarray(Image.open(mp).convert('L').resize((N, N), Image.NEAREST)) > 127
                 good &= mmask
