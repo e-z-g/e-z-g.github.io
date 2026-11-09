@@ -1087,6 +1087,36 @@ It is on the site as "Amateria (MASS 84, depth from the point cloud)"
 (`layers/nodes/mass84-cloud.json`, files `MA-4084-*_cloud-depth.png` and
 `mass84-cloud-layered-*`), to compare with MASS 84.
 
+**Depth from a mesh** (`colmap/mesh_depth.py`): COLMAP's Delaunay mesh of the
+earlier model (`dense_joined/meshed-delaunay.ply`), a ray cast through each
+face pixel. It is within 0.1–0.5% of the stereo at the median on faces 1, 3,
+4 and 5 (the site's depth 1.7–9.2%). The walls are smooth and face 3's wall is
+twice as far, but it has no rails, lamp post or slats (too few views saw
+them), and big flat triangles close what no node saw. The Poisson mesh covers
+less (45–77% of a side face against 70–99%).
+
+**Scoring a depth by other cameras' pictures** (`colmap/view_check.py`). The
+node's faces are moved by a depth to another camera's position and compared
+with that camera's picture: every face of the nodes within 3 units, and movie
+frames as close. The score is the mean absolute difference (0–255) over the
+pixels every version covers. For MASS 84 (18 node faces and 17 movie frames;
+11 node faces and 14 frames cover enough):
+
+| depth | 11 node faces | 6 flyover frames | 8 ride frames | all 25 |
+|---|---|---|---|---|
+| everything at infinity (the turn alone) | 21.6 | 29.7 | 30.1 | 26.3 |
+| live (Depth Anything, fitted) | 13.6 | 20.9 | 27.9 | 19.9 |
+| live, the layered version's sharper depth | 13.5 | 19.2 | 28.3 | 19.6 |
+| fine relief halved | 13.7 | 20.6 | 27.7 | 19.8 |
+| held to the fused cloud | 14.1 | 18.8 | 29.2 | 20.1 |
+| Delaunay mesh | **12.3** | 20.7 | 30.0 | 20.0 |
+
+Every depth beats the turn alone by a wide margin. On the other nodes' faces
+the mesh is best (9% under the live depth) for all it lacks; on the flyover's
+frames the cloud is. The ride's frames are poor references: even those 0.4–0.8
+units from the node score 31–42 for every version, the turn alone included,
+as the ride's path was already suspect (above).
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the
