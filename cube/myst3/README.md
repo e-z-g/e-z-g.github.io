@@ -866,6 +866,21 @@ copy for phones of the 1.5 million that show most, without view-dependent
 colour (84 MB). Under roofs that few views see (MASS 31, 35) every version is
 soft.
 
+### With MASS 11090's frames (9 November 2026)
+
+The same recipe from `dense_movies3_moved` (MALL's turret frames left out of
+the cloud; ghosts by `ghost_points.py` against the 62 trusted nodes): the
+nodes' faces, the flyover and MASS 11090's 81 frames (734 images; MASS
+10157's and MACA's frames left out, as they lie by nodes neither trusted nor
+moved), 735,895 starting points. Brush took 25 minutes for the 30,000 steps;
+312,038 floaters out, the shell added: 3,344,314 splats, `amateria_v2_best.ply`.
+On the six views it scores 18.9, 17.4, 21.1, 22.3, 26.9 and 22.6 dB (mean
+21.5, against 21.8). `splat/walk_dataset.py` writes cameras walking from one
+node to another; rendered from MASS 84 to MASS 89, both splats are soft
+halfway, and the new one smears the arches beside the walk more: MASS 11090's
+frames do not help there, likely as their places are not quite right. Both are
+served beside each other (`?file=amateria_v2_phone_1m.ply`).
+
 ### A node's depth from the splat (MASS 84)
 
 Whether the splat could give a site node better depth was tried on MASS 84:
