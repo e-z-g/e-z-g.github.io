@@ -143,6 +143,11 @@
       background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25);
       border-radius: 6px; padding: 8px 14px; font-size: 13px;
     }
+    #xr-zoom { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); left: 50%; transform: translateX(-50%); display: flex; gap: 12px; }
+    #xr-zoom button {
+      background: rgba(0,0,0,0.55); color: #fff; border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 6px; width: 48px; height: 40px; font-size: 22px; line-height: 1;
+    }
     #help-toggle { font-weight: 700; }
 
     /* A disclosure control, not a peer of the version buttons. */
@@ -289,6 +294,11 @@
       <label class="depth-label">Depth</label>
       <span id="depth-source" class="depth-note"></span>
       <input type="range" id="displacement-slider" min="0" max="100" value="70" title="Mesh Deformation Strength">
+      <div id="eyes-controls" style="display:none; align-items:center;">
+          <div style="width:1px; height:16px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
+          <label class="depth-label">Eyes</label>
+          <input type="range" id="eyes-slider" min="0" max="100" value="50" title="3D strength: how far apart the two eyes are">
+      </div>
       <div id="tear-controls" style="display:none; align-items:center;">
           <div style="width:1px; height:16px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
           <label class="depth-label">Tear</label>
@@ -328,7 +338,7 @@
     </div>
   </div>
 
-  <div id="xr-overlay"><button id="xr-exit" type="button">Exit AR</button></div>
+  <div id="xr-overlay"><button id="xr-exit" type="button">Exit AR</button><div id="xr-zoom"><button id="xr-zoom-out" type="button" aria-label="Wider view">&minus;</button><button id="xr-zoom-in" type="button" aria-label="Narrower view">+</button></div></div>
   <video id="face-video" playsinline muted style="display:none;"></video>
 
   <div id="caption">
@@ -1662,6 +1672,7 @@
       stereoMode = stereoMode === 'off' ? 'parallel' : stereoMode === 'parallel' ? 'cross' : 'off';
       stereoBtn.textContent = stereoMode === 'off' ? '3D' : stereoMode === 'parallel' ? '3D ∥' : '3D ✕';
       stereoBtn.classList.toggle('active', stereoMode !== 'off');
+      document.getElementById('eyes-controls').style.display = stereoMode === 'off' ? 'none' : 'flex';
       camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
     });
     document.addEventListener('fullscreenchange', () => {
@@ -2810,7 +2821,22 @@
       }
     }
 
+    // The session draws with the phone camera's own field of view, narrow, so
+    // the panorama looked zoomed in. Nothing here has to match the camera
+    // picture (the panorama is opaque), so the view can be widened: three.js
+    // copies each view's projection from the session every frame before this
+    // runs, and xrZoom divides its focal terms. 1 is the camera's own view.
+    let xrZoom = 1.6;
+    document.getElementById('xr-zoom-out').addEventListener('click', () => { xrZoom = Math.min(xrZoom * 1.25, 4); });
+    document.getElementById('xr-zoom-in').addEventListener('click', () => { xrZoom = Math.max(xrZoom / 1.25, 1); });
+
     function xrFrame(time, frame) {
+      const xrCam = renderer.xr.getCamera();
+      for (const c of xrCam.cameras) {
+        const e = c.projectionMatrix.elements;
+        e[0] /= xrZoom; e[5] /= xrZoom;
+        c.projectionMatrixInverse.copy(c.projectionMatrix).invert();
+      }
       const ref = renderer.xr.getReferenceSpace();
       const pose = frame && ref ? frame.getViewerPose(ref) : null;
       if (pose) {
@@ -3039,11 +3065,13 @@
     // panorama's centre (cameraExcursion: under a tenth of the way to the
     // nearest surface), so it scales with the depth slider and never reaches
     // into the geometry.
-    const STEREO_SHARE = 0.4;
+    // The Eyes slider runs from 0 to 2 of that allowance, 1 at its middle
+    // (first set at 0.4, which looked too weak on a phone).
+    const stereoShare = () => 2 * parseFloat(document.getElementById('eyes-slider').value) / 100;
     const _stereoPos = new THREE.Vector3();
     function renderStereo() {
       const w = window.innerWidth, h = window.innerHeight, half = Math.floor(w / 2);
-      const sep = STEREO_SHARE * cameraExcursion();
+      const sep = stereoShare() * cameraExcursion();
       _stereoPos.copy(camera.position);
       camera.aspect = half / h; camera.updateProjectionMatrix();
       renderer.setScissorTest(true);
