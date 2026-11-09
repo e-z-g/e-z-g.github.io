@@ -265,6 +265,7 @@
         </svg>
       </button>
       <button id="xr-toggle" title="AR: walk the phone around to move through the scene" aria-label="Enter AR">AR</button>
+      <button id="stereo-toggle" title="Side-by-side 3D with the phone upright: parallel (left picture for the left eye), then cross-eyed, then off" aria-label="Side-by-side 3D">3D</button>
       <button id="fullscreen-toggle" title="Fullscreen (F)" aria-label="Toggle fullscreen">
         <svg viewBox="0 0 24 24" style="width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; vertical-align:middle;">
           <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"></path>
@@ -1649,6 +1650,20 @@
       }
     }
     fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+    // Side-by-side 3D, the phone upright: each eye gets half the screen, the
+    // left picture drawn from half an eye spacing to the left. 'parallel' is
+    // for a stereoscope or parallel free-viewing; 'cross' swaps the halves
+    // for crossed eyes. The parallax is the depth's own, so with depth off
+    // the two halves are the same flat picture.
+    let stereoMode = 'off';
+    const stereoBtn = document.getElementById('stereo-toggle');
+    stereoBtn.addEventListener('click', () => {
+      stereoMode = stereoMode === 'off' ? 'parallel' : stereoMode === 'parallel' ? 'cross' : 'off';
+      stereoBtn.textContent = stereoMode === 'off' ? '3D' : stereoMode === 'parallel' ? '3D ∥' : '3D ✕';
+      stereoBtn.classList.toggle('active', stereoMode !== 'off');
+      camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+    });
     document.addEventListener('fullscreenchange', () => {
       fullscreenBtn.classList.toggle('active', !!document.fullscreenElement);
     });
@@ -2998,6 +3013,7 @@
       // The projection is the window's while a face is tracked, and goes
       // back to the camera's own the frame it is not (zoom and resize also
       // rebuild it; this simply cuts it again each frame on top).
+      if (stereoMode !== 'off') windowDist = 0;   // the window's frustum is the whole screen's
       if (windowDist) applyWindowFrustum(_eye, windowDist);
       else if (windowActive) { camera.updateProjectionMatrix(); windowActive = false; }
       if (dbgEl) {
@@ -3012,13 +3028,40 @@
         renderer.render(scene, camera);
         renderer.setRenderTarget(null);
         renderer.render(transitionScene, transitionCamera);
+      } else if (stereoMode !== 'off') {
+        renderStereo();
       } else {
         renderer.render(scene, camera);
       }
     }
 
+    // The eye spacing is a share of how far the camera may already leave the
+    // panorama's centre (cameraExcursion: under a tenth of the way to the
+    // nearest surface), so it scales with the depth slider and never reaches
+    // into the geometry.
+    const STEREO_SHARE = 0.4;
+    const _stereoPos = new THREE.Vector3();
+    function renderStereo() {
+      const w = window.innerWidth, h = window.innerHeight, half = Math.floor(w / 2);
+      const sep = STEREO_SHARE * cameraExcursion();
+      _stereoPos.copy(camera.position);
+      camera.aspect = half / h; camera.updateProjectionMatrix();
+      renderer.setScissorTest(true);
+      for (const side of [-1, 1]) {                 // -1: the left eye
+        const onLeft = stereoMode === 'parallel' ? side < 0 : side > 0;
+        const x = onLeft ? 0 : w - half;
+        renderer.setViewport(x, 0, half, h); renderer.setScissor(x, 0, half, h);
+        camera.position.copy(_stereoPos); camera.translateX(side * sep / 2);
+        camera.updateMatrixWorld();
+        renderer.render(scene, camera);
+      }
+      renderer.setScissorTest(false);
+      renderer.setViewport(0, 0, w, h);
+      camera.position.copy(_stereoPos);
+    }
+
     window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+      camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();   // renderStereo sets its own
       renderer.setSize(window.innerWidth, window.innerHeight);
       rtOld.setSize(rtWidth(), rtHeight()); rtNew.setSize(rtWidth(), rtHeight());
       setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
