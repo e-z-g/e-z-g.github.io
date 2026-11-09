@@ -1083,9 +1083,9 @@ no longer clip. Face 3's wall comes out about twice as far as Depth Anything
 had it (3 to 4 against 6.3 along row 350), which was that face's poorest fit
 (12.5% median, 59% at the 90th percentile from the stereo). The layered
 version's depth is held to it with `sharpen_depth.py --follow-measured 1`.
-It is on the site as "Amateria (MASS 84, depth from the point cloud)"
-(`layers/nodes/mass84-cloud.json`, files `MA-4084-*_cloud-depth.png` and
-`mass84-cloud-layered-*`), to compare with MASS 84.
+It was on the site as its own location to compare, and was taken off when
+`view_check.py` (below) scored it no better than the live depth on the other
+nodes' faces.
 
 **Depth from a mesh** (`colmap/mesh_depth.py`): COLMAP's Delaunay mesh of the
 earlier model (`dense_joined/meshed-delaunay.ply`), a ray cast through each
