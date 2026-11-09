@@ -1117,6 +1117,52 @@ frames the cloud is. The ride's frames are poor references: even those 0.4–0.8
 units from the node score 31–42 for every version, the turn alone included,
 as the ride's path was already suspect (above).
 
+**The mesh with the network's detail** (`cloud_depth.py --mesh`): the live
+depth held to the Delaunay mesh's depth (`follow_stereo`, weight 1), except
+where the hit triangle spans more than `--max-span` radians from the node (a
+surface the mesher made up between far-apart points: median span 0.07–0.14 on
+the side faces, 0.6–2.4 on the floor and sky faces), on thin near things the
+network draws (`--thin`: nearer than round them by 10%, gone after an opening
+11 px across: the rails and post the mesh lost) and under the sky and water
+masks. What lies beyond the new r_far is written as the farthest level, not as
+sky: set again nearer (15.1 against 21.7), it had turned the far pier and sea to
+sky. On the 10 node faces the check covers in the moved model:
+
+| depth | node faces |
+|---|---|
+| everything at infinity | 21.3 |
+| live | 12.9 |
+| the mesh alone | 11.5 |
+| mesh + network, span under 0.3, no thin rule, weight 1 | 11.3 |
+| mesh + network, span under 0.3, thin 11, weight 1 | 11.4 |
+| mesh + network, span under 0.3, thin 11, weight 0.01 | 11.2 |
+| mesh + network, span under 0.6, thin 11, weight 1 | **11.2** |
+
+The settings barely matter. Over every view the check reaches in the model
+before the run moves (with MASS 11090's frames, below; the turn alone judged
+on what it covers of the pixels the real depths share), live, the layered
+version's depth and mesh + network score 15.8, 15.9 and 15.8: the mesh's gain
+is on the nearby nodes' faces, and on the six nearest MASS 11090 frames it is
+slightly worse (13.8 against 13.3).
+
+**More movies** (`colmap/add_movies.ps1`): of Amateria's 230 movies (all
+extracted with frame sheets in `movies/<ROOM>/` on the PC), 47 are full frame
+(640x360), and 8 are the camera moving through the open age. Registered one
+after another into `video_lemt_nodesky`'s model, with sky masks and the
+flyover's camera (f 455):
+
+| movie | frames registered |
+|---|---|
+| MASS 11090 (along the pier by MASS 90) | 81 of 81 |
+| MASS 10157 (the glass ball leaving) | 16 of 91 |
+| MAWW 10300, 10301, 10303, 10304, 11002 (round MAWW's platform) | 0 |
+| MATO 10112 (a flight past the rocks) | 0 of 315 |
+
+MAWW's platform has almost no nodes in the model to match, and the flight
+sees what no node does. MASS 11090's first frames are 1.65 units from MASS 84,
+the nearest views of it there are. `run_dense.ps1` on the model with them
+(`dense_movies2`) was started for a mesh with more views.
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the

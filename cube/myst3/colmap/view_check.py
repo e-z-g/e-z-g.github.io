@@ -15,7 +15,8 @@ is a depth for the node: DEPTH_DIR/<name>SUFFIX in node_depth.py's encoding
 (d = (r_far / r - 1) / 19, 0 the sky), r_far from R_FAR_JSON's "r_far", in
 units of which the model's are --scale times. A variant named "infinity"
 (DEPTH_DIR ignored) puts everything at infinity, so only the turn is applied:
-the floor any depth should beat.
+the floor any depth should beat. The pixels judged are those every other
+version covers; it is judged on what it covers of them.
 
 The test views: every face of the other nodes, and every movie frame, within
 --radius of the node (in the model's units; at most --frames movie frames,
@@ -173,27 +174,35 @@ def main():
         cam = cams[cid]
         path = os.path.join(a.dense, 'images', view)
         if not os.path.exists(path):
+            print(f'{view}: no picture at {path}', flush=True)
             continue
         target = np.asarray(Image.open(path).convert('RGB'), np.float32)
         if target.shape[:2] != (cam[1], cam[0]):
+            print(f'{view}: picture {target.shape[1]}x{target.shape[0]}, camera {cam[0]}x{cam[1]}', flush=True)
             continue
         renders = {n: splat(*points[n], R, t, cam, src_f) for n in names}
-        cov = np.logical_and.reduce([renders[n][1] for n in names])
+        # the pixels every real depth covers; the turn alone puts everything
+        # far off and lands elsewhere in a view from the side, so it is judged
+        # on what it covers of those
+        real = [n for n in names if n != 'infinity'] or names
+        cov = np.logical_and.reduce([renders[n][1] for n in real])
         if cov.mean() < 0.05:
+            print(f'{view}: {cov.mean() * 100:.1f}% covered by every version, left out', flush=True)
             continue
         row = view.ljust(28)[:28] + f'{d:4.2f} '
         for n in names:
-            e = float(np.abs(renders[n][0][cov] - target[cov]).mean())
+            cn = cov & renders[n][1]
+            e = float(np.abs(renders[n][0][cn] - target[cn]).mean()) if cn.any() else float('nan')
             sums[n].append(e); row += f'{e:15.2f}'
         print(row + f'   {cov.mean() * 100:5.1f}%', flush=True)
         if a.out:
             tiles = [target] + [np.where(cov[..., None], renders[n][0], 0) for n in names]
             Image.fromarray(np.concatenate(tiles, 1).astype(np.uint8)).save(
                 os.path.join(a.out, view.replace('/', '_').replace('.jpg', '') + '.jpg'), quality=85)
-    print('mean'.ljust(33) + ''.join(f'{np.mean(sums[n]):15.2f}' for n in names) + f'   over {len(sums[names[0]])} views')
+    print('mean'.ljust(33) + ''.join(f'{np.nanmean(sums[n]):15.2f}' for n in names) + f'   over {len(sums[names[0]])} views')
     if a.out:
         with open(os.path.join(a.out, 'view_check.json'), 'w') as fh:
-            json.dump({n: {'mean': float(np.mean(sums[n])), 'per_view': sums[n]} for n in names}, fh, indent=1)
+            json.dump({n: {'mean': float(np.nanmean(sums[n])), 'per_view': sums[n]} for n in names}, fh, indent=1)
 
 
 if __name__ == '__main__':

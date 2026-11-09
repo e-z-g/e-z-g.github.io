@@ -14,7 +14,10 @@ depth's. Each face is a 90-degree pinhole, --size px square. Writes
 OUT_DIR/<name>_mesh-z.npy (depth along the face's axis in the site depth's
 units, 0 where the ray hits nothing or beyond --max-dist), OUT_DIR/<name>
 _mesh-depth.png in node_depth.py's encoding with --node-depth's r_far
-(d = (r_far / r - 1) / 19, 0 where nothing), and a report. With --dense (a
+(d = (r_far / r - 1) / 19, 0 where nothing), OUT_DIR/<name>_mesh-span.npy
+(the angle, in radians, the hit triangle's longest edge spans from the node:
+a big one is a surface the mesher made up between far-apart points), and a
+report. With --dense (a
 workspace with the node's geometric depth maps) each face is also compared
 with COLMAP's stereo.
 
@@ -53,6 +56,7 @@ def main():
     r_far = json.load(open(a.node_depth))['r_far']
     mesh = o3d.io.read_triangle_mesh(a.mesh)
     print(f'{a.mesh}: {len(mesh.vertices)} vertices, {len(mesh.triangles)} triangles', flush=True)
+    V = np.asarray(mesh.vertices); tri_np = np.asarray(mesh.triangles)
     scene = o3d.t.geometry.RaycastingScene()
     scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(mesh))
     want = {f'f{k}/MA-{a.node}.jpg': k for k in range(1, 7)}
@@ -73,8 +77,20 @@ def main():
         dirs_cam = np.stack([xx, yy, np.ones_like(xx)], -1)          # z = 1 on the face's axis
         dirs = dirs_cam.reshape(-1, 3) @ R                             # R^T d
         rays = np.concatenate([np.broadcast_to(C, dirs.shape), dirs], 1).astype(np.float32)
-        hit = scene.cast_rays(o3d.core.Tensor(rays))['t_hit'].numpy().reshape(N, N)   # t along d, so z = t
+        res = scene.cast_rays(o3d.core.Tensor(rays))
+        hit = res['t_hit'].numpy().reshape(N, N)                     # t along d, so z = t
         z = np.where(np.isfinite(hit), hit / a.scale, 0.0)
+        # the angle the hit triangle's longest edge spans from here: a big
+        # one is a surface the mesher made up between far-apart points
+        prim = res['primitive_ids'].numpy().reshape(N, N)
+        span = np.zeros((N, N), np.float32)
+        m = np.isfinite(hit)
+        if m.any():
+            tri = tri_np[prim[m]]
+            e = np.max(np.stack([np.linalg.norm(V[tri[:, i]] - V[tri[:, j]], axis=1)
+                                 for i, j in ((0, 1), (1, 2), (2, 0))]), axis=0)
+            span[m] = e / (hit[m] * norm[m])
+        np.save(os.path.join(a.out, f'{name}_mesh-span.npy'), span)
         if a.max_dist > 0:
             z = np.where(z * norm > a.max_dist, 0.0, z)
         np.save(os.path.join(a.out, f'{name}_mesh-z.npy'), z.astype(np.float32))
