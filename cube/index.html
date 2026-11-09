@@ -91,6 +91,7 @@
     
     .depth-label { color:rgba(255,255,255,0.8); font-size:11px; text-transform:uppercase; margin-left: 8px; font-weight: bold; letter-spacing: 0.5px; }
     .depth-label:first-child { margin-left: 0; }
+    .depth-note { color:rgba(255,255,255,0.55); font-size:10px; margin: 0 6px 0 4px; white-space: nowrap; }
 
     #caption {
       position: absolute; left: 50%; transform: translateX(-50%);
@@ -285,6 +286,7 @@
 
     <div class="controls-row" id="depth-controls" style="display:none; padding-left: 14px; padding-right: 14px;">
       <label class="depth-label">Depth</label>
+      <span id="depth-source" class="depth-note"></span>
       <input type="range" id="displacement-slider" min="0" max="100" value="70" title="Mesh Deformation Strength">
       <div id="tear-controls" style="display:none; align-items:center;">
           <div style="width:1px; height:16px; background:rgba(255,255,255,0.2); margin: 0 4px;"></div>
@@ -363,7 +365,11 @@
         // points triangulated on the platform it shares with MAWW 2, held
         // together at the cube's seams, with the sky at infinity. Encoded so
         // the slider at its top is true proportion (myst3/README.md).
+        // Only the platform is measured (held-out points a median 16% off), the
+        // rest is the network's guess: depth starts off here, and the slider
+        // says so.
         hasDepth: true,
+        depthSource: 'estimated', depthDefault: 0,
         depthSuffix: '_measured-depth.png',
         versions: [
           { label: 'Original', suffix: '_orig.jpeg' },
@@ -393,6 +399,7 @@
         // what no other node saw, made by myst3/colmap/node_depth.py --dense
         // --sparse (myst3/README.md).
         name: 'Amateria (MASS 84)',
+        depthSource: 'measured',
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -447,6 +454,7 @@
         // by myst3/colmap/node_depth.py --dense --sparse; Layered built as
         // Amateria's (sharpen_depth.py, myst3/layers/build_layers.py).
         name: 'Voltaic (ENSI 16)',
+        depthSource: 'measured',
         baseUrl: rawUrl + 'voltaic/',
         type: 'faces',
         faces: ['ENSI-0016-1', 'ENSI-0016-2', 'ENSI-0016-3', 'ENSI-0016-4', 'ENSI-0016-5', 'ENSI-0016-6'],
@@ -470,8 +478,9 @@
         // LEIS node 77, placed by a sky-masked model of the room's nodes 23-33,
         // 76 and 77: depth from its dense matching (node_stereo.py, node 77
         // and its eight nearest) fitted by myst3/colmap/node_depth.py. The fit
-        // is loose on faces 1, 3 and 5 (myst3/README.md).
+        // is loose on faces 1, 3 and 5 (myst3/README.md), so depth starts off.
         hasDepth: true,
+        depthSource: 'estimated', depthDefault: 0,
         depthSuffix: '_measured-depth.png',
         versions: [
           { label: 'Original',    suffix: '-orig.jpg' },
@@ -1691,8 +1700,23 @@
       const isLocChange = loc !== currentLocation;
       currentLocation = loc;
       currentVersionIndex = Math.max(0, Math.min(loc.versions.length - 1, versionIndex));
+      // Each location starts at its own depth: off where the depth is mostly a
+      // network's guess (depthDefault 0), else the usual 70%.
+      if (isLocChange) applyDepthDefault(loc);
       updateUI();
       loadPanorama(isLocChange ? 'block' : 'fade');
+    }
+
+    function applyDepthDefault(loc) {
+      const v = Math.round(100 * (loc.depthDefault ?? 0.7));
+      document.getElementById('displacement-slider').value = String(v);
+      const note = document.getElementById('depth-source');
+      if (note) {
+        note.textContent = loc.depthSource || '';
+        note.title = loc.depthSource === 'measured' ? 'Depth from the 3D model of the age (other nodes and movies)'
+                   : loc.depthSource === 'estimated' ? 'Depth mostly guessed by a depth network from the picture; starts off'
+                   : '';
+      }
     }
 
     function stepLocation(dir) {
@@ -3064,6 +3088,7 @@
     }
 
     setTransitionUniform('uAspect', window.innerWidth / window.innerHeight);
+    applyDepthDefault(currentLocation);
     updateUI();
     // Compile the currently bound programs up front so the shader build doesn't
     // land inside the first rendered frame.
