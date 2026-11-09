@@ -1182,6 +1182,25 @@ The new mesh does better on the flyover's frames and loses the old one's gain
 on the nearby nodes' faces; over every view the three are within 1%. The
 extra movie frames did not settle it.
 
+**The rest of the moving-camera movies** (`add_movies.ps1 -Measure`: each
+movie's own camera first, mapped alone from f 455), chained on from MASS 10157:
+
+| movies | camera found (f, px) | frames registered |
+|---|---|---|
+| MALL 14017–25017, the 11 turret views | 380–416 (one 815, one 333) | all 1,321 |
+| MACA 10035, 10036, the lift shafts | 381, 387 | 58 of 101, 35 of 96 |
+| MAWW 10300, 10301, 10303, 11002 | 58–401 | 0 |
+| MATO 10112, 14006, 27007, MAIS 10102 | 320–556 | 0 |
+| MAWW 10304, MALL 10008–12008 and 26017, MATO 10002, 10003, 10103 | none: the movie alone gave no model | — |
+
+The flyover's f 455, given to all at first, was wrong for these (they come
+out near 390), and with it MAWW's and MATO's movies registered nothing; with
+their own cameras they still do not, as MAWW's platform and the flight see
+what no node does. The model (`video_mato27007_chain`) holds 2,726 images.
+Its dense run reuses `dense_movies2`'s depth maps and computes only the 1,414
+new frames' (`dense_movies3`); `dense_movies2` had computed every view again,
+2 hours 9 minutes where its 97 new frames needed about 12.
+
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
 depth. How far a step stretches is the step times the depth setting, so the

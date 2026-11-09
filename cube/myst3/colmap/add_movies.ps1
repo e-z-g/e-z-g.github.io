@@ -10,7 +10,8 @@
 # their sky, sea and water (WORK\masks\<tag>), and register_video.ps1 adds them
 # to the model in WORK\<prev>\ba with the database WORK\<prev>\combined.db,
 # the node frames held, the movie camera given by -Params (the flyover's,
-# measured on LEMT 10912: 640x360, f 455), writing WORK\video_<tag>_chain.
+# measured on LEMT 10912: 640x360, f 455; with -Measure each movie's own, the
+# movie alone mapped first from f 455), writing WORK\video_<tag>_chain.
 # The first <prev> is -Start; the last one's model holds every movie. A movie
 # whose registration fails is left out and the chain goes on from the one
 # before. Prints each movie's frames registered.
@@ -19,6 +20,7 @@ param(
   [Parameter(Mandatory = $true)][string]$Movies,          # comma-separated: -File passes a list as one string
   [Parameter(Mandatory = $true)][string]$Start,
   [string]$Params = '455,320,180',
+  [switch]$Measure,          # measure each movie's own camera from its frames first (register_video.ps1 step 1)
   [int]$Every = 1,
   [string]$Colmap = 'C:\colmap\4.2.1\COLMAP.bat'
 )
@@ -34,9 +36,10 @@ foreach ($m in ($Movies -split ',')) {
   & py -3 "$here\video_frames.py" $Work $m $tag --every $Every 2>&1 | Select-Object -Last 2
   & py -3 "$here\sky_masks.py" "$Work\images" "$Work\$tag\list.txt" "$Work\masks" 2>&1 | Select-Object -Last 1
   $out = "video_${tag}_chain"
+  $cam = if ($Measure) { @('-Focal', '455') } else { @('-Params', $Params) }
   & powershell -ExecutionPolicy Bypass -File "$here\register_video.ps1" -Work $Work -Tag $tag -Out $out `
-      -Database "$prev\combined.db" -Model "$prev\ba" -Mask -Params $Params -Colmap $Colmap 2>&1 |
-      Select-String 'registered|Registered|exit [1-9]|failed'
+      -Database "$prev\combined.db" -Model "$prev\ba" -Mask @cam -Colmap $Colmap 2>&1 |
+      Select-String 'movie camera|registered|Registered|exit [1-9]|failed'
   if (Test-Path "$Work\$out\ba\images.bin") { $prev = $out } else { "  $tag left out" }
   '  {0:n0} s' -f ((Get-Date) - $t0).TotalSeconds
 }
