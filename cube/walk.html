@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Walk between nodes (test)</title>
+<!--
+  A test of walking from one node to the next while looking round. Each node's
+  six faces become a mesh, every vertex pushed out along its ray to the
+  distance its depth gives (node_depth.py's encoding, r_far from the model),
+  placed where the model has the node (amateria/walk/scene.json, written by
+  myst3/colmap/walk_scene.py). The eye moves in a straight line between the
+  two centres; each frame both meshes are drawn from it, each into its own
+  picture, and the two are blended by how far along the eye is. Drag (or turn
+  the phone, after Gyro) to look round, the slider or Walk to move.
+  ?scene=amateria/walk/ picks the folder.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 14px system-ui, sans-serif; color: #ddd; touch-action: none; }
+  #ui { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 14px calc(env(safe-area-inset-bottom, 0px) + 12px);
+        background: rgba(0,0,0,.55); display: flex; gap: 10px; align-items: center; }
+  #ui input[type=range] { flex: 1; }
+  button { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 6px; padding: 8px 12px; font-size: 14px; }
+  button.active { background: rgba(255,255,255,.35); }
+  #msg { position: fixed; top: 0; left: 0; right: 0; padding: 8px 12px; background: rgba(0,0,0,.55); }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="msg">Loading…</div>
+<div id="ui">
+  <button id="walk">Walk</button>
+  <input type="range" id="t" min="0" max="1000" value="0">
+  <button id="gyro">Gyro</button>
+</div>
+<script type="module">
+import * as THREE from 'three';
+
+const q = new URLSearchParams(location.search);
+const base = q.get('scene') || 'amateria/walk/';
+const msg = document.getElementById('msg');
+const say = (s) => { msg.textContent = s; msg.style.display = s ? '' : 'none'; };
+window.addEventListener('error', (e) => say('Error: ' + e.message));
+
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.01, 2000);
+
+const SEG = 192;          // grid steps per face edge
+const SKY_R = 400;        // the sky's shell, in the model's units
+
+// node_depth.py's face directions (face 1 looking along -z, y up), s across
+// and t down the face picture.
+const vert = `
+  uniform sampler2D tDepth; uniform int uFace; uniform mat3 uMatrix; uniform vec3 uCentre;
+  uniform float uRfar; uniform float uRatio; uniform float uSky;
+  varying vec2 vUv;
+  vec3 dirOf(int k, float s, float t) {
+    if (k == 1) return vec3(2.0*s-1.0, 1.0-2.0*t, -1.0);
+    if (k == 2) return vec3(1.0-2.0*s, -1.0, 1.0-2.0*t);
+    if (k == 3) return vec3(1.0-2.0*s, 1.0-2.0*t, 1.0);
+    if (k == 4) return vec3(1.0, 1.0-2.0*t, 2.0*s-1.0);
+    if (k == 5) return vec3(-1.0, 1.0-2.0*t, 1.0-2.0*s);
+    return vec3(1.0-2.0*s, 1.0, 2.0*t-1.0);
+  }
+  void main() {
+    vUv = uv;
+    float s = uv.x, t = 1.0 - uv.y;
+    float d = texture2D(tDepth, uv).r;
+    float r = d < 0.5/255.0 ? uSky : uRfar / (1.0 + (uRatio - 1.0) * d);
+    vec3 p = uCentre + uMatrix * normalize(dirOf(uFace, s, t)) * r;
+    gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+  }`;
+const frag = `
+  uniform sampler2D tColor; varying vec2 vUv;
+  void main() { gl_FragColor = vec4(texture2D(tColor, vUv).rgb, 1.0); }`;
+
+const loader = new THREE.TextureLoader();
+const load = (url, colour) => new Promise((ok, no) => loader.load(url, (tx) => {
+  tx.colorSpace = THREE.NoColorSpace;      // colours passed through as stored, both passes and the blend alike
+  if (!colour) { tx.minFilter = tx.magFilter = THREE.NearestFilter; }
+  tx.generateMipmaps = colour; ok(tx);
+}, undefined, no));
+
+const scene = await (await fetch(base + 'scene.json')).json();
+const scenes = [], centres = [];
+let done = 0; const total = scene.nodes.length * 12;
+for (const n of scene.nodes) {
+  const sc = new THREE.Scene();
+  const m = n.matrix;
+  const mat3 = new THREE.Matrix3().set(m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[2][1], m[2][2]);
+  const c = new THREE.Vector3(...n.centre);
+  centres.push(c);
+  for (let k = 1; k <= 6; k++) {
+    const [col, dep] = await Promise.all([load(`${base}MA-${n.node}-${k}.jpg`, true), load(`${base}MA-${n.node}-${k}-depth.png`, false)]);
+    done += 2; say(`Loading ${done}/${total}…`);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { tColor: { value: col }, tDepth: { value: dep }, uFace: { value: k }, uMatrix: { value: mat3 },
+                  uCentre: { value: c }, uRfar: { value: n.r_far }, uRatio: { value: n.ratio }, uSky: { value: SKY_R } },
+      vertexShader: vert, fragmentShader: frag, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, SEG, SEG), mat);
+    mesh.frustumCulled = false;
+    sc.add(mesh);
+  }
+  scenes.push(sc);
+}
+
+// each node into its own picture, then the two blended
+const rt = () => new THREE.WebGLRenderTarget(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
+const targets = [rt(), rt()];
+const blend = new THREE.ShaderMaterial({
+  uniforms: { a: { value: targets[0].texture }, b: { value: targets[1].texture }, t: { value: 0 } },
+  vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: 'uniform sampler2D a, b; uniform float t; varying vec2 v; void main(){ gl_FragColor = mix(texture2D(a, v), texture2D(b, v), t); }',
+  depthTest: false, depthWrite: false });
+const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blend);
+const quadScene = new THREE.Scene(); quadScene.add(quad);
+const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+// looking: yaw and pitch about the model's up; start facing the next node
+const up = new THREE.Vector3(...scene.up).normalize();
+const toB = centres[1].clone().sub(centres[0]); toB.sub(up.clone().multiplyScalar(toB.dot(up))).normalize();
+let yaw = Math.atan2(-toB.x, -toB.z), pitch = 0;   // the camera looks along -z
+let gyro = null, gyroRef = null;
+let dragging = false, lx = 0, ly = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; });
+addEventListener('pointerup', () => { dragging = false; });
+addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  yaw -= (e.clientX - lx) * 0.005; pitch = Math.max(-1.4, Math.min(1.4, pitch + (e.clientY - ly) * 0.005));
+  lx = e.clientX; ly = e.clientY;
+});
+document.getElementById('gyro').onclick = async () => {
+  if (gyro) { gyro = null; document.getElementById('gyro').classList.remove('active'); return; }
+  if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) {
+    try { if (await DeviceOrientationEvent.requestPermission() !== 'granted') return; } catch (_) { return; }
+  }
+  gyro = {}; gyroRef = null; document.getElementById('gyro').classList.add('active');
+};
+addEventListener('deviceorientation', (e) => { if (gyro && e.alpha !== null) { gyro.a = e.alpha; gyro.b = e.beta; gyro.g = e.gamma; } });
+
+const slider = document.getElementById('t');
+let t = 0, walking = null;
+slider.oninput = () => { t = slider.value / 1000; walking = null; };
+document.getElementById('walk').onclick = () => { walking = { from: t, to: t < 0.5 ? 1 : 0, at: performance.now() }; };
+
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _z = new THREE.Vector3(0, 0, 1);
+const screenFix = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));   // camera looks out of the back of the screen
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (walking) {
+    const u = Math.min((now - walking.at) / 3500, 1);
+    const e = u * u * (3 - 2 * u);
+    t = walking.from + (walking.to - walking.from) * e;
+    slider.value = Math.round(t * 1000);
+    if (u >= 1) walking = null;
+  }
+  camera.position.lerpVectors(centres[0], centres[1], t);
+  if (gyro && gyro.a !== undefined) {
+    _e.set(THREE.MathUtils.degToRad(gyro.b), THREE.MathUtils.degToRad(gyro.a), -THREE.MathUtils.degToRad(gyro.g), 'YXZ');
+    _q.setFromEuler(_e).multiply(screenFix);
+    const orient = THREE.MathUtils.degToRad(screen.orientation ? screen.orientation.angle : 0);
+    _q.multiply(new THREE.Quaternion().setFromAxisAngle(_z, -orient));
+    if (!gyroRef) { gyroRef = { yaw: yaw, q: _q.clone() }; }
+    // the phone's turn since Gyro was pressed, applied from the yaw then
+    const rel = gyroRef.q.clone().invert().multiply(_q);
+    camera.quaternion.setFromEuler(new THREE.Euler(0, gyroRef.yaw, 0, 'YXZ')).multiply(rel);
+  } else {
+    camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
+  }
+  for (let i = 0; i < 2; i++) { renderer.setRenderTarget(targets[i]); renderer.render(scenes[i], camera); }
+  renderer.setRenderTarget(null);
+  blend.uniforms.t.value = t;
+  renderer.render(quadScene, quadCam);
+}
+say('');
+window.walkReady = true;
+requestAnimationFrame(frame);
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  for (const r of targets) r.setSize(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
+});
+</script>
+</body>
+</html>
