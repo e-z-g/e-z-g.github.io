@@ -10,7 +10,12 @@
   this page with each set at data/NAME/ and their list at data/sets.json; ?set=NAME
   picks one, as does the list at the bottom left.
   Orbit: drag to turn, pinch or wheel to zoom, two fingers or right drag to pan.
-  At a node: the camera stands at the node's centre; drag to look round.
+  At a node: the camera stands at the node's centre; drag to look round, and the
+  markers of the nodes within four spacings stay, to tap.
+  Getting about: tap a node's marker to fly there; double-tap the points to fly to
+  that spot; hold the up and down arrows (or W/S, A/D sideways, Q/E down and up)
+  to walk the way the view looks. The room list shortens the row of node buttons.
+  ?debug shows what the device's graphics report.
 -->
 <style>
   html, body { margin: 0; height: 100%; background: #1d2026; color: #e8e8e8;
@@ -49,7 +54,7 @@
     <button id="showBack" class="on">Backdrop</button>
     <span>size</span><input id="size" type="range" min="0.004" max="0.12" step="0.002" value="0.03">
   </div>
-  <div class="row" id="nodeRow"><span>Stand at node:</span></div>
+  <div class="row" id="nodeRow"><select id="room"><option value="">All rooms</option></select><button id="fwd" title="Hold to walk forward (W)">&#9650;</button><button id="back" title="Hold to walk back (S)">&#9660;</button><span>Stand at node:</span></div>
 </div>
 <script type="module">
 import * as THREE from 'three';
@@ -153,14 +158,22 @@ scene.add(points);
 
 const nodeGroup = new THREE.Group(); scene.add(nodeGroup);
 const nodeRow = document.getElementById('nodeRow');
-const buttons = {};
+const buttons = {}, sprites = {};
 for (const [id, nd] of Object.entries(info.nodes)) {
   const name = nd.label || id;
   const [room, num] = name.includes(':') ? name.split(':') : ['', name];
-  const s = label(num, room); s.position.fromArray(nd.centre); nodeGroup.add(s);
+  const s = label(num, room); s.position.fromArray(nd.centre); s.userData.id = id; nodeGroup.add(s); sprites[id] = s;
   const b = document.createElement('button'); b.textContent = room ? `${room} ${num}` : num; nodeRow.appendChild(b);
   b.style.borderBottom = room ? `3px solid rgb(${roomColour[room]})` : '';
-  b.onclick = () => standAt(id); buttons[id] = b;
+  b.onclick = () => standAt(id); buttons[id] = b; b.dataset.room = room;
+}
+// the room picker shortens the row of node buttons to one room's
+{
+  const roomSel = document.getElementById('room');
+  for (const r of Object.keys(roomColour).filter(Boolean).sort()) {
+    const o = document.createElement('option'); o.value = r; o.textContent = r; roomSel.appendChild(o);
+  }
+  roomSel.onchange = () => { for (const b of Object.values(buttons)) b.style.display = !roomSel.value || b.dataset.room === roomSel.value ? '' : 'none'; };
 }
 
 let mesh = null;
@@ -184,6 +197,7 @@ const hi = new THREE.Vector3().fromArray(info.extent_p2_p98[1]);
 function overview() {
   standing = null; if (typeof setBackdrop === 'function') setBackdrop(null);
   camera.near = 0.01; nodeGroup.visible = document.getElementById('showNodes').classList.contains('on');
+  for (const sp of Object.values(sprites)) sp.visible = true;
   for (const b of Object.values(buttons)) b.classList.remove('on');
   setOn('orbit', true);
   controls.enableZoom = controls.enablePan = true;
@@ -197,24 +211,148 @@ function overview() {
   say(`${n.toLocaleString()} points, ${Object.keys(info.nodes).length} nodes. Drag to turn, pinch to zoom.`);
 }
 
-function standAt(id) {
+function standAt(id, fly = true) {
   const nd = info.nodes[id];
   for (const [k, b] of Object.entries(buttons)) b.classList.toggle('on', k === id);
   setOn('orbit', false);
   const c = new THREE.Vector3().fromArray(nd.centre);
-  // node_from_world rows: the node frame's axes in the world; the front face looks along -z
+  // facing: the way the eye already looks when at or near a node, the way it travels
+  // from the overview, the node's front face (node_from_world's -z) when it arrives
+  // from nowhere
   const R = nd.node_from_world;
-  const fwd = new THREE.Vector3(-R[2][0], -R[2][1], -R[2][2]);
-  controls.target.copy(c);
-  camera.position.copy(c).addScaledVector(fwd, -0.001);
-  controls.enableZoom = controls.enablePan = false;
-  controls.rotateSpeed = -0.4;
+  let fwd = new THREE.Vector3(-R[2][0], -R[2][1], -R[2][2]);
+  if (fly) {
+    const d = new THREE.Vector3(); camera.getWorldDirection(d);
+    if (standing === null && controls.rotateSpeed > 0) { d.copy(c).sub(camera.position); d.y *= 0.2; }
+    if (d.lengthSq() > 1e-9) fwd = d.normalize();
+  }
+  const done = () => {
+    controls.target.copy(c);
+    camera.position.copy(c).addScaledVector(fwd, -0.001);
+    controls.enableZoom = controls.enablePan = false;
+    controls.rotateSpeed = -0.4;
+    controls.update();
+    standing = id; setBackdrop(id);
+    camera.near = 0.15 * unit; camera.updateProjectionMatrix();   // points right at the eye only blot the view
+    showNeighbours(id);
+    say(`Node ${nd.label || id}. Drag to look round; tap a marker to walk there, double-tap a spot to go to it.`);
+  };
   camera.fov = 75; camera.updateProjectionMatrix();
-  controls.update();
-  standing = id; setBackdrop(id);
-  camera.near = 0.15 * unit; camera.updateProjectionMatrix();     // points right at the eye only blot the view
-  nodeGroup.visible = false;
-  say(`Node ${nd.label || id}, facing its front face. Drag to look round.`);
+  if (fly) flyTo(c.clone().addScaledVector(fwd, -0.001), c, done);
+  else done();
+}
+
+// Standing at a node, the markers of the nodes within four spacings stay, to tap.
+function showNeighbours(id) {
+  const c = new THREE.Vector3().fromArray(info.nodes[id].centre);
+  nodeGroup.visible = true;
+  for (const [k, sp] of Object.entries(sprites)) sp.visible = k !== id && sp.position.distanceTo(c) < 4 * unit;
+}
+
+// ── Getting about ──
+// A move is a flight: camera and the point it turns round eased from where they
+// are to where they go, in time with the distance.
+let flight = null;
+function flyTo(pos, target, then) {
+  const dist = pos.distanceTo(camera.position);
+  flight = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: target.clone(),
+             at: performance.now(), ms: Math.min(2500, 500 + 400 * dist / unit), then };
+  controls.enabled = false;
+}
+function stepFlight(now) {
+  if (!flight) return;
+  const u = Math.min((now - flight.at) / flight.ms, 1), e = u * u * (3 - 2 * u);
+  camera.position.lerpVectors(flight.p0, flight.p1, e);
+  controls.target.lerpVectors(flight.t0, flight.t1, e);
+  if (u >= 1) { const f = flight; flight = null; controls.enabled = true; if (f.then) f.then(); }
+}
+
+// Walking: hold ▲ or ▼ (or W/S, A/D sideways, Q/E down and up). It leaves the
+// node and looks round in place as it goes; the node's faces stay round the eye.
+const held = new Set();
+const WALK = () => 1.2 * unit;          // per second
+function holdButton(id, key) {
+  const b = document.getElementById(id);
+  const on = (e) => { e.preventDefault(); held.add(key); };
+  const off = () => held.delete(key);
+  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
+  b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
+}
+holdButton('fwd', 'w'); holdButton('back', 's');
+addEventListener('keydown', (e) => { if (e.target.tagName !== 'SELECT') held.add(e.key.toLowerCase()); });
+addEventListener('keyup', (e) => held.delete(e.key.toLowerCase()));
+let lastWalk = 0;
+function stepWalk(now) {
+  const dt = lastWalk ? Math.min((now - lastWalk) / 1000, 0.1) : 0; lastWalk = now;
+  if (!held.size || flight) return;
+  const f = new THREE.Vector3(); camera.getWorldDirection(f);
+  const r = new THREE.Vector3().crossVectors(f, camera.up).normalize();
+  const m = new THREE.Vector3();
+  if (held.has('w') || held.has('arrowup')) m.add(f);
+  if (held.has('s') || held.has('arrowdown')) m.sub(f);
+  if (held.has('d') || held.has('arrowright')) m.add(r);
+  if (held.has('a') || held.has('arrowleft')) m.sub(r);
+  if (held.has('e')) m.add(camera.up);
+  if (held.has('q')) m.sub(camera.up);
+  if (m.lengthSq() === 0) return;
+  m.normalize().multiplyScalar(WALK() * dt);
+  if (standing !== null || controls.rotateSpeed < 0) {
+    // looking round in place: the turning point stays just ahead of the eye
+    if (standing !== null) { standing = null; for (const b of Object.values(buttons)) b.classList.remove('on'); }
+    camera.position.add(m); controls.target.copy(camera.position).addScaledVector(f, 0.001);
+    const near = nearestNode(camera.position);
+    if (near && near !== shownNear) { shownNear = near; showNeighbours(near); }
+  } else {
+    camera.position.add(m); controls.target.add(m);
+  }
+}
+let shownNear = null;
+function nearestNode(p) {
+  let best = null, bd = Infinity;
+  for (const [k, sp] of Object.entries(sprites)) { const d = sp.position.distanceToSquared(p); if (d < bd) { bd = d; best = k; } }
+  return best;
+}
+
+// Taps: a node's marker goes there; a double tap on the points flies to that spot
+// (in the overview it becomes the point the view turns round; looking round, the
+// eye goes to a spacing short of it).
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let down = null, lastTap = 0;
+renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8 || performance.now() - down.t > 350) { down = null; return; }
+  down = null;
+  const rect = renderer.domElement.getBoundingClientRect();
+  ndc.set((e.clientX - rect.left) / rect.width * 2 - 1, -(e.clientY - rect.top) / rect.height * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  if (nodeGroup.visible) {
+    const hit = ray.intersectObjects(nodeGroup.children.filter((sp) => sp.visible), false)[0];
+    if (hit) { standAt(hit.object.userData.id); return; }
+  }
+  const now = performance.now();
+  if (now - lastTap < 450) { goToSpot(e.clientX, e.clientY); lastTap = 0; } else lastTap = now;
+});
+// the browser's own double click too (a slow frame can stretch the gap between two taps)
+renderer.domElement.addEventListener('dblclick', (e) => { lastTap = 0; goToSpot(e.clientX, e.clientY); });
+let lastSpot = 0;
+function goToSpot(x, y) {
+  if (performance.now() - lastSpot < 600) return;          // the tap pair and dblclick are one gesture
+  lastSpot = performance.now();
+  const rect = renderer.domElement.getBoundingClientRect();
+  ndc.set((x - rect.left) / rect.width * 2 - 1, -(y - rect.top) / rect.height * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  ray.params.Points.threshold = 0.03 * unit;
+  const hit = points.visible ? ray.intersectObject(points, false)[0] : null;
+  if (!hit) { say('Nothing there to go to: double-tap on the points.'); return; }
+  if (standing !== null || controls.rotateSpeed < 0) {
+    const f = hit.point.clone().sub(camera.position);
+    const goal = hit.point.clone().addScaledVector(f.clone().normalize(), -Math.min(unit, f.length() * 0.5));
+    standing = null; for (const b of Object.values(buttons)) b.classList.remove('on');
+    flyTo(goal, goal.clone().addScaledVector(f.normalize(), 0.001), () => { const nn = nearestNode(camera.position); if (nn) showNeighbours(nn); });
+  } else {
+    const off = camera.position.clone().sub(controls.target);
+    flyTo(hit.point.clone().add(off.multiplyScalar(Math.max(0.15, Math.min(1, (2 * unit) / off.length())))), hit.point);
+  }
 }
 
 // a node's cube faces: face f looks along faceDir(f, s, t) in the node frame (s, t image
@@ -258,6 +396,7 @@ function setBackdrop(id) {
     const q = faceQuad(info.nodes[id], id, f, 200, 0, 1, { depthTest: false, depthWrite: false });
     q.renderOrder = -1; backdrop.add(q);
   }
+  backdrop.userData.c = new THREE.Vector3().fromArray(info.nodes[id].centre);
   scene.add(backdrop);
 }
 // the floors: each node's bottom face laid flat at its floor height (the middle 60% of it,
@@ -302,10 +441,16 @@ document.getElementById('size').oninput = (e) => { pmat.size = +e.target.value; 
 
 overview();
 const startNode = new URLSearchParams(location.search).get('node');
-if (startNode && info.nodes[startNode]) standAt(startNode);
+if (startNode && info.nodes[startNode]) standAt(startNode, false);
 if (new URLSearchParams(location.search).get('floors')) document.getElementById('showFloors').onclick();
 if (new URLSearchParams(location.search).get('fill')) document.getElementById('showFill').onclick();
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop((now) => {
+  stepFlight(now); stepWalk(now);
+  // the node's faces are at infinity: they go with the eye when it walks off
+  if (backdrop && backdrop.userData.c) backdrop.position.copy(camera.position).sub(backdrop.userData.c);
+  if (!flight) controls.update();
+  renderer.render(scene, camera);
+});
 </script>
 </body>
 </html>
