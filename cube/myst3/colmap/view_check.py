@@ -194,7 +194,10 @@ def main():
                 r = np.full(N * N, 1e4)
             else:
                 d8 = np.asarray(Image.open(os.path.join(ddir, nm + suffix)).convert('L').resize((N, N), Image.NEAREST)).astype(float).ravel()
-                q = 1 + (RATIO - 1) * d8 / 255
+                # a name ending @K draws the depth as the viewer does at strength K
+                # (r = r_far / (1 + K d), its slider at 70% giving 10.7), not as measured (K 19)
+                K = float(name.rsplit('@', 1)[1]) if '@' in name else RATIO - 1
+                q = 1 + K * d8 / 255
                 # the viewer puts the sky (0) at r_far, the farthest it draws
                 r = np.where(d8 > 0, r_far / q * a.scale, r_far * a.scale if a.connected else np.nan)
             keep = np.isfinite(r)

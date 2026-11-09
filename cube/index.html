@@ -1676,7 +1676,7 @@
     // start the viewer's own panorama takes over again.
     const walkBtn = document.getElementById('walk-toggle');
     const WALK_SEG = 160, WALK_SKY = 400, WALK_MS = 3500;
-    const walk = { key: null, ready: false, loading: false, scenes: [], centres: [], t: 0, anim: null, targets: null };
+    const walk = { key: null, ready: false, loading: false, scenes: [], centres: [], t: 0, anim: null, targets: null, dir: 1 };
     const walkVert = `
       uniform sampler2D tDepth; uniform int uFace; uniform mat3 uMatrix; uniform vec3 uCentre;
       uniform float uRfar; uniform float uRatio; uniform float uSky;
@@ -1713,16 +1713,19 @@
     const walkFrag = `uniform sampler2D tColor; varying vec2 vUv; varying float vSure;
       void main() { gl_FragColor = vec4(texture2D(tColor, vUv).rgb, max(vSure, 0.004)); }`;
     const walkBlend = new THREE.ShaderMaterial({
-      uniforms: { a: { value: null }, b: { value: null }, t: { value: 0 } },
+      uniforms: { a: { value: null }, b: { value: null }, t: { value: 0 }, toB: { value: 1 } },
       vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-      // Not a crossfade: the leaving node's picture (moved by its depth) leads
-      // until the middle of the walk, the arriving node's after it, with a short
-      // switch between; and wherever the leading picture is stretched across a
-      // step (alpha low) or has nothing, the other node's is used.
-      fragmentShader: `uniform sampler2D a, b; uniform float t; varying vec2 v;
+      // Not a crossfade: the leaving node's picture, moved by its depth, carries
+      // the walk to three quarters of the way, and the arriving node's takes
+      // over in the last quarter, while the walk slows to a stop, so the two are
+      // seen from almost the same place when they meet. Wherever the leading
+      // picture is stretched across a step (alpha low) or has nothing, the
+      // other node's is used. A switch at the middle (tried first) threw most
+      // of the movement away and was itself a crossfade mid-stride.
+      fragmentShader: `uniform sampler2D a, b; uniform float t, toB; varying vec2 v;
         void main(){
           vec4 A = texture2D(a, v), B = texture2D(b, v);
-          float s = smoothstep(0.38, 0.62, t);
+          float s = toB > 0.5 ? smoothstep(0.75, 1.0, t) : smoothstep(0.0, 0.25, t);
           float wa = (1.0 - s) * A.a + 1e-4 * (1.0 - t), wb = s * B.a + 1e-4 * t;
           // the other picture fills where the leader is unsure
           wa += s * (1.0 - B.a) * A.a; wb += (1.0 - s) * (1.0 - A.a) * B.a;
@@ -1783,11 +1786,12 @@
         try { await loadWalk(cfg); } catch (e) { walk.loading = false; walkLabel(); showLoadError('Walk', null, String(e && e.message || e)); return; }
       }
       walk.anim = { from: walk.t, to: walk.t < 0.5 ? 1 : 0, at: performance.now() };
+      walk.dir = walk.anim.to;                              // which node is being walked to
       walkBtn.textContent = walk.anim.to ? 'Walking…' : 'Walking back…';
     });
 
     // For tests: hold the walk at a point along it (0 the start, 1 the end).
-    window.walkAt = (t) => { if (walk.ready) { walk.anim = null; walk.t = t; } return walk.ready; };
+    window.walkAt = (t, toB = 1) => { if (walk.ready) { walk.anim = null; walk.t = t; walk.dir = toB; } return walk.ready; };
 
     // Called from render() after the look is set; true when it drew the frame.
     function renderWalk(now) {
@@ -1810,6 +1814,7 @@
       walkBlend.uniforms.a.value = walk.targets[0].texture;
       walkBlend.uniforms.b.value = walk.targets[1].texture;
       walkBlend.uniforms.t.value = walk.t;
+      walkBlend.uniforms.toB.value = walk.dir;
       renderer.render(walkQuadScene, walkQuadCam);
       camera.position.copy(keep);
       return true;

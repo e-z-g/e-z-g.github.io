@@ -1304,11 +1304,13 @@ moved pictures do land on each other (MASS 84's depth scored on MASS 89's
 faces is best at scale 1: 14.35, against 15.3 at 0.8 or 1.3 and 15.8 with no
 depth), but they differ in light, in what only one node saw, and where each
 is stretched across its steps, so two pictures showed at once. Now the
-leaving node's picture leads to 38% of the way, the arriving node's from
-62%, with the switch between; wherever the leading picture is stretched
+leaving node's picture carries the walk to three quarters of the way and the
+arriving node's takes over in the last quarter, as the walk slows to a stop
+(a switch between 38% and 62%, tried first, still read as a crossfade: it
+kept under half the movement and faded mid-stride); wherever the leading picture is stretched
 across a step (its vertices' depths differ by more than 6–20%) or has nothing,
-the other node's fills in. `window.walkAt(t)` holds the walk at a point for
-tests.
+the other node's fills in. `window.walkAt(t, toB)` holds the walk at a point
+for tests.
 
 The tears at small depth are the viewer's: its tear test weighed only the
 step in the stored depth, so at a tiny depth it cut where it cuts at full
