@@ -1680,7 +1680,12 @@
     const walkVert = `
       uniform sampler2D tDepth; uniform int uFace; uniform mat3 uMatrix; uniform vec3 uCentre;
       uniform float uRfar; uniform float uRatio; uniform float uSky;
-      varying vec2 vUv;
+      uniform float uStep;
+      varying vec2 vUv; varying float vSure;
+      float rOf(vec2 uv) {
+        float d = texture2D(tDepth, uv).r;
+        return d < 0.5/255.0 ? uSky : uRfar / (1.0 + (uRatio - 1.0) * d);
+      }
       vec3 dirOf(int k, float s, float t) {
         if (k == 1) return vec3(2.0*s-1.0, 1.0-2.0*t, -1.0);
         if (k == 2) return vec3(1.0-2.0*s, -1.0, 1.0-2.0*t);
@@ -1691,17 +1696,38 @@
       }
       void main() {
         vUv = uv;
-        float d = texture2D(tDepth, uv).r;
-        float r = d < 0.5/255.0 ? uSky : uRfar / (1.0 + (uRatio - 1.0) * d);
+        float r = rOf(uv);
+        // how sure this vertex is: low where it sits on a depth step, so the
+        // triangles stretched across the step (what the node never saw) give way
+        // to the other node's picture
+        float lo = r, hi = r;
+        for (int i = 0; i < 4; i++) {
+          vec2 o = vec2(i == 0 ? uStep : (i == 1 ? -uStep : 0.0), i == 2 ? uStep : (i == 3 ? -uStep : 0.0));
+          float n = rOf(clamp(uv + o, 0.0, 1.0));
+          lo = min(lo, n); hi = max(hi, n);
+        }
+        vSure = 1.0 - smoothstep(1.06, 1.2, hi / max(lo, 1e-6));
         vec3 p = uCentre + uMatrix * normalize(dirOf(uFace, uv.x, 1.0 - uv.y)) * r;
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
       }`;
-    const walkFrag = `uniform sampler2D tColor; varying vec2 vUv;
-      void main() { gl_FragColor = vec4(texture2D(tColor, vUv).rgb, 1.0); }`;
+    const walkFrag = `uniform sampler2D tColor; varying vec2 vUv; varying float vSure;
+      void main() { gl_FragColor = vec4(texture2D(tColor, vUv).rgb, max(vSure, 0.004)); }`;
     const walkBlend = new THREE.ShaderMaterial({
       uniforms: { a: { value: null }, b: { value: null }, t: { value: 0 } },
       vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-      fragmentShader: 'uniform sampler2D a, b; uniform float t; varying vec2 v; void main(){ gl_FragColor = mix(texture2D(a, v), texture2D(b, v), t); }',
+      // Not a crossfade: the leaving node's picture (moved by its depth) leads
+      // until the middle of the walk, the arriving node's after it, with a short
+      // switch between; and wherever the leading picture is stretched across a
+      // step (alpha low) or has nothing, the other node's is used.
+      fragmentShader: `uniform sampler2D a, b; uniform float t; varying vec2 v;
+        void main(){
+          vec4 A = texture2D(a, v), B = texture2D(b, v);
+          float s = smoothstep(0.38, 0.62, t);
+          float wa = (1.0 - s) * A.a + 1e-4 * (1.0 - t), wb = s * B.a + 1e-4 * t;
+          // the other picture fills where the leader is unsure
+          wa += s * (1.0 - B.a) * A.a; wb += (1.0 - s) * (1.0 - A.a) * B.a;
+          gl_FragColor = vec4((wa * A.rgb + wb * B.rgb) / (wa + wb), 1.0);
+        }`,
       depthTest: false, depthWrite: false });
     const walkQuadScene = new THREE.Scene();
     walkQuadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), walkBlend));
@@ -1730,7 +1756,8 @@
         faces.forEach(([col, dep], i) => {
           const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, WALK_SEG, WALK_SEG), new THREE.ShaderMaterial({
             uniforms: { tColor: { value: col }, tDepth: { value: dep }, uFace: { value: i + 1 }, uMatrix: { value: mat3 },
-                        uCentre: { value: c }, uRfar: { value: n.r_far }, uRatio: { value: n.ratio }, uSky: { value: WALK_SKY } },
+                        uCentre: { value: c }, uRfar: { value: n.r_far }, uRatio: { value: n.ratio }, uSky: { value: WALK_SKY },
+                        uStep: { value: 1 / WALK_SEG } },
             vertexShader: walkVert, fragmentShader: walkFrag, side: THREE.DoubleSide }));
           mesh.frustumCulled = false;
           sc.add(mesh);
@@ -1759,6 +1786,9 @@
       walkBtn.textContent = walk.anim.to ? 'Walking…' : 'Walking back…';
     });
 
+    // For tests: hold the walk at a point along it (0 the start, 1 the end).
+    window.walkAt = (t) => { if (walk.ready) { walk.anim = null; walk.t = t; } return walk.ready; };
+
     // Called from render() after the look is set; true when it drew the frame.
     function renderWalk(now) {
       if (!walk.ready || (walk.t <= 0 && !walk.anim)) return false;
@@ -1772,7 +1802,10 @@
       const keep = camera.position.clone();
       camera.position.lerpVectors(walk.centres[0], walk.centres[1], walk.t);
       camera.updateMatrixWorld();
-      for (let i = 0; i < 2; i++) { renderer.setRenderTarget(walk.targets[i]); renderer.render(walk.scenes[i], camera); }
+      const clearColour = renderer.getClearColor(new THREE.Color()), clearAlpha = renderer.getClearAlpha();
+      renderer.setClearColor(0x000000, 0);                 // alpha 0: nothing drawn there
+      for (let i = 0; i < 2; i++) { renderer.setRenderTarget(walk.targets[i]); renderer.clear(); renderer.render(walk.scenes[i], camera); }
+      renderer.setClearColor(clearColour, clearAlpha);
       renderer.setRenderTarget(null);
       walkBlend.uniforms.a.value = walk.targets[0].texture;
       walkBlend.uniforms.b.value = walk.targets[1].texture;
