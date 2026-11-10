@@ -417,8 +417,8 @@
         depthSource: 'measured', depthDefault: 0.7,
         // Walk: to MASS 89, the next node along the pier (amateria/walk/, myst3/colmap/walk_scene.py)
         walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 89)', label: 'MASS 89', at: 0,
-                eq: { video: 'eq/walk84_eq.mp4?v=2560', back: 'eq/walk84_eq_back.mp4?v=2560', look: [-0.8885, 0.0, -0.4588],
-                      flat: 'eq/walk84_flat.mp4?v=1', flatBack: 'eq/walk84_flat_back.mp4?v=1', flatView: { hfov: 90, size: [1280, 720] } } },
+                eq: { video: 'eq/walk84_packed.mp4?v=1', back: 'eq/walk84_packed_back.mp4?v=1', look: [-0.8885, 0.0, -0.4588],
+                      packed: { size: [1920, 1680], flat: [1280, 720], hfov: 90 } } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -443,8 +443,8 @@
         // Not scored on its own: as MASS 84.
         depthSource: 'measured', depthDefault: 0.7,
         walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 84)', label: 'MASS 84', at: 1,
-                eq: { video: 'eq/walk84_eq.mp4?v=2560', back: 'eq/walk84_eq_back.mp4?v=2560', look: [-0.8885, 0.0, -0.4588],
-                      flat: 'eq/walk84_flat.mp4?v=1', flatBack: 'eq/walk84_flat_back.mp4?v=1', flatView: { hfov: 90, size: [1280, 720] } } },
+                eq: { video: 'eq/walk84_packed.mp4?v=1', back: 'eq/walk84_packed_back.mp4?v=1', look: [-0.8885, 0.0, -0.4588],
+                      packed: { size: [1920, 1680], flat: [1280, 720], hfov: 90 } } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
@@ -822,6 +822,9 @@
     // bandwidth. What the depth pass actually needs is supersampling, which the
     // resolution governor below provides where there is headroom for it.
     const renderer = new THREE.WebGLRenderer({ antialias: false });
+    // Checking each shader for errors makes the page wait for the compiler
+    // (getProgramInfoLog); it held a walk's first frames 0.1 s. Only with ?debug.
+    renderer.debug.checkShaderErrors = new URLSearchParams(location.search).has('debug');
     // Cap the ratio: at 3x on a phone this shades 9 pixels per CSS pixel across
     // ~200k triangles per mesh, for no visible gain over 2x.
     const MAX_PIXEL_RATIO = 2;
@@ -1852,41 +1855,47 @@
     const eqWalk = { key: null, scene: null, fwd: null, back: null, playing: null };
     async function loadEqWalk(cfg) {
       const base = rawUrl + cfg.scene;
+      // fetched whole first: a video streamed from the site waited for data
+      // a few frames in (the walk stuttered at its start)
       const video = (url) => {
         const v = document.createElement('video');
-        v.crossOrigin = 'anonymous'; v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+        const got = fetch(url).then(r => { if (!r.ok) throw new Error('video ' + url + ': ' + r.status); return r.blob(); });
+        v.crossOrigin = 'anonymous'; v.muted = true; v.playsInline = true; v.preload = 'auto';
         v.setAttribute('playsinline', '');
         const tex = new THREE.VideoTexture(v);
         tex.colorSpace = THREE.NoColorSpace; tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
-        return { v, tex, ready: new Promise((ok, no) => {
+        return { v, tex, ready: got.then(blob => new Promise((ok, no) => {
           v.addEventListener('canplaythrough', ok, { once: true });
           v.addEventListener('error', () => no(new Error('video ' + url)), { once: true });
-          v.load();
-        }) };
+          v.src = URL.createObjectURL(blob); v.load();
+        })) };
       };
       const fwd = video(base + cfg.eq.video), back = video(base + cfg.eq.back);
-      // A flat walk looking ahead (cfg.eq.flat: the same model, 1280x720 over
-      // 90 degrees, so as sharp as the panorama there), laid over the 360 one
-      // where it reaches, its edges feathered: the whole-sphere video has
-      // a quarter of the panorama's detail.
-      const ff = cfg.eq.flat ? video(base + cfg.eq.flat) : null, fb = cfg.eq.flat ? video(base + cfg.eq.flatBack) : null;
-      await Promise.all([fwd.ready, back.ready].concat(ff ? [ff.ready, fb.ready] : []));
-      fwd.flat = ff; back.flat = fb;
-      const fl = cfg.eq.flatView || { hfov: 90, size: [1280, 720] };
-      const tx = Math.tan(fl.hfov * Math.PI / 360), ty = tx * fl.size[1] / fl.size[0];
+      // cfg.eq.packed: one video holding both the 360 walk (top, W x W/2) and
+      // a flat walk looking ahead (below it, left; the same model, 90 degrees
+      // across, so about as sharp as the panorama there), laid over the 360
+      // one where it reaches, its edges feathered: the whole-sphere video has
+      // a quarter of the panorama's detail. One video, not two kept in step:
+      // seeking one to the other's time every frame made a phone stutter.
+      await Promise.all([fwd.ready, back.ready]);
+      const pk = cfg.eq.packed || null;
+      const tx = pk ? Math.tan(pk.hfov * Math.PI / 360) : 1, ty = pk ? tx * pk.flat[1] / pk.flat[0] : 1;
+      const H = pk ? pk.size[1] : 1, Wd = pk ? pk.size[0] : 1;
       const geo = new THREE.SphereGeometry(400, 96, 48);
       geo.scale(-1, 1, 1);                               // seen from inside, not mirrored
       // the texture's own sRGB values straight out, as the panorama shows its pictures
       const mat = new THREE.ShaderMaterial({
-        uniforms: { map: { value: fwd.tex }, flatMap: { value: ff ? ff.tex : fwd.tex }, useFlat: { value: ff ? 1 : 0 },
-                    tx: { value: tx }, ty: { value: ty } },
+        uniforms: { map: { value: fwd.tex }, useFlat: { value: pk ? 1 : 0 }, tx: { value: tx }, ty: { value: ty },
+                    // texture v of the 360 picture's bottom edge, and the flat picture's extent in u and v
+                    eqV0: { value: pk ? (H - Wd / 2) / H : 0 }, flatU: { value: pk ? pk.flat[0] / Wd : 1 },
+                    flatV: { value: pk ? pk.flat[1] / H : 1 }, texel: { value: new THREE.Vector2(1 / Wd, 1 / H) } },
         depthTest: false, depthWrite: false,
         vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         // the 360 picture's x across is longitude from its centre (the walk's
         // direction), y up latitude; the flat picture looks the same way, level
-        fragmentShader: `uniform sampler2D map, flatMap; uniform float useFlat, tx, ty; varying vec2 v;
+        fragmentShader: `uniform sampler2D map; uniform float useFlat, tx, ty, eqV0, flatU, flatV; uniform vec2 texel; varying vec2 v;
           void main(){
-            vec3 c = texture2D(map, v).rgb;
+            vec3 c = texture2D(map, vec2(v.x, clamp(eqV0 + v.y * (1.0 - eqV0), eqV0 + texel.y, 1.0))).rgb;
             if (useFlat > 0.5) {
               float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
               vec3 d = vec3(sin(lon) * cos(lat), sin(lat), cos(lon) * cos(lat));
@@ -1894,7 +1903,9 @@
                 vec2 q = vec2(d.x / d.z / tx, d.y / d.z / ty);
                 vec2 e = 1.0 - abs(q);                     // 0 at the flat picture's edge
                 float w = smoothstep(0.0, 0.18, e.x) * smoothstep(0.0, 0.18, e.y);
-                if (w > 0.0) c = mix(c, texture2D(flatMap, q * 0.5 + 0.5).rgb, w);
+                vec2 f = (q * 0.5 + 0.5) * vec2(flatU, flatV);
+                f = clamp(f, 0.5 * texel, vec2(flatU, flatV) - 0.5 * texel);
+                if (w > 0.0) c = mix(c, texture2D(map, f).rgb, w);
               }
             }
             gl_FragColor = vec4(c, 1.0);
@@ -1905,6 +1916,20 @@
       mesh.rotation.y = Math.atan2(L[2], -L[0]);
       const sc = new THREE.Scene(); sc.add(mesh);
       Object.assign(eqWalk, { key: cfg.scene, scene: sc, mesh, mat, fwd, back });
+      // compiled and both videos' first frames on the card now, not on the
+      // walk's first frame (it held the picture a fifth of a second)
+      if (renderer.compileAsync) await renderer.compileAsync(sc, camera);   // for the screen, where it is drawn
+      const warm = new THREE.WebGLRenderTarget(16, 16);
+      for (const w of [fwd, back]) { mat.uniforms.map.value = w.tex; w.tex.needsUpdate = true; renderer.setRenderTarget(warm); renderer.render(sc, camera); }
+      renderer.setRenderTarget(null); warm.dispose();
+      // each video played a moment and rewound while loading, so its decoder
+      // is running before the walk (it waited for frames a tenth of a second in)
+      for (const w of [fwd, back]) {
+        await w.v.play().catch(() => {});
+        await new Promise(r => { const t0 = setTimeout(r, 400); w.v.requestVideoFrameCallback ? w.v.requestVideoFrameCallback(() => { clearTimeout(t0); r(); }) : null; });
+        w.v.pause();
+        await new Promise(r => { w.v.addEventListener('seeked', r, { once: true }); w.v.currentTime = 0; setTimeout(r, 1000); });
+      }
     }
 
     walkBtn.addEventListener('click', async () => {
@@ -1918,10 +1943,10 @@
         }
         const w = (cfg.at || 0) === 0 ? eqWalk.fwd : eqWalk.back;
         eqWalk.mat.uniforms.map.value = w.tex;
-        if (w.flat) eqWalk.mat.uniforms.flatMap.value = w.flat.tex;
         eqWalk.playing = w;
-        w.v.currentTime = 0; w.v.play().catch(() => {});
-        if (w.flat) { w.flat.v.currentTime = 0; w.flat.v.play().catch(() => {}); }
+        if (w.v.currentTime !== 0) w.v.currentTime = 0;   // rewound when the last walk ended, so normally no seek here
+        w.v.play().catch(() => {});
+        prefetchLocation(cfg.to);
         walk.mode = 'eq';
         walk.anim = { from: cfg.at || 0, to: 1 - (cfg.at || 0), at: performance.now(), toLoc: cfg.to };
         walkBtn.textContent = 'Walking…';
@@ -1970,8 +1995,6 @@
 
     // Called from render() after the look is set; true when it drew the frame.
     function drawEqWalk(target = null) {
-      const w = eqWalk.playing;
-      if (w && w.flat && !w.v.ended && Math.abs(w.flat.v.currentTime - w.v.currentTime) > 0.04) w.flat.v.currentTime = w.v.currentTime;
       const keep = camera.position.clone();
       camera.position.set(0, 0, 0); camera.updateMatrixWorld();
       renderer.setRenderTarget(target);
@@ -1988,6 +2011,8 @@
         if (!(v.ended || u >= 0.999)) { drawEqWalk(); return true; }
         // arrived: the video's last frame is what the other location's panorama fades in over
         const to = locations.find(l => l.name === walk.anim.toLoc);
+        const done = eqWalk.playing;
+        setTimeout(() => { done.v.pause(); done.v.currentTime = 0; }, WALK_ARRIVE_MS + 100);   // rewound for next time, off the walk's clock
         walk.anim = null; walk.mode = null;
         if (!to) { walkLabel(); return false; }
         drawEqWalk(rtOld);
@@ -2321,9 +2346,43 @@
       }
     }
 
+    // Pictures asked for before they are needed (the far end of a walk, while
+    // it plays): downloaded and decoded then, so arriving does not wait for
+    // 6 MB with the picture held still. Decoded as ImageBitmaps already turned
+    // upside down (WebGL's way up), off the page's thread: a 3888x2592 atlas
+    // then uploads in 13 ms, where an <img> flipped on upload took 100 (four
+    // of them held the arrival 0.6 s). Such a bitmap is marked __flippedY for
+    // whatever draws it on a canvas.
+    const prefetched = new Map();
+    function prefetchUrl(url) {
+      if (prefetched.has(url)) return;
+      const plain = () => textureLoader.loadAsync(url);
+      prefetched.set(url, typeof createImageBitmap !== 'function' ? plain() :
+        fetch(url).then(r => { if (!r.ok) throw new Error(url + ': ' + r.status); return r.blob(); })
+          .then(b => createImageBitmap(b, { imageOrientation: 'flipY', premultiplyAlpha: 'none', colorSpaceConversion: 'none' }))
+          .then(bmp => {
+            if (bmp.width > maxTextureSize || bmp.height > maxTextureSize) { bmp.close(); return plain(); }   // fitToGpu redraws it
+            bmp.__flippedY = true;
+            const tex = new THREE.Texture(bmp); tex.flipY = false; tex.needsUpdate = true;
+            return tex;
+          })
+          .catch(() => plain()));
+    }
+    function prefetchLocation(name) {
+      const to = locations.find(l => l.name === name);
+      if (!to) return;
+      const ver = currentLocation.versions[currentVersionIndex];
+      const tv = to.versions[Math.max(0, to.versions.findIndex(x => x.label === (ver && ver.label)))];
+      if (!tv) return;
+      const files = tv.layers ? Object.values(tv.layers) : [tv.color, tv.depth];
+      for (const f of files) if (f && !VIDEO_EXT.test(f)) prefetchUrl(to.baseUrl + f);
+    }
+
     function trackedLoad(url) {
       const tick = () => { loadDone++; renderProgress(); };
-      return textureLoader.loadAsync(url).then(
+      const early = prefetched.get(url);
+      if (early) prefetched.delete(url);
+      return (early || textureLoader.loadAsync(url)).then(
         t => { tick(); return t; },
         e => { tick(); throw e; }
       );
@@ -2521,6 +2580,7 @@
       canvas.width = SIZE; canvas.height = SIZE;
       const ctx = canvas.getContext('2d');
       ctx.imageSmoothingEnabled = true;
+      if (sourceImage.__flippedY) { ctx.translate(0, SIZE); ctx.scale(1, -1); }   // a prefetched bitmap, upside down
       ctx.drawImage(sourceImage, 0, 0, SIZE, SIZE);
       const tex = new THREE.CanvasTexture(canvas);
       tex.colorSpace = THREE.NoColorSpace;
@@ -2716,8 +2776,12 @@
             
             const processAtlasTex = (tex, isColor) => {
                 if (tex === defaultCustomTex || tex === dummyDepthTex) return tex;
-                // a video is not decoded by three.js: its colour is decoded in the shader (uColorRaw)
-                tex.colorSpace = (isColor && !tex.isVideoTexture) ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                // Colour is stored as it comes and decoded from sRGB in the shader
+                // (uColorRaw), pictures as videos: a 3888x2592 atlas took 100-120 ms to
+                // upload into an sRGB texture and 37 ms into a plain one, and a walk's
+                // arrival uploads four.
+                tex.colorSpace = THREE.NoColorSpace;
+                if (isColor) tex.__rawColor = true;
                 if (tex.isVideoTexture) {
                   if (Math.max(tex.image.videoWidth, tex.image.videoHeight) > maxTextureSize)
                     console.warn(`A ${tex.image.videoWidth}x${tex.image.videoHeight} video is over this GPU's ${maxTextureSize} px limit and may not show.`);
@@ -2774,7 +2838,7 @@
 
             fgCubeMesh.material.forEach((mat) => {
               mat.uniforms.tColor.value = fgC;
-              mat.uniforms.uColorRaw.value = fgC.isVideoTexture ? 1 : 0;
+              mat.uniforms.uColorRaw.value = fgC.__rawColor ? 1 : 0;
               mat.uniforms.tDepth.value = fgD;
               mat.uniforms.uIsForeground.value = isDualLayer ? 1 : 0;
               mat.uniforms.uTearThreshold.value = currentTearVal;
@@ -2783,7 +2847,7 @@
             if (isDualLayer) {
                 bgCubeMesh.material.forEach((mat) => {
                   mat.uniforms.tColor.value = bgC;
-                  mat.uniforms.uColorRaw.value = bgC.isVideoTexture ? 1 : 0;
+                  mat.uniforms.uColorRaw.value = bgC.__rawColor ? 1 : 0;
                   mat.uniforms.tDepth.value = bgD;
                   mat.uniforms.uIsForeground.value = 0;
                 });
