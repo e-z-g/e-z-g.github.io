@@ -1601,3 +1601,43 @@ few spots of water reflecting the sky are taken for sky. Report:
 neighbours supply 0-9% of its backdrop. `node_stereo.py` read node numbers
 as integers too, and now takes them as written.
 
+
+## A generated walk from MASS 84 to MASS 89 (10 November 2026)
+
+Moving the Layered meshes from one node to the other never lined up; the walk
+on the site's `?eqwalk` address is a video instead, made on the PC with
+ComfyUI (Wan 2.2 and SeedVR2 there; every job through
+`tools/pc/pc_run.sh` in e-z-g-disassembly and `comfy_job.ps1`, which starts
+and stops ComfyUI):
+
+1. `colmap/walk_ends.py --equirect --size 1280x640`: each node's whole view
+   as an equirectangular picture, level and facing from MASS 84 to 89.
+2. `colmap/wan_flf.py --lightning`: Wan 2.2 I2V A14B (GGUF Q4_K_M, the
+   4-step lightx2v LoRAs) from the first picture to the last, 81 frames at
+   1280x640, 10 minutes.
+3. `colmap/walk_finish.py`: each frame given the brightness, contrast and
+   colour of the game's pictures (MASS 84's at the start, 89's at the end,
+   mixed along the way; the clip had drifted 10% brighter), the game's
+   pictures as the first and last frames, and FILM's frames between, 16 to
+   64 fps.
+4. `colmap/seedvr2_run.py` (`colmap/seedvr2_walk.ps1` is the whole job):
+   the 16 fps clip upscaled to 2560x1280 by SeedVR2's 7B sharp model (fp8,
+   blocks swapped to system memory, VAE tiled; 38 minutes), then
+   `walk_finish.py` again with the ends drawn at 2560x1280. The add-on
+   failed to load until ComfyUI ran with `PYTHONIOENCODING=utf-8` (it
+   prints emoji to a log in the old code page).
+
+`colmap/vace_face_walk.py` tried each cube face at 640 px with Wan 2.2
+VACE-Fun, guided by the 360-degree walk and fixed at the game's faces at both
+ends: face 1 came out softer and darker than its guide, its ends redrawn,
+and it is not used.
+
+### Rims round near edges in Layered
+
+To stop MASS 89's distant ring breaking apart, holes falling on a surface
+between a near edge and the backdrop were first left solid. The near edge then
+stretched over that surface, and behind MASS 89's ribs, where the pavilion
+stands against the sunset, the stretch showed as a lit rim round every rib
+whenever depth was on. `build_layers.py` now keeps those holes and gives the
+backdrop under them the in-between surface's own colour at its own depth; all
+five Layered nodes were rebuilt.
