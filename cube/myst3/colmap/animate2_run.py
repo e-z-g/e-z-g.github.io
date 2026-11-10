@@ -6,7 +6,7 @@ prompt (the background comes from the text, not from either input).
 
     python animate2_run.py REFERENCE.png DRIVING.mp4 OUT_DIR --prompt "Character Description: ... Background description: ..."
         [--pose-prompt "..."] [--size 512x896] [--length 81] [--offset 0] [--steps 10] [--seed 2]
-        [--server http://127.0.0.1:8188] [--comfy-input C:\ComfyUI\input] [--comfy-output C:\ComfyUI\output]
+        [--server http://127.0.0.1:8189] [--comfy-input C:\ComfyUI\input] [--comfy-output C:\ComfyUI\output]
 
 As ComfyUI's video_wan_animate2_distilled template, one window long (no
 context windows, no continuation): wan_animate_2_distill_int8_convrot with
@@ -45,7 +45,7 @@ def main():
     ap.add_argument('--offset', type=int, default=0); ap.add_argument('--steps', type=int, default=10)
     ap.add_argument('--seed', type=int, default=2)
     ap.add_argument('--cache-device', default='cpu', choices=('cpu', 'gpu'), help="where WanAnimate2Cache keeps the pose branch's activations")
-    ap.add_argument('--server', default='http://127.0.0.1:8188')
+    ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input'); ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output')
     ap.add_argument('--timeout', type=int, default=5000)
     a = ap.parse_args()

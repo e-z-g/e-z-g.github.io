@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 r"""
 A walk between two nodes made by Wan 2.2's first-last-frame video model,
-through a running ComfyUI (its HTTP API, default 127.0.0.1:8188).
+through a running ComfyUI (its HTTP API, default 127.0.0.1:8189).
 
     python wan_flf.py FIRST.png LAST.png OUT_DIR [--frames 81] [--steps 20]
         [--size 832x480] [--high HIGH.gguf] [--low LOW.gguf] [--prompt ...]
-        [--seed 1] [--server http://127.0.0.1:8188] [--timeout 3600] [--comfy-output C:\ComfyUI\output]
+        [--seed 1] [--server http://127.0.0.1:8189] [--timeout 3600] [--comfy-output C:\ComfyUI\output]
 
 FIRST and LAST (walk_ends.py's: each node's panorama drawn looking along the
 walk) are the clip's first and last frames; Wan 2.2 I2V A14B (two experts as
@@ -65,7 +65,7 @@ def main():
     ap.add_argument('--vae', default='wan_2.1_vae.safetensors')
     ap.add_argument('--prompt', default='A smooth, steady first-person camera walking slowly forward along a wooden pier, '
                     'the same place throughout, the scene getting nearer, no cuts, static lighting, fantasy architecture at dusk')
-    ap.add_argument('--server', default='http://127.0.0.1:8188'); ap.add_argument('--timeout', type=int, default=3600)
+    ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189')); ap.add_argument('--timeout', type=int, default=3600)
     ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output', help="ComfyUI's output folder")
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))

@@ -5,7 +5,7 @@ links and widget values) through a running ComfyUI's HTTP API, which takes
 only the "API" form: to check that a workflow left for someone to open and
 change actually runs as saved.
 
-    python comfy_run_workflow.py WORKFLOW.json [--server http://127.0.0.1:8188] [--timeout 3600]
+    python comfy_run_workflow.py WORKFLOW.json [--server http://127.0.0.1:8189] [--timeout 3600]
 
 Only nodes switched on (mode 0) are sent; notes, and groups muted or bypassed
 (mode 2 and 4) are left out, and a link from a bypassed node is followed
@@ -17,6 +17,7 @@ Standard library only.
 """
 import argparse
 import json
+import os
 import time
 import urllib.request
 import uuid
@@ -31,7 +32,7 @@ def api(server, path, data=None):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('workflow'); ap.add_argument('--server', default='http://127.0.0.1:8188')
+    ap.add_argument('workflow'); ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--timeout', type=int, default=3600)
     a = ap.parse_args()
     w = json.load(open(a.workflow, encoding='utf-8'))

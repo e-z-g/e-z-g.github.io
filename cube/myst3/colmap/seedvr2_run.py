@@ -5,7 +5,7 @@ through a running ComfyUI.
 
     python seedvr2_run.py IN.mp4 OUT.mp4 [--resolution 1280] [--batch 21] [--overlap 4]
         [--model seedvr2_ema_7b_sharp_fp8_e4m3fn.safetensors] [--swap 36] [--color lab] [--every 1]
-        [--server http://127.0.0.1:8188] [--comfy-input C:\ComfyUI\input] [--comfy-output C:\ComfyUI\output]
+        [--server http://127.0.0.1:8189] [--comfy-input C:\ComfyUI\input] [--comfy-output C:\ComfyUI\output]
 
 --resolution is the short edge of the result (1280 makes a 1280x640
 panorama 2560x1280). --every N takes every Nth frame first (walk_finish.py's
@@ -62,7 +62,7 @@ def main():
     ap.add_argument('--model', default='seedvr2_ema_7b_sharp_fp8_e4m3fn.safetensors')
     ap.add_argument('--swap', type=int, default=36); ap.add_argument('--color', default='lab')
     ap.add_argument('--seed', type=int, default=42)
-    ap.add_argument('--server', default='http://127.0.0.1:8188')
+    ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input'); ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output')
     ap.add_argument('--ffmpeg', default='ffmpeg'); ap.add_argument('--timeout', type=int, default=7200)
     a = ap.parse_args()

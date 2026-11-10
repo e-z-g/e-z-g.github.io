@@ -7,7 +7,7 @@ first half of the steps); the low-noise expert finishes with the same text and
 no control, so the picture can settle into the scene.
 
     python vace_qr.py PATTERN.png OUT_DIR --prompt "..." [--strength 0.8] [--size 512x512]
-        [--length 49] [--steps 20] [--seed 1] [--all-steps] [--server http://127.0.0.1:8188]
+        [--length 49] [--steps 20] [--seed 1] [--all-steps] [--server http://127.0.0.1:8189]
 
 The pattern is held still for every frame (RepeatImageBatch). With
 --all-steps the control is given to both experts (for comparison). Writes
@@ -40,7 +40,7 @@ def main():
     ap.add_argument('--init-step', type=int, default=0,
                     help='start from the pattern itself (VAE-encoded, every frame), noised only from this step on: video-to-video, '
                          'so its light and dark carry through (the control alone made the layout follow the code, not its brightness)')
-    ap.add_argument('--server', default='http://127.0.0.1:8188')
+    ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input'); ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output')
     ap.add_argument('--timeout', type=int, default=4000)
     a = ap.parse_args()

@@ -5,7 +5,7 @@ low-resolution 360-degree walk and fixed at both ends to the game's own faces.
 
     python vace_face_walk.py IMAGES SPARSE_TXT EQ_WALK.mp4 OUT_DIR NODE_A NODE_B
         [--faces 1 2 3 4 5 6] [--size 640] [--frames 81] [--init-step 7] [--steps 20]
-        [--prompt ...] [--server http://127.0.0.1:8188] [--comfy-input C:\ComfyUI\input]
+        [--prompt ...] [--server http://127.0.0.1:8189] [--comfy-input C:\ComfyUI\input]
         [--comfy-output C:\ComfyUI\output] [--ffmpeg ffmpeg]
 
 EQ_WALK is a whole-view walk from NODE_A to NODE_B (walk_ends.py --equirect
@@ -69,7 +69,7 @@ def main():
     ap.add_argument('--init-step', type=int, default=7); ap.add_argument('--steps', type=int, default=20)
     ap.add_argument('--prompt', default='A smooth, steady camera moving slowly forward through a fantasy place at dusk, '
                     'sharp detailed textures, the same place throughout, static lighting, no cuts, photorealistic')
-    ap.add_argument('--server', default='http://127.0.0.1:8188')
+    ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input'); ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output')
     ap.add_argument('--ffmpeg', default='ffmpeg'); ap.add_argument('--timeout', type=int, default=5400)
     a = ap.parse_args()

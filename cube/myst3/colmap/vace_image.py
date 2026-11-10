@@ -5,7 +5,7 @@ running ComfyUI: text to a one-frame video, saved as a PNG. Made for a test
 reference picture of an invented person (no real person's likeness).
 
     python vace_image.py OUT.png --prompt "..." [--size 512x896] [--steps 20] [--seed 1]
-        [--high NAME.gguf] [--low NAME.gguf] [--server http://127.0.0.1:8188]
+        [--high NAME.gguf] [--low NAME.gguf] [--server http://127.0.0.1:8189]
         [--comfy-output C:\\ComfyUI\\output]
 
 The high-noise expert runs the first half of the steps and the low-noise one
@@ -39,7 +39,7 @@ def main():
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--high', default='Wan2.2-VACE-Fun-A14B-high-noise-Q4_K_M.gguf')
     ap.add_argument('--low', default='Wan2.2-VACE-Fun-A14B-low-noise-Q4_K_M.gguf')
-    ap.add_argument('--server', default='http://127.0.0.1:8188')
+    ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output')
     ap.add_argument('--timeout', type=int, default=3000)
     a = ap.parse_args()
