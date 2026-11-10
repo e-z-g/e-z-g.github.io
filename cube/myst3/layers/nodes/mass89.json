@@ -1,0 +1,48 @@
+{
+ "node": "Amateria MASS 89",
+ "repo_folder": "amateria",
+ "names": [
+  "MA-4089-1",
+  "MA-4089-2",
+  "MA-4089-3",
+  "MA-4089-4",
+  "MA-4089-5",
+  "MA-4089-6"
+ ],
+ "work": "{out}/mass89",
+ "site": "{out}/mass89/site",
+ "measured_depth": "agree_depth.py {out}/mass89/depth {out}/mass89/agree --names MA-4089-1 ... MA-4089-6 --mesh {out}/mass89/mesh_delaunay --node-depth {out}/mass89/depth/node_depth.json --tau 0.1 --keep-above 0.5 --lam 0.0001 --cloud {colmap}/Amateria/dense_movies3_moved/fused.ply --sparse {colmap}/Amateria/dense_movies3_moved/sparse_txt --scale 1.089189 --masks {colmap}/Amateria/masks --node 4089 (as MASS 84's), copied into site/ with the game's faces (images/f<k>/MA-4089.jpg as MA-4089-<k>_orig.jpg). node_depth_moved.json is agree_depth.json with r_far multiplied by 1.089189.",
+ "steps": {
+  "sharpen": {
+   "colour-suffix": "_orig.jpg",
+   "no-lights": true,
+   "follow-measured": 1
+  },
+  "backdrop": {
+   "dense": "{colmap}/Amateria/dense_movies_moved",
+   "sparse_txt": "{colmap}/Amateria/dense_movies_moved/sparse_txt",
+   "node": "4089",
+   "node_depth_json": "{out}/mass89/depth/node_depth_moved.json",
+   "same": 1.6,
+   "neighbours": 20,
+   "max-angle": 45,
+   "masks": "{colmap}/Amateria/masks"
+  },
+  "layers": {
+   "reach": 0,
+   "keep-gaps": [
+    2
+   ]
+  }
+ },
+ "stitch": {
+  "cell": 1296,
+  "prefix": "mass89-layered"
+ },
+ "why": {
+  "measured_depth": "The same as MASS 84's, made when MASS 89 was the far end of the walk (9 November 2026).",
+  "layers.keep-gaps": "The walkway's slats on the bottom face, as at MASS 84.",
+  "sharpen.follow-measured": "Depth Anything V2 Large, fitted with one scale and offset, would bring its slabs back; held to the measured depth away from its outlines it keeps the agreement's."
+ },
+ "shipped": "Built 10 November 2026, for the walk from MASS 84 (a crossfade between the two locations)."
+}

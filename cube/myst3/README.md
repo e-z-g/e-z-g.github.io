@@ -1403,6 +1403,18 @@ within 10 units, no masks, 40,000 steps (35 min): at the nodes' faces worse
 than the one within 5 (MASS 84 face 1 20.9 dB against 24.4, face 5 16.3
 against 20.8), halfway much the same. More distant pictures do not help.
 
+**The walk is a crossfade** (10 November 2026). After every walk drawn from
+depth or from a model above doubled, smeared, melted or snapped, the walk
+became a change of location with the viewer's own crossfade: MASS 89 is a
+location of its own (Layered only, `layers/nodes/mass89.json`: depth from
+agree_depth.py as MASS 84's, holes 10.3% of the atlas), and each node's Walk
+button goes to the other. The walk's meshes, video and splat code and their
+files (`amateria/walk/`, `walk.html`) are gone; the scripts that made them
+stay. Layered is now the one standard version wherever it exists (the
+Original versions are gone; at depth 0 Layered draws the original picture),
+with the AI versions still folded away; Edanna, with no Layered build,
+keeps its Original.
+
 **Starting depth from the score.** The viewer draws depth d as
 r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is
 r_far / (1 + 19 d), so only the slider's top is the measured shape and the
