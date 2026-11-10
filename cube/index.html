@@ -2313,20 +2313,33 @@
     // (a video element has them only as videoWidth/videoHeight) so the layout,
     // gutter and depth-range code reads it as it reads a picture.
     let layerVideos = [];
-    function trackedVideoLoad(url) {
-      const tick = () => { loadDone++; renderProgress(); };
+    function trackedVideoLoad(url, tick = () => { loadDone++; renderProgress(); }) {
       const v = document.createElement('video');
       v.crossOrigin = 'anonymous'; v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
+      v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
       v.src = url;
       return new Promise((ok, no) => {
-        v.addEventListener('loadeddata', () => {
+        let done = false;
+        const finish = (err, tex) => { if (done) return; done = true; clearTimeout(timer); tick(); err ? no(err) : ok(tex); };
+        const ready = () => {
+          if (!v.videoWidth) return;
           v.width = v.videoWidth; v.height = v.videoHeight;
           const tex = new THREE.VideoTexture(v);
           tex.userData.sourceWidth = v.videoWidth; tex.userData.sourceHeight = v.videoHeight;
-          v.play().catch(() => {});
-          tick(); ok(tex);
-        }, { once: true });
-        v.addEventListener('error', () => { tick(); no(new Error('Could not play the video ' + url)); }, { once: true });
+          finish(null, tex);
+        };
+        v.addEventListener('loadeddata', ready);
+        v.addEventListener('canplay', ready);
+        v.addEventListener('error', () => finish(new Error(
+          'This browser could not play the video' + (v.error && v.error.message ? ` (${v.error.message})` : '') +
+          '. H.264 in .mp4 at most 4096 px wide plays almost everywhere.')));
+        // A video too large for the phone's decoder can stall with no error at all.
+        const timer = setTimeout(() => finish(new Error(
+          `The video did not start within 20 s` + (v.videoWidth ? ` (${v.videoWidth}x${v.videoHeight})` : '') +
+          `. It may be larger than this device can decode; try it at most 4096 px wide.`)), 20000);
+        // Some phones (data saver) load nothing until asked to play; muted, it may play without a tap.
+        v.load();
+        v.play().catch(() => {});
       });
     }
     // Layer videos kept in step with the first (colour and depth must show the same frame).
@@ -2719,7 +2732,10 @@
             // A layer is a video when it was uploaded as one, or a version's
             // file ends in a video extension.
             const isVid = (slot) => targetVersion.layers ? VIDEO_EXT.test(src[slot] || '') : !!customIsVideo[slot];
-            const layer = (slot) => isVid(slot) ? trackedVideoLoad(src[slot]) : trackedLoad(src[slot]);
+            // A file taken for a picture that will not decode as one is tried as a video
+            // (a phone's file picker can give a file with no type and no extension).
+            const layer = (slot) => isVid(slot) ? trackedVideoLoad(src[slot])
+              : trackedLoad(src[slot]).catch((e) => { loadDone--; return trackedVideoLoad(src[slot]).catch(() => { throw e; }); });
             const loaded = await Promise.all([
                 src.fgColor ? layer('fgColor') : Promise.resolve(defaultCustomTex),
                 src.fgDepth ? layer('fgDepth') : Promise.resolve(dummyDepthTex),
