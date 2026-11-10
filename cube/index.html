@@ -242,16 +242,18 @@
       
       <div id="custom-upload-controls" style="display:none; flex-direction:column; gap:4px; width: 100%; max-width: 320px;">
         <div style="display:flex; gap:6px; width: 100%;">
-            <label class="upload-btn" id="lbl-upload-fg-color">FG Color <input type="file" id="upload-fg-color" accept="image/*" style="display:none;"></label>
-            <label class="upload-btn" id="lbl-upload-fg-depth">FG Depth <input type="file" id="upload-fg-depth" accept="image/*" style="display:none;"></label>
+            <!-- Each accept list has one type that is not a picture or a video: given only those, Chrome on
+                 Android opens its photo picker, which hides files that are not in the gallery. -->
+            <label class="upload-btn" id="lbl-upload-fg-color">FG Color <input type="file" id="upload-fg-color" accept="image/*,application/octet-stream" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-fg-depth">FG Depth <input type="file" id="upload-fg-depth" accept="image/*,application/octet-stream" style="display:none;"></label>
         </div>
         <div style="display:flex; gap:6px; width: 100%;">
-            <label class="upload-btn" id="lbl-upload-bg-color">BG Color <input type="file" id="upload-bg-color" accept="image/*" style="display:none;"></label>
-            <label class="upload-btn" id="lbl-upload-bg-depth">BG Depth <input type="file" id="upload-bg-depth" accept="image/*" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-bg-color">BG Color <input type="file" id="upload-bg-color" accept="image/*,application/octet-stream" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-bg-depth">BG Depth <input type="file" id="upload-bg-depth" accept="image/*,application/octet-stream" style="display:none;"></label>
         </div>
         <div style="display:flex; gap:6px; width: 100%;">
             <label class="upload-btn" id="lbl-upload-decal" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4);">
-              + 3D Decal Video <input type="file" id="upload-decal" accept="video/*" style="display:none;">
+              + 3D Decal Video <input type="file" id="upload-decal" accept="video/*,application/octet-stream" style="display:none;">
             </label>
         </div>
         <a class="upload-btn" href="./stitcher.html" style="text-decoration:none; display:block;">
