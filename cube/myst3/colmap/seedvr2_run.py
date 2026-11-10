@@ -77,7 +77,8 @@ def main():
     nodes = {k: v for k, v in info.items() if 'seedvr2' in k.lower()}
     print('SeedVR2 nodes:', {k: v.get('display_name') for k, v in nodes.items()}, flush=True)
     pick = lambda *words: next(k for k, v in nodes.items() if all(w in (k + ' ' + str(v.get('display_name'))).lower() for w in words))
-    n_dit, n_vae, n_up = pick('dit'), pick('vae'), next(k for k in nodes if k not in (pick('dit'), pick('vae')) and 'compile' not in k.lower())
+    # (ComfyUI has SeedVR2 nodes of its own, SeedVR2Conditioning and others, which are not the add-on's)
+    n_dit, n_vae, n_up = pick('load', 'dit'), pick('load', 'vae'), pick('video', 'upscaler')
     dit = fill(nodes[n_dit], {'model': a.model, 'device': 'cuda:0', 'offload_device': 'cpu', 'blocks_to_swap': a.swap,
                               'swap_io_components': True, 'attention_mode': 'sdpa', 'cache_model': False}, n_dit)
     vae = fill(nodes[n_vae], {'model': 'ema_vae_fp16.safetensors', 'device': 'cuda:0', 'offload_device': 'cpu',
