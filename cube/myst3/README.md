@@ -1377,8 +1377,16 @@ as one wide picture looking that way (1024 px, the face's neighbours round
 it), and FILM (Frame Interpolation for Large Motion, TorchScript from
 github.com/dajes/frame-interpolation-pytorch) makes the halfway picture, then
 halfway between each pair, five times: 33 pictures a face, 198 in all (14 MB),
-in 136 s on the PC. The viewer shows them on the panorama itself, in place of
-its own faces, one mixed into the next by how far along the walk is; the
+in 136 s on the PC. The viewer showed them on the panorama itself, in place of
+its own faces, one mixed into the next by how far along the walk is, but the
+near rails move about 6 px a step and mixing drew them twice ("the tracks
+thicken"). Now `film_walk.py --video` makes 256 steps a face (19 min) and a
+60 fps video of the six faces in a 3x2 grid (cells of 656 px, 8 px of
+repeated edge), each frame the nearest step at the walk's eased time, and a
+reversed copy for walking back: 211 frames, 4.5 MB each, one picture a frame.
+The faces read their cells of it (decoded from sRGB in the shader: three.js
+does not decode a video texture), the panorama's own picture handing over to
+it in the first 60 ms; the video's clock drives the walk. The
 meshes, depth and camera are the panorama's, so the tap changes nothing but
 the pictures beginning to move. On MASS 84's ride-car face the car comes
 steadily closer, one car throughout; halfway the door's ring smears a little.
