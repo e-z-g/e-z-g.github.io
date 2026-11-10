@@ -79,6 +79,24 @@ def draw_grid(faces, W, H):
     return g
 
 
+def draw_cross_floor(faces, Rcam, W, H):
+    """The same cross shape with the floor at its hub: the long row is the back
+    wall, the floor, the front wall (the walk's direction) and the sky; the left
+    wall above the floor and the right wall below it. Every face is turned to
+    meet its neighbours along the cube's own edges (camera axes x right, y down,
+    z forward, x cross y = z): the floor has the walk to its right and the left
+    wall at its top, so going forward the floor flows along the row."""
+    right, down, fwd = Rcam
+    up = -down
+    cw, ch = W // 4, H // 3
+    views = {(1, 0): (down, right, -fwd), (1, 1): (fwd, right, down), (1, 2): (up, right, fwd),
+             (1, 3): (-fwd, right, up), (0, 1): (fwd, down, -right), (2, 1): (fwd, up, right)}
+    g = np.zeros((3 * ch, 4 * cw, 3), np.uint8)
+    for (r, c), axes in views.items():
+        g[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw] = draw(faces, np.stack(axes), cw, ch, cw / 2)
+    return g
+
+
 def draw_cross(faces, Rcam, W, H):
     """A cube turned to the walk (its front face looking along it), unfolded as
     the usual horizontal cross, 4x3 cells: the top above the front; left,
@@ -123,6 +141,8 @@ def main():
                     help="the six faces instead, as grid_depth_test.py's 5x3 grid (--size 5:3), the model's own face cameras")
     ap.add_argument('--cross', action='store_true',
                     help='the six faces of a cube turned to the walk, once each, as a 4x3 cross with the rest black (--size 4:3)')
+    ap.add_argument('--cross-floor', action='store_true',
+                    help='as --cross with the floor at the hub: back wall, floor, front wall, sky in the long row')
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))
     _, imgs = read_model(a.sparse)
@@ -141,6 +161,8 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     if a.equirect:
         render = lambda F: draw_equirect(F, Rcam, W, H)
+    elif a.cross_floor:
+        render = lambda F: draw_cross_floor(F, Rcam, W, H)
     elif a.cross:
         render = lambda F: draw_cross(F, Rcam, W, H)
     elif a.grid:
