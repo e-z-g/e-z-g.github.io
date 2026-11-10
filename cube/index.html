@@ -418,7 +418,8 @@
         // Walk: to MASS 89, the next node along the pier (amateria/walk/, myst3/colmap/walk_scene.py)
         walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 89)', label: 'MASS 89', at: 0,
                 eq: { video: 'eq/walk84_packed.mp4?v=1', back: 'eq/walk84_packed_back.mp4?v=1', look: [-0.8885, 0.0, -0.4588],
-                      packed: { size: [1920, 1680], flat: [1280, 720], hfov: 90 } } },
+                      packed: { size: [1920, 1680], flat: [1280, 720], hfov: 90 },
+                      cross: { video: 'eq/walk84_h3_crossfloor.mp4?v=1', back: 'eq/walk84_h3_crossfloor_back.mp4?v=1', layout: 'cross-floor' } } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -444,7 +445,8 @@
         depthSource: 'measured', depthDefault: 0.7,
         walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 84)', label: 'MASS 84', at: 1,
                 eq: { video: 'eq/walk84_packed.mp4?v=1', back: 'eq/walk84_packed_back.mp4?v=1', look: [-0.8885, 0.0, -0.4588],
-                      packed: { size: [1920, 1680], flat: [1280, 720], hfov: 90 } } },
+                      packed: { size: [1920, 1680], flat: [1280, 720], hfov: 90 },
+                      cross: { video: 'eq/walk84_h3_crossfloor.mp4?v=1', back: 'eq/walk84_h3_crossfloor_back.mp4?v=1', layout: 'cross-floor' } } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
@@ -1851,7 +1853,10 @@
     // round while it plays; its centre faces the walk's direction from the
     // first node (cfg.eq.look, in the nodes' frame). The video's own clock
     // drives the walk; the far end hands over as the mesh walk does.
-    const EQ_WALK = new URLSearchParams(location.search).has('eqwalk');
+    // ?crosswalk: the same walk from a video of a cube unfolded as a cross
+    // (cfg.eq.cross; walk_ends.py --cross-floor's layout, the floor at the hub)
+    const CROSS_WALK = new URLSearchParams(location.search).has('crosswalk');
+    const EQ_WALK = new URLSearchParams(location.search).has('eqwalk') || CROSS_WALK;
     const eqWalk = { key: null, scene: null, fwd: null, back: null, playing: null };
     async function loadEqWalk(cfg) {
       const base = rawUrl + cfg.scene;
@@ -1870,7 +1875,8 @@
           v.src = URL.createObjectURL(blob); v.load();
         })) };
       };
-      const fwd = video(base + cfg.eq.video), back = video(base + cfg.eq.back);
+      const eq = CROSS_WALK && cfg.eq.cross ? Object.assign({}, cfg.eq, cfg.eq.cross, { packed: null }) : cfg.eq;
+      const fwd = video(base + eq.video), back = video(base + eq.back);
       // cfg.eq.packed: one video holding both the 360 walk (top, W x W/2) and
       // a flat walk looking ahead (below it, left; the same model, 90 degrees
       // across, so about as sharp as the panorama there), laid over the 360
@@ -1878,7 +1884,7 @@
       // a quarter of the panorama's detail. One video, not two kept in step:
       // seeking one to the other's time every frame made a phone stutter.
       await Promise.all([fwd.ready, back.ready]);
-      const pk = cfg.eq.packed || null;
+      const pk = eq.packed || null;
       const tx = pk ? Math.tan(pk.hfov * Math.PI / 360) : 1, ty = pk ? tx * pk.flat[1] / pk.flat[0] : 1;
       const H = pk ? pk.size[1] : 1, Wd = pk ? pk.size[0] : 1;
       const geo = new THREE.SphereGeometry(400, 96, 48);
@@ -1888,14 +1894,39 @@
         uniforms: { map: { value: fwd.tex }, useFlat: { value: pk ? 1 : 0 }, tx: { value: tx }, ty: { value: ty },
                     // texture v of the 360 picture's bottom edge, and the flat picture's extent in u and v
                     eqV0: { value: pk ? (H - Wd / 2) / H : 0 }, flatU: { value: pk ? pk.flat[0] / Wd : 1 },
-                    flatV: { value: pk ? pk.flat[1] / H : 1 }, texel: { value: new THREE.Vector2(1 / Wd, 1 / H) } },
+                    flatV: { value: pk ? pk.flat[1] / H : 1 }, texel: { value: new THREE.Vector2(1 / Wd, 1 / H) },
+                    crossFloor: { value: eq.layout === 'cross-floor' ? 1 : 0 } },
         depthTest: false, depthWrite: false,
         vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         // the 360 picture's x across is longitude from its centre (the walk's
         // direction), y up latitude; the flat picture looks the same way, level
-        fragmentShader: `uniform sampler2D map; uniform float useFlat, tx, ty, eqV0, flatU, flatV; uniform vec2 texel; varying vec2 v;
+        fragmentShader: `uniform sampler2D map; uniform float useFlat, tx, ty, eqV0, flatU, flatV, crossFloor; uniform vec2 texel; varying vec2 v;
+          // walk_ends.py --cross-floor: a cube turned to the walk in 4x3 cells, row 1 the back wall, the floor,
+          // the front wall and the sky, the left wall above the floor and the right wall below it. Each cell is a
+          // camera with axes (x, y, z) in the walk's right, down, forward; a direction lands on the cell whose z
+          // it is most along, at (d.x / d.z, d.y / d.z) of that cell.
+          vec2 crossUv(vec3 c) {
+            vec3 a = abs(c); vec2 cell; vec2 q;
+            if (a.z >= a.x && a.z >= a.y) {
+              if (c.z > 0.0) { cell = vec2(2.0, 1.0); q = vec2(-c.y, c.x) / c.z; }          // front: (up, right, fwd)
+              else { cell = vec2(0.0, 1.0); q = vec2(c.y, c.x) / -c.z; }                    // back: (down, right, -fwd)
+            } else if (a.y >= a.x) {
+              if (c.y > 0.0) { cell = vec2(1.0, 1.0); q = vec2(c.z, c.x) / c.y; }            // floor: (fwd, right, down)
+              else { cell = vec2(3.0, 1.0); q = vec2(-c.z, c.x) / -c.y; }                   // sky: (-fwd, right, up)
+            } else {
+              if (c.x < 0.0) { cell = vec2(1.0, 0.0); q = vec2(c.z, c.y) / -c.x; }           // left: (fwd, down, -right)
+              else { cell = vec2(1.0, 2.0); q = vec2(c.z, -c.y) / c.x; }                     // right: (fwd, up, right)
+            }
+            vec2 f = clamp(q * 0.5 + 0.5, 0.004, 0.996);                                     // within the cell, y down
+            return vec2((cell.x + f.x) / 4.0, 1.0 - (cell.y + f.y) / 3.0);
+          }
           void main(){
             vec3 c = texture2D(map, vec2(v.x, clamp(eqV0 + v.y * (1.0 - eqV0), eqV0 + texel.y, 1.0))).rgb;
+            if (crossFloor > 0.5) {
+              float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
+              vec3 d = vec3(sin(lon) * cos(lat), -sin(lat), cos(lon) * cos(lat));    // right, down, forward
+              c = texture2D(map, crossUv(d)).rgb;
+            }
             if (useFlat > 0.5) {
               float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
               vec3 d = vec3(sin(lon) * cos(lat), sin(lat), cos(lon) * cos(lat));
