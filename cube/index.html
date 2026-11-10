@@ -417,7 +417,8 @@
         depthSource: 'measured', depthDefault: 0.7,
         // Walk: to MASS 89, the next node along the pier (amateria/walk/, myst3/colmap/walk_scene.py)
         walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 89)', label: 'MASS 89', at: 0,
-                eq: { video: 'eq/walk84_eq.mp4?v=2560', back: 'eq/walk84_eq_back.mp4?v=2560', look: [-0.8885, 0.0, -0.4588] } },
+                eq: { video: 'eq/walk84_eq.mp4?v=2560', back: 'eq/walk84_eq_back.mp4?v=2560', look: [-0.8885, 0.0, -0.4588],
+                      flat: 'eq/walk84_flat.mp4?v=1', flatBack: 'eq/walk84_flat_back.mp4?v=1', flatView: { hfov: 90, size: [1280, 720] } } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -442,7 +443,8 @@
         // Not scored on its own: as MASS 84.
         depthSource: 'measured', depthDefault: 0.7,
         walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 84)', label: 'MASS 84', at: 1,
-                eq: { video: 'eq/walk84_eq.mp4?v=2560', back: 'eq/walk84_eq_back.mp4?v=2560', look: [-0.8885, 0.0, -0.4588] } },
+                eq: { video: 'eq/walk84_eq.mp4?v=2560', back: 'eq/walk84_eq_back.mp4?v=2560', look: [-0.8885, 0.0, -0.4588],
+                      flat: 'eq/walk84_flat.mp4?v=1', flatBack: 'eq/walk84_flat_back.mp4?v=1', flatView: { hfov: 90, size: [1280, 720] } } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
@@ -1863,13 +1865,40 @@
         }) };
       };
       const fwd = video(base + cfg.eq.video), back = video(base + cfg.eq.back);
-      await Promise.all([fwd.ready, back.ready]);
+      // A flat walk looking ahead (cfg.eq.flat: the same model, 1280x720 over
+      // 90 degrees, so as sharp as the panorama there), laid over the 360 one
+      // where it reaches, its edges feathered: the whole-sphere video has
+      // a quarter of the panorama's detail.
+      const ff = cfg.eq.flat ? video(base + cfg.eq.flat) : null, fb = cfg.eq.flat ? video(base + cfg.eq.flatBack) : null;
+      await Promise.all([fwd.ready, back.ready].concat(ff ? [ff.ready, fb.ready] : []));
+      fwd.flat = ff; back.flat = fb;
+      const fl = cfg.eq.flatView || { hfov: 90, size: [1280, 720] };
+      const tx = Math.tan(fl.hfov * Math.PI / 360), ty = tx * fl.size[1] / fl.size[0];
       const geo = new THREE.SphereGeometry(400, 96, 48);
       geo.scale(-1, 1, 1);                               // seen from inside, not mirrored
       // the texture's own sRGB values straight out, as the panorama shows its pictures
-      const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: fwd.tex } }, depthTest: false, depthWrite: false,
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { map: { value: fwd.tex }, flatMap: { value: ff ? ff.tex : fwd.tex }, useFlat: { value: ff ? 1 : 0 },
+                    tx: { value: tx }, ty: { value: ty } },
+        depthTest: false, depthWrite: false,
         vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: 'uniform sampler2D map; varying vec2 v; void main(){ gl_FragColor = vec4(texture2D(map, v).rgb, 1.0); }' });
+        // the 360 picture's x across is longitude from its centre (the walk's
+        // direction), y up latitude; the flat picture looks the same way, level
+        fragmentShader: `uniform sampler2D map, flatMap; uniform float useFlat, tx, ty; varying vec2 v;
+          void main(){
+            vec3 c = texture2D(map, v).rgb;
+            if (useFlat > 0.5) {
+              float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
+              vec3 d = vec3(sin(lon) * cos(lat), sin(lat), cos(lon) * cos(lat));
+              if (d.z > 0.05) {
+                vec2 q = vec2(d.x / d.z / tx, d.y / d.z / ty);
+                vec2 e = 1.0 - abs(q);                     // 0 at the flat picture's edge
+                float w = smoothstep(0.0, 0.18, e.x) * smoothstep(0.0, 0.18, e.y);
+                if (w > 0.0) c = mix(c, texture2D(flatMap, q * 0.5 + 0.5).rgb, w);
+              }
+            }
+            gl_FragColor = vec4(c, 1.0);
+          }` });
       const mesh = new THREE.Mesh(geo, mat);
       // the picture's centre lies along -x on this sphere; turned about y to look along cfg.eq.look
       const L = cfg.eq.look;
@@ -1889,8 +1918,10 @@
         }
         const w = (cfg.at || 0) === 0 ? eqWalk.fwd : eqWalk.back;
         eqWalk.mat.uniforms.map.value = w.tex;
+        if (w.flat) eqWalk.mat.uniforms.flatMap.value = w.flat.tex;
         eqWalk.playing = w;
         w.v.currentTime = 0; w.v.play().catch(() => {});
+        if (w.flat) { w.flat.v.currentTime = 0; w.flat.v.play().catch(() => {}); }
         walk.mode = 'eq';
         walk.anim = { from: cfg.at || 0, to: 1 - (cfg.at || 0), at: performance.now(), toLoc: cfg.to };
         walkBtn.textContent = 'Walking…';
@@ -1939,6 +1970,8 @@
 
     // Called from render() after the look is set; true when it drew the frame.
     function drawEqWalk(target = null) {
+      const w = eqWalk.playing;
+      if (w && w.flat && !w.v.ended && Math.abs(w.flat.v.currentTime - w.v.currentTime) > 0.04) w.flat.v.currentTime = w.v.currentTime;
       const keep = camera.position.clone();
       camera.position.set(0, 0, 0); camera.updateMatrixWorld();
       renderer.setRenderTarget(target);
