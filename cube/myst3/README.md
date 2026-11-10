@@ -1350,6 +1350,18 @@ nodes' own faces the splats so far fall well short of the photos:
 with the underside of the roof and the walkway smeared where other views
 disagree with these.
 
+**Brush and the masks.** Every splat here was trained with `masks/` black on
+the sky, and every one stopped short of its own training views. A splat of
+MASS 84 and 89's twelve faces alone scored 16.6 dB at MASS 84's face 1 with
+those masks and 29.1 dB without any (face 2 38.4, face 4 31.2; the same
+renderer, `splat_render.py`, and Spark agree to 0.3 dB). So with the masks
+Brush left the solid scene untrained, close to the starting cloud's colours:
+it must ignore the white of a mask, not the black. This holds for the
+Age-wide splats (`amateria_best`, `amateria_v2`) too: they were judged
+"no better" untrained. `splat_local.py --invert-masks` writes `masks_brush/`
+inverted for Brush and keeps `masks/` for `sky_floaters.py` and
+`sky_dome.py` (9 November 2026).
+
 **Starting depth from the score.** The viewer draws depth d as
 r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is
 r_far / (1 + 19 d), so only the slider's top is the measured shape and the

@@ -48,6 +48,10 @@ def main():
     ap.add_argument('--movies', nargs='*', default=['lemt', 'mass11090'])
     ap.add_argument('--masks'); ap.add_argument('--voxel', type=float, default=0.02)
     ap.add_argument('--far-voxel', type=float, default=0.2)
+    ap.add_argument('--invert-masks', action='store_true',
+                    help='with --masks: also write masks_brush/ with the masks inverted (white on what to ignore), '
+                         'the way Brush reads them: trained with masks/ (black on the sky), the solid scene was left '
+                         'untrained (a splat of two nodes reached 16.6 dB at its own training view, 29.1 without masks)')
     ap.add_argument('--sky-only', action='store_true',
                     help='with --masks: mask only above the horizon (the masks also take in water, which a walk over it needs)')
     a = ap.parse_args()
@@ -80,6 +84,8 @@ def main():
     os.makedirs(os.path.join(a.out, 'images'), exist_ok=True)
     if a.masks:
         os.makedirs(os.path.join(a.out, 'masks'), exist_ok=True)
+        if a.invert_masks:
+            os.makedirs(os.path.join(a.out, 'masks_brush'), exist_ok=True)
     shutil.copy(os.path.join(a.sparse_txt, 'cameras.txt'), os.path.join(a.out, 'sparse', '0', 'cameras.txt'))
     with open(os.path.join(a.out, 'sparse', '0', 'images.txt'), 'w') as f:
         for q in out_lines:
@@ -130,6 +136,11 @@ def main():
     with open(os.path.join(a.out, 'sparse', '0', 'points3D.txt'), 'w') as f:
         for i, (p, c) in enumerate(zip(P, Cc), 1):
             f.write(f'{i} {p[0]:.5f} {p[1]:.5f} {p[2]:.5f} {int(c[0])} {int(c[1])} {int(c[2])} 0\n')
+    if a.masks and a.invert_masks:
+        from PIL import Image, ImageOps
+        md = os.path.join(a.out, 'masks')
+        for f in os.listdir(md):
+            ImageOps.invert(Image.open(os.path.join(md, f)).convert('L')).save(os.path.join(a.out, 'masks_brush', f))
     # Brush 0.3.0 needs every image to be at least 16387 bytes: run pad_small.py on images/ after this
     movies = sum(1 for p in kept if not p[9].startswith('f'))
     print(f'middle {np.round(mid, 3)}: {len(kept)} pictures within {a.radius} ({movies} movie frames), '
