@@ -423,7 +423,9 @@
         // with none; 70% is the best of the strengths tried.
         depthSource: 'measured', depthDefault: 0.7,
         // Walk: to MASS 89, 1.05 units along the pier (myst3/colmap/walk_scene.py)
-        walk: { scene: 'amateria/walk/', label: 'MASS 89' },
+        // With ?splatwalk in the address the walk is drawn from a splat of the
+        // pictures round the two nodes (amateria/walk/walk84.spz, 68.6 MB) as a test.
+        walk: { scene: 'amateria/walk/', label: 'MASS 89', splat: new URLSearchParams(location.search).has('splatwalk') },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -1863,14 +1865,14 @@
 
     // Called from render() after the look is set; true when it drew the frame.
     function renderWalk(now) {
-      if (!walk.ready || (walk.t <= 0 && !walk.anim)) { hideWalkSplat(); return false; }
+      if (!walk.ready || (walk.t <= 0 && !walk.anim && !walk.hold)) { hideWalkSplat(); return false; }
       if (walk.anim) {
         const u = Math.min((now - walk.anim.at) / WALK_MS, 1);
         const e = u * u * (3 - 2 * u);
         walk.t = walk.anim.from + (walk.anim.to - walk.anim.from) * e;
         if (u >= 1) { walk.anim = null; walkLabel(); }
       }
-      if (walk.t <= 0 && !walk.anim) { hideWalkSplat(); return false; }   // home again: the panorama takes over
+      if (walk.t <= 0 && !walk.anim && !walk.hold) { hideWalkSplat(); return false; }   // home again: the panorama takes over
       if (walkSplat.ready && (walk.anim || walk.hold)) { drawWalkSplat(walk.t); return true; }   // on the way: the splat alone
       hideWalkSplat();
       const keep = camera.position.clone();
