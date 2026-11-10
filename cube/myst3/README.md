@@ -1353,14 +1353,21 @@ disagree with these.
 **Brush and the masks.** Every splat here was trained with `masks/` black on
 the sky, and every one stopped short of its own training views. A splat of
 MASS 84 and 89's twelve faces alone scored 16.6 dB at MASS 84's face 1 with
-those masks and 29.1 dB without any (face 2 38.4, face 4 31.2; the same
-renderer, `splat_render.py`, and Spark agree to 0.3 dB). So with the masks
-Brush left the solid scene untrained, close to the starting cloud's colours:
-it must ignore the white of a mask, not the black. This holds for the
-Age-wide splats (`amateria_best`, `amateria_v2`) too: they were judged
-"no better" untrained. `splat_local.py --invert-masks` writes `masks_brush/`
-inverted for Brush and keeps `masks/` for `sky_floaters.py` and
-`sky_dome.py` (9 November 2026).
+those masks and 29.1 dB without any (face 2 38.4, face 4 31.2; `splat_render.py`
+and Spark agree within 0.3 dB). With the masks inverted (`splat_local.py
+--invert-masks`, white on the sky) it was worse again: 14-19 dB, almost
+nothing drawn. So Brush 0.3 trains badly here with masks either way (perhaps
+pairing them with the wrong pictures), and the Age-wide splats
+(`amateria_best`, `amateria_v2`), judged "no better", were mostly untrained.
+Without masks the sky is trained as splats like the rest (blocky where few
+views see it). From every picture within 5 units of the walk (89 and the two
+nodes' faces four more times), no masks, 18 minutes: MASS 84's faces 20-36
+dB (face 1 24.4), MASS 89's 19-36; halfway, the walls, the door house and the
+far scenery hold together, the near walkway soft with a faint second set of
+slats. For the web: cut to 1.5M splats with no view-dependent colour, face 1
+fell to 20.8 dB; all 2.5M with no view-dependent colour 21.4 (42.9 MB as
+.spz); degree 1 22.1 (48.5 MB); degree 3 24.4 (68.6 MB), Spark 22.9 at
+the same view (9 November 2026).
 
 **Starting depth from the score.** The viewer draws depth d as
 r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is
