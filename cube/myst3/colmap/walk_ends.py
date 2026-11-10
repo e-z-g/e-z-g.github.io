@@ -79,6 +79,33 @@ def draw_grid(faces, W, H):
     return g
 
 
+HUB_AXES = {   # the hub's camera axes (x right, y down, z forward in the picture), in the walk's right, down, forward
+    'front': lambda r, d, f: (r, d, f), 'floor': lambda r, d, f: (f, r, d), 'right': lambda r, d, f: (-f, d, r),
+    'left': lambda r, d, f: (f, d, -r), 'back': lambda r, d, f: (-r, d, -f), 'sky': lambda r, d, f: (r, f, -d)}
+
+
+def cross_layout(Rcam, hub):
+    """A cube unfolded as the 4x3 cross with `hub` at row 1, column 1: the long row is the face left of it, the
+    hub, the face right of it and the hub's opposite; one face above the hub and one below. Each cell is a
+    camera (x right, y down, z forward, x cross y = z), turned so it meets its neighbours along the cube's own
+    edges. Returns [(name, (row, col), (x, y, z))] with the axes in the model's frame."""
+    right, down, fwd = Rcam
+    x, y, z = (np.asarray(v, float) for v in HUB_AXES[hub](right, down, fwd))
+    cells = {(1, 1): (x, y, z), (1, 2): (-z, y, x), (1, 0): (z, y, -x), (0, 1): (x, z, -y), (2, 1): (x, -z, y),
+             (1, 3): (-x, y, -z)}
+    name = lambda v: min({'front': fwd, 'back': -fwd, 'right': right, 'left': -right, 'floor': down, 'sky': -down}.items(),
+                         key=lambda kv: np.linalg.norm(kv[1] - v))[0]
+    return [(name(ax[2]), rc, ax) for rc, ax in cells.items()]
+
+
+def draw_cross_hub(faces, Rcam, W, H, hub):
+    cw, ch = W // 4, H // 3
+    g = np.zeros((3 * ch, 4 * cw, 3), np.uint8)
+    for _, (r, c), axes in cross_layout(Rcam, hub):
+        g[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw] = draw(faces, np.stack(axes), cw, ch, cw / 2)
+    return g
+
+
 def draw_cross_floor(faces, Rcam, W, H):
     """The same cross shape with the floor at its hub: the long row is the back
     wall, the floor, the front wall (the walk's direction) and the sky; the left
@@ -143,6 +170,8 @@ def main():
                     help='the six faces of a cube turned to the walk, once each, as a 4x3 cross with the rest black (--size 4:3)')
     ap.add_argument('--cross-floor', action='store_true',
                     help='as --cross with the floor at the hub: back wall, floor, front wall, sky in the long row')
+    ap.add_argument('--cross-hub', choices=sorted(HUB_AXES),
+                    help='the cross with this face at its hub (all four of its edges joined in the picture); writes layout.json')
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))
     _, imgs = read_model(a.sparse)
@@ -161,6 +190,8 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     if a.equirect:
         render = lambda F: draw_equirect(F, Rcam, W, H)
+    elif a.cross_hub:
+        render = lambda F: draw_cross_hub(F, Rcam, W, H, a.cross_hub)
     elif a.cross_floor:
         render = lambda F: draw_cross_floor(F, Rcam, W, H)
     elif a.cross:
@@ -174,6 +205,13 @@ def main():
     # the direction in the nodes' own frame (node_depth.py's: face 1 looking along -z, y up), for the viewer
     M = FA[0][0].T @ np.diag([1.0, -1.0, -1.0])             # node frame -> model frame (walk_scene.py's)
     look = M.T @ fwd
+    if a.cross_hub:
+        # each cell's face and axes in the walk's own frame (right, down, forward), for cube_edges.py and the viewer
+        B = Rcam
+        json.dump({'hub': a.cross_hub, 'cells': [{'face': n, 'row': rc[0], 'col': rc[1],
+                                                  'axes': [[round(float(v), 6) for v in B @ ax] for ax in axes]}
+                                                 for n, rc, axes in cross_layout(Rcam, a.cross_hub)]},
+                  open(os.path.join(a.out, 'layout.json'), 'w'), indent=1)
     with open(os.path.join(a.out, 'view.json'), 'w') as fh:
         json.dump({'from': a.a, 'to': a.b, 'look_node_frame': look.tolist(), 'hfov': a.fov, 'size': [W, H],
                    'apart': float(np.linalg.norm(CB - CA))}, fh, indent=1)
