@@ -416,7 +416,8 @@
         // with none; 70% is the best of the strengths tried.
         depthSource: 'measured', depthDefault: 0.7,
         // Walk: to MASS 89, the next node along the pier (amateria/walk/, myst3/colmap/walk_scene.py)
-        walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 89)', label: 'MASS 89', at: 0 },
+        walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 89)', label: 'MASS 89', at: 0,
+                eq: { video: 'eq/walk84_eq.mp4', back: 'eq/walk84_eq_back.mp4', look: [-0.8885, 0.0, -0.4588] } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -440,7 +441,8 @@
         name: 'Amateria (MASS 89)',
         // Not scored on its own: as MASS 84.
         depthSource: 'measured', depthDefault: 0.7,
-        walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 84)', label: 'MASS 84', at: 1 },
+        walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 84)', label: 'MASS 84', at: 1,
+                eq: { video: 'eq/walk84_eq.mp4', back: 'eq/walk84_eq_back.mp4', look: [-0.8885, 0.0, -0.4588] } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
@@ -1837,9 +1839,64 @@
       walkBtn.title = cfg ? `Walk to ${cfg.label}, looking round as you go` : '';
     }
 
+    // A test (?eqwalk): the walk as a 360-degree video made by Wan 2.2's
+    // first-last-frame model from the two nodes' panoramas drawn as
+    // equirectangular pictures (myst3/colmap/walk_ends.py --equirect,
+    // wan_flf.py), shown on a sphere round the eye so the viewer can look
+    // round while it plays; its centre faces the walk's direction from the
+    // first node (cfg.eq.look, in the nodes' frame). The video's own clock
+    // drives the walk; the far end hands over as the mesh walk does.
+    const EQ_WALK = new URLSearchParams(location.search).has('eqwalk');
+    const eqWalk = { key: null, scene: null, fwd: null, back: null, playing: null };
+    async function loadEqWalk(cfg) {
+      const base = rawUrl + cfg.scene;
+      const video = (url) => {
+        const v = document.createElement('video');
+        v.crossOrigin = 'anonymous'; v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+        v.setAttribute('playsinline', '');
+        const tex = new THREE.VideoTexture(v);
+        tex.colorSpace = THREE.NoColorSpace; tex.minFilter = tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = false;
+        return { v, tex, ready: new Promise((ok, no) => {
+          v.addEventListener('canplaythrough', ok, { once: true });
+          v.addEventListener('error', () => no(new Error('video ' + url)), { once: true });
+          v.load();
+        }) };
+      };
+      const fwd = video(base + cfg.eq.video), back = video(base + cfg.eq.back);
+      await Promise.all([fwd.ready, back.ready]);
+      const geo = new THREE.SphereGeometry(400, 96, 48);
+      geo.scale(-1, 1, 1);                               // seen from inside, not mirrored
+      // the texture's own sRGB values straight out, as the panorama shows its pictures
+      const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: fwd.tex } }, depthTest: false, depthWrite: false,
+        vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform sampler2D map; varying vec2 v; void main(){ gl_FragColor = vec4(texture2D(map, v).rgb, 1.0); }' });
+      const mesh = new THREE.Mesh(geo, mat);
+      // the picture's centre lies along -x on this sphere; turned about y to look along cfg.eq.look
+      const L = cfg.eq.look;
+      mesh.rotation.y = Math.atan2(L[2], -L[0]);
+      const sc = new THREE.Scene(); sc.add(mesh);
+      Object.assign(eqWalk, { key: cfg.scene, scene: sc, mesh, mat, fwd, back });
+    }
+
     walkBtn.addEventListener('click', async () => {
       const cfg = currentLocation && currentLocation.walk;
       if (!cfg || walk.loading || walk.anim || isTransitioning) return;
+      if (EQ_WALK && cfg.eq) {
+        if (eqWalk.key !== cfg.scene) {
+          walk.loading = true; walkBtn.textContent = 'Loading…';
+          try { await loadEqWalk(cfg); } catch (e) { walk.loading = false; walkLabel(); showLoadError('Walk', null, String(e && e.message || e)); return; }
+          walk.loading = false;
+        }
+        const w = (cfg.at || 0) === 0 ? eqWalk.fwd : eqWalk.back;
+        eqWalk.mat.uniforms.map.value = w.tex;
+        eqWalk.playing = w;
+        w.v.currentTime = 0; w.v.play().catch(() => {});
+        walk.mode = 'eq';
+        walk.anim = { from: cfg.at || 0, to: 1 - (cfg.at || 0), at: performance.now(), toLoc: cfg.to };
+        walkBtn.textContent = 'Walking…';
+        return;
+      }
+      walk.mode = 'mesh';
       if (!walk.ready || walk.key !== cfg.scene) {
         try { await loadWalk(cfg); } catch (e) { walk.loading = false; walkLabel(); showLoadError('Walk', null, String(e && e.message || e)); return; }
       }
@@ -1881,7 +1938,33 @@
     }
 
     // Called from render() after the look is set; true when it drew the frame.
+    function drawEqWalk(target = null) {
+      const keep = camera.position.clone();
+      camera.position.set(0, 0, 0); camera.updateMatrixWorld();
+      renderer.setRenderTarget(target);
+      renderer.render(eqWalk.scene, camera);
+      renderer.setRenderTarget(null);
+      camera.position.copy(keep); camera.updateMatrixWorld();
+    }
+
     function renderWalk(now) {
+      if (walk.mode === 'eq') {
+        if (!walk.anim) return false;
+        const v = eqWalk.playing.v, u = Math.min(v.currentTime / (v.duration || 1), 1);
+        walk.t = walk.anim.from + (walk.anim.to - walk.anim.from) * u;
+        if (!(v.ended || u >= 0.999)) { drawEqWalk(); return true; }
+        // arrived: the video's last frame is what the other location's panorama fades in over
+        const to = locations.find(l => l.name === walk.anim.toLoc);
+        walk.anim = null; walk.mode = null;
+        if (!to) { walkLabel(); return false; }
+        drawEqWalk(rtOld);
+        const ver = currentLocation.versions[currentVersionIndex];
+        currentLocation = to;
+        currentVersionIndex = Math.max(0, to.versions.findIndex(x => x.label === (ver && ver.label)));
+        applyDepthDefault(to); updateUI();
+        loadPanorama('fade', WALK_ARRIVE_MS, true);
+        return true;
+      }
       if (!walk.ready || !walk.anim) return false;
       const u = Math.min((now - walk.anim.at) / WALK_MS, 1);
       const e = u * u * (3 - 2 * u);
