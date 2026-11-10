@@ -9,6 +9,7 @@ Both pictures look the same way: level (the model's up from NODE_A's face 1
 camera), facing from NODE_A towards NODE_B (turned by --yaw degrees to the
 right and --pitch up), with --fov degrees across. Each pixel takes its
 colour from whichever of the node's six faces looks most nearly its way.
+--equirect, --grid and --cross draw the whole view instead (see their help).
 Writes OUT_DIR/first.png (NODE_A) and last.png (NODE_B), and view.json (the
 direction and field of view, for the viewer to turn the camera to before the
 clip plays). Needs numpy, Pillow, opencv-python; view_check.py beside it.
@@ -78,6 +79,22 @@ def draw_grid(faces, W, H):
     return g
 
 
+def draw_cross(faces, Rcam, W, H):
+    """A cube turned to the walk (its front face looking along it), unfolded as
+    the usual horizontal cross, 4x3 cells: the top above the front; left,
+    front, right and back in a row; the bottom below the front. Each face is
+    turned so its edges meet its neighbours' in the cross; the six cells the
+    cross does not use are black."""
+    right, down, fwd = Rcam
+    cw, ch = W // 4, H // 3
+    views = {(1, 0): (fwd, down, -right), (1, 1): (right, down, fwd), (1, 2): (-fwd, down, right),
+             (1, 3): (-right, down, -fwd), (0, 1): (right, fwd, -down), (2, 1): (right, -fwd, down)}
+    g = np.zeros((3 * ch, 4 * cw, 3), np.uint8)
+    for (r, c), axes in views.items():
+        g[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw] = draw(faces, np.stack(axes), cw, ch, cw / 2)
+    return g
+
+
 def sample_dirs(faces, dirs):
     H, W = dirs.shape[:2]
     out = np.zeros((H, W, 3), np.float32); best = np.full((H, W), -np.inf)
@@ -104,6 +121,8 @@ def main():
                     help='the whole view instead, equirectangular (--size 2:1), the walk straight ahead in the middle')
     ap.add_argument('--grid', action='store_true',
                     help="the six faces instead, as grid_depth_test.py's 5x3 grid (--size 5:3), the model's own face cameras")
+    ap.add_argument('--cross', action='store_true',
+                    help='the six faces of a cube turned to the walk, once each, as a 4x3 cross with the rest black (--size 4:3)')
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))
     _, imgs = read_model(a.sparse)
@@ -122,6 +141,8 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     if a.equirect:
         render = lambda F: draw_equirect(F, Rcam, W, H)
+    elif a.cross:
+        render = lambda F: draw_cross(F, Rcam, W, H)
     elif a.grid:
         render = lambda F: draw_grid(F, W, H)
     else:
