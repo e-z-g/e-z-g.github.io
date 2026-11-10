@@ -1736,17 +1736,15 @@
     const walkBlend = new THREE.ShaderMaterial({
       uniforms: { a: { value: null }, b: { value: null }, t: { value: 0 }, toB: { value: 1 } },
       vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-      // Not a crossfade: the leaving node's picture, moved by its depth, carries
-      // the walk to three quarters of the way, and the arriving node's takes
-      // over in the last quarter, while the walk slows to a stop, so the two are
-      // seen from almost the same place when they meet. Wherever the leading
-      // picture is stretched across a step (alpha low) or has nothing, the
-      // other node's is used. A switch at the middle (tried first) threw most
-      // of the movement away and was itself a crossfade mid-stride.
+      // The two nodes' pictures, each moved by its depth, mixed by how far along
+      // the walk is: a slow crossfade over the whole walk (asked for after a
+      // switch at the middle and one in the last quarter were tried). Wherever
+      // one picture is stretched across a step (alpha low) or has nothing, the
+      // other node's is used.
       fragmentShader: `uniform sampler2D a, b; uniform float t, toB; varying vec2 v;
         void main(){
           vec4 A = texture2D(a, v), B = texture2D(b, v);
-          float s = toB > 0.5 ? smoothstep(0.75, 1.0, t) : smoothstep(0.0, 0.25, t);
+          float s = t;                                       // a slow crossfade over the whole walk
           float wa = (1.0 - s) * A.a + 1e-4 * (1.0 - t), wb = s * B.a + 1e-4 * t;
           // the other picture fills where the leader is unsure
           wa += s * (1.0 - B.a) * A.a; wb += (1.0 - s) * (1.0 - A.a) * B.a;

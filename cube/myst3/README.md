@@ -1387,7 +1387,8 @@ depth helps at every strength. The locations with a network's estimate and
 no model (Amateria's MAWW 101, Voltaic's first node, Edanna) start off and
 are marked estimated (9 November 2026).
 
-**The walk between two nodes** (the viewer's Walk button at MASS 84;
+**The walk between two nodes** (the viewer's Walk button at MASS 84; the
+order below is the order tried, the last is the one in use;
 `colmap/walk_scene.py` writes its folder, `colmap/walk_render.py` renders one
 offline). Each node is a mesh pushed out by its depth, drawn from the moving
 eye. Mixed half and half along the whole walk it read as a crossfade: the two
@@ -1398,7 +1399,9 @@ is stretched across its steps, so two pictures showed at once. Now the
 leaving node's picture carries the walk to three quarters of the way and the
 arriving node's takes over in the last quarter, as the walk slows to a stop
 (a switch between 38% and 62%, tried first, still read as a crossfade: it
-kept under half the movement and faded mid-stride); wherever the leading picture is stretched
+kept under half the movement and faded mid-stride). Then, asked for, the two
+moved pictures mixed by how far along the walk is, a slow crossfade over the
+whole of it; wherever the leading picture is stretched
 across a step (its vertices' depths differ by more than 6–20%) or has nothing,
 the other node's fills in. `window.walkAt(t, toB)` holds the walk at a point
 for tests.
