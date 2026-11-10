@@ -32,7 +32,8 @@
    "reach": 0,
    "keep-gaps": [
     2
-   ]
+   ],
+   "jump": 2.0
   }
  },
  "stitch": {
@@ -43,7 +44,8 @@
   "measured_depth": "The same as MASS 84's, made when MASS 89 was the far end of the walk (9 November 2026).",
   "layers.keep-gaps": "The walkway's slats on the bottom face, as at MASS 84.",
   "sharpen.follow-measured": "Depth Anything V2 Large, fitted with one scale and offset, would bring its slabs back; held to the measured depth away from its outlines it keeps the agreement's.",
-  "measured_depth.transfer": "The top face, which the model covers on 5%, had the roof corner and its insignia receding to 9 units (the depth network's guess), so the insignia stood still as the eye moved; MASS 84's top face sees the same roof at about 2. transfer_depth.py gives MASS 89's top face MASS 84's distances where they see the same thing and the nearest of those over the rest of the roof (the insignia, hidden from MASS 84 by the eave): median 8.91 -> 2.32."
+  "measured_depth.transfer": "The top face, which the model covers on 5%, had the roof corner and its insignia receding to 9 units (the depth network's guess), so the insignia stood still as the eye moved; MASS 84's top face sees the same roof at about 2. transfer_depth.py gives MASS 89's top face MASS 84's distances where they see the same thing and the nearest of those over the rest of the roof (the insignia, hidden from MASS 84 by the eave): median 8.91 -> 2.32.",
+  "layers.jump": "2.0, not 0.8: the distant pavilion and ring stand 1.2-1.9 and 0.7-1.8 nearer than the sky in inverse distance (q), so they slide 2-5 px against it at full head-tracking range, while the ribs stand 5.5-7.5 in front of them. At 0.8 some of the pavilion's and ring's edges were steps and some not: they were cut out of the backdrop and painted over at sky depth, the windows became holes showing that dark paint, and the ring came apart as the eye moved (10 November 2026). At 2.0 they are no steps: whole in both layers, their edges stretching a few px over the sky."
  },
  "shipped": "Built 10 November 2026; rebuilt the same day with the top face's depth from MASS 84 (transfer_depth.py)."
 }
