@@ -1706,17 +1706,20 @@
     // ── Walk to the next node ──
     //
     // A location with `walk` names the location it walks to; the Walk button
-    // goes there with the viewer's own crossfade, the version kept. Every walk
-    // drawn from depth (moved meshes, a joint depth, depth from optical flow, a
-    // Gaussian splat, in-between pictures from frame interpolation) doubled or
-    // melted the scene somewhere (myst3/README.md, 9 November 2026); this does
-    // not pretend to move.
+    // goes there with the viewer's crossfade, slowed to WALK_FADE_MS (the
+    // quick 600 ms one for switching versions read as a cut), the version kept.
+    // Every walk drawn from depth (moved meshes, a joint depth, depth from
+    // optical flow, a Gaussian splat, in-between pictures from frame
+    // interpolation) doubled or melted the scene somewhere (myst3/README.md,
+    // 9 November 2026); this does not pretend to move.
+    const WALK_FADE_MS = 2000;
     const walkBtn = document.getElementById('walk-toggle');
     function walkLabel() {
       const cfg = currentLocation && currentLocation.walk;
       walkBtn.style.display = cfg ? 'inline-flex' : 'none';
       walkBtn.textContent = 'Walk';
       walkBtn.title = cfg ? `Walk to ${cfg.label}` : '';
+      if (cfg) prefetchWalk();
     }
     walkBtn.addEventListener('click', () => {
       const cfg = currentLocation && currentLocation.walk;
@@ -1728,8 +1731,23 @@
       currentVersionIndex = Math.max(0, to.versions.findIndex(x => x.label === (v && v.label)));
       applyDepthDefault(to);
       updateUI();
-      loadPanorama('fade');
+      loadPanorama('fade', WALK_FADE_MS);
     });
+    // The other node's pictures fetched while standing here, so the crossfade
+    // starts on the tap instead of after a load.
+    const walkFetched = new Set();
+    function prefetchWalk() {
+      const cfg = currentLocation && currentLocation.walk;
+      const to = cfg && locations.find(l => l.name === cfg.to);
+      const v = to && to.versions.find(x => x.layers);
+      if (!v) return;
+      for (const f of Object.values(v.layers)) {
+        const url = to.baseUrl + f;
+        if (walkFetched.has(url)) continue;
+        walkFetched.add(url);
+        fetch(url).catch(() => walkFetched.delete(url));
+      }
+    }
 
     // Side-by-side 3D, the phone upright: each eye gets half the screen, the
     // left picture drawn from half an eye spacing to the left. 'parallel' is
@@ -2268,7 +2286,7 @@
     });
     document.getElementById('load-error-dismiss').addEventListener('click', hideLoadError);
 
-    async function loadPanorama(mode = 'block') {
+    async function loadPanorama(mode = 'block', fadeMs = null) {
       if (isTransitioning) return;
       const loadId = ++currentLoadId;
       isTransitioning = true;
@@ -2607,7 +2625,7 @@
         setTransitionUniform('tDepthNew', dummyDepthTex);
       }
 
-      const duration = mode === 'block' ? 1400 : 600;
+      const duration = fadeMs || (mode === 'block' ? 1400 : 600);
       const startTime = performance.now();
       function animateTween(now) {
         if (loadId !== currentLoadId) return;

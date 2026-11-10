@@ -50,7 +50,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from node_depth import feather  # noqa: E402
+from node_depth import edge_pairs, feather  # noqa: E402
 
 RATIO = 20.0
 
@@ -89,6 +89,41 @@ def cloud_q(xyz, R, t, N, norm, r_far, scale, q, mask, window=5, behind=0.6, gat
     return np.where(has, qc, 0.0)
 
 
+def seam_fit(faces, report, names, N, below, min_pairs=40):
+    """A face the mesh barely covers keeps its depth's shape but takes its level
+    from its neighbours: one factor on its distances, the median ratio of the
+    neighbour's distance to its own across every seam where both have depth (so
+    the sky, on both sides of most of a top face's seams, does not vote). Faces
+    are fitted most covered first, and each fitted face then counts as a
+    neighbour. MASS 89's top face, 5% covered: the network put the roof corner
+    and its insignia far off, so the insignia stood still as the eye moved,
+    while on the walls beside it the roof is near."""
+    pairs = edge_pairs(N, N)
+    order = sorted(range(1, 7), key=lambda k: -report[names[k - 1]]['mesh_good'])
+    done = [k for k in order if report[names[k - 1]]['mesh_good'] >= below]
+    for k in [k for k in order if k not in done]:
+        ratios = []
+        for (kk, edge), e in pairs.items():
+            if kk != k:
+                continue
+            v, u, j, v2, u2 = e.T
+            r1 = faces[k]['r'][v, u]
+            r2 = np.array([faces[jj]['r'][vv, uu] if jj in done else np.inf for jj, vv, uu in zip(j, v2, u2)])
+            ok = np.isfinite(r1) & np.isfinite(r2)
+            ratios.append(r2[ok] / r1[ok])
+        ratios = np.concatenate(ratios) if ratios else np.zeros(0)
+        name = names[k - 1]
+        if len(ratios) >= min_pairs:
+            f = float(np.median(ratios))
+            faces[k]['r'] = faces[k]['r'] * f
+            report[name]['seam_factor'] = f
+            print(f'{name}: mesh reliable on {report[name]["mesh_good"] * 100:.1f}%: distances times {f:.2f} '
+                  f'to meet its neighbours at {len(ratios)} seam pixels', flush=True)
+        else:
+            print(f'{name}: too few seam pixels with depth on both sides ({len(ratios)}); left as it is', flush=True)
+        done.append(k)
+
+
 def solve(q, gx, gy, wx, wy, anchor, wa):
     """The field whose differences are gx, gy (weights wx, wy) and which is held
     to anchor with weights wa."""
@@ -121,6 +156,8 @@ def main():
     ap.add_argument('--cloud', help='a fused cloud (fused.ply): a network step the cloud bears out is kept')
     ap.add_argument('--sparse', help="with --cloud: the cloud's text model, with the node's faces (f<k>/MA-<node>.jpg)")
     ap.add_argument('--scale', type=float, default=1.0, help="with --cloud: the model's units in the site depth's")
+    ap.add_argument('--seam-fit-below', type=float, default=0.0,
+                    help='a face the mesh is reliable on less of than this share takes its level from its neighbours at the seams (seam_fit)')
     ap.add_argument('--masks'); ap.add_argument('--node')
     ap.add_argument('--prefix', default='MA-', help="the node's pictures in the model are f<k>/<prefix><node>.jpg (ENSI-, LEIS-)")
     ap.add_argument('--band', type=int, default=48)
@@ -204,6 +241,8 @@ def main():
         report[name] = {'flattened_pairs': flat, 'mesh_good': float(good.mean())}
         print(f'{name}: mesh reliable on {good.mean() * 100:.1f}%; {flat} network steps the mesh does not have flattened', flush=True)
         faces[k] = {'r': np.where(qn > 0, r_far / np.maximum(qn, 1e-12), np.inf), 'name': name}
+    if a.seam_fit_below > 0:
+        seam_fit(faces, report, a.names, N, a.seam_fit_below)
     feather(faces, N, N, a.band)
     allr = np.concatenate([f['r'][::4, ::4].ravel() for f in faces.values()])
     allr = allr[np.isfinite(allr)]

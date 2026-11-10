@@ -1405,7 +1405,9 @@ against 20.8), halfway much the same. More distant pictures do not help.
 
 **The walk is a crossfade** (10 November 2026). After every walk drawn from
 depth or from a model above doubled, smeared, melted or snapped, the walk
-became a change of location with the viewer's own crossfade: MASS 89 is a
+became a change of location with the viewer's crossfade, slowed to 2 s
+(the 600 ms one for switching versions read as a cut), the other node's
+atlases fetched while standing at a node: MASS 89 is a
 location of its own (Layered only, `layers/nodes/mass89.json`: depth from
 agree_depth.py as MASS 84's, holes 10.3% of the atlas), and each node's Walk
 button goes to the other. The walk's meshes, video and splat code and their
@@ -1414,6 +1416,18 @@ stay. Layered is now the one standard version wherever it exists (the
 Original versions are gone; at depth 0 Layered draws the original picture),
 with the AI versions still folded away; Edanna, with no Layered build,
 keeps its Original.
+
+**MASS 89's roof insignia** (10 November 2026) stood still as the eye moved:
+on its top face, which the model covers on 5%, the depth network drew the
+roof corner and insignia receding to 9 units (median), where MASS 84's top
+face has the same roof at 2.1. Fitting the face's level at its seams
+(`agree_depth.py --seam-fit-below`) only brought it to 7.0: the shape was
+wrong, not the level. `colmap/transfer_depth.py` gives a poorly covered face
+the distances a neighbouring node's depth has for the same surfaces (its
+points drawn into the face, within --gate times either way), and with
+`--fill-uncovered` the nearest of those over the rest of the same shape (the
+insignia, hidden from MASS 84 by the eave): MASS 89's top face from MASS 84,
+gate 6, median 8.91 -> 2.32. MASS 89 rebuilt from it.
 
 **Starting depth from the score.** The viewer draws depth d as
 r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is

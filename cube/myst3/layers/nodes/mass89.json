@@ -11,7 +11,7 @@
  ],
  "work": "{out}/mass89",
  "site": "{out}/mass89/site",
- "measured_depth": "agree_depth.py {out}/mass89/depth {out}/mass89/agree --names MA-4089-1 ... MA-4089-6 --mesh {out}/mass89/mesh_delaunay --node-depth {out}/mass89/depth/node_depth.json --tau 0.1 --keep-above 0.5 --lam 0.0001 --cloud {colmap}/Amateria/dense_movies3_moved/fused.ply --sparse {colmap}/Amateria/dense_movies3_moved/sparse_txt --scale 1.089189 --masks {colmap}/Amateria/masks --node 4089 (as MASS 84's), copied into site/ with the game's faces (images/f<k>/MA-4089.jpg as MA-4089-<k>_orig.jpg). node_depth_moved.json is agree_depth.json with r_far multiplied by 1.089189.",
+ "measured_depth": "agree_depth.py {out}/mass89/depth {out}/mass89/agree --names MA-4089-1 ... MA-4089-6 --mesh {out}/mass89/mesh_delaunay --node-depth {out}/mass89/depth/node_depth.json --tau 0.1 --keep-above 0.5 --lam 0.0001 --cloud {colmap}/Amateria/dense_movies3_moved/fused.ply --sparse {colmap}/Amateria/dense_movies3_moved/sparse_txt --scale 1.089189 --masks {colmap}/Amateria/masks --node 4089 (as MASS 84's), then transfer_depth.py ... --target 4089 {out}/mass89/agree --source 4084 {out}/mass84/agree_cloud --faces 6 --gate 6 --fill-uncovered (model runs/joined_floor_map/sparse_txt/ba) into {out}/mass89/agree_transfer, copied into site/ with the game's faces (images/f<k>/MA-4089.jpg as MA-4089-<k>_orig.jpg). node_depth_moved.json is agree_depth.json with r_far multiplied by 1.089189.",
  "steps": {
   "sharpen": {
    "colour-suffix": "_orig.jpg",
@@ -42,7 +42,8 @@
  "why": {
   "measured_depth": "The same as MASS 84's, made when MASS 89 was the far end of the walk (9 November 2026).",
   "layers.keep-gaps": "The walkway's slats on the bottom face, as at MASS 84.",
-  "sharpen.follow-measured": "Depth Anything V2 Large, fitted with one scale and offset, would bring its slabs back; held to the measured depth away from its outlines it keeps the agreement's."
+  "sharpen.follow-measured": "Depth Anything V2 Large, fitted with one scale and offset, would bring its slabs back; held to the measured depth away from its outlines it keeps the agreement's.",
+  "measured_depth.transfer": "The top face, which the model covers on 5%, had the roof corner and its insignia receding to 9 units (the depth network's guess), so the insignia stood still as the eye moved; MASS 84's top face sees the same roof at about 2. transfer_depth.py gives MASS 89's top face MASS 84's distances where they see the same thing and the nearest of those over the rest of the roof (the insignia, hidden from MASS 84 by the eave): median 8.91 -> 2.32."
  },
- "shipped": "Built 10 November 2026, for the walk from MASS 84 (a crossfade between the two locations)."
+ "shipped": "Built 10 November 2026; rebuilt the same day with the top face's depth from MASS 84 (transfer_depth.py)."
 }
