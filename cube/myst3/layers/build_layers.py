@@ -468,7 +468,22 @@ def main():
         bgd = np.where(M[k - 1], (bq - 1) / (RATIO - 1) * 255, d)
         bgd = np.minimum(bgd, d)          # the backdrop never in front of the foreground
         fd = (fgq[k][inner] - 1) / (RATIO - 1) * 255
-        green = np.where(holes[k][inner], 0, 255)
+        # No hole where the backdrop behind it lies much farther than the pixel
+        # itself: there a third surface is in between (MASS 89's distant ring,
+        # behind a near rail and in front of the sky). The ring is a near object
+        # too, taken out of the backdrop down to the sky, so the rail's hole on
+        # it showed the ring's colour at the sky's depth: those pieces moved with
+        # the sky and the ring broke apart as the eye moved. Left solid, the
+        # rail's edge stretches a few px over the ring instead.
+        own_q = 1 + (RATIO - 1) * d / 255
+        back_q = 1 + (RATIO - 1) * bgd / 255
+        # (MASS 89's ring is only a little nearer than the sky behind it, q 1.5-1.9
+        # against 1: the test must be tight; and the backdrop under such a hole
+        # is painted over, so a hole left there was a gap in the ring)
+        third = holes[k][inner] & (own_q > back_q * 1.15)
+        green = np.where(holes[k][inner] & ~third, 0, 255)
+        if third.any():
+            print(f'face {n}: {int(third.sum())} px of hole left solid, a third surface between it and the backdrop')
         fgd = np.stack([fd, green, fd], -1)
         for slot, img in (('fg-color', col[k]), ('fg-depth', fgd), ('bg-color', bg[k - 1]), ('bg-depth', bgd)):
             Image.fromarray(q8(img)).save(os.path.join(a.out, f'{slot}-{n}.png'))
