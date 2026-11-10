@@ -415,8 +415,8 @@
         // Scored as J'nanin's: 25.0 at the usual 70%, 25.3 at the top, 30.7
         // with none; 70% is the best of the strengths tried.
         depthSource: 'measured', depthDefault: 0.7,
-        // Walk: a crossfade to MASS 89, the next node along the pier
-        walk: { to: 'Amateria (MASS 89)', label: 'MASS 89' },
+        // Walk: to MASS 89, the next node along the pier (amateria/walk/, myst3/colmap/walk_scene.py)
+        walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 89)', label: 'MASS 89', at: 0 },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -440,7 +440,7 @@
         name: 'Amateria (MASS 89)',
         // Not scored on its own: as MASS 84.
         depthSource: 'measured', depthDefault: 0.7,
-        walk: { to: 'Amateria (MASS 84)', label: 'MASS 84' },
+        walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 84)', label: 'MASS 84', at: 1 },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
@@ -1705,48 +1705,200 @@
 
     // ── Walk to the next node ──
     //
-    // A location with `walk` names the location it walks to; the Walk button
-    // goes there with the viewer's crossfade, slowed to WALK_FADE_MS (the
-    // quick 600 ms one for switching versions read as a cut), the version kept.
-    // Every walk drawn from depth (moved meshes, a joint depth, depth from
-    // optical flow, a Gaussian splat, in-between pictures from frame
-    // interpolation) doubled or melted the scene somewhere (myst3/README.md,
-    // 9 November 2026); this does not pretend to move.
-    const WALK_FADE_MS = 2000;
+    // A location with `walk` names the walk's folder (walk_scene.py's: each
+    // node's six faces and depths, and where the model has each node), the
+    // location at the other end, and which end it stands at (`at`: 0 for the
+    // first node of scene.json, 1 for the second). Tapping Walk moves the camera
+    // in a straight line between the two centres, keeping the viewer's own look,
+    // over WALK_MS; each node's faces are a mesh pushed out by its depth, both
+    // drawn from the moving eye and crossfaded by how far along it is, the
+    // other node filling where one is stretched across a step. It starts from
+    // the panorama camera's own offset, so the tap does not jump; at the far
+    // end the viewer moves to the other location, fading from the walk's last
+    // frame to its panorama. (Tried and dropped, myst3/README.md, 9-10
+    // November 2026: switching pictures part-way, in-between pictures from
+    // frame interpolation, a Gaussian splat, a cut between locations.)
     const walkBtn = document.getElementById('walk-toggle');
+    const WALK_SEG = 160, WALK_SKY = 400, WALK_MS = 3500, WALK_ARRIVE_MS = 400;
+    const walk = { key: null, ready: false, loading: false, scenes: [], centres: [], t: 0, anim: null, targets: null, dir: 1 };
+    const walkVert = `
+      uniform sampler2D tDepth; uniform int uFace; uniform mat3 uMatrix; uniform vec3 uCentre;
+      uniform float uRfar; uniform float uRatio; uniform float uSky;
+      uniform float uStep;
+      varying vec2 vUv; varying float vSure;
+      float rOf(vec2 uv) {
+        float d = texture2D(tDepth, uv).r;
+        return d < 0.5/255.0 ? uSky : uRfar / (1.0 + (uRatio - 1.0) * d);
+      }
+      vec3 dirOf(int k, float s, float t) {
+        if (k == 1) return vec3(2.0*s-1.0, 1.0-2.0*t, -1.0);
+        if (k == 2) return vec3(1.0-2.0*s, -1.0, 1.0-2.0*t);
+        if (k == 3) return vec3(1.0-2.0*s, 1.0-2.0*t, 1.0);
+        if (k == 4) return vec3(1.0, 1.0-2.0*t, 2.0*s-1.0);
+        if (k == 5) return vec3(-1.0, 1.0-2.0*t, 1.0-2.0*s);
+        return vec3(1.0-2.0*s, 1.0, 2.0*t-1.0);
+      }
+      void main() {
+        vUv = uv;
+        float r = rOf(uv);
+        // how sure this vertex is: low where it sits on a depth step, so the
+        // triangles stretched across the step (what the node never saw) give way
+        // to the other node's picture
+        float lo = r, hi = r;
+        for (int i = 0; i < 4; i++) {
+          vec2 o = vec2(i == 0 ? uStep : (i == 1 ? -uStep : 0.0), i == 2 ? uStep : (i == 3 ? -uStep : 0.0));
+          float n = rOf(clamp(uv + o, 0.0, 1.0));
+          lo = min(lo, n); hi = max(hi, n);
+        }
+        vSure = 1.0 - smoothstep(1.06, 1.2, hi / max(lo, 1e-6));
+        vec3 p = uCentre + uMatrix * normalize(dirOf(uFace, uv.x, 1.0 - uv.y)) * r;
+        gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
+      }`;
+    const walkFrag = `uniform sampler2D tColor; varying vec2 vUv; varying float vSure;
+      void main() { gl_FragColor = vec4(texture2D(tColor, vUv).rgb, max(vSure, 0.004)); }`;
+    const walkBlend = new THREE.ShaderMaterial({
+      uniforms: { a: { value: null }, b: { value: null }, t: { value: 0 }, toB: { value: 1 } },
+      vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      // The two nodes' pictures, each moved by its depth, mixed by how far along
+      // the walk is: a slow crossfade over the whole walk (asked for after a
+      // switch at the middle and one in the last quarter were tried). Wherever
+      // one picture is stretched across a step (alpha low) or has nothing, the
+      // other node's is used.
+      fragmentShader: `uniform sampler2D a, b; uniform float t, toB; varying vec2 v;
+        void main(){
+          vec4 A = texture2D(a, v), B = texture2D(b, v);
+          float s = t;                                       // a slow crossfade over the whole walk
+          // At its own node a picture is exactly the panorama, stretches and all
+          // (seen from there they have no width), so it is taken as sure there and
+          // the other node fills its stretches only as the walk moves away: the
+          // first frame after the tap is the panorama, not the other node's
+          // picture along every depth edge.
+          float aA = mix(1.0, A.a, smoothstep(0.0, 0.3, t)), aB = mix(1.0, B.a, smoothstep(0.0, 0.3, 1.0 - t));
+          float wa = (1.0 - s) * aA + 1e-4 * (1.0 - t), wb = s * aB + 1e-4 * t;
+          // the other picture fills where one is unsure
+          wa += s * (1.0 - aB) * aA; wb += (1.0 - s) * (1.0 - aA) * aB;
+          gl_FragColor = vec4((wa * A.rgb + wb * B.rgb) / (wa + wb), 1.0);
+        }`,
+      depthTest: false, depthWrite: false });
+    const walkQuadScene = new THREE.Scene();
+    walkQuadScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), walkBlend));
+    const walkQuadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const walkTargetSize = () => [Math.max(1, Math.round(window.innerWidth * renderer.getPixelRatio())),
+                                  Math.max(1, Math.round(window.innerHeight * renderer.getPixelRatio()))];
+
+    async function loadWalk(cfg) {
+      walk.loading = true; walkBtn.textContent = 'Loading…';
+      const base = rawUrl + cfg.scene;
+      const scn = await (await fetch(base + 'scene.json')).json();
+      const tex = (url, nearest) => new Promise((ok, no) => textureLoader.load(url, (tx) => {
+        tx.colorSpace = THREE.NoColorSpace;
+        if (nearest) { tx.minFilter = tx.magFilter = THREE.NearestFilter; tx.generateMipmaps = false; }
+        else tx.anisotropy = maxAnisotropy;              // sampled as the panorama's are
+        ok(tx);
+      }, undefined, no));
+      walk.scenes = []; walk.centres = [];
+      walk.rfar = scn.nodes[0].r_far;
+      for (const n of scn.nodes.slice(0, 2)) {
+        const sc = new THREE.Scene();
+        const m = n.matrix;
+        const mat3 = new THREE.Matrix3().set(m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[2][1], m[2][2]);
+        const c = new THREE.Vector3(...n.centre);
+        walk.centres.push(c);
+        const faces = await Promise.all([1, 2, 3, 4, 5, 6].map(k => Promise.all([
+          tex(`${base}MA-${n.node}-${k}.jpg`, false), tex(`${base}MA-${n.node}-${k}-depth.png`, true)])));
+        faces.forEach(([col, dep], i) => {
+          const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, WALK_SEG, WALK_SEG), new THREE.ShaderMaterial({
+            uniforms: { tColor: { value: col }, tDepth: { value: dep }, uFace: { value: i + 1 }, uMatrix: { value: mat3 },
+                        uCentre: { value: c }, uRfar: { value: n.r_far }, uRatio: { value: n.ratio }, uSky: { value: WALK_SKY },
+                        uStep: { value: 1 / WALK_SEG } },
+            vertexShader: walkVert, fragmentShader: walkFrag, side: THREE.DoubleSide }));
+          mesh.frustumCulled = false;
+          sc.add(mesh);
+        });
+        walk.scenes.push(sc);
+      }
+      const [w, h] = walkTargetSize();
+      walk.targets = [new THREE.WebGLRenderTarget(w, h), new THREE.WebGLRenderTarget(w, h)];
+      walk.key = cfg.scene; walk.ready = true; walk.loading = false;
+    }
+
+    // The walk drawn from one 3D model (myst3/splat/splat_local.py: a Gaussian
+    // splat of the pictures round the two nodes, the two nodes' own faces held
+    // tightest), so nothing changes from one picture to another on the way:
+    // the panorama until the walk starts, the splat for the whole walk, and at
+    // the far end the arriving node's own picture. Spark draws it, on its own
+    // canvas over the viewer's, with the three.js it needs (0.180, scoped to
+    // it in the import map). Coordinates: the splat is in the model's frame,
+    // the viewer's in the leaving node's (m = C + M n).
     function walkLabel() {
       const cfg = currentLocation && currentLocation.walk;
       walkBtn.style.display = cfg ? 'inline-flex' : 'none';
-      walkBtn.textContent = 'Walk';
-      walkBtn.title = cfg ? `Walk to ${cfg.label}` : '';
-      if (cfg) prefetchWalk();
+      if (cfg && !walk.loading && !walk.anim) walkBtn.textContent = 'Walk';
+      walkBtn.title = cfg ? `Walk to ${cfg.label}, looking round as you go` : '';
     }
-    walkBtn.addEventListener('click', () => {
+
+    walkBtn.addEventListener('click', async () => {
       const cfg = currentLocation && currentLocation.walk;
-      if (!cfg || isTransitioning) return;
-      const to = locations.find(l => l.name === cfg.to);
-      if (!to) return;
+      if (!cfg || walk.loading || walk.anim || isTransitioning) return;
+      if (!walk.ready || walk.key !== cfg.scene) {
+        try { await loadWalk(cfg); } catch (e) { walk.loading = false; walkLabel(); showLoadError('Walk', null, String(e && e.message || e)); return; }
+      }
+      const from = cfg.at || 0;
+      walk.t = from;
+      walk.anim = { from, to: 1 - from, at: performance.now(), toLoc: cfg.to };
+      walkBtn.textContent = 'Walking…';
+    });
+
+    // The panorama's camera is not at the node's centre while depth is on: it
+    // is dollied forward, swayed and moved with the pointer or the tilt
+    // (render()). The walk starts from the same place, or the picture jumps
+    // the moment Walk is tapped. The offset is in the panorama's units; scaled
+    // so that the nearest things shift as much in the walk's (the panorama's
+    // nearest surface is nearRadius away, the walk's r_far / 20).
+    function walkOffset(p) {
+      const near = walk.rfar / 20;
+      return p.clone().multiplyScalar(near / Math.max(1e-6, nearRadius));
+    }
+
+    // The two nodes' meshes from the eye at t of the way, crossfaded, into
+    // `target` (null: the screen).
+    function drawWalk(t, target = null) {
+      const keep = camera.position.clone();
+      camera.position.lerpVectors(walk.centres[0], walk.centres[1], t).add(walkOffset(keep));
+      camera.updateMatrixWorld();
+      const clearColour = renderer.getClearColor(new THREE.Color()), clearAlpha = renderer.getClearAlpha();
+      renderer.setClearColor(0x000000, 0);                 // alpha 0: nothing drawn there
+      for (let i = 0; i < 2; i++) { renderer.setRenderTarget(walk.targets[i]); renderer.clear(); renderer.render(walk.scenes[i], camera); }
+      renderer.setClearColor(clearColour, clearAlpha);
+      walkBlend.uniforms.a.value = walk.targets[0].texture;
+      walkBlend.uniforms.b.value = walk.targets[1].texture;
+      walkBlend.uniforms.t.value = t;
+      renderer.setRenderTarget(target);
+      renderer.render(walkQuadScene, walkQuadCam);
+      renderer.setRenderTarget(null);
+      camera.position.copy(keep);
+      camera.updateMatrixWorld();
+    }
+
+    // Called from render() after the look is set; true when it drew the frame.
+    function renderWalk(now) {
+      if (!walk.ready || !walk.anim) return false;
+      const u = Math.min((now - walk.anim.at) / WALK_MS, 1);
+      const e = u * u * (3 - 2 * u);
+      walk.t = walk.anim.from + (walk.anim.to - walk.anim.from) * e;
+      if (u < 1) { drawWalk(walk.t); return true; }
+      // arrived: the walk's last frame is what the other location's panorama fades in over
+      const to = locations.find(l => l.name === walk.anim.toLoc);
+      walk.anim = null;
+      if (!to) { walkLabel(); return false; }
+      drawWalk(walk.t, rtOld);
       const v = currentLocation.versions[currentVersionIndex];
       currentLocation = to;
       currentVersionIndex = Math.max(0, to.versions.findIndex(x => x.label === (v && v.label)));
       applyDepthDefault(to);
       updateUI();
-      loadPanorama('fade', WALK_FADE_MS);
-    });
-    // The other node's pictures fetched while standing here, so the crossfade
-    // starts on the tap instead of after a load.
-    const walkFetched = new Set();
-    function prefetchWalk() {
-      const cfg = currentLocation && currentLocation.walk;
-      const to = cfg && locations.find(l => l.name === cfg.to);
-      const v = to && to.versions.find(x => x.layers);
-      if (!v) return;
-      for (const f of Object.values(v.layers)) {
-        const url = to.baseUrl + f;
-        if (walkFetched.has(url)) continue;
-        walkFetched.add(url);
-        fetch(url).catch(() => walkFetched.delete(url));
-      }
+      loadPanorama('fade', WALK_ARRIVE_MS, true);
+      return true;
     }
 
     // Side-by-side 3D, the phone upright: each eye gets half the screen, the
@@ -2286,7 +2438,7 @@
     });
     document.getElementById('load-error-dismiss').addEventListener('click', hideLoadError);
 
-    async function loadPanorama(mode = 'block', fadeMs = null) {
+    async function loadPanorama(mode = 'block', fadeMs = null, keepOld = false) {
       if (isTransitioning) return;
       const loadId = ++currentLoadId;
       isTransitioning = true;
@@ -2297,7 +2449,8 @@
       // Always call: a location with `audio: null` needs the previous track faded out.
       playOrCrossfadeAudio(currentLocation.audio);
 
-      renderer.setRenderTarget(rtOld); renderer.render(scene, camera); renderer.setRenderTarget(null);
+      // keepOld: rtOld already holds what to fade from (the walk's last frame)
+      if (!keepOld) { renderer.setRenderTarget(rtOld); renderer.render(scene, camera); renderer.setRenderTarget(null); }
       setTransitionUniform('tOld', rtOld.texture);
       setTransitionUniform('tNew', rtNew.texture);
       setTransitionUniform('uProgress', 0);
@@ -3204,7 +3357,9 @@
         updateDebug(tiltNow);
       }
 
-      if (isTransitioning) {
+      if (!isTransitioning && renderWalk(tiltNow)) {
+        // the walk drew this frame
+      } else if (isTransitioning) {
         renderer.setRenderTarget(rtNew);
         renderer.render(scene, camera);
         renderer.setRenderTarget(null);
@@ -3244,6 +3399,7 @@
     }
 
     window.addEventListener('resize', () => {
+      if (walk.targets) { const [w, h] = walkTargetSize(); walk.targets.forEach(r => r.setSize(w, h)); }
       camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();   // renderStereo sets its own
       renderer.setSize(window.innerWidth, window.innerHeight);
       rtOld.setSize(rtWidth(), rtHeight()); rtNew.setSize(rtWidth(), rtHeight());

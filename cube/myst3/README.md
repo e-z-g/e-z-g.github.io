@@ -1405,14 +1405,18 @@ against 20.8), halfway much the same. More distant pictures do not help.
 
 **The walk is a crossfade** (10 November 2026). After every walk drawn from
 depth or from a model above doubled, smeared, melted or snapped, the walk
-became a change of location with the viewer's crossfade, slowed to 2 s
-(the 600 ms one for switching versions read as a cut), the other node's
-atlases fetched while standing at a node: MASS 89 is a
+became a change of location with the viewer's crossfade (2 s), but that is
+a crossfade standing still, and what was asked for was a crossfade while the
+camera moves; so the moving walk with a slow crossfade over its whole length
+(the version of 7925467: the two nodes' depth meshes, the other node filling
+where one is stretched, starting from the panorama camera's offset) is back,
+running either way, and at the far end the viewer moves to the other
+location, fading from the walk's last frame (400 ms). MASS 89 is a
 location of its own (Layered only, `layers/nodes/mass89.json`: depth from
 agree_depth.py as MASS 84's, holes 10.3% of the atlas), and each node's Walk
-button goes to the other. The walk's meshes, video and splat code and their
-files (`amateria/walk/`, `walk.html`) are gone; the scripts that made them
-stay. Layered is now the one standard version wherever it exists (the
+button goes to the other. The video and splat code and their files are gone (the scripts
+that made them stay); `amateria/walk/` is back without the splat, MASS 89's
+top-face depth in it the transferred one. Layered is now the one standard version wherever it exists (the
 Original versions are gone; at depth 0 Layered draws the original picture),
 with the AI versions still folded away; Edanna, with no Layered build,
 keeps its Original.
