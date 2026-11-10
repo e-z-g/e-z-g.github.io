@@ -1393,6 +1393,16 @@ steadily closer, one car throughout; halfway the door's ring smears a little.
 At the end MASS 89's view is shown on MASS 84's depth. The Layered version
 keeps the mesh walk; `?splatwalk` the splat.
 
+**Two more models of the walk** (9 November 2026). OpenMVS 2.4 (Windows
+build; `InterfaceCOLMAP`, `DensifyPointCloud` at full resolution with 6 views,
+`ReconstructMesh`, `RefineMesh`, `TextureMesh`; in this version the mesh steps
+take the dense scene with `-m mesh.ply`) on the 112 pictures within 6 units:
+a mesh of about 100,000 triangles, in pieces, that rays from the walk hit on
+3-86% of a face (10% of the door house's); no use. A splat of the 211 pictures
+within 10 units, no masks, 40,000 steps (35 min): at the nodes' faces worse
+than the one within 5 (MASS 84 face 1 20.9 dB against 24.4, face 5 16.3
+against 20.8), halfway much the same. More distant pictures do not help.
+
 **Starting depth from the score.** The viewer draws depth d as
 r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is
 r_far / (1 + 19 d), so only the slider's top is the measured shape and the
