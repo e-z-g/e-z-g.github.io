@@ -1899,7 +1899,7 @@
                     // texture v of the 360 picture's bottom edge, and the flat picture's extent in u and v
                     eqV0: { value: pk ? (H - Wd / 2) / H : 0 }, flatU: { value: pk ? pk.flat[0] / Wd : 1 },
                     flatV: { value: pk ? pk.flat[1] / H : 1 }, texel: { value: new THREE.Vector2(1 / Wd, 1 / H) },
-                    crossOn: { value: eq.cells ? 1 : 0 },
+                    crossOn: { value: eq.cells ? 1 : 0 }, grid: { value: new THREE.Vector2(eq.cols || 4, eq.rows || 3) },
                     // each cell's camera axes in the walk's right, down, forward, and its column and row
                     cX: { value: (eq.cells || Array(6).fill([0, 0, [0, 0, 0], [0, 0, 0], [0, 0, 0]])).map(c => new THREE.Vector3(...c[2])) },
                     cY: { value: (eq.cells || Array(6).fill([0, 0, [0, 0, 0], [0, 0, 0], [0, 0, 0]])).map(c => new THREE.Vector3(...c[3])) },
@@ -1913,7 +1913,7 @@
           // walk_ends.py --cross-hub: a cube unfolded in 4x3 cells, each a camera with axes (x, y, z) in the walk's
           // right, down, forward (its layout.json, as cfg.eq.cross.cells); a direction lands on the cell whose z it
           // is most along, at (d.x / d.z, d.y / d.z) of that cell.
-          uniform vec3 cX[6], cY[6], cZ[6]; uniform vec2 cCell[6];
+          uniform vec3 cX[6], cY[6], cZ[6]; uniform vec2 cCell[6]; uniform vec2 grid;   // columns, rows
           vec2 crossUv(vec3 d) {
             float best = -2.0; vec2 cell = vec2(0.0); vec2 q = vec2(0.0);
             for (int i = 0; i < 6; i++) {
@@ -1921,7 +1921,7 @@
               if (z > best) { best = z; cell = cCell[i]; q = vec2(dot(d, cX[i]), dot(d, cY[i])) / z; }
             }
             vec2 f = clamp(q * 0.5 + 0.5, 0.004, 0.996);                                     // within the cell, y down
-            return vec2((cell.x + f.x) / 4.0, 1.0 - (cell.y + f.y) / 3.0);
+            return vec2((cell.x + f.x) / grid.x, 1.0 - (cell.y + f.y) / grid.y);
           }
           void main(){
             vec3 c = texture2D(map, vec2(v.x, clamp(eqV0 + v.y * (1.0 - eqV0), eqV0 + texel.y, 1.0))).rgb;

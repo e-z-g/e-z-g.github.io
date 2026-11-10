@@ -12,11 +12,14 @@ FACES = {'back': ((1, 0), (D, R, -F)), 'floor': ((1, 1), (F, R, D)), 'front': ((
 JOINED = {('back', 'floor'), ('floor', 'front'), ('front', 'sky'), ('left', 'floor'), ('floor', 'right')}
 
 
+GRID = (3, 4)   # rows, columns
+
+
 def project(face, d, W, H):
     (r, c), (a1, a2, a3) = FACES[face]
     z = d @ a3
     x, y = d @ a1 / z, d @ a2 / z
-    cw, ch = W / 4, H / 3
+    cw, ch = W / GRID[1], H / GRID[0]
     return (c + (x + 1) / 2) * cw - .5, (r + (y + 1) / 2) * ch - .5
 
 
@@ -39,10 +42,10 @@ if len(sys.argv) > 2:      # walk_ends.py --cross-hub's layout.json: each cell's
     import json
     L = json.load(open(sys.argv[2]))
     FACES = {c['face']: ((c['row'], c['col']), tuple(np.array(v) for v in c['axes'])) for c in L['cells']}
-    hub = next(c for c in L['cells'] if (c['row'], c['col']) == (1, 1))['face']
-    JOINED = {(hub, c['face']) for c in L['cells'] if c['face'] != hub and (c['row'] == 1 and c['col'] in (0, 2) or c['col'] == 1)}
-    row = sorted((c for c in L['cells'] if c['row'] == 1), key=lambda c: c['col'])
-    JOINED.add((row[2]['face'], row[3]['face']))
+    GRID = (L.get('rows', 3), L.get('cols', 4))
+    # joined in the picture: cells that share a side in the grid
+    JOINED = {(p['face'], q['face']) for p in L['cells'] for q in L['cells']
+              if abs(p['row'] - q['row']) + abs(p['col'] - q['col']) == 1}
 cap = cv2.VideoCapture(sys.argv[1]); E = edges(); series = []
 while True:
     r, f = cap.read()
