@@ -425,7 +425,10 @@
         // Walk: to MASS 89, 1.05 units along the pier (myst3/colmap/walk_scene.py)
         // With ?splatwalk in the address the walk is drawn from a splat of the
         // pictures round the two nodes (amateria/walk/walk84.spz, 68.6 MB) as a test.
-        walk: { scene: 'amateria/walk/', label: 'MASS 89', splat: new URLSearchParams(location.search).has('splatwalk') },
+        // The walk: in-between pictures made by frame interpolation (film/,
+        // myst3/colmap/film_walk.py), 32 steps a face.
+        walk: { scene: 'amateria/walk/', label: 'MASS 89', film: { node: '4084', steps: 32 },
+                splat: new URLSearchParams(location.search).has('splatwalk') },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -988,7 +991,10 @@
           // Each atlas carries its own gutter fraction (see setAtlasGutters):
           // colour and depth can each have been stitched at a different face
           // size.
-          const colorSample = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv, uColorGutter)` : `texture2D(tColor, vUv)`;
+          // tColor2 and uColorMix: the walk's in-between pictures (walkFilm), one
+          // mixed into the next; uColorMix is 0, and tColor alone read, otherwise.
+          const colorSample = colorMode === 'atlas' ? `sampleAtlas(tColor, uFace, vUv, uColorGutter)`
+            : `(uColorMix > 0.0 ? mix(texture2D(tColor, vUv), texture2D(tColor2, vUv), uColorMix) : texture2D(tColor, vUv))`;
           // One depth reader for both stages, so the vertex filter, the fg mask
           // and the tear gradient can never drift apart.
           const depthAtGlsl = `
@@ -1018,6 +1024,8 @@
           mats.push(new THREE.ShaderMaterial({
             uniforms: {
               tColor: { value: null },
+              tColor2: { value: null },
+              uColorMix: { value: 0.0 },
               tDepth: { value: dummyDepthTex },
               // Far/near radius ratio minus one. Zero is a flat sphere.
               uDepthK: { value: 0.0 },
@@ -1094,6 +1102,8 @@
             `,
             fragmentShader: `
               uniform sampler2D tColor;
+              uniform sampler2D tColor2;
+              uniform float uColorMix;
               uniform sampler2D tDepth;
               uniform int uFace;
               uniform int uIsForeground;
@@ -1853,6 +1863,20 @@
     walkBtn.addEventListener('click', async () => {
       const cfg = currentLocation && currentLocation.walk;
       if (!cfg || walk.loading) return;
+      const version = currentLocation.versions[currentVersionIndex];
+      if (cfg.film && !cfg.splat && !(version && version.layers) && walk.mode !== 'mesh') {
+        if (walkFilm.key !== cfg.scene) {
+          walk.loading = true; walkBtn.textContent = 'Loading…';
+          try { await loadWalkFilm(cfg); } catch (e) { walk.loading = false; walkLabel(); showLoadError('Walk', null, String(e && e.message || e)); return; }
+          walk.loading = false;
+        }
+        walk.mode = 'film';
+        walk.anim = { from: walk.t, to: walk.t < 0.5 ? 1 : 0, at: performance.now() };
+        walk.dir = walk.anim.to; walk.hold = false;
+        walkBtn.textContent = walk.anim.to ? 'Walking…' : 'Walking back…';
+        return;
+      }
+      walk.mode = 'mesh';
       if (!walk.ready || walk.key !== cfg.scene) {
         try { await loadWalk(cfg); } catch (e) { walk.loading = false; walkLabel(); showLoadError('Walk', null, String(e && e.message || e)); return; }
         if (cfg.splat && !walkSplat.ready && !walkSplat.failed) {
@@ -1866,8 +1890,57 @@
       walkBtn.textContent = walk.anim.to ? 'Walking…' : 'Walking back…';
     });
 
+    // The walk as in-between pictures (myst3/colmap/film_walk.py: FILM frame
+    // interpolation from one node's faces to the other's, 2^levels steps a
+    // face). They are shown on the panorama itself, in place of its own face
+    // pictures, one mixed into the next by how far along the walk is: the
+    // meshes, depth and camera stay the panorama's, so the moment Walk is
+    // tapped nothing changes but the pictures starting to move. No depth is
+    // used to make them, so the two nodes' disagreeing depths cannot double
+    // anything. Original only (the Layered version keeps the mesh walk).
+    const walkFilm = { key: null, frames: null, saved: null };
+    const FILM_FACE_OF_MAT = [5, 4, 6, 2, 3, 1];      // getCubemapUrls: left, right, top, bottom, back, front
+    async function loadWalkFilm(cfg) {
+      const base = rawUrl + cfg.scene + 'film/';
+      const n = cfg.film.steps;
+      const load = (url) => new Promise((ok, no) => textureLoader.load(url, (tx) => {
+        tx.colorSpace = THREE.SRGBColorSpace; tx.minFilter = THREE.LinearMipmapLinearFilter;
+        tx.magFilter = THREE.LinearFilter; tx.anisotropy = maxAnisotropy; ok(tx);
+      }, undefined, no));
+      const frames = {};
+      await Promise.all([1, 2, 3, 4, 5, 6].map(async (k) => {
+        frames[k] = await Promise.all(Array.from({ length: n + 1 }, (_, i) =>
+          load(`${base}MA-${cfg.film.node}-${k}-${String(i).padStart(2, '0')}.jpg`)));
+      }));
+      walkFilm.frames = frames; walkFilm.key = cfg.scene;
+    }
+    function applyWalkFilm(t) {
+      const mats = fgCubeMesh.material;
+      if (!Array.isArray(mats) || !walkFilm.frames) return;
+      if (!walkFilm.saved) walkFilm.saved = mats.map(m => m.uniforms.tColor.value);
+      const n = walkFilm.frames[1].length - 1;
+      const f = THREE.MathUtils.clamp(t, 0, 1) * n, i0 = Math.min(Math.floor(f), n - 1), m = f - i0;
+      mats.forEach((mat, i) => {
+        const fr = walkFilm.frames[FILM_FACE_OF_MAT[i]];
+        // picture 0 is the panorama's own face, as loaded for it
+        mat.uniforms.tColor.value = i0 === 0 ? walkFilm.saved[i] : fr[i0];
+        mat.uniforms.tColor2.value = fr[i0 + 1];
+        mat.uniforms.uColorMix.value = m;
+      });
+    }
+    function restoreWalkFilm() {
+      if (walkFilm.saved && Array.isArray(fgCubeMesh.material)) {
+        fgCubeMesh.material.forEach((mat, i) => { mat.uniforms.tColor.value = walkFilm.saved[i]; mat.uniforms.uColorMix.value = 0; });
+      }
+      walkFilm.saved = null;
+    }
+
     // For tests: hold the walk at a point along it (0 the start, 1 the end).
-    window.walkAt = (t, toB = 1) => { if (walk.ready) { walk.anim = null; walk.t = t; walk.dir = toB; walk.hold = false; } return walk.ready; };
+    window.walkAt = (t, toB = 1) => {
+      if (walk.mode === 'film') { if (!walkFilm.frames) return false; walk.anim = null; walk.t = t; return true; }
+      if (walk.ready) { walk.anim = null; walk.t = t; walk.dir = toB; walk.hold = false; }
+      return walk.ready;
+    };
     // For tests: the splat drawn at a point along the walk, as while walking.
     window.walkSplatAt = (t) => { if (!walkSplat.ready) return false; walk.anim = null; walk.t = t; walk.hold = true; return true; };
 
@@ -1884,6 +1957,17 @@
 
     // Called from render() after the look is set; true when it drew the frame.
     function renderWalk(now) {
+      if (walk.mode === 'film') {
+        if (walk.anim) {
+          const u = Math.min((now - walk.anim.at) / WALK_MS, 1);
+          const e = u * u * (3 - 2 * u);
+          walk.t = walk.anim.from + (walk.anim.to - walk.anim.from) * e;
+          if (u >= 1) { walk.anim = null; walkLabel(); }
+        }
+        if (walk.t <= 0 && !walk.anim) { restoreWalkFilm(); walk.mode = null; return false; }
+        applyWalkFilm(walk.t);
+        return false;                                   // the panorama draws it, with its own pictures moving
+      }
       if (!walk.ready || (walk.t <= 0 && !walk.anim && !walk.hold)) { hideWalkSplat(); return false; }
       if (walk.anim) {
         const u = Math.min((now - walk.anim.at) / WALK_MS, 1);
@@ -1980,7 +2064,9 @@
       // network's guess (depthDefault 0); where it is measured, at the strength
       // that matched the neighbouring nodes' views best (view_check.py; 70%
       // when not given).
-      if (isLocChange) { applyDepthDefault(loc); walk.t = 0; walk.anim = null; }
+      if (isLocChange) applyDepthDefault(loc);
+      // a new location or version loads its own pictures: the walk starts over
+      walk.t = 0; walk.anim = null; walk.mode = null; walk.hold = false; walkFilm.saved = null;
       updateUI();
       loadPanorama(isLocChange ? 'block' : 'fade');
     }

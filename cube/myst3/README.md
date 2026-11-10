@@ -1369,6 +1369,22 @@ fell to 20.8 dB; all 2.5M with no view-dependent colour 21.4 (42.9 MB as
 .spz); degree 1 22.1 (48.5 MB); degree 3 24.4 (68.6 MB), Spark 22.9 at
 the same view (9 November 2026).
 
+**The walk as in-between pictures** (`colmap/film_walk.py`, 9 November
+2026). Every walk drawn from depth (each node's, the joint, the RAFT-measured,
+the splat) showed two pictures at once or snapped at the tap. Frame
+interpolation needs no depth: for each face both nodes' panoramas are drawn
+as one wide picture looking that way (1024 px, the face's neighbours round
+it), and FILM (Frame Interpolation for Large Motion, TorchScript from
+github.com/dajes/frame-interpolation-pytorch) makes the halfway picture, then
+halfway between each pair, five times: 33 pictures a face, 198 in all (14 MB),
+in 136 s on the PC. The viewer shows them on the panorama itself, in place of
+its own faces, one mixed into the next by how far along the walk is; the
+meshes, depth and camera are the panorama's, so the tap changes nothing but
+the pictures beginning to move. On MASS 84's ride-car face the car comes
+steadily closer, one car throughout; halfway the door's ring smears a little.
+At the end MASS 89's view is shown on MASS 84's depth. The Layered version
+keeps the mesh walk; `?splatwalk` the splat.
+
 **Starting depth from the score.** The viewer draws depth d as
 r = R / (1 + K d), K = 19 s^1.6 for the slider at s; the measured depth is
 r_far / (1 + 19 d), so only the slider's top is the measured shape and the
