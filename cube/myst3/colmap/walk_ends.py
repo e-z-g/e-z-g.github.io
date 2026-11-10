@@ -105,12 +105,32 @@ NETS = {
     # then front wall, floor, back wall. The right wall meets the sky and the front wall in the picture.
     'staircase': (2, 5, [(0, 0), (0, 1), (0, 2), (1, 2), (1, 3), (1, 4)], (0, 1), lambda r, d, f: (r, f, -d)),
 }
+# Not nets: rows of faces joined only within each row, the rows touching in the picture but not on the cube
+# (a 2x3 rectangle cannot fold into a cube). Each row: its cells and one cell's axes; --gap px of black between rows.
+STRIPS = {
+    # left wall, sky, right wall above front wall, floor, back wall: each row as the staircase's
+    'strips3x2': (2, 3, [([(0, 0), (0, 1), (0, 2)], (0, 1), lambda r, d, f: (r, f, -d)),
+                         ([(1, 0), (1, 1), (1, 2)], (1, 0), lambda r, d, f: (d, -r, f))]),
+}
 
 
 def net_layout(Rcam, net):
-    rows, cols, used, first, axes0 = NETS[net]
     right, down, fwd = Rcam
-    ax = {first: tuple(np.asarray(v, float) for v in axes0(right, down, fwd))}
+    if net in STRIPS:
+        rows, cols, groups = STRIPS[net]
+        ax = {}
+        for used, first, axes0 in groups:
+            ax.update(_spread(used, first, tuple(np.asarray(v, float) for v in axes0(right, down, fwd))))
+    else:
+        rows, cols, used, first, axes0 = NETS[net]
+        ax = _spread(used, first, tuple(np.asarray(v, float) for v in axes0(right, down, fwd)))
+    name = lambda v: min({'front': fwd, 'back': -fwd, 'right': right, 'left': -right, 'floor': down, 'sky': -down}.items(),
+                         key=lambda kv: np.linalg.norm(kv[1] - v))[0]
+    return rows, cols, [(name(a[2]), rc, a) for rc, a in ax.items()]
+
+
+def _spread(used, first, axes):
+    ax = {first: axes}
     todo = [first]
     while todo:
         rc = todo.pop(); x, y, z = ax[rc]
@@ -118,17 +138,23 @@ def net_layout(Rcam, net):
             n = (rc[0] + dr, rc[1] + dc)
             if n in used and n not in ax:
                 ax[n] = new; todo.append(n)
-    name = lambda v: min({'front': fwd, 'back': -fwd, 'right': right, 'left': -right, 'floor': down, 'sky': -down}.items(),
-                         key=lambda kv: np.linalg.norm(kv[1] - v))[0]
-    return rows, cols, [(name(a[2]), rc, a) for rc, a in ax.items()]
+    return ax
 
 
-def draw_net(faces, Rcam, W, H, net):
+def cell_rects(W, H, rows, cols, gap):
+    """Each cell's x, y, width and height in pixels: square cells across the width, gap px between rows."""
+    cw = W // cols
+    ch = (H - gap * (rows - 1)) // rows
+    return {(r, c): (c * cw, r * (ch + gap), cw, ch) for r in range(rows) for c in range(cols)}
+
+
+def draw_net(faces, Rcam, W, H, net, gap=0):
     rows, cols, cells = net_layout(Rcam, net)
-    cw, ch = W // cols, H // rows
-    g = np.zeros((rows * ch, cols * cw, 3), np.uint8)
-    for _, (r, c), axes in cells:
-        g[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw] = draw(faces, np.stack(axes), cw, ch, cw / 2)
+    R = cell_rects(W, H, rows, cols, gap)
+    g = np.zeros((H, W, 3), np.uint8)
+    for _, rc, axes in cells:
+        x, y, cw, ch = R[rc]
+        g[y:y + ch, x:x + cw] = draw(faces, np.stack(axes), cw, ch, cw / 2)
     return g
 
 
@@ -206,7 +232,8 @@ def main():
                     help='as --cross with the floor at the hub: back wall, floor, front wall, sky in the long row')
     ap.add_argument('--cross-hub', choices=sorted(HUB_AXES),
                     help='the cross with this face at its hub (all four of its edges joined in the picture); writes layout.json')
-    ap.add_argument('--net', choices=sorted(NETS), help='another cube net (see NETS); writes layout.json')
+    ap.add_argument('--net', choices=sorted(NETS) + sorted(STRIPS), help='another cube net (NETS) or rows of faces (STRIPS); writes layout.json')
+    ap.add_argument('--gap', type=int, default=0, help='px of black between rows (with --net)')
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))
     _, imgs = read_model(a.sparse)
@@ -226,7 +253,7 @@ def main():
     if a.equirect:
         render = lambda F: draw_equirect(F, Rcam, W, H)
     elif a.net:
-        render = lambda F: draw_net(F, Rcam, W, H, a.net)
+        render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap)
     elif a.cross_hub:
         render = lambda F: draw_cross_hub(F, Rcam, W, H, a.cross_hub)
     elif a.cross_floor:
@@ -246,9 +273,11 @@ def main():
         # each cell's face and axes in the walk's own frame (right, down, forward), for cube_edges.py and the viewer
         B = Rcam
         rows, cols, cells = (3, 4, cross_layout(Rcam, a.cross_hub)) if a.cross_hub else net_layout(Rcam, a.net)
-        json.dump({'net': a.net or 'cross', 'hub': a.cross_hub, 'rows': rows, 'cols': cols,
-                   'cells': [{'face': n, 'row': rc[0], 'col': rc[1], 'axes': [[round(float(v), 6) for v in B @ ax] for ax in axes]}
-                             for n, rc, axes in cells]},
+        R = cell_rects(W, H, rows, cols, a.gap if a.net else 0)
+        json.dump({'net': a.net or 'cross', 'hub': a.cross_hub, 'rows': rows, 'cols': cols, 'size': [W, H],
+                   'joined_rows_only': bool(a.net in STRIPS),
+                   'cells': [{'face': n, 'row': rc[0], 'col': rc[1], 'rect': list(R[rc]),
+                              'axes': [[round(float(v), 6) for v in B @ ax] for ax in axes]} for n, rc, axes in cells]},
                   open(os.path.join(a.out, 'layout.json'), 'w'), indent=1)
     with open(os.path.join(a.out, 'view.json'), 'w') as fh:
         json.dump({'from': a.a, 'to': a.b, 'look_node_frame': look.tolist(), 'hfov': a.fov, 'size': [W, H],

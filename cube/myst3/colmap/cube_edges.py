@@ -15,10 +15,17 @@ JOINED = {('back', 'floor'), ('floor', 'front'), ('front', 'sky'), ('left', 'flo
 GRID = (3, 4)   # rows, columns
 
 
+RECTS = {}      # face -> (x, y, w, h) in the layout's pixels, when layout.json gives them
+SIZE = None
+
+
 def project(face, d, W, H):
     (r, c), (a1, a2, a3) = FACES[face]
     z = d @ a3
     x, y = d @ a1 / z, d @ a2 / z
+    if face in RECTS:
+        rx, ry, rw, rh = RECTS[face]; sx, sy = W / SIZE[0], H / SIZE[1]
+        return (rx + (x + 1) / 2 * rw) * sx - .5, (ry + (y + 1) / 2 * rh) * sy - .5
     cw, ch = W / GRID[1], H / GRID[0]
     return (c + (x + 1) / 2) * cw - .5, (r + (y + 1) / 2) * ch - .5
 
@@ -45,7 +52,10 @@ if len(sys.argv) > 2:      # walk_ends.py --cross-hub's layout.json: each cell's
     GRID = (L.get('rows', 3), L.get('cols', 4))
     # joined in the picture: cells that share a side in the grid
     JOINED = {(p['face'], q['face']) for p in L['cells'] for q in L['cells']
-              if abs(p['row'] - q['row']) + abs(p['col'] - q['col']) == 1}
+              if abs(p['row'] - q['row']) + abs(p['col'] - q['col']) == 1
+              and not (L.get('joined_rows_only') and p['row'] != q['row'])}
+    if 'size' in L:
+        SIZE = L['size']; RECTS = {c['face']: c['rect'] for c in L['cells']}
 cap = cv2.VideoCapture(sys.argv[1]); E = edges(); series = []
 while True:
     r, f = cap.read()
