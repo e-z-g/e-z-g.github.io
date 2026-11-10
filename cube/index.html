@@ -1745,9 +1745,15 @@
         void main(){
           vec4 A = texture2D(a, v), B = texture2D(b, v);
           float s = t;                                       // a slow crossfade over the whole walk
-          float wa = (1.0 - s) * A.a + 1e-4 * (1.0 - t), wb = s * B.a + 1e-4 * t;
-          // the other picture fills where the leader is unsure
-          wa += s * (1.0 - B.a) * A.a; wb += (1.0 - s) * (1.0 - A.a) * B.a;
+          // At its own node a picture is exactly the panorama, stretches and all
+          // (seen from there they have no width), so it is taken as sure there and
+          // the other node fills its stretches only as the walk moves away: the
+          // first frame after the tap is the panorama, not the other node's
+          // picture along every depth edge.
+          float aA = mix(1.0, A.a, smoothstep(0.0, 0.3, t)), aB = mix(1.0, B.a, smoothstep(0.0, 0.3, 1.0 - t));
+          float wa = (1.0 - s) * aA + 1e-4 * (1.0 - t), wb = s * aB + 1e-4 * t;
+          // the other picture fills where one is unsure
+          wa += s * (1.0 - aB) * aA; wb += (1.0 - s) * (1.0 - aA) * aB;
           gl_FragColor = vec4((wa * A.rgb + wb * B.rgb) / (wa + wb), 1.0);
         }`,
       depthTest: false, depthWrite: false });
@@ -1764,9 +1770,11 @@
       const tex = (url, nearest) => new Promise((ok, no) => textureLoader.load(url, (tx) => {
         tx.colorSpace = THREE.NoColorSpace;
         if (nearest) { tx.minFilter = tx.magFilter = THREE.NearestFilter; tx.generateMipmaps = false; }
+        else tx.anisotropy = maxAnisotropy;              // sampled as the panorama's are
         ok(tx);
       }, undefined, no));
       walk.scenes = []; walk.centres = [];
+      walk.rfar = scn.nodes[0].r_far;
       for (const n of scn.nodes.slice(0, 2)) {
         const sc = new THREE.Scene();
         const m = n.matrix;
@@ -1827,7 +1835,9 @@
       const w = walkSplat;
       w.cam.fov = camera.fov; w.cam.aspect = camera.aspect; w.cam.updateProjectionMatrix();
       w.cam.quaternion.set(camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.quaternion.w);
-      w.cam.position.copy(w.B).multiplyScalar(t);
+      // the panorama camera's offset, in the splat's units
+      const o = walkOffset(camera.position).multiplyScalar(w.B.length() / Math.max(1e-6, walk.centres[1].distanceTo(walk.centres[0])));
+      w.cam.position.copy(w.B).multiplyScalar(t).add(new w.T.Vector3(o.x, o.y, o.z));
       w.canvas.style.display = '';
       w.r.render(w.sc, w.cam);
     }
@@ -1861,6 +1871,17 @@
     // For tests: the splat drawn at a point along the walk, as while walking.
     window.walkSplatAt = (t) => { if (!walkSplat.ready) return false; walk.anim = null; walk.t = t; walk.hold = true; return true; };
 
+    // The panorama's camera is not at the node's centre while depth is on: it
+    // is dollied forward, swayed and moved with the pointer or the tilt
+    // (render()). The walk starts from the same place, or the picture jumps
+    // the moment Walk is tapped. The offset is in the panorama's units; scaled
+    // so that the nearest things shift as much in the walk's (the panorama's
+    // nearest surface is nearRadius away, the walk's r_far / 20).
+    function walkOffset(p) {
+      const near = walk.rfar / 20;
+      return p.clone().multiplyScalar(near / Math.max(1e-6, nearRadius));
+    }
+
     // Called from render() after the look is set; true when it drew the frame.
     function renderWalk(now) {
       if (!walk.ready || (walk.t <= 0 && !walk.anim && !walk.hold)) { hideWalkSplat(); return false; }
@@ -1874,7 +1895,7 @@
       if (walkSplat.ready && (walk.anim || walk.hold)) { drawWalkSplat(walk.t); return true; }   // on the way: the splat alone
       hideWalkSplat();
       const keep = camera.position.clone();
-      camera.position.lerpVectors(walk.centres[0], walk.centres[1], walk.t);
+      camera.position.lerpVectors(walk.centres[0], walk.centres[1], walk.t).add(walkOffset(keep));
       camera.updateMatrixWorld();
       const clearColour = renderer.getClearColor(new THREE.Color()), clearAlpha = renderer.getClearAlpha();
       renderer.setClearColor(0x000000, 0);                 // alpha 0: nothing drawn there
