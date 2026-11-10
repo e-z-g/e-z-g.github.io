@@ -244,12 +244,12 @@
         <div style="display:flex; gap:6px; width: 100%;">
             <!-- Each accept list has one type that is not a picture or a video: given only those, Chrome on
                  Android opens its photo picker, which hides files that are not in the gallery. -->
-            <label class="upload-btn" id="lbl-upload-fg-color">FG Color <input type="file" id="upload-fg-color" accept="image/*,application/octet-stream" style="display:none;"></label>
-            <label class="upload-btn" id="lbl-upload-fg-depth">FG Depth <input type="file" id="upload-fg-depth" accept="image/*,application/octet-stream" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-fg-color">FG Color <input type="file" id="upload-fg-color" accept="image/*,video/*,application/octet-stream" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-fg-depth">FG Depth <input type="file" id="upload-fg-depth" accept="image/*,video/*,application/octet-stream" style="display:none;"></label>
         </div>
         <div style="display:flex; gap:6px; width: 100%;">
-            <label class="upload-btn" id="lbl-upload-bg-color">BG Color <input type="file" id="upload-bg-color" accept="image/*,application/octet-stream" style="display:none;"></label>
-            <label class="upload-btn" id="lbl-upload-bg-depth">BG Depth <input type="file" id="upload-bg-depth" accept="image/*,application/octet-stream" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-bg-color">BG Color <input type="file" id="upload-bg-color" accept="image/*,video/*,application/octet-stream" style="display:none;"></label>
+            <label class="upload-btn" id="lbl-upload-bg-depth">BG Depth <input type="file" id="upload-bg-depth" accept="image/*,video/*,application/octet-stream" style="display:none;"></label>
         </div>
         <div style="display:flex; gap:6px; width: 100%;">
             <label class="upload-btn" id="lbl-upload-decal" style="background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.4);">
@@ -562,6 +562,11 @@
     let currentLoadId = 0;
     
     const customMaps = { fgColor: null, fgDepth: null, bgColor: null, bgDepth: null };
+    // Each layer can be a video instead of a picture (an atlas in the same
+    // layout, frame by frame): which ones are.
+    const customIsVideo = { fgColor: false, fgDepth: false, bgColor: false, bgDepth: false };
+    const VIDEO_EXT = /\.(mp4|m4v|webm|mov|mkv|ogv)$/i;
+    const isVideoFile = (f) => (f.type || '').startsWith('video/') || VIDEO_EXT.test(f.name || '');
 
     const defaultCustomData = new Uint8Array([20, 20, 20, 255]);
     const defaultCustomTex = new THREE.DataTexture(defaultCustomData, 1, 1, THREE.RGBAFormat);
@@ -575,6 +580,7 @@
           locSelect.value = customIdx;
           currentLocation = locations[customIdx];
           currentVersionIndex = 0;
+          applyDepthDefault(currentLocation);         // its own depth label (none), not the last location's
           updateUI();
       }
     };
@@ -584,6 +590,7 @@
             if(e.target.files[0]) {
                 if(customMaps[mapKey]) URL.revokeObjectURL(customMaps[mapKey]);
                 customMaps[mapKey] = URL.createObjectURL(e.target.files[0]);
+                customIsVideo[mapKey] = isVideoFile(e.target.files[0]);
                 document.getElementById(`lbl-upload-${id}`).classList.add('active');
                 forceCustomSelection();
                 isTransitioning = false;
@@ -661,6 +668,7 @@
         const mapKey = HANDOFF_SLOTS[slot];
         if (customMaps[mapKey]) URL.revokeObjectURL(customMaps[mapKey]);
         customMaps[mapKey] = URL.createObjectURL(blob);
+        customIsVideo[mapKey] = false;
         document.getElementById(`lbl-upload-${slot}`).classList.add('active');
         any = true;
       }
@@ -1041,6 +1049,9 @@
               // Zero for every atlas without a gutter, including the 3x2
               // depth atlas buildDepthAtlas() stitches, which needs none.
               uColorGutter: { value: 0.0 },
+              // 1 when tColor is a video: uploaded as its sRGB values (three.js
+              // does not decode a video texture), so decoded in the shader
+              uColorRaw: { value: 0.0 },
               uDepthGutter: { value: 0.0 },
             },
             transparent: true,
@@ -1107,6 +1118,7 @@
               uniform sampler2D tColor;
               uniform sampler2D tColor2;
               uniform float uColorMix;
+              uniform float uColorRaw;
               uniform vec4 uFilmRect;
               // The walk's video is uploaded as it is (sRGB values: three.js does
               // not decode a video texture as it does a picture), so it is
@@ -1193,6 +1205,7 @@
                 }
                 
                 vec4 texColor = ${colorSample};
+                if (uColorRaw > 0.5) texColor.rgb = mix(texColor.rgb / 12.92, pow((texColor.rgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, texColor.rgb));
                 gl_FragColor = vec4(texColor.rgb, texColor.a * alpha);
                 
                 #include <tonemapping_fragment>
@@ -2296,6 +2309,36 @@
     }
     // Counts the request whether it resolved or rejected, so a missing depth map
     // can't strand the readout below 100%.
+    // A layer as a video: looping, muted, playing inline; given width and height
+    // (a video element has them only as videoWidth/videoHeight) so the layout,
+    // gutter and depth-range code reads it as it reads a picture.
+    let layerVideos = [];
+    function trackedVideoLoad(url) {
+      const tick = () => { loadDone++; renderProgress(); };
+      const v = document.createElement('video');
+      v.crossOrigin = 'anonymous'; v.muted = true; v.loop = true; v.playsInline = true; v.autoplay = true; v.preload = 'auto';
+      v.src = url;
+      return new Promise((ok, no) => {
+        v.addEventListener('loadeddata', () => {
+          v.width = v.videoWidth; v.height = v.videoHeight;
+          const tex = new THREE.VideoTexture(v);
+          tex.userData.sourceWidth = v.videoWidth; tex.userData.sourceHeight = v.videoHeight;
+          v.play().catch(() => {});
+          tick(); ok(tex);
+        }, { once: true });
+        v.addEventListener('error', () => { tick(); no(new Error('Could not play the video ' + url)); }, { once: true });
+      });
+    }
+    // Layer videos kept in step with the first (colour and depth must show the same frame).
+    function syncLayerVideos() {
+      if (layerVideos.length < 2) return;
+      const lead = layerVideos[0];
+      for (const v of layerVideos.slice(1)) {
+        if (v.paused && !lead.paused) v.play().catch(() => {});
+        if (Math.abs(v.currentTime - lead.currentTime) > 0.04) v.currentTime = lead.currentTime;
+      }
+    }
+
     function trackedLoad(url) {
       const tick = () => { loadDone++; renderProgress(); };
       return textureLoader.loadAsync(url).then(
@@ -2357,7 +2400,8 @@
     const isDrawable = (img) => !!img && !!img.width && (
          (typeof HTMLImageElement  !== 'undefined' && img instanceof HTMLImageElement)
       || (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement)
-      || (typeof ImageBitmap       !== 'undefined' && img instanceof ImageBitmap));
+      || (typeof ImageBitmap       !== 'undefined' && img instanceof ImageBitmap)
+      || (typeof HTMLVideoElement  !== 'undefined' && img instanceof HTMLVideoElement && img.readyState >= 2));
 
     // Cells are sized at 512 minimum even when the source faces are smaller
     // (Voltaic's are 295px). The shader clamps its UVs a thousandth of a cell
@@ -2554,6 +2598,7 @@
 
       try {
           const oldTextures = safeDisposeTextures();
+          layerVideos = [];
 
           if (isVideo) {
             hasActiveDepth = currentLocation.hasDepth;
@@ -2671,17 +2716,26 @@
                          isDualLayer && src.bgDepth].filter(Boolean).length;
             renderProgress();
 
+            // A layer is a video when it was uploaded as one, or a version's
+            // file ends in a video extension.
+            const isVid = (slot) => targetVersion.layers ? VIDEO_EXT.test(src[slot] || '') : !!customIsVideo[slot];
+            const layer = (slot) => isVid(slot) ? trackedVideoLoad(src[slot]) : trackedLoad(src[slot]);
             const loaded = await Promise.all([
-                src.fgColor ? trackedLoad(src.fgColor) : Promise.resolve(defaultCustomTex),
-                src.fgDepth ? trackedLoad(src.fgDepth) : Promise.resolve(dummyDepthTex),
-                isDualLayer ? trackedLoad(src.bgColor) : Promise.resolve(defaultCustomTex),
-                (isDualLayer && src.bgDepth) ? trackedLoad(src.bgDepth) : Promise.resolve(dummyDepthTex)
+                src.fgColor ? layer('fgColor') : Promise.resolve(defaultCustomTex),
+                src.fgDepth ? layer('fgDepth') : Promise.resolve(dummyDepthTex),
+                isDualLayer ? layer('bgColor') : Promise.resolve(defaultCustomTex),
+                (isDualLayer && src.bgDepth) ? layer('bgDepth') : Promise.resolve(dummyDepthTex)
             ]);
+            layerVideos = loaded.filter(t => t && t.isVideoTexture).map(t => t.image);
             
             const processAtlasTex = (tex, isColor) => {
                 if (tex === defaultCustomTex || tex === dummyDepthTex) return tex;
-                tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-                tex = fitToGpu(tex);
+                // a video is not decoded by three.js: its colour is decoded in the shader (uColorRaw)
+                tex.colorSpace = (isColor && !tex.isVideoTexture) ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                if (tex.isVideoTexture) {
+                  if (Math.max(tex.image.videoWidth, tex.image.videoHeight) > maxTextureSize)
+                    console.warn(`A ${tex.image.videoWidth}x${tex.image.videoHeight} video is over this GPU's ${maxTextureSize} px limit and may not show.`);
+                } else tex = fitToGpu(tex);
                 tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
                 tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.ClampToEdgeWrapping;
                 tex.needsUpdate = true;
@@ -2734,6 +2788,7 @@
 
             fgCubeMesh.material.forEach((mat) => {
               mat.uniforms.tColor.value = fgC;
+              mat.uniforms.uColorRaw.value = fgC.isVideoTexture ? 1 : 0;
               mat.uniforms.tDepth.value = fgD;
               mat.uniforms.uIsForeground.value = isDualLayer ? 1 : 0;
               mat.uniforms.uTearThreshold.value = currentTearVal;
@@ -2742,6 +2797,7 @@
             if (isDualLayer) {
                 bgCubeMesh.material.forEach((mat) => {
                   mat.uniforms.tColor.value = bgC;
+                  mat.uniforms.uColorRaw.value = bgC.isVideoTexture ? 1 : 0;
                   mat.uniforms.tDepth.value = bgD;
                   mat.uniforms.uIsForeground.value = 0;
                 });
@@ -2813,7 +2869,11 @@
             pendingTransitionDepth = buildTransitionDepthTex(depthPreviewImg);
           }
           
-          oldTextures.forEach(t => t.dispose());
+          oldTextures.forEach(t => {
+            // a replaced layer video: stopped and its file let go
+            if (t.isVideoTexture && t.image && t.image !== sourceVideo) { t.image.pause(); t.image.removeAttribute('src'); t.image.load(); }
+            t.dispose();
+          });
           // Load body completed; the tween below now owns isTransitioning.
           handedOffToTween = true;
 
@@ -3281,7 +3341,9 @@
     }
 
     // --- Main Render Loop ---
+    let layerSyncAt = 0;
     function render(now) {
+      if (layerVideos.length > 1 && now - layerSyncAt > 500) { layerSyncAt = now; syncLayerVideos(); }
       // While AR is on, the session's own frame loop draws (xrFrame).
       if (xrSession) return;
       requestAnimationFrame(render);
