@@ -1,5 +1,67 @@
 [
 {
+"name": "full-fisheye-1280-w6a8-s1",
+"label": "Full: two fisheyes, 1280x640, the smaller H3 model (w6a8), seed 1 (overlap score)",
+"score": 2.08,
+"worst": 3.1,
+"rows": 3,
+"cols": 4,
+"video": "full-fisheye-1280-w6a8-s1.mp4",
+"back": "full-fisheye-1280-w6a8-s1_back.mp4",
+"made": 1794369118.5549858,
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "trial-fisheye360-down-s2",
 "label": "Trial: ONE 360-degree fisheye looking down (weak point in the sky), seed 2 (unscored)",
 "score": null,
