@@ -5,9 +5,12 @@ colour without its lighting (albedo), roughness and metallic (marigold-iid-appea
 and the residual the lighting model splits off (marigold-iid-lighting-v1-1).
 
     python materials.py IN_DIR OUT_DIR NAME1 ... NAME6 [--colour-suffix _orig.jpg] [--ensemble 4] [--steps 4]
+    python materials.py ROOT OUT_DIR --nodes 4084 4089 ... [--ensemble 4] [--steps 4]
 
 Writes OUT_DIR/NAME<k>_albedo.png, _roughness.png, _metallic.png, _shading.png, _residual.png, and
-OUT_DIR/sheet.jpg (each face's picture and maps in a row). The game's pictures have their lighting baked in,
+OUT_DIR/sheet.jpg (each face's picture and maps in a row). With --nodes, the faces are ROOT\images\f<k>\MA-<node>.jpg
+(the joined model's) and the maps OUT_DIR/MA-<node>-<k>_<map>.png, every node's faces done with each model
+loaded once, no sheet; faces already done are skipped. The game's pictures have their lighting baked in,
 so these are the models' estimates, not data the game holds. Needs torch, diffusers, Pillow, numpy.
 """
 import argparse
@@ -30,12 +33,32 @@ def to_img(a):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('inp'); ap.add_argument('out'); ap.add_argument('names', nargs=6)
+    ap.add_argument('inp'); ap.add_argument('out'); ap.add_argument('names', nargs='*')
+    ap.add_argument('--nodes', nargs='+')
     ap.add_argument('--colour-suffix', default='_orig.jpg')
     ap.add_argument('--ensemble', type=int, default=4); ap.add_argument('--steps', type=int, default=4)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     from diffusers import MarigoldIntrinsicsPipeline
+    if a.nodes:
+        jobs = [(os.path.join(a.inp, 'images', f'f{k}', f'MA-{n}.jpg'), f'MA-{n}-{k}') for n in a.nodes for k in range(1, 7)]
+        for repo, wanted in (('prs-eth/marigold-iid-appearance-v1-1', ('albedo', 'roughness', 'metallic')),
+                             ('prs-eth/marigold-iid-lighting-v1-1', ('shading', 'residual'))):
+            todo = [(f, n) for f, n in jobs if not os.path.exists(os.path.join(a.out, f'{n}_{wanted[-1]}.png'))]
+            if not todo:
+                continue
+            pipe = MarigoldIntrinsicsPipeline.from_pretrained(repo, variant='fp16', torch_dtype=torch.float16).to('cuda')
+            for i, (f, n) in enumerate(todo):
+                pic = Image.open(f).convert('RGB')
+                out = pipe(pic, ensemble_size=a.ensemble, num_inference_steps=a.steps)
+                v = pipe.image_processor.visualize_intrinsics(out.prediction, pipe.target_properties)[0]
+                for key in wanted:
+                    found = [k for k in v if k.startswith(key)]
+                    if found:
+                        v[found[0]].resize(pic.size).save(os.path.join(a.out, f'{n}_{key}.png'))
+                print(f'{repo.split("/")[-1]} {i + 1}/{len(todo)} {n}', flush=True)
+            del pipe; torch.cuda.empty_cache()
+        return
     rows = []
     pics = [Image.open(os.path.join(a.inp, n + a.colour_suffix)).convert('RGB') for n in a.names]
     maps = {n: {} for n in a.names}

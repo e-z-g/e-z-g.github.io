@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Amateria: the pier as one mesh</title>
+<style>
+html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 14px/1.3 system-ui, sans-serif; color: #ddd; }
+canvas { display: block; touch-action: none; }
+#bar { position: fixed; left: 8px; right: 8px; top: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+       background: rgba(20, 20, 26, .8); padding: 6px 8px; border-radius: 8px; }
+#bar button, #bar select { background: #2a2a33; color: #eee; border: 0; border-radius: 6px; padding: 6px 10px; font: inherit; }
+#info { color: #999; font-size: 12px; flex-basis: 100%; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head><body>
+<div id="bar">
+  <select id="node" title="Stand at a node"></select>
+  <button id="orbit">Orbit</button>
+  <select id="mode" title="What the surface shows">
+    <option value="pictures">Pictures</option><option value="lit">Lit (albedo, sun)</option>
+    <option value="albedo">Albedo</option><option value="rough">Roughness</option>
+    <option value="metal">Metallic</option><option value="normal">Normals</option>
+  </select>
+  <button id="wire">Wire</button>
+  <label id="sunbox" style="display:none">Sun <input id="sunaz" type="range" min="0" max="360" value="220"> <input id="sunel" type="range" min="2" max="85" value="25"></label>
+  <span id="info">Loading…</span>
+</div>
+<script type="module">
+// The pier between MASS 84 and 89 and its 20 nearest nodes as one mesh: each node's panorama given
+// distances by MoGe, placed and scaled by the joined model, fused (myst3/colmap/scene_mesh.py), and every
+// node's Marigold maps (albedo, roughness, metallic) carried onto its vertices (scene_attrs.py). Pictures:
+// the game's colours, its sunset lighting baked in, drawn unlit. Lit: the albedo under a sun you move.
+// Drag to look round; at a node, the eye stays there, as the game's; Orbit circles the whole stretch.
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const BASE = './amateria/scene/';
+const info = document.getElementById('info');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x3a3550);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.01, 500);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+let nodes = {}, mesh = null;
+function standAt(n) {
+  const p = new THREE.Vector3(...nodes[n]);
+  // the eye at the node, the target a step ahead (face 1's direction, -z), so dragging turns the head
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+  if (!isFinite(dir.x) || dir.lengthSq() === 0) dir.set(0, 0, -1);
+  camera.position.copy(p);
+  controls.target.copy(p).addScaledVector(dir, 0.01);
+  controls.minDistance = controls.maxDistance = 0.01;
+  controls.enablePan = false; controls.rotateSpeed = -0.4;
+  controls.update();
+}
+function orbit() {
+  const box = new THREE.Box3().setFromObject(mesh), c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+  controls.minDistance = 0.1; controls.maxDistance = 200; controls.enablePan = true; controls.rotateSpeed = 1;
+  controls.target.copy(c);
+  camera.position.copy(c).add(new THREE.Vector3(0, s.length() * 0.35, s.length() * 0.45));
+  controls.update();
+}
+const sel = document.getElementById('node');
+sel.addEventListener('change', () => standAt(sel.value));
+document.getElementById('orbit').addEventListener('click', orbit);
+document.getElementById('wire').addEventListener('click', () => { if (mesh) for (const m of Object.values(mats)) m.wireframe = !m.wireframe; });
+
+nodes = await (await fetch(BASE + 'nodes.json')).json();
+for (const n of Object.keys(nodes)) { const o = document.createElement('option'); o.value = n; o.textContent = 'MA ' + n; sel.appendChild(o); }
+const head = await (await fetch(BASE + 'scene.json')).json();
+const res = await fetch(BASE + 'scene.bin');
+const total = +res.headers.get('content-length') || 0, reader = res.body.getReader(), chunks = []; let got = 0;
+for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length;
+           if (total) info.textContent = `Loading ${(got / total * 100).toFixed(0)}%`; }
+const buf = new Uint8Array(got); { let o = 0; for (const c of chunks) { buf.set(c, o); o += c.length; } }
+const part = (name, T) => { const p = head.parts[name]; return new T(buf.buffer, p.offset, p.bytes / T.BYTES_PER_ELEMENT); };
+const geo = new THREE.BufferGeometry();
+geo.setAttribute('position', new THREE.BufferAttribute(part('position', Float32Array), 3));
+geo.setIndex(new THREE.BufferAttribute(part('index', Uint32Array), 1));
+const colors = { pictures: new THREE.BufferAttribute(part('color', Uint8Array), 3, true),
+                 albedo: new THREE.BufferAttribute(part('albedo', Uint8Array), 3, true) };
+geo.setAttribute('color', colors.pictures);
+geo.setAttribute('roughMetal', new THREE.BufferAttribute(part('roughMetal', Uint8Array), 2, true));
+geo.computeVertexNormals();
+
+// Lit: MeshStandardMaterial with the vertex's own roughness and metallic in place of the material's one value
+const lit = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide });
+lit.onBeforeCompile = sh => {
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 roughMetal;\nvarying vec2 vRM;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRM = roughMetal;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vRM;')
+    .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = clamp(vRM.x, 0.04, 1.0);')
+    .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vRM.y;');
+};
+const flat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+const channel = (expr) => new THREE.ShaderMaterial({ side: THREE.DoubleSide,
+  vertexShader: 'attribute vec2 roughMetal; varying vec2 vRM; varying vec3 vN; void main(){ vRM = roughMetal; vN = normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `varying vec2 vRM; varying vec3 vN; void main(){ gl_FragColor = vec4(${expr}, 1.0); }` });
+const mats = { pictures: flat, albedo: flat, lit, rough: channel('vec3(vRM.x)'), metal: channel('vec3(vRM.y)'),
+               normal: channel('normalize(vN) * 0.5 + 0.5') };
+mesh = new THREE.Mesh(geo, flat);
+scene.add(mesh);
+const sun = new THREE.DirectionalLight(0xfff1dd, 2.2), sky = new THREE.HemisphereLight(0xaab4ff, 0x302820, 0.6);
+scene.add(sun, sun.target, sky);
+function placeSun() {
+  const az = THREE.MathUtils.degToRad(+document.getElementById('sunaz').value), el = THREE.MathUtils.degToRad(+document.getElementById('sunel').value);
+  sun.position.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az)).multiplyScalar(50);
+}
+placeSun();
+for (const id of ['sunaz', 'sunel']) document.getElementById(id).addEventListener('input', placeSun);
+document.getElementById('mode').addEventListener('change', e => {
+  const m = e.target.value;
+  geo.setAttribute('color', m === 'pictures' ? colors.pictures : colors.albedo);
+  mesh.material = mats[m];
+  document.getElementById('sunbox').style.display = m === 'lit' ? '' : 'none';
+});
+info.textContent = `${(head.triangles / 1e6).toFixed(2)}M triangles, ${Object.keys(nodes).length} nodes. Drag to look; pick a node to stand at it, or Orbit.`;
+// the nodes in scene_mesh.py's order (MASS 84 first): numeric keys come out of JSON sorted
+sel.value = '4084' in nodes ? '4084' : Object.keys(nodes)[0];
+standAt(sel.value);
+
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body></html>
