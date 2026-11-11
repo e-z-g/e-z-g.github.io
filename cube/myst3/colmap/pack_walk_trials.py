@@ -59,15 +59,20 @@ def main():
                 subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', e['video'], '-an', *vf, '-c:v', 'libx264', '-crf', '20',
                                 '-g', '24', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', dst], check=True)
         item = {'name': e['name'], 'label': e['label'], 'score': s, 'worst': worst, 'rows': rows, 'cols': cols,
-                'video': e['name'] + '.mp4', 'back': e['name'] + '_back.mp4'}
+                'video': e['name'] + '.mp4', 'back': e['name'] + '_back.mp4',
+                'made': os.path.getmtime(e['video'])}         # when the render came back to this computer
         item.update({'fisheye': fisheye} if fisheye else {'cells': cells})
         items.append(item)
         print(f"{e['name']}: score {s}, worst {worst}", flush=True)
-    items.sort(key=lambda x: (x['score'] is None, x['score']))
+    items.sort(key=lambda x: -x['made'])                # newest first
     json.dump(items, open(os.path.join(out, 'trials.json'), 'w'), indent=0)
+    import time
+
     def line(x):
         s = '' if x['score'] is None else '%.2f (worst %.0f)' % (x['score'], x['worst'])
-        return f'<li><a href="./?crosswalk={html.escape(x["name"])}">{html.escape(x["label"])}</a><span>{s}</span></li>'
+        when = time.strftime('%d %b %H:%M', time.localtime(x['made']))
+        return (f'<tr><td class="t">{when}</td><td><a href="./?crosswalk={html.escape(x["name"])}">{html.escape(x["label"])}</a></td>'
+                f'<td class="s">{s}</td></tr>')
     rows = '\n'.join(line(x) for x in items)
     page = f'''<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -75,16 +80,18 @@ def main():
 <style>
 body {{ font: 16px/1.4 system-ui, sans-serif; background: #1d1d22; color: #e6e6e6; margin: 0; padding: 16px; }}
 h1 {{ font-size: 20px; margin: 0 0 6px; }} p {{ color: #aaa; margin: 0 0 14px; font-size: 14px; }}
-ol {{ padding-left: 22px; }} li {{ margin: 0 0 10px; }}
-a {{ color: #9cc8ff; text-decoration: none; }} span {{ color: #888; margin-left: 8px; font-size: 14px; }}
+table {{ border-collapse: collapse; width: 100%; }} td {{ padding: 7px 8px 7px 0; vertical-align: top; border-top: 1px solid #333; }}
+td.t {{ color: #888; white-space: nowrap; font-size: 13px; }} td.s {{ color: #888; white-space: nowrap; font-size: 13px; text-align: right; }}
+a {{ color: #9cc8ff; text-decoration: none; }}
 </style></head><body>
 <h1>Walk trials: Amateria MASS 84 to 89</h1>
-<p>Each opens the viewer at MASS 84; tap Walk. Sorted by score: how far the cube edges the picture does not
-join drift beyond the first frame (lower is better; the worst moment in brackets). Trials are 128 px a face
-and 56 frames, so soft; full renders are larger.</p>
-<ol>
+<p>Newest first. Each opens the viewer at MASS 84; tap Walk. Score: how far the joins the picture does not
+make drift beyond the first frame (lower is better; the worst moment in brackets); cube layouts and fisheye
+pairs are scored differently, so compare within a kind. Trials are small and 56 frames long; "Full" ones are
+full size.</p>
+<table>
 {rows}
-</ol></body></html>
+</table></body></html>
 '''
     open(os.path.join(site, 'walk-trials.html'), 'w').write(page)
     print(f'{len(items)} walks; {os.path.join(site, "walk-trials.html")}')
