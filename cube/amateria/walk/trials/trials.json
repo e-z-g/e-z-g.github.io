@@ -1,5 +1,129 @@
 [
 {
+"name": "trial-fisheye360-down-s2",
+"label": "Trial: ONE 360-degree fisheye looking down (weak point in the sky), seed 2 (unscored)",
+"score": null,
+"worst": null,
+"rows": 3,
+"cols": 4,
+"video": "trial-fisheye360-down-s2.mp4",
+"back": "trial-fisheye360-down-s2_back.mp4",
+"made": 1794367123.860963,
+"fisheye": {
+"fov": 360.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+-0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+1.0,
+1.0
+]
+],
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+-0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+1.0,
+1.0
+]
+]
+]
+}
+},
+{
+"name": "trial-fisheye360-down-s1",
+"label": "Trial: ONE 360-degree fisheye looking down (weak point in the sky), seed 1 (unscored)",
+"score": null,
+"worst": null,
+"rows": 3,
+"cols": 4,
+"video": "trial-fisheye360-down-s1.mp4",
+"back": "trial-fisheye360-down-s1_back.mp4",
+"made": 1794367119.1636128,
+"fisheye": {
+"fov": 360.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+-0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+1.0,
+1.0
+]
+],
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+-0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+1.0,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "trial-fisheye360-s2",
 "label": "Trial: ONE 360-degree fisheye (no seam; behind on the rim), seed 2 (unscored)",
 "score": null,

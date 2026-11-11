@@ -42,6 +42,8 @@ def main():
     ap.add_argument('--seeds', type=int, nargs='+', help='several walks, one for each seed, queued together')
     ap.add_argument('--turbo', default='h3\\minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors')
     ap.add_argument('--turbo-strength', type=float, default=1.0)
+    ap.add_argument('--unet', default='minimax_h3_fl2va_pruned_int8_convrot.safetensors',
+                    help='the H3 model file (minimax_h3_fl2va_pruned_w6a8.safetensors is the smaller, 16 GB)')
     ap.add_argument('--control', help="a control video (depth_walk.py's depth, near white) for H3's Fun ControlNet-Union")
     ap.add_argument('--control-strength', type=float, default=1.0)
     ap.add_argument('--control-end', type=float, default=1.0, help='the share of the steps the control guides')
@@ -62,7 +64,7 @@ def main():
     queued = []
     for seed in seeds:
       g = {
-          '1': {'class_type': 'UNETLoader', 'inputs': {'unet_name': 'minimax_h3_fl2va_pruned_int8_convrot.safetensors', 'weight_dtype': 'default'}},
+          '1': {'class_type': 'UNETLoader', 'inputs': {'unet_name': a.unet, 'weight_dtype': 'default'}},
           '2': {'class_type': 'LoraLoaderModelOnly', 'inputs': {'model': ['1', 0], 'lora_name': a.turbo, 'strength_model': a.turbo_strength}},
           '3': {'class_type': 'CLIPLoader', 'inputs': {'clip_name': 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors', 'type': 'minimax'}},
           '4': {'class_type': 'VAELoader', 'inputs': {'vae_name': 'minimax_h3_video_vae_fp16.safetensors'}},
