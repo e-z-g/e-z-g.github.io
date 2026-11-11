@@ -15,11 +15,17 @@ SPARSE_TXT the joined model as text. The nodes are those given and the --near ne
         OUT\moge\<node>_moge_depth.npy and the sky mask beside them. Needs a running ComfyUI.
   fuse  Each node's distances scaled to the model: the model's points that the node's faces saw, their
         distance from the node's centre against MoGe's in the same direction, median of the ratio
-        (written to OUT\scales.json with how well they agree). Each face then becomes a depth image along
+        (written to OUT\scales.json with how well they agree). With --dense, each node's distances are then
+        anchored to that cloud: the log of its distance over MoGe's, seen from the node, smoothed over the
+        sphere (--anchor-sigma degrees) and applied, so MoGe is pulled onto what was measured and carried
+        smoothly across the cloud's holes (OUT\moge\<node>_anchored.npy). Each face then becomes a depth image along
         its own axis (640 px, the picture's own pixels for colour) with the camera the model gives the
         node: face 1's rotation, the others turned from it as the cube's faces are. Sky and anything past
         --far times the median spacing between neighbouring nodes is left out. Every face of every node is
-        turned into points, thinned to one a --voxel times that spacing, and one surface laid through all
+        turned into points; a point is dropped where more of the other nodes within --check-range spacings
+        look past it to something farther than see something there (by --tolerance): a copy of a surface
+        put in the wrong place by one node lies in the open space of the others. The rest are thinned to
+        one a --voxel times that spacing, and one surface laid through all
         of them (Poisson, octree --depth) with the colours carried into its vertices; the surface is
         trimmed where it lies over 3 voxels from every point (where it closes over the sky or what no
         node saw), reduced to --triangles, and written as OUT\scene.ply
@@ -97,6 +103,9 @@ def main():
     ap.add_argument('--stage', default='moge,fuse'); ap.add_argument('--size', type=int, default=2048)
     ap.add_argument('--voxel', type=float, default=0.02); ap.add_argument('--far', type=float, default=12)
     ap.add_argument('--triangles', type=int, default=1500000); ap.add_argument('--depth', type=int, default=11)
+    ap.add_argument('--dense', help="a dense cloud in the model's frame (run_dense.ps1's fused.ply) to anchor each node's depth to")
+    ap.add_argument('--anchor-sigma', type=float, default=8.0)
+    ap.add_argument('--tolerance', type=float, default=0.06); ap.add_argument('--check-range', type=float, default=6.0)
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input')
     a = ap.parse_args()
@@ -160,13 +169,68 @@ def main():
         scales[n] = s
         report[n] = {'points': int(ok.sum()), 'scale': s, 'spread': float(np.median(np.abs(np.log(ratio / s))))}
         print(f'node {n}: scale {s:.4g} from {int(ok.sum())} points, typical misfit {report[n]["spread"] * 100:.0f}%', flush=True)
-    json.dump({'unit': unit, 'nodes': report}, open(os.path.join(a.out, 'scales.json'), 'w'), indent=1)
+    # Anchored to the dense cloud: one scale leaves each node's own shape errors (the nodes put the same
+    # walls up to half a node spacing apart, and far things too near), so the log of the dense cloud's
+    # distance over MoGe's, seen from the node (nearest dense point per cell of a 512 x 256 panorama), is
+    # smoothed over the sphere (normalised Gaussian, --anchor-sigma degrees) and multiplies MoGe's
+    # distances: pulled onto the measurement where there is one, carried smoothly across its holes.
+    if a.dense:
+        dense = np.asarray(o3d.io.read_point_cloud(a.dense).voxel_down_sample(0.005 * unit).points)
+        Wl, Hl = 512, 256
+        sig = a.anchor_sigma / 180 * Hl
+        def blur_sphere(x):
+            pad = int(3 * sig) + 1
+            xp = np.pad(x, ((pad, pad), (0, 0)), mode='reflect'); xp = np.pad(xp, ((0, 0), (pad, pad)), mode='wrap')
+            return cv2.GaussianBlur(xp, (0, 0), sig)[pad:-pad, pad:-pad]
+        for n in list(scales):
+            v = (dense - C[n]) @ R1[n].T @ F; r = np.linalg.norm(v, axis=1)
+            near = r < a.far * unit
+            u = v[near] / r[near, None]; r = r[near]
+            mx, my = dirs_to_equirect_px(u, Wl, Hl)
+            xi = np.rint(mx).astype(int) % Wl; yi = np.clip(np.rint(my).astype(int), 0, Hl - 1)
+            zb = np.full((Hl, Wl), np.inf, np.float32); np.minimum.at(zb, (yi, xi), r.astype(np.float32))
+            Dl = cv2.resize(D[n], (Wl, Hl), interpolation=cv2.INTER_NEAREST) * scales[n]
+            Ml = cv2.resize(M[n].astype(np.uint8), (Wl, Hl), interpolation=cv2.INTER_NEAREST) > 0
+            with np.errstate(all='ignore'):
+                lr = np.log(zb / Dl)
+            ok = Ml & np.isfinite(lr) & (np.abs(lr) < np.log(1.8))
+            w = ok.astype(np.float32); lr = np.where(ok, lr, 0).astype(np.float32)
+            field = blur_sphere(w * lr) / (blur_sphere(w) + 0.02)
+            after = np.abs(lr - field)[ok]
+            report[n].update({'anchor_cells': int(ok.sum()), 'dense_misfit_before': float(np.median(np.abs(lr[ok]))) if ok.any() else None,
+                              'dense_misfit_after': float(np.median(after)) if ok.any() else None})
+            D[n] = (D[n] * scales[n] * np.exp(cv2.resize(field, (W, H), interpolation=cv2.INTER_LINEAR))).astype(np.float32)
+            scales[n] = 1.0
+            np.save(os.path.join(a.out, 'moge', n + '_anchored.npy'), D[n])
+            print(f'node {n}: anchored on {int(ok.sum())} cells, misfit to the dense cloud {report[n]["dense_misfit_before"] * 100:.0f}% '
+                  f'-> {report[n]["dense_misfit_after"] * 100:.0f}%', flush=True)
+    json.dump({'unit': unit, 'anchored': bool(a.dense), 'nodes': report}, open(os.path.join(a.out, 'scales.json'), 'w'), indent=1)
+    # each node's distances at 1024 x 512 for the see-through test, the largest of each 3 x 3 (lenient at edges)
+    Wf, Hf = 1024, 512
+    Df = {n: cv2.dilate(cv2.resize(D[n] * scales[n], (Wf, Hf), interpolation=cv2.INTER_NEAREST), np.ones((3, 3), np.uint8)) for n in scales}
+    Mf = {n: cv2.resize(M[n].astype(np.uint8), (Wf, Hf), interpolation=cv2.INTER_NEAREST) > 0 for n in scales}
+
+    def see_through(n, X):
+        """How many other nodes look past each point X to something farther (it lies in their open
+        space: a misplaced copy), and how many see something there."""
+        bad = np.zeros(len(X), int); good = np.zeros(len(X), int)
+        for m in scales:
+            if m == n or np.linalg.norm(C[m] - C[n]) > a.check_range * unit:
+                continue
+            v = (X - C[m]) @ R1[m].T @ F; r = np.linalg.norm(v, axis=1)
+            mx, my = dirs_to_equirect_px(v / r[:, None], Wf, Hf)
+            xi = np.rint(mx).astype(int) % Wf; yi = np.clip(np.rint(my).astype(int), 0, Hf - 1)
+            dm = Df[m][yi, xi]; sky = ~Mf[m][yi, xi]
+            bad += (sky & (r < 3 * unit)) | (~sky & (r < dm * (1 - a.tolerance)))
+            good += ~sky & (np.abs(r - dm) < a.tolerance * dm)
+        return bad, good
 
     vox = a.voxel * unit
     N = 640
     intr = o3d.camera.PinholeCameraIntrinsic(N, N, N / 2, N / 2, N / 2 - .5, N / 2 - .5)
     t, s_ = np.mgrid[0:N, 0:N].astype(np.float64)
     cloud = o3d.geometry.PointCloud()
+    kept, dropped = {}, {}
     for n in nodes:
         if n not in scales:
             continue
@@ -188,9 +252,13 @@ def main():
             # normals from the face's own points, turned toward the node that saw them
             pc.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=4 * vox, max_nn=24))
             pc.orient_normals_towards_camera_location(C[n])
-            cloud += pc
+            # kept unless more other nodes see through it than see it
+            bad, good = see_through(n, np.asarray(pc.points))
+            keep = np.nonzero(bad <= good)[0]
+            dropped[n] = dropped.get(n, 0) + len(pc.points) - len(keep); kept[n] = kept.get(n, 0) + len(keep)
+            cloud += pc.select_by_index(keep)
         cloud = cloud.voxel_down_sample(vox / 2)
-        print(f'points from {n}: {len(cloud.points)} in all', flush=True)
+        print(f'points from {n}: {kept[n]} kept, {dropped[n]} seen through by other nodes; {len(cloud.points)} in all', flush=True)
     # Poisson's surface through every node's points (Open3D's TSDF volume gave no surface on this PC, even
     # for a flat test plane), then trimmed where it strays from them: what it closes over the sky and
     # where no node saw

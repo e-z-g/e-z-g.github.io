@@ -57,6 +57,9 @@ def main():
         C, R1 = face1[n]; s = sc['nodes'][n]['scale']
         pre = os.path.join(a.mesh, 'moge', n + '_moge')
         D = np.load(pre + '_depth.npy').astype(np.float32)
+        anch = os.path.join(a.mesh, 'moge', n + '_anchored.npy')
+        if os.path.exists(anch):                              # scene_mesh.py --dense: already in the model's units
+            D = cv2.resize(np.load(anch), (D.shape[1], D.shape[0]), interpolation=cv2.INTER_NEAREST); s = 1.0
         Mk = (np.load(pre + '_mask.npy') > 0.5) if os.path.exists(pre + '_mask.npy') else np.isfinite(D)
         if D.shape != (H, W):
             D = cv2.resize(D, (W, H), interpolation=cv2.INTER_NEAREST); Mk = cv2.resize(Mk.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST) > 0
