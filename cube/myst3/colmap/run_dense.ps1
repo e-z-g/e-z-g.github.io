@@ -21,7 +21,9 @@ param(
   [Parameter(Mandatory = $true)][string]$Images,
   [Parameter(Mandatory = $true)][string]$Sparse,
   [Parameter(Mandatory = $true)][string]$Out,
-  [string]$Colmap = 'C:\colmap\4.2.1\COLMAP.bat'
+  [string]$Colmap = 'C:\colmap\4.2.1\COLMAP.bat',
+  # patch_match_stereo works on images no larger than this (COLMAP's default 3200); for upscaled faces
+  [int]$MaxImageSize = 0
 )
 $ErrorActionPreference = 'Stop'
 $logs = Join-Path $Out 'logs'
@@ -39,10 +41,14 @@ function Step([string]$name, [string[]]$colmapArgs) {
 
 Step '1-image_undistorter' @('image_undistorter', '--image_path', $Images, '--input_path', $Sparse,
   '--output_path', $Out, '--output_type', 'COLMAP')
-Step '2-patch_match_stereo' @('patch_match_stereo', '--workspace_path', $Out, '--workspace_format', 'COLMAP',
+$pm = @('patch_match_stereo', '--workspace_path', $Out, '--workspace_format', 'COLMAP',
   '--PatchMatchStereo.geom_consistency', 'true')
-Step '3-stereo_fusion' @('stereo_fusion', '--workspace_path', $Out, '--workspace_format', 'COLMAP',
+if ($MaxImageSize -gt 0) { $pm += @('--PatchMatchStereo.max_image_size', "$MaxImageSize") }
+Step '2-patch_match_stereo' $pm
+$fu = @('stereo_fusion', '--workspace_path', $Out, '--workspace_format', 'COLMAP',
   '--input_type', 'geometric', '--output_path', (Join-Path $Out 'fused.ply'))
+if ($MaxImageSize -gt 0) { $fu += @('--StereoFusion.max_image_size', "$MaxImageSize") }
+Step '3-stereo_fusion' $fu
 Step '4-poisson_mesher' @('poisson_mesher', '--input_path', (Join-Path $Out 'fused.ply'),
   '--output_path', (Join-Path $Out 'meshed-poisson.ply'))
 Step '5-delaunay_mesher' @('delaunay_mesher', '--input_path', $Out, '--input_type', 'dense',

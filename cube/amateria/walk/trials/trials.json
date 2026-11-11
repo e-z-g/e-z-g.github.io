@@ -1,5 +1,67 @@
 [
 {
+"name": "full-fisheye360-down-1152-s1",
+"label": "Full: ONE 360-degree fisheye looking down, 1152x1152, seed 1 (unscored)",
+"score": null,
+"worst": null,
+"rows": 3,
+"cols": 4,
+"video": "full-fisheye360-down-1152-s1.mp4",
+"back": "full-fisheye360-down-1152-s1_back.mp4",
+"made": 1794372685.2141507,
+"fisheye": {
+"fov": 360.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+-0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+1.0,
+1.0
+]
+],
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+-0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+1.0,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "full-fisheye-1280-w6a8-s1",
 "label": "Full: two fisheyes, 1280x640, the smaller H3 model (w6a8), seed 1 (overlap score)",
 "score": 2.08,
