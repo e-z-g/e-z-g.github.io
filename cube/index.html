@@ -558,6 +558,9 @@
         versions: [
           // Original: the game's own faces, moved by the measured depth as one layer
           { label: 'Original',    suffix: '-orig.jpg' },
+          // MoGe depth: the same faces, depth made again by MoGe-3 from the whole panorama at once,
+          // scaled to the measured depth (myst3/colmap/moge_depth.py)
+          { label: 'MoGe depth',  suffix: '-orig.jpg', depthSuffix: '_moge-depth.png' },
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'leis77-layered-fg-color.webp', fgDepth: 'leis77-layered-fg-depth.png',
               bgColor: 'leis77-layered-bg-color.webp', bgDepth: 'leis77-layered-bg-depth.png' } },

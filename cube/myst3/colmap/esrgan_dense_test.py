@@ -112,9 +112,14 @@ def upscale(root, names, out, weights):
 def read_ply_points(path):
     with open(path, 'rb') as f:
         header = b''
-        while not header.endswith(b'end_header\n'):
-            header += f.readline()
-        h = header.decode()
+        while True:                                       # the header ends at end_header, whatever the line ending
+            line = f.readline()
+            if not line:
+                raise ValueError(f'{path}: no end_header')
+            header += line
+            if line.strip() == b'end_header':
+                break
+        h = header.decode(errors='ignore')
         n = int([l for l in h.splitlines() if l.startswith('element vertex')][0].split()[-1])
         props = [l.split() for l in h.splitlines() if l.startswith('property')]
         dt = np.dtype([(p[-1], {'float': '<f4', 'double': '<f8', 'uchar': 'u1', 'int': '<i4'}[p[1]]) for p in props])
@@ -164,12 +169,14 @@ def main():
     runs = (('dense', os.path.join(a.root, 'images'), 'sparse', None), ('dense_x4', os.path.join(a.out, 'images_x4'), 'sparse_x4', a.max_size))
     for run, images, sparse, mx in runs:
         t0 = time.time()
+        done = os.path.exists(os.path.join(a.out, run, 'fused.ply'))   # a run already done is not repeated
         cmd = ['powershell', '-ExecutionPolicy', 'Bypass', '-File', a.run_dense, '-Images', images,
                '-Sparse', os.path.join(a.out, sparse), '-Out', os.path.join(a.out, run)]
         if mx:
             cmd += ['-MaxImageSize', str(mx)]
-        print(f'== {run}', flush=True)
-        subprocess.run(cmd, check=False)
+        print(f'== {run}' + (' (done before)' if done else ''), flush=True)
+        if not done:
+            subprocess.run(cmd, check=False)
         ply = os.path.join(a.out, run, 'fused.ply')
         n = None
         if os.path.exists(ply):
