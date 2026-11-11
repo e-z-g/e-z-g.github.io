@@ -1,5 +1,129 @@
 [
 {
+"name": "full-fisheye-1280-73-depth",
+"label": "Full: two fisheyes, 1280x640, 73 frames (3 s), seed 1 - WITH depth control 0.5 (pair with plain above)",
+"score": 2.1,
+"worst": 3.6,
+"rows": 3,
+"cols": 4,
+"video": "full-fisheye-1280-73-depth.mp4",
+"back": "full-fisheye-1280-73-depth_back.mp4",
+"made": 1794373823.1377132,
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
+"name": "full-fisheye-1280-73-plain",
+"label": "Full: two fisheyes, 1280x640, 73 frames (3 s), seed 1 - plain (pair with depth below)",
+"score": 1.81,
+"worst": 3.0,
+"rows": 3,
+"cols": 4,
+"video": "full-fisheye-1280-73-plain.mp4",
+"back": "full-fisheye-1280-73-plain_back.mp4",
+"made": 1794373808.0079436,
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "full-fisheye360-down-1152-s1",
 "label": "Full: ONE 360-degree fisheye looking down, 1152x1152, seed 1 (unscored)",
 "score": null,
