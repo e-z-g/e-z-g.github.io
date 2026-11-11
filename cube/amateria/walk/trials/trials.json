@@ -5662,6 +5662,67 @@
 ]
 },
 {
+"name": "full-fisheye-s1",
+"label": "Full: two fisheyes, 1536x768 (768 px circles), seed 1 (overlap score)",
+"score": 4.8,
+"worst": 7.1,
+"rows": 3,
+"cols": 4,
+"video": "full-fisheye-s1.mp4",
+"back": "full-fisheye-s1_back.mp4",
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "trial-fisheye-depth1-s1",
 "label": "Trial: two fisheyes + depth control 1.0, seed 1 (overlap score)",
 "score": 4.85,

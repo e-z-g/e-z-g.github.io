@@ -419,9 +419,9 @@
         walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 89)', label: 'MASS 89', at: 0,
                 eq: { video: 'eq/walk84_packed.mp4?v=1', back: 'eq/walk84_packed_back.mp4?v=1', look: [-0.8885, 0.0, -0.4588],
                       packed: { size: [1920, 1680], flat: [1280, 720], hfov: 90 },
-                      cross: { video: 'eq/walk84_h3_staircase.mp4?v=1', back: 'eq/walk84_h3_staircase_back.mp4?v=1', rows: 2, cols: 5,
-                               // [row, col, x, y, z] per cell, from walk_ends.py --net staircase's layout.json
-                               cells: [[0,1,[1,0,0],[0,0,1],[0,-1,0]],[0,2,[0,1,0],[0,0,1],[1,0,0]],[0,0,[0,-1,0],[0,0,1],[-1,0,0]],[1,2,[0,1,0],[-1,0,0],[0,0,1]],[1,3,[0,0,-1],[-1,0,0],[0,1,0]],[1,4,[0,-1,0],[-1,0,0],[0,0,-1]]] } } },
+                      cross: { video: '../walk/trials/full-fisheye-s1.mp4?v=1', back: '../walk/trials/full-fisheye-s1_back.mp4?v=1',
+                               // walk_ends.py --dual-fisheye's layout.json: two 190-degree eyes, ahead and behind
+                               fisheye: { fov: 190.0, eyes: [[[1.0,0.0,-0.0],[0.0,1.0,0.0],[-0.0,0.0,1.0],[0.0,0.0,0.5,1.0]],[[-1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-1.0],[0.5,0.0,0.5,1.0]]] } } } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         faces: ['MA-4084-1', 'MA-4084-2', 'MA-4084-3', 'MA-4084-4', 'MA-4084-5', 'MA-4084-6'],
@@ -448,9 +448,9 @@
         walk: { scene: 'amateria/walk/', to: 'Amateria (MASS 84)', label: 'MASS 84', at: 1,
                 eq: { video: 'eq/walk84_packed.mp4?v=1', back: 'eq/walk84_packed_back.mp4?v=1', look: [-0.8885, 0.0, -0.4588],
                       packed: { size: [1920, 1680], flat: [1280, 720], hfov: 90 },
-                      cross: { video: 'eq/walk84_h3_staircase.mp4?v=1', back: 'eq/walk84_h3_staircase_back.mp4?v=1', rows: 2, cols: 5,
-                               // [row, col, x, y, z] per cell, from walk_ends.py --net staircase's layout.json
-                               cells: [[0,1,[1,0,0],[0,0,1],[0,-1,0]],[0,2,[0,1,0],[0,0,1],[1,0,0]],[0,0,[0,-1,0],[0,0,1],[-1,0,0]],[1,2,[0,1,0],[-1,0,0],[0,0,1]],[1,3,[0,0,-1],[-1,0,0],[0,1,0]],[1,4,[0,-1,0],[-1,0,0],[0,0,-1]]] } } },
+                      cross: { video: '../walk/trials/full-fisheye-s1.mp4?v=1', back: '../walk/trials/full-fisheye-s1_back.mp4?v=1',
+                               // walk_ends.py --dual-fisheye's layout.json: two 190-degree eyes, ahead and behind
+                               fisheye: { fov: 190.0, eyes: [[[1.0,0.0,-0.0],[0.0,1.0,0.0],[-0.0,0.0,1.0],[0.0,0.0,0.5,1.0]],[[-1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,-1.0],[0.5,0.0,0.5,1.0]]] } } } },
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
