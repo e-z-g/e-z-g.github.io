@@ -27,7 +27,11 @@ SPARSE_TXT the joined model as text. The nodes are those given and the --near ne
         put in the wrong place by one node lies in the open space of the others. A point more than
         --confirm-beyond spacings from its own node is also dropped unless at least one other node sees
         something there: far surfaces one node sees at a grazing angle are where its guess is worst, and
-        nothing else would contradict them (from outside they stood out as shards). The rest are thinned to
+        nothing else would contradict them (from outside they stood out as shards). With --splat-centres
+        (splat/splat_mesh_check.py's splat_centres.npy: a Gaussian splat's centres in the viewer frame
+        below), a point is also dropped unless a splat centre lies within --splat-radius spacings: the
+        splat was fitted to every picture at once, so what MoGe alone put somewhere has no splat there (and
+        what the splat does not cover is left out). The rest are thinned to
         one a --voxel times that spacing, and one surface laid through all
         of them (Poisson, octree --depth) with the colours carried into its vertices; the surface is
         trimmed where it lies over 3 voxels from every point (where it closes over the sky or what no
@@ -112,6 +116,7 @@ def main():
     ap.add_argument('--anchor-sigma', type=float, default=8.0)
     ap.add_argument('--tolerance', type=float, default=0.06); ap.add_argument('--check-range', type=float, default=6.0)
     ap.add_argument('--confirm-beyond', type=float, default=3.0)
+    ap.add_argument('--splat-centres'); ap.add_argument('--splat-radius', type=float, default=0.2)
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input')
     a = ap.parse_args()
@@ -232,6 +237,12 @@ def main():
         return bad, good
 
     vox = a.voxel * unit
+    n0 = nodes[0]
+    T = np.eye(4); T[:3, :3] = F @ R1[n0] / unit; T[:3, 3] = -(F @ R1[n0] @ C[n0]) / unit    # model to viewer frame
+    splat_tree = None
+    if a.splat_centres:
+        from scipy.spatial import cKDTree
+        splat_tree = cKDTree(np.load(a.splat_centres).astype(np.float64))
     N = 640
     intr = o3d.camera.PinholeCameraIntrinsic(N, N, N / 2, N / 2, N / 2 - .5, N / 2 - .5)
     t, s_ = np.mgrid[0:N, 0:N].astype(np.float64)
@@ -263,11 +274,15 @@ def main():
             X = np.asarray(pc.points)
             bad, good = see_through(n, X)
             far_off = np.linalg.norm(X - C[n], axis=1) > a.confirm_beyond * unit
-            keep = np.nonzero((bad <= good) & (~far_off | (good >= 1)))[0]
+            ok = (bad <= good) & (~far_off | (good >= 1))
+            if splat_tree is not None:
+                ds, _ = splat_tree.query(X @ T[:3, :3].T + T[:3, 3], distance_upper_bound=a.splat_radius, workers=-1)
+                ok &= np.isfinite(ds)
+            keep = np.nonzero(ok)[0]
             dropped[n] = dropped.get(n, 0) + len(pc.points) - len(keep); kept[n] = kept.get(n, 0) + len(keep)
             cloud += pc.select_by_index(keep)
         cloud = cloud.voxel_down_sample(vox / 2)
-        print(f'points from {n}: {kept[n]} kept, {dropped[n]} seen through by other nodes; {len(cloud.points)} in all', flush=True)
+        print(f'points from {n}: {kept[n]} kept, {dropped[n]} dropped; {len(cloud.points)} in all', flush=True)
     # Poisson's surface through every node's points (Open3D's TSDF volume gave no surface on this PC, even
     # for a flat test plane), then trimmed where it strays from them: what it closes over the sky and
     # where no node saw
@@ -286,8 +301,6 @@ def main():
     if len(mesh.triangles) > a.triangles:
         mesh = mesh.simplify_quadric_decimation(a.triangles)
     # the viewer's frame: first node at the origin, y up, one unit the node spacing
-    n0 = nodes[0]
-    T = np.eye(4); T[:3, :3] = F @ R1[n0] / unit; T[:3, 3] = -(F @ R1[n0] @ C[n0]) / unit
     mesh.transform(T)
     mesh.compute_vertex_normals()
     o3d.io.write_triangle_mesh(os.path.join(a.out, 'scene.ply'), mesh)

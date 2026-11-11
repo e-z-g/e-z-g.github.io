@@ -214,6 +214,10 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/video_match_stats.py`, `seq_match_stats.py`, `node_points.py`, `set_camera.py` | Small checks: frame-to-face matches, frame-to-frame matches along a movie, points per node face, a fixed camera for trials. |
 | `colmap/viewer/` | A browser viewer for a dense cloud and mesh (`index.html`, three.js), `export_viewer_data.py` to pack the data, `serve_viewer.py` to serve it locally or through a tunnel. No data is committed. |
 | `colmap/ENSI/`, `colmap/Amateria/` | Pair lists, rig files, `nodes.json`, run summaries (no images). |
+| `colmap/scene_mesh.py` | One mesh of a stretch of an age from its nodes: MoGe-3's panorama depth per node, scaled by the model's points and anchored to a dense cloud, points other nodes see through dropped, far points kept only where a second node (or a splat) backs them up, Poisson's surface through the rest. Writes the mesh in a viewer frame (MASS 84 at the origin, one unit the node spacing), `nodes.json` and `views.json`. Needs numpy, Pillow, opencv-python, open3d. |
+| `colmap/scene_attrs.py` | `scene_mesh.py`'s mesh with every node's picture, albedo, roughness and metallic (from `materials.py --nodes`) carried into its vertices, as `scene.bin` for `scene3d.html`; and each node's faces as a 3×2 atlas for its projection. |
+| `colmap/film_stretch.py` | A short video made longer by FILM's in-between frames, halving each gap `--levels` times. |
+| `splat/splat_mesh_check.py` | How far a mesh's vertices lie from a Gaussian splat of the same place: the splat's frame matched to the mesh's by the nodes both have and ICP, the splat's centres written in the mesh's frame for `scene_mesh.py --splat-centres`. |
 
 ```sh
 python colmap/prepare_colmap.py C:\myst3_out\faces maps\rooms\ENSI.json maps\ages\Voltaic.json C:\myst3_colmap\ENSI
@@ -1641,3 +1645,39 @@ stands against the sunset, the stretch showed as a lit rim round every rib
 whenever depth was on. `build_layers.py` now keeps those holes and gives the
 backdrop under them the in-between surface's own colour at its own depth; all
 five Layered nodes were rebuilt.
+
+## The pier as one mesh (11 November 2026)
+
+`scene3d.html` shows MASS 84, 89 and their 20 nearest nodes as one mesh
+(`colmap/scene_mesh.py`, `colmap/scene_attrs.py`). Each node's panorama gets
+distances from MoGe-3 (ComfyUI's panorama inference at 2048 × 1024), scaled to
+the joined model by the sparse points its faces saw. Open3D's TSDF volume made
+no surface on the PC, not even for a flat test plane, so Poisson
+reconstruction joins the nodes' points instead.
+
+The first mesh was a mess: each node's MoGe shape is its own guess, and
+the nodes disagreed with the dense cloud by 4–37%, so every wall came in up to
+22 copies. Four filters followed, each a rebuild:
+
+| step | what it does | points into the surface |
+|---|---|---|
+| anchored | the log of the dense cloud's distance over MoGe's, seen from the node, smoothed over the sphere (8°) and multiplied in; misfit to the cloud 2–7% (1037: 11%) | 5.85M |
+| see-through | a point dropped where more of the other nodes within 6 spacings look past it than see something there | (with the above) |
+| second node | a point beyond 3 spacings from its node kept only if another node sees something there; nothing past 10 spacings | 2.49M |
+| splat | a point kept only within 0.2 spacings of a centre of the `walk84room` splat (opacity ≥ 0.2), matched to the mesh's frame by 13 shared nodes (residual median 0.17 spacings: the splat's model moved the MASS 82–90 run) and ICP | 1.92M |
+
+Each step took off loose shards seen from outside, but the surfaces that
+remain are still lumpy, and the rock wall and posts still fan out in strips:
+those are backed by more than one node and by splats, only not quite in the
+same place. From inside, between the nodes, it reads as the place.
+
+The viewer projects the nodes' own pictures instead of the vertex colours.
+For the six nodes nearest the eye, it renders each node's view of the mesh
+once as distances (a 3 × 2 atlas, 512 px a face). A node gives a pixel its
+picture's colour only where its distance there agrees with the surface's
+(3% + 0.02), weighted by the angle between its line of sight and the eye's.
+Behind the mesh, the nearest node's picture is drawn at infinity. At MASS 84
+facing face 1 with a 90° view the render is 0.7/255 from the game's face (the
+vertex colours: 22/255); walking to MASS 89, frames differ by 3/255 a step,
+9/255 once halfway where the sky changes node. The pictures are the game's
+640 px faces (`amateria/scene/pictures/`).
