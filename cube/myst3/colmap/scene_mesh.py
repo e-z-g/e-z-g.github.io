@@ -4,11 +4,12 @@ One coloured mesh of a stretch of an age, fused from its nodes: each node's pano
 placed by the joined model's cameras and scaled by its points, the six faces of every node joined into one
 surface (Poisson reconstruction, Open3D) and coloured from the game's own pictures.
 
-    python scene_mesh.py ROOT SPARSE_TXT OUT --nodes 4084 4089 [--near 20] [--stage moge,fuse]
-        [--size 2048] [--voxel 0.02] [--far 12] [--confirm-beyond 3] [--triangles 1500000]
+    python scene_mesh.py ROOT SPARSE_TXT OUT --nodes 4084 4089 [--near 20] [--exclude N ...] [--stage moge,fuse]
+        [--size 2048] [--voxel 0.02] [--far 12] [--confirm-beyond 3] [--triangles 1500000] [--tile 12]
 
 ROOT holds images\f<k>\MA-<node>.jpg (k as node_depth.py's faces: front, bottom, back, right, left, top);
-SPARSE_TXT the joined model as text. The nodes are those given and the --near nearest to their middle.
+SPARSE_TXT the joined model as text. The nodes are those given and the --near nearest to their middle, less
+--exclude (nodes the model still has in the wrong place).
 
   moge  For each node, its six faces drawn as one equirectangular panorama (--size wide) and MoGe-3's
         panorama inference run on it in ComfyUI (as moge_depth.py), the distances saved as
@@ -35,7 +36,13 @@ SPARSE_TXT the joined model as text. The nodes are those given and the --near ne
         one a --voxel times that spacing, and one surface laid through all
         of them (Poisson, octree --depth) with the colours carried into its vertices; the surface is
         trimmed where it lies over 3 voxels from every point (where it closes over the sky or what no
-        node saw), reduced to --triangles, and written as OUT\scene.ply
+        node saw), reduced to --triangles, and written as OUT\scene.ply. With --tile, for a whole age,
+        the surface is laid tile by tile (squares --tile spacings across in the viewer frame's x and z,
+        each with --tile-margin round it, keeping the triangles whose middle is in the square), since
+        Poisson's octree spans all its points and one over an age is as coarse as the age is wide; the
+        --triangles are shared by the tiles' points. A node the model gives too few points to scale
+        by is scaled by the --dense cloud alone, and with --dense every node's scale is first set by
+        the dense cloud (the model's points no longer fit nodes it moved later). Written
         and OUT\scene.glb (y up, the first node at the origin, one unit the median node spacing) with
         OUT\nodes.json (each node's centre in the same frame, for the viewer's start) and OUT\views.json
         (each node's centre and the rotation from that frame to the node's own, x right, y up, -z face 1,
@@ -109,6 +116,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('root'); ap.add_argument('sparse'); ap.add_argument('out')
     ap.add_argument('--nodes', nargs='+', required=True); ap.add_argument('--near', type=int, default=20)
+    ap.add_argument('--exclude', nargs='*', default=[], help='nodes left out (still misplaced in the model)')
     ap.add_argument('--stage', default='moge,fuse'); ap.add_argument('--size', type=int, default=2048)
     ap.add_argument('--voxel', type=float, default=0.02); ap.add_argument('--far', type=float, default=12)
     ap.add_argument('--triangles', type=int, default=1500000); ap.add_argument('--depth', type=int, default=11)
@@ -117,6 +125,8 @@ def main():
     ap.add_argument('--tolerance', type=float, default=0.06); ap.add_argument('--check-range', type=float, default=6.0)
     ap.add_argument('--confirm-beyond', type=float, default=3.0)
     ap.add_argument('--splat-centres'); ap.add_argument('--splat-radius', type=float, default=0.2)
+    ap.add_argument('--tile', type=float, default=0, help='surface laid in square tiles this many spacings across (0: one surface)')
+    ap.add_argument('--tile-margin', type=float, default=1.0)
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input')
     a = ap.parse_args()
@@ -125,7 +135,7 @@ def main():
     by_name = {h[9]: (i, h, pts) for i, (h, pts) in imgs.items()}
     face1 = {h[9].split('/')[1][3:-4]: centre(h) for h, _ in imgs.values() if h[9].startswith('f1/MA-')}
     mid = np.mean([face1[n][0] for n in a.nodes], axis=0)
-    order = sorted(face1, key=lambda n: np.linalg.norm(face1[n][0] - mid))
+    order = [n for n in sorted(face1, key=lambda n: np.linalg.norm(face1[n][0] - mid)) if n not in a.exclude]
     nodes = list(dict.fromkeys(a.nodes + order))[:len(a.nodes) + a.near]
     print(f'{len(nodes)} nodes: {" ".join(nodes)}', flush=True)
     W, H = a.size, a.size // 2
@@ -169,7 +179,12 @@ def main():
                 ids |= {int(x) for x in e[2][2::3] if int(x) >= 0}
         X = np.array([pts3d[i] for i in ids if i in pts3d])
         if len(X) < 10:
-            print(f'node {n}: {len(X)} points, left out', flush=True); continue
+            if a.dense:
+                scales[n] = 1.0; report[n] = {'points': 0, 'scale': 1.0, 'spread': None}
+                print(f'node {n}: {len(X)} points, scaled by the dense cloud alone', flush=True)
+            else:
+                print(f'node {n}: {len(X)} points, left out', flush=True)
+            continue
         v = (X - C[n]) @ R1[n].T @ F                         # node frame (F is its own inverse)
         r = np.linalg.norm(v, axis=1); v /= r[:, None]
         mx, my = dirs_to_equirect_px(v, W, H)
@@ -180,6 +195,9 @@ def main():
         scales[n] = s
         report[n] = {'points': int(ok.sum()), 'scale': s, 'spread': float(np.median(np.abs(np.log(ratio / s))))}
         print(f'node {n}: scale {s:.4g} from {int(ok.sum())} points, typical misfit {report[n]["spread"] * 100:.0f}%', flush=True)
+    # A node the model moved after its points were made (node_align.py --runs, apply_moves.py) no longer fits
+    # those points; with --dense its scale is first set by the dense cloud itself (median over the panorama's
+    # cells of the dense distance over MoGe's), so the anchoring below starts within its reach.
     # Anchored to the dense cloud: one scale leaves each node's own shape errors (the nodes put the same
     # walls up to half a node spacing apart, and far things too near), so the log of the dense cloud's
     # distance over MoGe's, seen from the node (nearest dense point per cell of a 512 x 256 panorama), is
@@ -204,6 +222,10 @@ def main():
             Ml = cv2.resize(M[n].astype(np.uint8), (Wl, Hl), interpolation=cv2.INTER_NEAREST) > 0
             with np.errstate(all='ignore'):
                 lr = np.log(zb / Dl)
+            ok0 = Ml & np.isfinite(lr)
+            if ok0.sum() > 200:
+                g = float(np.median(lr[ok0])); scales[n] *= np.exp(g); Dl = Dl * np.exp(g); lr = lr - g
+                report[n]['dense_scale'] = float(np.exp(g))
             ok = Ml & np.isfinite(lr) & (np.abs(lr) < np.log(1.8))
             w = ok.astype(np.float32); lr = np.where(ok, lr, 0).astype(np.float32)
             field = blur_sphere(w * lr) / (blur_sphere(w) + 0.02)
@@ -213,8 +235,10 @@ def main():
             D[n] = (D[n] * scales[n] * np.exp(cv2.resize(field, (W, H), interpolation=cv2.INTER_LINEAR))).astype(np.float32)
             scales[n] = 1.0
             np.save(os.path.join(a.out, 'moge', n + '_anchored.npy'), D[n])
-            print(f'node {n}: anchored on {int(ok.sum())} cells, misfit to the dense cloud {report[n]["dense_misfit_before"] * 100:.0f}% '
-                  f'-> {report[n]["dense_misfit_after"] * 100:.0f}%', flush=True)
+            if not ok.any():
+                print(f'node {n}: nothing of the dense cloud to anchor to', flush=True); continue
+            print(f'node {n}: anchored on {int(ok.sum())} cells (scale x{report[n].get("dense_scale", 1):.3f} first), misfit to the dense cloud '
+                  f'{report[n]["dense_misfit_before"] * 100:.0f}% -> {report[n]["dense_misfit_after"] * 100:.0f}%', flush=True)
     json.dump({'unit': unit, 'anchored': bool(a.dense), 'nodes': report}, open(os.path.join(a.out, 'scales.json'), 'w'), indent=1)
     # each node's distances at 1024 x 512 for the see-through test, the largest of each 3 x 3 (lenient at edges)
     Wf, Hf = 1024, 512
@@ -246,11 +270,12 @@ def main():
     N = 640
     intr = o3d.camera.PinholeCameraIntrinsic(N, N, N / 2, N / 2, N / 2 - .5, N / 2 - .5)
     t, s_ = np.mgrid[0:N, 0:N].astype(np.float64)
-    cloud = o3d.geometry.PointCloud()
+    parts = []
     kept, dropped = {}, {}
     for n in nodes:
         if n not in scales:
             continue
+        cloud = o3d.geometry.PointCloud()
         for k in range(1, 7):
             v = np.stack(DIRS[k]((s_ + .5) / N, (t + .5) / N), -1)
             nv = np.linalg.norm(v, axis=-1)
@@ -281,25 +306,58 @@ def main():
             keep = np.nonzero(ok)[0]
             dropped[n] = dropped.get(n, 0) + len(pc.points) - len(keep); kept[n] = kept.get(n, 0) + len(keep)
             cloud += pc.select_by_index(keep)
-        cloud = cloud.voxel_down_sample(vox / 2)
-        print(f'points from {n}: {kept[n]} kept, {dropped[n]} dropped; {len(cloud.points)} in all', flush=True)
+        parts.append(cloud.voxel_down_sample(vox / 2))
+        print(f'points from {n}: {kept[n]} kept, {dropped[n]} dropped', flush=True)
     # Poisson's surface through every node's points (Open3D's TSDF volume gave no surface on this PC, even
     # for a flat test plane), then trimmed where it strays from them: what it closes over the sky and
     # where no node saw
+    cloud = o3d.geometry.PointCloud()
+    for c in parts:
+        cloud += c
+    del parts
     cloud = cloud.voxel_down_sample(vox)
     print(f'{len(cloud.points)} points for the surface', flush=True)
-    mesh, dens = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(cloud, depth=a.depth, n_threads=-1)
-    dens = np.asarray(dens)
-    print(f'{len(mesh.triangles)} triangles', flush=True)
-    vpc = o3d.geometry.PointCloud(mesh.vertices)
-    gap = np.asarray(vpc.compute_point_cloud_distance(cloud))
-    mesh.remove_vertices_by_mask((gap > 3 * vox) | (dens < np.quantile(dens, 0.02)))
-    tri_c, n_c, _ = mesh.cluster_connected_triangles()
-    tri_c = np.asarray(tri_c); n_c = np.asarray(n_c)
-    mesh.remove_triangles_by_mask(n_c[tri_c] < 200); mesh.remove_unreferenced_vertices()
-    print(f'{len(mesh.triangles)} triangles kept', flush=True)
-    if len(mesh.triangles) > a.triangles:
-        mesh = mesh.simplify_quadric_decimation(a.triangles)
+
+    def surface(pc, budget, keep_tri=None):
+        m, dens = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pc, depth=a.depth, n_threads=-1)
+        dens = np.asarray(dens); nt = len(m.triangles)
+        gap = np.asarray(o3d.geometry.PointCloud(m.vertices).compute_point_cloud_distance(pc))
+        m.remove_vertices_by_mask((gap > 3 * vox) | (dens < np.quantile(dens, 0.02)))
+        if keep_tri is not None:
+            m.remove_triangles_by_mask(~keep_tri(np.asarray(m.vertices)[np.asarray(m.triangles)].mean(1)))
+            m.remove_unreferenced_vertices()
+        if not len(m.triangles):
+            return m, nt
+        tri_c, n_c, _ = m.cluster_connected_triangles()
+        tri_c = np.asarray(tri_c); n_c = np.asarray(n_c)
+        m.remove_triangles_by_mask(n_c[tri_c] < 200); m.remove_unreferenced_vertices()
+        if len(m.triangles) > budget:
+            m = m.simplify_quadric_decimation(int(budget))
+        return m, nt
+
+    if not a.tile:
+        mesh, nt = surface(cloud, a.triangles)
+        print(f'{nt} triangles, {len(mesh.triangles)} kept', flush=True)
+    else:
+        # in tiles: Poisson's octree spans its points' box, so one surface over a whole age is as coarse as the
+        # age is wide. Each tile is surfaced with --tile-margin around it and keeps the triangles whose middle
+        # lies in it; the triangle budget is shared by the tiles' points.
+        Pv = np.asarray(cloud.points) @ T[:3, :3].T + T[:3, 3]
+        L, mg = a.tile, a.tile_margin
+        ij = np.floor(Pv[:, [0, 2]] / L).astype(int)
+        cells, counts = np.unique(ij, axis=0, return_counts=True)
+        mesh = o3d.geometry.TriangleMesh()
+        for (ci, cj), cnt in zip(cells, counts):
+            if cnt < 2000:
+                continue
+            lo = np.array([ci, cj]) * L; hi = lo + L
+            sel = np.all((Pv[:, [0, 2]] >= lo - mg) & (Pv[:, [0, 2]] < hi + mg), axis=1)
+            def inside(X, lo=lo, hi=hi):
+                Y = X @ T[:3, :3].T + T[:3, 3]
+                return np.all((Y[:, [0, 2]] >= lo) & (Y[:, [0, 2]] < hi), axis=1)
+            m, nt = surface(cloud.select_by_index(np.nonzero(sel)[0]), a.triangles * cnt / len(Pv), inside)
+            print(f'tile {ci},{cj}: {cnt} points, {nt} triangles, {len(m.triangles)} kept', flush=True)
+            mesh += m
     # the viewer's frame: first node at the origin, y up, one unit the node spacing
     mesh.transform(T)
     mesh.compute_vertex_normals()

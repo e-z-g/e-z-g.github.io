@@ -85,10 +85,14 @@ document.getElementById('wire').addEventListener('click', () => { if (mesh) for 
 nodes = await (await fetch(BASE + 'nodes.json')).json(); window.__nodes = nodes;
 for (const n of Object.keys(nodes)) { const o = document.createElement('option'); o.value = n; o.textContent = 'MA ' + n; sel.appendChild(o); }
 const head = await (await fetch(BASE + 'scene.json')).json();
-const res = await fetch(BASE + 'scene.bin');
-const total = +res.headers.get('content-length') || 0, reader = res.body.getReader(), chunks = []; let got = 0;
-for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length;
-           if (total) info.textContent = `Loading ${(got / total * 100).toFixed(0)}%`; }
+// scene.bin, or for a large mesh its pieces (scene.json's files: under GitHub's 100 MB a file) joined in order
+const files = head.files || ['scene.bin'], chunks = []; let got = 0, total = head.bytes || 0;
+for (const f of files) {
+  const res = await fetch(BASE + f), reader = res.body.getReader();
+  if (!head.bytes) total = +res.headers.get('content-length') || 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length;
+             if (total) info.textContent = `Loading ${(got / total * 100).toFixed(0)}%`; }
+}
 const buf = new Uint8Array(got); { let o = 0; for (const c of chunks) { buf.set(c, o); o += c.length; } }
 const part = (name, T) => { const p = head.parts[name]; return new T(buf.buffer, p.offset, p.bytes / T.BYTES_PER_ELEMENT); };
 const geo = new THREE.BufferGeometry();

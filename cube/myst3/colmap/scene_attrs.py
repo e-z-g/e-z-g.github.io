@@ -10,7 +10,7 @@ into every face of every node: where it falls inside the face and its distance a
 with the face's own depth there (MoGe's, scaled as the mesh was) to --tolerance of it plus two voxels, the
 face sees it, and the face's picture, albedo, roughness and metallic there are added in, weighted by how
 squarely and how near the face sees it (cosine over distance). A vertex no face sees keeps the mesh's own
-colour and mid values. Writes MESH_DIR\scene.bin and scene.json for the viewer: positions (float32, the
+colour and mid values; a node with no maps gives its picture as albedo and mid values. Writes MESH_DIR\scene.bin (cut into scene.bin.0, .1, ... over --piece MB) and scene.json for the viewer: positions (float32, the
 viewer's frame as scene.glb's), triangle indices (uint32), and per vertex the picture's colour, the albedo
 (uint8 RGB each) and roughness and metallic (uint8 each). Also each node's six faces as one picture,
 MESH_DIR\pictures\MA-<node>.jpg: three across and two down in face order (1 2 3 above, 4 5 6 below), each
@@ -33,7 +33,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('root'); ap.add_argument('sparse'); ap.add_argument('mesh'); ap.add_argument('maps')
     ap.add_argument('--tolerance', type=float, default=0.06); ap.add_argument('--voxel', type=float, default=0.02)
-    ap.add_argument('--size', type=int, default=2048)
+    ap.add_argument('--size', type=int, default=2048); ap.add_argument('--piece', type=float, default=90, help='MB a piece of scene.bin')
+    ap.add_argument('--reach', type=float, default=15, help='spacings from a node within which its faces colour vertices')
     ap.add_argument('--depth-from', help="where the nodes' moge\\ depth is, when MESH_DIR is not scene_mesh.py's own (splat_mesh.py's)")
     a = ap.parse_args()
     import open3d as o3d
@@ -68,13 +69,16 @@ def main():
         if D.shape != (H, W):
             D = cv2.resize(D, (W, H), interpolation=cv2.INTER_NEAREST); Mk = cv2.resize(Mk.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST) > 0
         seen = 0
+        # only the vertices within --reach spacings of the node (an age-wide mesh has millions out of its sight)
+        cand = np.nonzero(np.linalg.norm(Pw - C, axis=1) < a.reach * unit)[0]
+        Pc, Nc = Pw[cand], Nw[cand]
         for k in range(1, 7):
             v = np.stack(DIRS[k]((s_ + .5) / N, (t_ + .5) / N), -1); nv = np.linalg.norm(v, axis=-1)
             mx, my = dirs_to_equirect_px(v / nv[..., None], W, H)
             z_map = cv2.remap(D, mx, my, cv2.INTER_NEAREST, borderMode=cv2.BORDER_WRAP) * s / nv
             ok_map = cv2.remap(Mk.astype(np.uint8), mx, my, cv2.INTER_NEAREST, borderMode=cv2.BORDER_WRAP) > 0
             Rk = face_rot(k) @ F @ R1
-            pc = (Pw - C) @ Rk.T
+            pc = (Pc - C) @ Rk.T
             z = pc[:, 2]
             front = z > 1e-6
             u = np.where(front, pc[:, 0] / np.maximum(z, 1e-6) * N / 2 + N / 2 - .5, -1)
@@ -87,8 +91,8 @@ def main():
             idx = idx[vis]
             if not len(idx):
                 continue
-            ray = (Pw[idx] - C); dist = np.linalg.norm(ray, axis=1); ray /= dist[:, None]
-            cos = np.abs(np.sum(ray * Nw[idx], axis=1))
+            ray = (Pc[idx] - C); dist = np.linalg.norm(ray, axis=1); ray /= dist[:, None]
+            cos = np.abs(np.sum(ray * Nc[idx], axis=1))
             wt = np.maximum(cos, 0.05) / (dist / unit)
             yy, xx = vi[idx], ui[idx]
             pic = np.asarray(Image.open(os.path.join(a.root, 'images', f'f{k}', f'MA-{n}.jpg')).convert('RGB'), np.float64)
@@ -98,11 +102,11 @@ def main():
                 if os.path.exists(f):
                     im = np.asarray(Image.open(f).convert('RGB').resize((N, N)), np.float64)
                     vals.append(im[yy, xx] if ch == 3 else im[yy, xx, :1])
-                else:
-                    vals.append(np.full((len(idx), ch), np.nan))
+                else:                                         # no maps for this node: the picture as albedo, mid values
+                    vals.append(pic[yy, xx] if ch == 3 else np.full((len(idx), 1), 128.0))
             vals = np.concatenate(vals, 1)
             good = ~np.isnan(vals).any(1)
-            np.add.at(acc, idx[good], vals[good] * wt[good, None]); np.add.at(wsum, idx[good], wt[good])
+            np.add.at(acc, cand[idx[good]], vals[good] * wt[good, None]); np.add.at(wsum, cand[idx[good]], wt[good])
             seen += len(idx)
         print(f'node {n}: {seen} vertex sightings', flush=True)
         faces = [Image.open(os.path.join(a.root, 'images', f'f{k}', f'MA-{n}.jpg')).convert('RGB') for k in range(1, 7)]
@@ -126,6 +130,15 @@ def main():
             head['parts'][name] = {'offset': off, 'bytes': len(b), 'type': str(arr.dtype), 'size': arr.shape[1]}
             f.write(b); off += len(b)
             pad = (-off) % 4; f.write(b'\0' * pad); off += pad
+    # over --piece MB, cut into scene.bin.0, .1, ... for the viewer to join (GitHub takes no file over 100 MB)
+    head['bytes'] = off
+    piece = int(a.piece * 1e6)
+    if off > piece:
+        raw = open(os.path.join(a.mesh, 'scene.bin'), 'rb').read(); head['files'] = []
+        for i in range(0, off, piece):
+            name = f'scene.bin.{i // piece}'
+            open(os.path.join(a.mesh, name), 'wb').write(raw[i:i + piece]); head['files'].append(name)
+        os.remove(os.path.join(a.mesh, 'scene.bin'))
     json.dump(head, open(os.path.join(a.mesh, 'scene.json'), 'w'), indent=1)
     print(os.path.join(a.mesh, 'scene.bin'), off, 'bytes', flush=True)
 
