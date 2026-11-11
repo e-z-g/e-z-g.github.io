@@ -5,7 +5,7 @@ placed by the joined model's cameras and scaled by its points, the six faces of 
 surface (Poisson reconstruction, Open3D) and coloured from the game's own pictures.
 
     python scene_mesh.py ROOT SPARSE_TXT OUT --nodes 4084 4089 [--near 20] [--stage moge,fuse]
-        [--size 2048] [--voxel 0.02] [--far 12] [--triangles 1500000]
+        [--size 2048] [--voxel 0.02] [--far 12] [--confirm-beyond 3] [--triangles 1500000]
 
 ROOT holds images\f<k>\MA-<node>.jpg (k as node_depth.py's faces: front, bottom, back, right, left, top);
 SPARSE_TXT the joined model as text. The nodes are those given and the --near nearest to their middle.
@@ -24,13 +24,18 @@ SPARSE_TXT the joined model as text. The nodes are those given and the --near ne
         --far times the median spacing between neighbouring nodes is left out. Every face of every node is
         turned into points; a point is dropped where more of the other nodes within --check-range spacings
         look past it to something farther than see something there (by --tolerance): a copy of a surface
-        put in the wrong place by one node lies in the open space of the others. The rest are thinned to
+        put in the wrong place by one node lies in the open space of the others. A point more than
+        --confirm-beyond spacings from its own node is also dropped unless at least one other node sees
+        something there: far surfaces one node sees at a grazing angle are where its guess is worst, and
+        nothing else would contradict them (from outside they stood out as shards). The rest are thinned to
         one a --voxel times that spacing, and one surface laid through all
         of them (Poisson, octree --depth) with the colours carried into its vertices; the surface is
         trimmed where it lies over 3 voxels from every point (where it closes over the sky or what no
         node saw), reduced to --triangles, and written as OUT\scene.ply
         and OUT\scene.glb (y up, the first node at the origin, one unit the median node spacing) with
-        OUT\nodes.json (each node's centre in the same frame, for the viewer's start).
+        OUT\nodes.json (each node's centre in the same frame, for the viewer's start) and OUT\views.json
+        (each node's centre and the rotation from that frame to the node's own, x right, y up, -z face 1,
+        row by row, for a viewer that projects the node's pictures onto the mesh).
 
 MoGe's shapes are each node's own guess; where nodes disagree the surface runs between them, so what many nodes
 see is firmer than what one sees. Needs numpy, Pillow, opencv-python, open3d.
@@ -106,6 +111,7 @@ def main():
     ap.add_argument('--dense', help="a dense cloud in the model's frame (run_dense.ps1's fused.ply) to anchor each node's depth to")
     ap.add_argument('--anchor-sigma', type=float, default=8.0)
     ap.add_argument('--tolerance', type=float, default=0.06); ap.add_argument('--check-range', type=float, default=6.0)
+    ap.add_argument('--confirm-beyond', type=float, default=3.0)
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input')
     a = ap.parse_args()
@@ -252,9 +258,12 @@ def main():
             # normals from the face's own points, turned toward the node that saw them
             pc.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=4 * vox, max_nn=24))
             pc.orient_normals_towards_camera_location(C[n])
-            # kept unless more other nodes see through it than see it
-            bad, good = see_through(n, np.asarray(pc.points))
-            keep = np.nonzero(bad <= good)[0]
+            # kept unless more other nodes see through it than see it, and when far from the node only if
+            # another node sees it too
+            X = np.asarray(pc.points)
+            bad, good = see_through(n, X)
+            far_off = np.linalg.norm(X - C[n], axis=1) > a.confirm_beyond * unit
+            keep = np.nonzero((bad <= good) & (~far_off | (good >= 1)))[0]
             dropped[n] = dropped.get(n, 0) + len(pc.points) - len(keep); kept[n] = kept.get(n, 0) + len(keep)
             cloud += pc.select_by_index(keep)
         cloud = cloud.voxel_down_sample(vox / 2)
@@ -285,6 +294,9 @@ def main():
     o3d.io.write_triangle_mesh(os.path.join(a.out, 'scene.glb'), mesh)
     json.dump({n: (F @ R1[n0] @ (C[n] - C[n0]) / unit).tolist() for n in nodes},
               open(os.path.join(a.out, 'nodes.json'), 'w'), indent=1)
+    # viewer frame to node n's frame: F R1[n] R1[n0]^T F (both frames have the same scale)
+    json.dump({n: {'pos': (F @ R1[n0] @ (C[n] - C[n0]) / unit).tolist(), 'rot': (F @ R1[n] @ R1[n0].T @ F).tolist()} for n in nodes},
+              open(os.path.join(a.out, 'views.json'), 'w'), indent=1)
     print(f'{len(mesh.triangles)} triangles after; {os.path.join(a.out, "scene.glb")}', flush=True)
 
 

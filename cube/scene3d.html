@@ -19,7 +19,7 @@ canvas { display: block; touch-action: none; }
   <select id="node" title="Stand at a node"></select>
   <button id="orbit">Orbit</button>
   <select id="mode" title="What the surface shows">
-    <option value="pictures">Pictures</option><option value="lit">Lit (albedo, sun)</option>
+    <option value="projected">Pictures</option><option value="pictures">Pictures, per vertex</option><option value="lit">Lit (albedo, sun)</option>
     <option value="albedo">Albedo</option><option value="rough">Roughness</option>
     <option value="metal">Metallic</option><option value="normal">Normals</option>
   </select>
@@ -31,7 +31,11 @@ canvas { display: block; touch-action: none; }
 // The pier between MASS 84 and 89 and its 20 nearest nodes as one mesh: each node's panorama given
 // distances by MoGe, placed and scaled by the joined model, fused (myst3/colmap/scene_mesh.py), and every
 // node's Marigold maps (albedo, roughness, metallic) carried onto its vertices (scene_attrs.py). Pictures:
-// the game's colours, its sunset lighting baked in, drawn unlit. Lit: the albedo under a sun you move.
+// the game's colours, its sunset lighting baked in, drawn unlit: projected from the nearest nodes' own
+// pictures (each a 3 x 2 atlas of its faces), each node's view of the mesh rendered once as distances so a
+// node gives its colour only where it sees the surface, and the node whose line of sight lies closest to the
+// eye's counting most (at a node, that node's picture alone); where none of them sees it, the per-vertex
+// colour. Pictures, per vertex: only the colour carried into the vertices. Lit: the albedo under a sun.
 // Drag to look round; at a node, the eye stays there, as the game's; Orbit circles the whole stretch.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -73,7 +77,7 @@ sel.addEventListener('change', () => standAt(sel.value));
 document.getElementById('orbit').addEventListener('click', orbit);
 document.getElementById('wire').addEventListener('click', () => { if (mesh) for (const m of Object.values(mats)) m.wireframe = !m.wireframe; });
 
-nodes = await (await fetch(BASE + 'nodes.json')).json();
+nodes = await (await fetch(BASE + 'nodes.json')).json(); window.__nodes = nodes;
 for (const n of Object.keys(nodes)) { const o = document.createElement('option'); o.value = n; o.textContent = 'MA ' + n; sel.appendChild(o); }
 const head = await (await fetch(BASE + 'scene.json')).json();
 const res = await fetch(BASE + 'scene.bin');
@@ -93,20 +97,149 @@ geo.computeVertexNormals();
 
 // Lit: MeshStandardMaterial with the vertex's own roughness and metallic in place of the material's one value
 const lit = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide });
+// the vertex colours are the pictures' sRGB bytes; the lit and flat materials want linear (the renderer
+// turns the result back into sRGB), the shader materials pass them through as they are
 lit.onBeforeCompile = sh => {
   sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 roughMetal;\nvarying vec2 vRM;')
     .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRM = roughMetal;');
   sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vRM;')
     .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = clamp(vRM.x, 0.04, 1.0);')
-    .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vRM.y;');
+    .replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vRM.y;')
+    .replace('#include <color_fragment>', 'diffuseColor.rgb *= pow(vColor, vec3(2.2));');
 };
-const flat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+const flat = new THREE.ShaderMaterial({ side: THREE.DoubleSide, vertexColors: true,
+  vertexShader: 'varying vec3 vC; void main(){ vC = color; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'varying vec3 vC; void main(){ gl_FragColor = vec4(vC, 1.0); }' });
 const channel = (expr) => new THREE.ShaderMaterial({ side: THREE.DoubleSide,
   vertexShader: 'attribute vec2 roughMetal; varying vec2 vRM; varying vec3 vN; void main(){ vRM = roughMetal; vN = normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `varying vec2 vRM; varying vec3 vN; void main(){ gl_FragColor = vec4(${expr}, 1.0); }` });
-const mats = { pictures: flat, albedo: flat, lit, rough: channel('vec3(vRM.x)'), metal: channel('vec3(vRM.y)'),
+// --- the nodes' pictures projected ---
+// node frame (x right, y up, -z face 1) to a face's atlas cell, as scene_mesh.py's faces: face k's centre,
+// its s and t directions (t down the picture); faces 1 2 3 across the top of the atlas, 4 5 6 below
+const SLOTS = 6, CELL = 512, DIST = 64.0;
+const atlasGLSL = `
+vec2 atlasUV(vec3 d, float edge) {
+  vec3 a = abs(d); float s, t, z, k;
+  if (a.z >= a.x && a.z >= a.y) { if (d.z < 0.0) { k = 0.0; z = -d.z; s = d.x; t = -d.y; } else { k = 2.0; z = d.z; s = -d.x; t = -d.y; } }
+  else if (a.x >= a.y) { if (d.x > 0.0) { k = 3.0; z = d.x; s = d.z; t = -d.y; } else { k = 4.0; z = -d.x; s = -d.z; t = -d.y; } }
+  else { if (d.y < 0.0) { k = 1.0; z = -d.y; s = -d.x; t = -d.z; } else { k = 5.0; z = d.y; s = -d.x; t = d.z; } }
+  float sn = clamp(0.5 + 0.5 * s / z, edge, 1.0 - edge), tn = clamp(0.5 + 0.5 * t / z, edge, 1.0 - edge);
+  float col = mod(k, 3.0), row = floor(k / 3.0);
+  return vec2((col + sn) / 3.0, 1.0 - (row + tn) / 2.0);
+}`;
+// a face's camera in the node frame: rows s, t, ahead (as atlasUV)
+const FACE = [[1,0,0, 0,-1,0, 0,0,-1], [-1,0,0, 0,0,-1, 0,-1,0], [-1,0,0, 0,-1,0, 0,0,1],
+              [0,0,1, 0,-1,0, 1,0,0], [0,0,-1, 0,-1,0, -1,0,0], [-1,0,0, 0,0,1, 0,1,0]].map(r => new THREE.Matrix3().set(...r));
+const depthMat = new THREE.ShaderMaterial({ side: THREE.DoubleSide,
+  uniforms: { M: { value: new THREE.Matrix3() }, Q: { value: new THREE.Matrix3() }, np: { value: new THREE.Vector3() } },
+  vertexShader: `uniform mat3 M; uniform mat3 Q; uniform vec3 np; varying vec3 vD;
+    void main(){ vD = Q * (position - np); vec3 p = M * vD; const float n = 0.01, f = ${DIST.toFixed(1)};
+      gl_Position = vec4(p.x, -p.y, p.z * (f + n) / (f - n) - 2.0 * f * n / (f - n), p.z); }`,
+  fragmentShader: `#include <packing>
+    varying vec3 vD; void main(){ gl_FragColor = packDepthToRGBA(min(length(vD) / ${DIST.toFixed(1)}, 0.999)); }` });
+let proj = null;
+const views = await fetch(BASE + 'views.json').then(r => r.ok ? r.json() : null).catch(() => null);
+if (views) {
+  const uni = { np: { value: [] }, nr: { value: [] }, on: { value: new Array(SLOTS).fill(0) }, eye: { value: new THREE.Vector3() } };
+  let body = '';
+  for (let i = 0; i < SLOTS; i++) {
+    uni['pic' + i] = { value: null }; uni['dep' + i] = { value: null };
+    uni.np.value.push(new THREE.Vector3()); uni.nr.value.push(new THREE.Matrix3());
+    body += `
+  if (on[${i}] > 0.5) {
+    vec3 d = nr[${i}] * (vW - np[${i}]); float r = length(d);
+    float D = unpackRGBAToDepth(texture2D(dep${i}, atlasUV(d, 0.5 / ${CELL}.0))) * ${DIST.toFixed(1)};
+    if (abs(r - D) < 0.03 * r + 0.02) {
+      float c = clamp(dot(normalize(vW - eye), normalize(vW - np[${i}])), -1.0, 1.0), ang = acos(c);
+      float w = 1.0 / (ang * ang + 0.002) / max(r, 0.3);
+      acc += vec4(texture2D(pic${i}, atlasUV(d, 0.6 / 640.0)).rgb * w, w);
+    }
+  }`;
+  }
+  const decl = Array.from({ length: SLOTS }, (_, i) => `uniform sampler2D pic${i}, dep${i};`).join('\n');
+  const projMat = new THREE.ShaderMaterial({ side: THREE.DoubleSide, vertexColors: true, uniforms: uni,
+    vertexShader: 'varying vec3 vC; varying vec3 vW; void main(){ vC = color; vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `#include <packing>
+${decl}
+uniform vec3 np[${SLOTS}]; uniform mat3 nr[${SLOTS}]; uniform float on[${SLOTS}]; uniform vec3 eye;
+varying vec3 vC; varying vec3 vW;
+${atlasGLSL}
+void main(){ vec4 acc = vec4(0.0);${body}
+  gl_FragColor = vec4(acc.w > 0.0 ? acc.rgb / acc.w : vC, 1.0); }` });
+  // per node: its picture atlas (loaded when it is among the nearest) and its distances (rendered then);
+  // the least recently needed beyond KEEP are let go
+  const KEEP = 10, cache = new Map(), depthScene = new THREE.Scene(), dummy = new THREE.PerspectiveCamera();
+  const depthMesh = new THREE.Mesh(geo, depthMat); depthMesh.frustumCulled = false; depthScene.add(depthMesh);
+  const loader = new THREE.TextureLoader();
+  function renderDepth(n) {
+    const v = views[n], Q = new THREE.Matrix3().set(...v.rot.flat());
+    const rt = new THREE.WebGLRenderTarget(3 * CELL, 2 * CELL, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
+    const ac = renderer.autoClear, cc = renderer.getClearColor(new THREE.Color()), ca = renderer.getClearAlpha();
+    renderer.setRenderTarget(rt); renderer.setClearColor(0xffffff, 1); renderer.clear();
+    renderer.autoClear = false;
+    depthMat.uniforms.Q.value.copy(Q); depthMat.uniforms.np.value.set(...v.pos);
+    for (let k = 0; k < 6; k++) {
+      rt.viewport.set(k % 3 * CELL, (1 - Math.floor(k / 3)) * CELL, CELL, CELL);
+      renderer.setRenderTarget(rt);
+      depthMat.uniforms.M.value.copy(FACE[k]);
+      renderer.render(depthScene, dummy);
+    }
+    renderer.autoClear = ac; renderer.setClearColor(cc, ca); renderer.setRenderTarget(null);
+    return rt;
+  }
+  function need(n) {
+    let e = cache.get(n);
+    if (!e) {
+      e = { pic: null, dep: null, Q: new THREE.Matrix3().set(...views[n].rot.flat()), pos: new THREE.Vector3(...views[n].pos) };
+      cache.set(n, e);
+      loader.load(BASE + 'pictures/MA-' + n + '.jpg', t => {
+        t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+        if (cache.get(n) === e) { e.pic = t; slotsAt = null; } else t.dispose();
+      });
+    }
+    if (!e.dep) e.dep = renderDepth(n);
+    cache.delete(n); cache.set(n, e);                     // most recent last
+    return e;
+  }
+  let slotsAt = null;
+  const order = Object.keys(views);
+  function update(ref) {
+    if (slotsAt && slotsAt.distanceTo(ref) < 0.02) return;
+    slotsAt = ref.clone();
+    const near = order.slice().sort((a, b) => ref.distanceToSquared(new THREE.Vector3(...views[a].pos)) - ref.distanceToSquared(new THREE.Vector3(...views[b].pos))).slice(0, SLOTS);
+    near.forEach((n, i) => {
+      const e = need(n);
+      uni.np.value[i].copy(e.pos); uni.nr.value[i].copy(e.Q);
+      uni['pic' + i].value = e.pic; uni['dep' + i].value = e.dep.texture; uni.on.value[i] = e.pic ? 1 : 0;
+    });
+    while (cache.size > KEEP) {
+      const [old, e] = cache.entries().next().value;
+      if (near.includes(old)) break;
+      if (e.pic) e.pic.dispose(); if (e.dep) e.dep.dispose(); cache.delete(old);
+    }
+  }
+  // behind the mesh, where it has no surface (the sky, the sea, what is too far or seen by one node only),
+  // the nearest node's picture at infinity: a sphere round the eye
+  const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false,
+    uniforms: { pic: { value: null }, Q: { value: new THREE.Matrix3() }, eye: uni.eye },
+    vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: `uniform sampler2D pic; uniform mat3 Q; uniform vec3 eye; varying vec3 vW;
+${atlasGLSL}
+void main(){ gl_FragColor = vec4(texture2D(pic, atlasUV(Q * normalize(vW - eye), 0.6 / 640.0)).rgb, 1.0); }` });
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), skyMat);
+  sky.renderOrder = -1; sky.frustumCulled = false; sky.visible = false; scene.add(sky);
+  const origUpdate = update;
+  proj = { mat: projMat, uni, sky, update(ref, standing) {
+    origUpdate(ref);
+    const near = order.reduce((a, b) => ref.distanceToSquared(new THREE.Vector3(...views[a].pos)) <= ref.distanceToSquared(new THREE.Vector3(...views[b].pos)) ? a : b);
+    const e = cache.get(near);
+    sky.visible = standing && !!(e && e.pic);
+    if (sky.visible) { skyMat.uniforms.pic.value = e.pic; skyMat.uniforms.Q.value.copy(e.Q); sky.position.copy(camera.position); }
+  } };
+}
+const mats = { projected: proj ? proj.mat : flat, pictures: flat, albedo: flat, lit, rough: channel('vec3(vRM.x)'), metal: channel('vec3(vRM.y)'),
                normal: channel('normalize(vN) * 0.5 + 0.5') };
-mesh = new THREE.Mesh(geo, flat);
+mesh = new THREE.Mesh(geo, mats.projected);
 scene.add(mesh);
 const sun = new THREE.DirectionalLight(0xfff1dd, 2.2), sky = new THREE.HemisphereLight(0xaab4ff, 0x302820, 0.6);
 scene.add(sun, sun.target, sky);
@@ -118,7 +251,7 @@ placeSun();
 for (const id of ['sunaz', 'sunel']) document.getElementById(id).addEventListener('input', placeSun);
 document.getElementById('mode').addEventListener('change', e => {
   const m = e.target.value;
-  geo.setAttribute('color', m === 'pictures' ? colors.pictures : colors.albedo);
+  geo.setAttribute('color', m === 'pictures' || m === 'projected' ? colors.pictures : colors.albedo);
   mesh.material = mats[m];
   document.getElementById('sunbox').style.display = m === 'lit' ? '' : 'none';
 });
@@ -126,7 +259,15 @@ info.textContent = `${(head.triangles / 1e6).toFixed(2)}M triangles, ${Object.ke
 // the nodes in scene_mesh.py's order (MASS 84 first): numeric keys come out of JSON sorted
 sel.value = '4084' in nodes ? '4084' : Object.keys(nodes)[0];
 standAt(sel.value);
+window.scene3d = { camera, controls, standAt };          // for the page tests
 
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+renderer.setAnimationLoop(() => {
+  controls.update();
+  // the nodes nearest where you stand, or in Orbit nearest what you circle
+  if (proj && mesh.material === proj.mat) { const standing = controls.maxDistance < 0.05;
+    proj.uni.eye.value.copy(camera.position); proj.update(standing ? camera.position : controls.target, standing); }
+  else if (proj) proj.sky.visible = false;
+  renderer.render(scene, camera);
+});
 </script>
 </body></html>

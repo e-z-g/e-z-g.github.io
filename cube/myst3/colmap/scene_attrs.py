@@ -12,7 +12,9 @@ face sees it, and the face's picture, albedo, roughness and metallic there are a
 squarely and how near the face sees it (cosine over distance). A vertex no face sees keeps the mesh's own
 colour and mid values. Writes MESH_DIR\scene.bin and scene.json for the viewer: positions (float32, the
 viewer's frame as scene.glb's), triangle indices (uint32), and per vertex the picture's colour, the albedo
-(uint8 RGB each) and roughness and metallic (uint8 each). Needs numpy, Pillow, opencv-python, open3d.
+(uint8 RGB each) and roughness and metallic (uint8 each). Also each node's six faces as one picture,
+MESH_DIR\pictures\MA-<node>.jpg: three across and two down in face order (1 2 3 above, 4 5 6 below), each
+face as in ROOT, for a viewer that projects them. Needs numpy, Pillow, opencv-python, open3d.
 """
 import argparse
 import json
@@ -101,6 +103,12 @@ def main():
             np.add.at(acc, idx[good], vals[good] * wt[good, None]); np.add.at(wsum, idx[good], wt[good])
             seen += len(idx)
         print(f'node {n}: {seen} vertex sightings', flush=True)
+        faces = [Image.open(os.path.join(a.root, 'images', f'f{k}', f'MA-{n}.jpg')).convert('RGB') for k in range(1, 7)]
+        fs = faces[0].size[0]; atlas = Image.new('RGB', (3 * fs, 2 * fs))
+        for k, im in enumerate(faces):
+            atlas.paste(im, (k % 3 * fs, k // 3 * fs))
+        os.makedirs(os.path.join(a.mesh, 'pictures'), exist_ok=True)
+        atlas.save(os.path.join(a.mesh, 'pictures', f'MA-{n}.jpg'), quality=92)
     have = wsum > 0
     out = np.empty((len(V), 8))
     out[have] = acc[have] / wsum[have, None]
