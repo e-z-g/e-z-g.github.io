@@ -105,6 +105,40 @@ NETS = {
     # then front wall, floor, back wall. The right wall meets the sky and the front wall in the picture.
     'staircase': (2, 5, [(0, 0), (0, 1), (0, 2), (1, 2), (1, 3), (1, 4)], (0, 1), lambda r, d, f: (r, f, -d)),
 }
+# Copies in a net's empty cells: (cell, the used or earlier-filled cell it continues). Each copy is the face
+# that truly lies beyond that neighbour's edge, turned to meet it, so edges the net leaves apart also appear
+# joined somewhere in the picture; its other sides may border cells it is not next to on the cube ("false").
+FILLS = {
+    # floor' beyond the right wall, left' beyond floor'; sky' beyond the front wall, back' beyond sky'
+    ('staircase', 'skycopy'): [((0, 3), (0, 2)), ((0, 4), (0, 3)), ((1, 1), (1, 2)), ((1, 0), (1, 1))],
+    # the sky once: floor' and left' as above; front' below the left wall and below the sky. 9 of 12 edges
+    # joined somewhere, as many as any fill with the sky once; the three left apart are all the back wall's
+    ('staircase', 'skyonce'): [((0, 3), (0, 2)), ((0, 4), (0, 3)), ((1, 0), (0, 0)), ((1, 1), (0, 1))],
+}
+STEP = {(0, 1): lambda x, y, z: (-z, y, x), (0, -1): lambda x, y, z: (z, y, -x),
+        (-1, 0): lambda x, y, z: (x, z, -y), (1, 0): lambda x, y, z: (x, -z, y)}
+
+
+def fill_layout(Rcam, net, fill='skycopy'):
+    """The copies for a net's empty cells, and the picture edges between cells that do not truly meet."""
+    rows, cols, cells = net_layout(Rcam, net)
+    ax = {rc: a for _, rc, a in cells}
+    copies = []
+    for cell, parent in FILLS.get((net, fill), []):
+        ax[cell] = STEP[(cell[0] - parent[0], cell[1] - parent[1])](*ax[parent])
+        copies.append(cell)
+    false = []
+    for (r, c), a in ax.items():
+        for dr, dc in ((0, 1), (1, 0)):
+            n = (r + dr, c + dc)
+            if n in ax and not np.allclose(np.stack(STEP[(dr, dc)](*a)), np.stack(ax[n])):
+                false.append(((r, c), n))
+    right, down, fwd = Rcam
+    name = lambda v: min({'front': fwd, 'back': -fwd, 'right': right, 'left': -right, 'floor': down, 'sky': -down}.items(),
+                         key=lambda kv: np.linalg.norm(kv[1] - v))[0]
+    return [(name(ax[rc][2]), rc, ax[rc]) for rc in copies], false
+
+
 # Not nets: rows of faces joined only within each row, the rows touching in the picture but not on the cube
 # (a 2x3 rectangle cannot fold into a cube). Each row: its cells and one cell's axes; --gap px of black between rows.
 STRIPS = {
@@ -148,13 +182,20 @@ def cell_rects(W, H, rows, cols, gap):
     return {(r, c): (c * cw, r * (ch + gap), cw, ch) for r in range(rows) for c in range(cols)}
 
 
-def draw_net(faces, Rcam, W, H, net, gap=0):
+def draw_net(faces, Rcam, W, H, net, gap=0, fill=None, line=0):
     rows, cols, cells = net_layout(Rcam, net)
     R = cell_rects(W, H, rows, cols, gap)
     g = np.zeros((H, W, 3), np.uint8)
-    for _, rc, axes in cells:
+    copies, false = fill_layout(Rcam, net, fill) if fill else ([], [])
+    for _, rc, axes in cells + copies:
         x, y, cw, ch = R[rc]
         g[y:y + ch, x:x + cw] = draw(faces, np.stack(axes), cw, ch, cw / 2)
+    for a, b in false if line else []:            # a black line along each false join
+        xa, ya, cw, ch = R[a]
+        if b[0] == a[0]:
+            g[ya:ya + ch, xa + cw - line // 2:xa + cw + (line + 1) // 2] = 0
+        else:
+            g[ya + ch - line // 2:ya + ch + (line + 1) // 2, xa:xa + cw] = 0
     return g
 
 
@@ -234,6 +275,8 @@ def main():
                     help='the cross with this face at its hub (all four of its edges joined in the picture); writes layout.json')
     ap.add_argument('--net', choices=sorted(NETS) + sorted(STRIPS), help='another cube net (NETS) or rows of faces (STRIPS); writes layout.json')
     ap.add_argument('--gap', type=int, default=0, help='px of black between rows (with --net)')
+    ap.add_argument('--fill', nargs='?', const='skycopy', help="the net's empty cells filled with copies (FILLS: skycopy, skyonce)")
+    ap.add_argument('--false-line', type=int, default=0, help='px of black along joins between cells that do not truly meet (with --fill)')
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))
     _, imgs = read_model(a.sparse)
@@ -253,7 +296,7 @@ def main():
     if a.equirect:
         render = lambda F: draw_equirect(F, Rcam, W, H)
     elif a.net:
-        render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap)
+        render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap, a.fill, a.false_line)
     elif a.cross_hub:
         render = lambda F: draw_cross_hub(F, Rcam, W, H, a.cross_hub)
     elif a.cross_floor:
@@ -275,7 +318,7 @@ def main():
         rows, cols, cells = (3, 4, cross_layout(Rcam, a.cross_hub)) if a.cross_hub else net_layout(Rcam, a.net)
         R = cell_rects(W, H, rows, cols, a.gap if a.net else 0)
         json.dump({'net': a.net or 'cross', 'hub': a.cross_hub, 'rows': rows, 'cols': cols, 'size': [W, H],
-                   'joined_rows_only': bool(a.net in STRIPS),
+                   'joined_rows_only': bool(a.net in STRIPS), 'filled': a.fill,
                    'cells': [{'face': n, 'row': rc[0], 'col': rc[1], 'rect': list(R[rc]),
                               'axes': [[round(float(v), 6) for v in B @ ax] for ax in axes]} for n, rc, axes in cells]},
                   open(os.path.join(a.out, 'layout.json'), 'w'), indent=1)

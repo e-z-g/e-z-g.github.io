@@ -1860,6 +1860,8 @@
     // ?crosswalk: the same walk from a video of a cube unfolded as a cross
     // (cfg.eq.cross; walk_ends.py --cross-floor's layout, the floor at the hub)
     const CROSS_WALK = new URLSearchParams(location.search).has('crosswalk');
+    // ?crosswalk=NAME: one of the trial walks in amateria/walk/trials/trials.json (walk-trials.html lists them)
+    const CROSS_TRIAL = new URLSearchParams(location.search).get('crosswalk') || '';
     const EQ_WALK = new URLSearchParams(location.search).has('eqwalk') || CROSS_WALK;
     const eqWalk = { key: null, scene: null, fwd: null, back: null, playing: null };
     async function loadEqWalk(cfg) {
@@ -1879,7 +1881,14 @@
           v.src = URL.createObjectURL(blob); v.load();
         })) };
       };
-      const eq = CROSS_WALK && cfg.eq.cross ? Object.assign({}, cfg.eq, cfg.eq.cross, { packed: null }) : cfg.eq;
+      let cross = cfg.eq.cross;
+      if (CROSS_WALK && CROSS_TRIAL) {
+        const list = await fetch(rawUrl + 'amateria/walk/trials/trials.json?v=' + Date.now()).then(r => r.json());
+        const tr = list.find(x => x.name === CROSS_TRIAL);
+        if (!tr) throw new Error('no trial walk ' + CROSS_TRIAL);
+        cross = Object.assign({}, tr, { video: '../walk/trials/' + tr.video, back: '../walk/trials/' + tr.back });
+      }
+      const eq = CROSS_WALK && cross ? Object.assign({}, cfg.eq, cross, { packed: null }) : cfg.eq;
       const fwd = video(base + eq.video), back = video(base + eq.back);
       // cfg.eq.packed: one video holding both the 360 walk (top, W x W/2) and
       // a flat walk looking ahead (below it, left; the same model, 90 degrees
@@ -1904,7 +1913,8 @@
                     cX: { value: (eq.cells || Array(6).fill([0, 0, [0, 0, 0], [0, 0, 0], [0, 0, 0]])).map(c => new THREE.Vector3(...c[2])) },
                     cY: { value: (eq.cells || Array(6).fill([0, 0, [0, 0, 0], [0, 0, 0], [0, 0, 0]])).map(c => new THREE.Vector3(...c[3])) },
                     cZ: { value: (eq.cells || Array(6).fill([0, 0, [0, 0, 0], [0, 0, 0], [0, 0, 0]])).map(c => new THREE.Vector3(...c[4])) },
-                    cCell: { value: (eq.cells || Array(6).fill([0, 0])).map(c => new THREE.Vector2(c[1], c[0])) } },
+                    cRect: { value: (eq.cells || Array(6).fill([0, 0])).map(c => c[5] ? new THREE.Vector4(...c[5])
+                      : new THREE.Vector4(c[1] / (eq.cols || 4), c[0] / (eq.rows || 3), 1 / (eq.cols || 4), 1 / (eq.rows || 3))) } },
         depthTest: false, depthWrite: false,
         vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
         // the 360 picture's x across is longitude from its centre (the walk's
@@ -1913,15 +1923,15 @@
           // walk_ends.py --cross-hub: a cube unfolded in 4x3 cells, each a camera with axes (x, y, z) in the walk's
           // right, down, forward (its layout.json, as cfg.eq.cross.cells); a direction lands on the cell whose z it
           // is most along, at (d.x / d.z, d.y / d.z) of that cell.
-          uniform vec3 cX[6], cY[6], cZ[6]; uniform vec2 cCell[6]; uniform vec2 grid;   // columns, rows
+          uniform vec3 cX[6], cY[6], cZ[6]; uniform vec4 cRect[6]; uniform vec2 grid;   // each cell's u, v (from the top), width, height
           vec2 crossUv(vec3 d) {
-            float best = -2.0; vec2 cell = vec2(0.0); vec2 q = vec2(0.0);
+            float best = -2.0; vec4 rect = vec4(0.0); vec2 q = vec2(0.0);
             for (int i = 0; i < 6; i++) {
               float z = dot(d, cZ[i]);
-              if (z > best) { best = z; cell = cCell[i]; q = vec2(dot(d, cX[i]), dot(d, cY[i])) / z; }
+              if (z > best) { best = z; rect = cRect[i]; q = vec2(dot(d, cX[i]), dot(d, cY[i])) / z; }
             }
             vec2 f = clamp(q * 0.5 + 0.5, 0.004, 0.996);                                     // within the cell, y down
-            return vec2((cell.x + f.x) / grid.x, 1.0 - (cell.y + f.y) / grid.y);
+            return vec2(rect.x + f.x * rect.z, 1.0 - (rect.y + f.y * rect.w));
           }
           void main(){
             vec3 c = texture2D(map, vec2(v.x, clamp(eqV0 + v.y * (1.0 - eqV0), eqV0 + texel.y, 1.0))).rgb;
