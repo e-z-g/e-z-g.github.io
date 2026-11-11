@@ -21,7 +21,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def score(video, layout):
-    tool = 'fisheye_seam.py' if json.load(open(layout)).get('net') == 'dual-fisheye' else 'cube_edges.py'
+    net = json.load(open(layout)).get('net')
+    if net == 'single-fisheye':
+        return None, None                              # one picture: no seam to score
+    tool = 'fisheye_seam.py' if net == 'dual-fisheye' else 'cube_edges.py'
     out = subprocess.run([sys.executable, os.path.join(HERE, tool), video, layout], capture_output=True, text=True).stdout
     m = re.search(r'SCORE .*?: (-?[\d.]+); worst rise (-?[\d.]+)', out)
     return (float(m.group(1)), float(m.group(2))) if m else (None, None)
@@ -37,10 +40,12 @@ def main():
         rows, cols = L.get('rows', 3), L.get('cols', 4)
         cells = []
         fisheye = None
-        if L.get('net') == 'dual-fisheye':
+        if L.get('net') in ('dual-fisheye', 'single-fisheye'):
             W, H = L['size']
             fisheye = {'fov': L['fov'], 'eyes': [e2['axes'] + [[e2['rect'][0] / W, e2['rect'][1] / H, e2['rect'][2] / W, e2['rect'][3] / H]]
                                                  for e2 in L['eyes']]}
+            if len(fisheye['eyes']) == 1:              # one eye: the viewer's second slot is the same eye
+                fisheye['eyes'].append(fisheye['eyes'][0])
         for c in L.get('cells', []):
             cell = [c['row'], c['col']] + [[int(round(v)) for v in ax] for ax in c['axes']]
             if 'rect' in c and 'size' in L:

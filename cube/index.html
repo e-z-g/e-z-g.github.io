@@ -1950,8 +1950,12 @@
             if (fishOn > 0.5) {
               float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
               vec3 d = vec3(sin(lon) * cos(lat), -sin(lat), cos(lon) * cos(lat));    // right, down, forward
-              c = dot(d, eZ[0]) >= dot(d, eZ[1]) ? texture2D(map, eyeUv(d, eX[0], eY[0], eZ[0], eRect[0])).rgb
-                                                 : texture2D(map, eyeUv(d, eX[1], eY[1], eZ[1], eRect[1])).rgb;
+              // blended across the eyes' overlap (190-degree eyes meet 5 degrees past the ring between them),
+              // not switched at the ring, so what is left of a seam fades over 10 degrees
+              float w = smoothstep(-0.085, 0.085, dot(d, eZ[0]) - dot(d, eZ[1]));
+              vec3 c0 = texture2D(map, eyeUv(d, eX[0], eY[0], eZ[0], eRect[0])).rgb;
+              vec3 c1 = texture2D(map, eyeUv(d, eX[1], eY[1], eZ[1], eRect[1])).rgb;
+              c = mix(c1, c0, w);
             }
             if (crossOn > 0.5) {
               float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;

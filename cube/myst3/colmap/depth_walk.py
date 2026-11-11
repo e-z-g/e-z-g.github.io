@@ -72,7 +72,7 @@ def main():
     C0, C1 = (np.array(n['centre'], float) for n in scn['nodes'][:2])
     print(f'{len(P)} points; {W}x{H}, {a.frames} frames', flush=True)
 
-    if L.get('net') == 'dual-fisheye':
+    if L.get('net') in ('dual-fisheye', 'single-fisheye'):
         half = np.radians(L['fov']) / 2
         views = [(np.array(e['axes'], float), e['rect']) for e in L['eyes']]
     else:
@@ -97,7 +97,7 @@ def main():
                 continue
             dv = dvec[m]
             x, y, z = dv @ A[0], dv @ A[1], dv @ A[2]
-            if L.get('net') == 'dual-fisheye':
+            if L.get('net') in ('dual-fisheye', 'single-fisheye'):
                 th = np.arccos(np.clip(z, -1, 1)); ph = np.arctan2(y, x)
                 fx = 0.5 + 0.5 * th / half * np.cos(ph); fy = 0.5 + 0.5 * th / half * np.sin(ph)
                 keep = th <= half
@@ -118,7 +118,7 @@ def main():
     mask = np.zeros((H, W), np.uint8)
     for A, (rx, ry, rw, rh) in views:
         x0, y0, x1, y1 = int(rx * sx), int(ry * sy), int((rx + rw) * sx), int((ry + rh) * sy)
-        if L.get('net') == 'dual-fisheye':
+        if L.get('net') in ('dual-fisheye', 'single-fisheye'):
             cv2.circle(mask, ((x0 + x1) // 2, (y0 + y1) // 2), (x1 - x0) // 2, 255, -1)
         else:
             mask[y0:y1, x0:x1] = 255

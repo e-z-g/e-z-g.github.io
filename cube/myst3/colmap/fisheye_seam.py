@@ -17,8 +17,9 @@ eyes = [(np.array(e['axes']), e['rect']) for e in L['eyes']]
 fwd = eyes[0][0][2]
 ph = np.linspace(0, 2 * np.pi, 180, endpoint=False)
 dirs = []
-for ang in np.radians([86, 88, 90, 92, 94]):     # walk frame: right, down, forward
-    dirs.append(np.stack([np.sin(ang) * np.cos(ph), np.sin(ang) * np.sin(ph), np.cos(ang) * np.ones_like(ph)], -1))
+X0, Y0, Z0 = eyes[0][0]                          # round the first eye's own axis (turned by --eye-yaw)
+for ang in np.radians([86, 88, 90, 92, 94]):
+    dirs.append(np.sin(ang) * np.cos(ph)[:, None] * X0 + np.sin(ang) * np.sin(ph)[:, None] * Y0 + np.cos(ang) * Z0)
 dirs = np.concatenate(dirs)
 
 
