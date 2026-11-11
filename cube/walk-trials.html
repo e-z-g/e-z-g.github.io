@@ -12,9 +12,12 @@ a { color: #9cc8ff; text-decoration: none; } span { color: #888; margin-left: 8p
 join drift beyond the first frame (lower is better; the worst moment in brackets). Trials are 128 px a face
 and 56 frames, so soft; full renders are larger.</p>
 <ol>
+<li><a href="./?crosswalk=trial-staircase-depth1-s1">Trial: 5x2 staircase + depth control 1.0, seed 1</a><span>-0.46 (worst 8)</span></li>
 <li><a href="./?crosswalk=trial-staironce-line4-s2">Trial: staircase filled, sky once, 4 px lines, seed 2 (centred lines: score flattered)</a><span>-0.21 (worst 8)</span></li>
 <li><a href="./?crosswalk=trial-staircase-s2">Trial: 5x2 staircase, seed 2</a><span>-0.16 (worst 7)</span></li>
 <li><a href="./?crosswalk=trial-staironce-line4-s1">Trial: staircase filled, sky once, 4 px lines, seed 1 (centred lines: score flattered)</a><span>0.09 (worst 12)</span></li>
+<li><a href="./?crosswalk=trial-staircase-depth05-s1">Trial: 5x2 staircase + depth control 0.5 (first 60%), seed 1</a><span>0.24 (worst 22)</span></li>
+<li><a href="./?crosswalk=trial-staircase-depth05-s2">Trial: 5x2 staircase + depth control 0.5 (first 60%), seed 2</a><span>0.33 (worst 8)</span></li>
 <li><a href="./?crosswalk=trial-skyonce-inside-s2">Trial: staircase filled, sky once, 4 px lines inside the copies, seed 2</a><span>0.36 (worst 9)</span></li>
 <li><a href="./?crosswalk=trial-staircase-s1">Trial: 5x2 staircase, seed 1</a><span>0.47 (worst 22)</span></li>
 <li><a href="./?crosswalk=trial-skyonce-inside-s1">Trial: staircase filled, sky once, 4 px lines inside the copies, seed 1</a><span>0.78 (worst 13)</span></li>
@@ -30,6 +33,8 @@ and 56 frames, so soft; full renders are larger.</p>
 <li><a href="./?crosswalk=trial-fisheye-s2">Trial: two 190-degree fisheyes (ahead, behind), seed 2 (overlap score, not cube edges)</a><span>1.41 (worst 2)</span></li>
 <li><a href="./?crosswalk=trial-stair-skycopy-line12-s1">Trial: staircase filled incl. sky, 12 px lines, seed 1 (centred lines: score flattered)</a><span>1.42 (worst 10)</span></li>
 <li><a href="./?crosswalk=trial-3x2-gap32-s1">Trial: 3x2, black strip between rows, seed 1</a><span>1.48 (worst 14)</span></li>
+<li><a href="./?crosswalk=trial-fisheye-depth05-s1">Trial: two fisheyes + depth control 0.5 (first 60%), seed 1 (overlap score)</a><span>1.50 (worst 3)</span></li>
+<li><a href="./?crosswalk=trial-fisheye-depth05-s2">Trial: two fisheyes + depth control 0.5 (first 60%), seed 2 (overlap score)</a><span>1.50 (worst 3)</span></li>
 <li><a href="./?crosswalk=trial-stairfill-line0-s2">Trial: staircase filled with copies incl. sky, seed 2</a><span>1.60 (worst 21)</span></li>
 <li><a href="./?crosswalk=trial-stair-skyonce-line24-s2">Trial: staircase filled, sky once, 24 px lines, seed 2 (centred lines: score flattered)</a><span>1.80 (worst 10)</span></li>
 <li><a href="./?crosswalk=trial-stair-skyonce-line12-s1">Trial: staircase filled, sky once, 12 px lines, seed 1 (centred lines: score flattered)</a><span>1.81 (worst 14)</span></li>
@@ -43,12 +48,15 @@ and 56 frames, so soft; full renders are larger.</p>
 <li><a href="./?crosswalk=full-staircase-s2">Full: 5x2 staircase, 384 px, seed 2 (live)</a><span>2.27 (worst 17)</span></li>
 <li><a href="./?crosswalk=full-skyonce-inside-s2">Full: staircase filled, sky once, 12 px lines inside the copies, 384 px, seed 2</a><span>2.39 (worst 22)</span></li>
 <li><a href="./?crosswalk=full-cross-right-1536">Full size test: cross, right wall at hub, 384 px, 56 frames</a><span>2.45 (worst 35)</span></li>
+<li><a href="./?crosswalk=trial-staircase-depth1-s2">Trial: 5x2 staircase + depth control 1.0, seed 2</a><span>2.52 (worst 46)</span></li>
 <li><a href="./?crosswalk=full-staircase-s1">Full: 5x2 staircase, 384 px, seed 1</a><span>2.53 (worst 20)</span></li>
 <li><a href="./?crosswalk=full-cross-floor-steady-s1">Full: cross, floor at hub, steady prompt, seed 1</a><span>3.06 (worst 37)</span></li>
 <li><a href="./?crosswalk=trial-floor-s2">Trial: cross, floor at hub, seed 2</a><span>3.11 (worst 29)</span></li>
 <li><a href="./?crosswalk=full-cross-floor">Full: cross, floor at hub, walking prompt</a><span>4.34 (worst 66)</span></li>
+<li><a href="./?crosswalk=trial-fisheye-depth1-s1">Trial: two fisheyes + depth control 1.0, seed 1 (overlap score)</a><span>4.85 (worst 8)</span></li>
 <li><a href="./?crosswalk=trial-floor-s1">Trial: cross, floor at hub, seed 1</a><span>5.04 (worst 40)</span></li>
 <li><a href="./?crosswalk=wan-cross-front">Wan 2.2: cross, front at hub</a><span>6.07 (worst 40)</span></li>
 <li><a href="./?crosswalk=full-cross-floor-steady-s2">Full: cross, floor at hub, steady prompt, seed 2</a><span>6.67 (worst 71)</span></li>
 <li><a href="./?crosswalk=wan-cross-floor">Wan 2.2: cross, floor at hub</a><span>8.54 (worst 62)</span></li>
+<li><a href="./?crosswalk=trial-fisheye-depth1-s2">Trial: two fisheyes + depth control 1.0, seed 2 (overlap score)</a><span>12.59 (worst 70)</span></li>
 </ol></body></html>

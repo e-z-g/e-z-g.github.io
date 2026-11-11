@@ -1,5 +1,131 @@
 [
 {
+"name": "trial-staircase-depth1-s1",
+"label": "Trial: 5x2 staircase + depth control 1.0, seed 1",
+"score": -0.46,
+"worst": 8.4,
+"rows": 2,
+"cols": 5,
+"video": "trial-staircase-depth1-s1.mp4",
+"back": "trial-staircase-depth1-s1_back.mp4",
+"cells": [
+[
+0,
+1,
+[
+1,
+0,
+0
+],
+[
+0,
+0,
+1
+],
+[
+0,
+-1,
+0
+]
+],
+[
+0,
+2,
+[
+0,
+1,
+0
+],
+[
+0,
+0,
+1
+],
+[
+1,
+0,
+0
+]
+],
+[
+0,
+0,
+[
+0,
+-1,
+0
+],
+[
+0,
+0,
+1
+],
+[
+-1,
+0,
+0
+]
+],
+[
+1,
+2,
+[
+0,
+1,
+0
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+0,
+1
+]
+],
+[
+1,
+3,
+[
+0,
+0,
+-1
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+1,
+0
+]
+],
+[
+1,
+4,
+[
+0,
+-1,
+0
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+0,
+-1
+]
+]
+]
+},
+{
 "name": "trial-staironce-line4-s2",
 "label": "Trial: staircase filled, sky once, 4 px lines, seed 2 (centred lines: score flattered)",
 "score": -0.21,
@@ -445,6 +571,258 @@
 0.5,
 0.2,
 0.5
+]
+]
+]
+},
+{
+"name": "trial-staircase-depth05-s1",
+"label": "Trial: 5x2 staircase + depth control 0.5 (first 60%), seed 1",
+"score": 0.24,
+"worst": 21.8,
+"rows": 2,
+"cols": 5,
+"video": "trial-staircase-depth05-s1.mp4",
+"back": "trial-staircase-depth05-s1_back.mp4",
+"cells": [
+[
+0,
+1,
+[
+1,
+0,
+0
+],
+[
+0,
+0,
+1
+],
+[
+0,
+-1,
+0
+]
+],
+[
+0,
+2,
+[
+0,
+1,
+0
+],
+[
+0,
+0,
+1
+],
+[
+1,
+0,
+0
+]
+],
+[
+0,
+0,
+[
+0,
+-1,
+0
+],
+[
+0,
+0,
+1
+],
+[
+-1,
+0,
+0
+]
+],
+[
+1,
+2,
+[
+0,
+1,
+0
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+0,
+1
+]
+],
+[
+1,
+3,
+[
+0,
+0,
+-1
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+1,
+0
+]
+],
+[
+1,
+4,
+[
+0,
+-1,
+0
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+0,
+-1
+]
+]
+]
+},
+{
+"name": "trial-staircase-depth05-s2",
+"label": "Trial: 5x2 staircase + depth control 0.5 (first 60%), seed 2",
+"score": 0.33,
+"worst": 8.0,
+"rows": 2,
+"cols": 5,
+"video": "trial-staircase-depth05-s2.mp4",
+"back": "trial-staircase-depth05-s2_back.mp4",
+"cells": [
+[
+0,
+1,
+[
+1,
+0,
+0
+],
+[
+0,
+0,
+1
+],
+[
+0,
+-1,
+0
+]
+],
+[
+0,
+2,
+[
+0,
+1,
+0
+],
+[
+0,
+0,
+1
+],
+[
+1,
+0,
+0
+]
+],
+[
+0,
+0,
+[
+0,
+-1,
+0
+],
+[
+0,
+0,
+1
+],
+[
+-1,
+0,
+0
+]
+],
+[
+1,
+2,
+[
+0,
+1,
+0
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+0,
+1
+]
+],
+[
+1,
+3,
+[
+0,
+0,
+-1
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+1,
+0
+]
+],
+[
+1,
+4,
+[
+0,
+-1,
+0
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+0,
+-1
 ]
 ]
 ]
@@ -2606,6 +2984,128 @@
 ]
 },
 {
+"name": "trial-fisheye-depth05-s1",
+"label": "Trial: two fisheyes + depth control 0.5 (first 60%), seed 1 (overlap score)",
+"score": 1.5,
+"worst": 2.7,
+"rows": 3,
+"cols": 4,
+"video": "trial-fisheye-depth05-s1.mp4",
+"back": "trial-fisheye-depth05-s1_back.mp4",
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
+"name": "trial-fisheye-depth05-s2",
+"label": "Trial: two fisheyes + depth control 0.5 (first 60%), seed 2 (overlap score)",
+"score": 1.5,
+"worst": 2.6,
+"rows": 3,
+"cols": 4,
+"video": "trial-fisheye-depth05-s2.mp4",
+"back": "trial-fisheye-depth05-s2_back.mp4",
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "trial-stairfill-line0-s2",
 "label": "Trial: staircase filled with copies incl. sky, seed 2",
 "score": 1.6,
@@ -4532,6 +5032,132 @@
 ]
 },
 {
+"name": "trial-staircase-depth1-s2",
+"label": "Trial: 5x2 staircase + depth control 1.0, seed 2",
+"score": 2.52,
+"worst": 46.4,
+"rows": 2,
+"cols": 5,
+"video": "trial-staircase-depth1-s2.mp4",
+"back": "trial-staircase-depth1-s2_back.mp4",
+"cells": [
+[
+0,
+1,
+[
+1,
+0,
+0
+],
+[
+0,
+0,
+1
+],
+[
+0,
+-1,
+0
+]
+],
+[
+0,
+2,
+[
+0,
+1,
+0
+],
+[
+0,
+0,
+1
+],
+[
+1,
+0,
+0
+]
+],
+[
+0,
+0,
+[
+0,
+-1,
+0
+],
+[
+0,
+0,
+1
+],
+[
+-1,
+0,
+0
+]
+],
+[
+1,
+2,
+[
+0,
+1,
+0
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+0,
+1
+]
+],
+[
+1,
+3,
+[
+0,
+0,
+-1
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+1,
+0
+]
+],
+[
+1,
+4,
+[
+0,
+-1,
+0
+],
+[
+-1,
+0,
+0
+],
+[
+0,
+0,
+-1
+]
+]
+]
+},
+{
 "name": "full-staircase-s1",
 "label": "Full: 5x2 staircase, 384 px, seed 1",
 "score": 2.53,
@@ -5036,6 +5662,67 @@
 ]
 },
 {
+"name": "trial-fisheye-depth1-s1",
+"label": "Trial: two fisheyes + depth control 1.0, seed 1 (overlap score)",
+"score": 4.85,
+"worst": 7.5,
+"rows": 3,
+"cols": 4,
+"video": "trial-fisheye-depth1-s1.mp4",
+"back": "trial-fisheye-depth1-s1_back.mp4",
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "trial-floor-s1",
 "label": "Trial: cross, floor at hub, seed 1",
 "score": 5.04,
@@ -5538,5 +6225,66 @@
 ]
 ]
 ]
+},
+{
+"name": "trial-fisheye-depth1-s2",
+"label": "Trial: two fisheyes + depth control 1.0, seed 2 (overlap score)",
+"score": 12.59,
+"worst": 69.8,
+"rows": 3,
+"cols": 4,
+"video": "trial-fisheye-depth1-s2.mp4",
+"back": "trial-fisheye-depth1-s2_back.mp4",
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
 }
 ]
