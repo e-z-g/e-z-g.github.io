@@ -4,7 +4,7 @@ A node's depth faces made again by MoGe from the whole panorama at once, fitted 
 
     python moge_depth.py IN_DIR OUT_DIR NAME1 ... NAME6 [--colour-suffix _orig.jpg]
         [--depth-suffix _measured-depth.png] [--model moge_3_vitg_fp16.safetensors] [--size 2048]
-        [--server $COMFY_SERVER] [--comfy-input C:\ComfyUI\input]
+        [--face-size N] [--server $COMFY_SERVER] [--comfy-input C:\ComfyUI\input]
 
 IN_DIR holds the node's six faces (NAME<k><colour-suffix>, 640 px, node_depth.py's order: front, bottom,
 back, right, left, top) and its current depth (NAME<k><depth-suffix>: 8-bit, 1 + 19 d/255 inverse distance,
@@ -15,7 +15,10 @@ scaled by one number so it matches the current depth over the pixels both call s
 ratio): the measured scale is kept, MoGe gives the shape. Writes OUT_DIR/NAME<k>_moge-depth.png (same
 encoding; MoGe's sky and anything beyond the farthest current depth are 0), NAME<k>_moge-normal.png (the
 surface normals from the distances, in the face's own camera axes, OpenGL convention: red right, green up,
-blue toward the viewer) and the panorama, its distance map and a report. Needs numpy, Pillow,
+blue toward the viewer) and the panorama, its distance map and a report. With --face-size the faces written
+are that size (the panorama's 2048 px give 512 px a face; 4096 give 1024), the distances taken from the
+panorama's nearest pixel so that no pixel mixes a near edge with what is behind it, and the colour faces are
+written beside them at that size (NAME<k>_moge-colour.png, Lanczos), for build_layers.py. Needs numpy, Pillow,
 opencv-python; a running ComfyUI with the MoGe model and custom_nodes/save_moge.
 """
 import argparse
@@ -73,7 +76,7 @@ def main():
     ap.add_argument('inp'); ap.add_argument('out'); ap.add_argument('names', nargs=6)
     ap.add_argument('--colour-suffix', default='_orig.jpg'); ap.add_argument('--depth-suffix', default='_measured-depth.png')
     ap.add_argument('--model', default='moge_3_vitg_fp16.safetensors'); ap.add_argument('--size', type=int, default=2048)
-    ap.add_argument('--refine', type=int, default=3)
+    ap.add_argument('--refine', type=int, default=3); ap.add_argument('--face-size', type=int)
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input')
     a = ap.parse_args()
@@ -124,13 +127,17 @@ def main():
         D = cv2.resize(D, (W, H), interpolation=cv2.INTER_LINEAR); M = cv2.resize(M.astype(np.uint8), (W, H)) > 0
     # 3. back onto the faces; one scale to the current depth
     old_q, new_iq, keep, rs = [], [], [], []
+    FN = a.face_size or N
+    interp = cv2.INTER_NEAREST if a.face_size else cv2.INTER_LINEAR
     for k in range(1, 7):
-        fd = face_dirs(k, N); mx, my = dirs_to_equirect_px(fd, W, H)
-        r = cv2.remap(D.astype(np.float32), mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_WRAP)
+        fd = face_dirs(k, FN); mx, my = dirs_to_equirect_px(fd, W, H)
+        r = cv2.remap(D.astype(np.float32), mx, my, interp, borderMode=cv2.BORDER_WRAP)
         m = cv2.remap(M.astype(np.uint8), mx, my, cv2.INTER_NEAREST, borderMode=cv2.BORDER_WRAP) > 0
         od = np.asarray(Image.open(os.path.join(a.inp, a.names[k - 1] + a.depth_suffix)).convert('L')).astype(np.float64)
-        if od.shape[0] != N:
-            od = cv2.resize(od, (N, N), interpolation=cv2.INTER_NEAREST)
+        if od.shape[0] != FN:
+            od = cv2.resize(od, (FN, FN), interpolation=cv2.INTER_NEAREST)
+        if a.face_size:
+            Image.fromarray(faces[k - 1]).resize((FN, FN), Image.LANCZOS).save(os.path.join(a.out, f'{a.names[k - 1]}_moge-colour.png'))
         rs.append((r, m, od, fd))
         ok = m & (od > 0) & (r > 0)
         old_q.append(1 + 19 * od[ok] / 255); new_iq.append(1 / r[ok])

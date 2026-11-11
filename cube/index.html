@@ -445,7 +445,13 @@
           // (myst3/layers/build_layers.py, stitch_layers.js at 1296px).
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'mass84-layered-fg-color.webp', fgDepth: 'mass84-layered-fg-depth.png',
-              bgColor: 'mass84-layered-bg-color.webp', bgDepth: 'mass84-layered-bg-depth.png' } }
+              bgColor: 'mass84-layered-bg-color.webp', bgDepth: 'mass84-layered-bg-depth.png' } },
+          // MoGe layered: the original faces with MoGe's depth (from a 4096 px panorama, 1280 px a face),
+          // torn at its steps over a painted backdrop, the lamp glass given its shade's depth
+          // (moge_depth.py --face-size 1280, then build_layers.py as mass84.json's layers step)
+          { label: 'MoGe layered', backdropFullDepth: true, layers: {
+              fgColor: 'mass84-moge-layered-fg-color.webp', fgDepth: 'mass84-moge-layered-fg-depth.png',
+              bgColor: 'mass84-moge-layered-bg-color.webp', bgDepth: 'mass84-moge-layered-bg-depth.png' } }
         ]
       },
       {
