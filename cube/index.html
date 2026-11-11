@@ -386,6 +386,8 @@
         depthSource: 'estimated', depthDefault: 0,
         depthSuffix: '_measured-depth.png',
         versions: [
+          // Original: the game's own faces, moved by the measured depth as one layer
+          { label: 'Original', suffix: '_orig.jpeg' },
           // The same node as two layers, so a near object no longer stretches
           // across what it hid when the eye moves. The depth is redrawn at
           // 1280px from the game's own 640px faces (myst3/colmap/
@@ -429,6 +431,8 @@
         hasDepth: true,
         depthSuffix: '_measured-depth.png',
         versions: [
+          // Original: the game's own faces, moved by the measured depth as one layer
+          { label: 'Original', suffix: '_orig.jpg' },
           // Two layers as for MAWW 101: depth redrawn at 1280px
           // (sharpen_depth.py, fitted to the model-measured depth), a hole
           // on the far side of every step, the backdrop painted by LaMa
@@ -454,8 +458,12 @@
         baseUrl: rawUrl + 'amateria/',
         type: 'faces',
         audio: rawUrl + 'amateria/audio_amateria.mp3',
+        faces: ['MA-4089-1', 'MA-4089-2', 'MA-4089-3', 'MA-4089-4', 'MA-4089-5', 'MA-4089-6'],
         hasDepth: true,
+        depthSuffix: '_measured-depth.png',
         versions: [
+          // Original: the game's own faces, moved by the measured depth as one layer
+          { label: 'Original', suffix: '_orig.jpg' },
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'mass89-layered-fg-color.webp', fgDepth: 'mass89-layered-fg-depth.png',
               bgColor: 'mass89-layered-bg-color.webp', bgDepth: 'mass89-layered-bg-depth.png' } }
@@ -471,6 +479,8 @@
         depthSource: 'estimated', depthDefault: 0,
         depthSuffix: '-depth.jpeg',
         versions: [
+          // Original: the game's own faces, moved by the measured depth as one layer
+          { label: 'Original', suffix: '_orig.jpeg' },
           // The same capture as two layers, so the canyon floor seen through
           // wire mesh — between the walkway's slats, through the floor
           // grate's panels — moves as floor rather than with the mesh. One
@@ -509,6 +519,8 @@
         hasDepth: true,
         depthSuffix: '_measured-depth.png',
         versions: [
+          // Original: the game's own faces, moved by the measured depth as one layer
+          { label: 'Original', suffix: '_orig.jpg' },
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'ensi16-layered-fg-color.webp', fgDepth: 'ensi16-layered-fg-depth.png',
               bgColor: 'ensi16-layered-bg-color.webp', bgDepth: 'ensi16-layered-bg-depth.png' } }
@@ -532,6 +544,8 @@
         depthSource: 'measured', depthDefault: 1,
         depthSuffix: '_measured-depth.png',
         versions: [
+          // Original: the game's own faces, moved by the measured depth as one layer
+          { label: 'Original',    suffix: '-orig.jpg' },
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'leis77-layered-fg-color.webp', fgDepth: 'leis77-layered-fg-depth.png',
               bgColor: 'leis77-layered-bg-color.webp', bgDepth: 'leis77-layered-bg-depth.png' } },
