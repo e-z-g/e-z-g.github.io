@@ -482,6 +482,15 @@ def main():
         # (MASS 89's ring is only a little nearer than the sky behind it, q 1.5-1.9
         # against 1: the test must be tight)
         third = holes[k][inner] & (own_q > back_q * 1.15)
+        # Never the near object itself, nor the soft step just outside it: the
+        # hole takes in the object's own blended rim (hole_band's rim_px) and
+        # the step's ramp, both nearer than the backdrop, and given back to the
+        # backdrop as a third surface they left a one-pixel outline of every
+        # near object behind at its own depth and colour, a crusty line round
+        # MASS 84's lamp, rails and roof rim as soon as the eye moved.
+        w_in = wholes[k][inner]
+        out_dist = cv2.distanceTransform((~w_in).astype(np.uint8), cv2.DIST_L2, 3)
+        third &= ~w_in & (out_dist > sc(2))
         green = np.where(holes[k][inner], 0, 255)
         if third.any():
             bg[k - 1][third] = col[k][third]
