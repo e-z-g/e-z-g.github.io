@@ -388,6 +388,9 @@
         versions: [
           // Original: the game's own faces, moved by the measured depth as one layer
           { label: 'Original', suffix: '_orig.jpeg' },
+          // MoGe depth: the same faces, depth made again by MoGe-3 from the whole panorama at once,
+          // scaled to the measured depth (myst3/colmap/moge_depth.py)
+          { label: 'MoGe depth', suffix: '_orig.jpeg', depthSuffix: '_moge-depth.png' },
           // The same node as two layers, so a near object no longer stretches
           // across what it hid when the eye moves. The depth is redrawn at
           // 1280px from the game's own 640px faces (myst3/colmap/
@@ -433,6 +436,9 @@
         versions: [
           // Original: the game's own faces, moved by the measured depth as one layer
           { label: 'Original', suffix: '_orig.jpg' },
+          // MoGe depth: the same faces, depth made again by MoGe-3 from the whole panorama at once,
+          // scaled to the measured depth (myst3/colmap/moge_depth.py)
+          { label: 'MoGe depth', suffix: '_orig.jpg', depthSuffix: '_moge-depth.png' },
           // Two layers as for MAWW 101: depth redrawn at 1280px
           // (sharpen_depth.py, fitted to the model-measured depth), a hole
           // on the far side of every step, the backdrop painted by LaMa
@@ -464,6 +470,9 @@
         versions: [
           // Original: the game's own faces, moved by the measured depth as one layer
           { label: 'Original', suffix: '_orig.jpg' },
+          // MoGe depth: the same faces, depth made again by MoGe-3 from the whole panorama at once,
+          // scaled to the measured depth (myst3/colmap/moge_depth.py)
+          { label: 'MoGe depth', suffix: '_orig.jpg', depthSuffix: '_moge-depth.png' },
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'mass89-layered-fg-color.webp', fgDepth: 'mass89-layered-fg-depth.png',
               bgColor: 'mass89-layered-bg-color.webp', bgDepth: 'mass89-layered-bg-depth.png' } }
@@ -521,6 +530,9 @@
         versions: [
           // Original: the game's own faces, moved by the measured depth as one layer
           { label: 'Original', suffix: '_orig.jpg' },
+          // MoGe depth: the same faces, depth made again by MoGe-3 from the whole panorama at once,
+          // scaled to the measured depth (myst3/colmap/moge_depth.py)
+          { label: 'MoGe depth', suffix: '_orig.jpg', depthSuffix: '_moge-depth.png' },
           { label: 'Layered', backdropFullDepth: true, layers: {
               fgColor: 'ensi16-layered-fg-color.webp', fgDepth: 'ensi16-layered-fg-depth.png',
               bgColor: 'ensi16-layered-bg-color.webp', bgDepth: 'ensi16-layered-bg-depth.png' } }
@@ -2634,7 +2646,9 @@
     }
 
     function getCubemapUrls(loc, version, fetchDepth = false) {
-      const s = fetchDepth ? loc.depthSuffix : (typeof version === 'string' ? version : (version.suffix || ''));
+      // a version may bring its own depth (depthSuffix): the same faces moved by another depth map
+      const s = fetchDepth ? ((version && typeof version === 'object' && version.depthSuffix) || loc.depthSuffix)
+                           : (typeof version === 'string' ? version : (version.suffix || ''));
       const type = fetchDepth ? loc.type : ((typeof version === 'object' && version.type) ? version.type : loc.type);
       
       let p;
