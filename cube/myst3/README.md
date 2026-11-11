@@ -1681,3 +1681,14 @@ facing face 1 with a 90° view the render is 0.7/255 from the game's face (the
 vertex colours: 22/255); walking to MASS 89, frames differ by 3/255 a step,
 9/255 once halfway where the sky changes node. The pictures are the game's
 640 px faces (`amateria/scene/pictures/`).
+
+**A mesh from the splat instead** (`splat/splat_mesh.py`, `scene3d.html?mesh=splat`,
+or the Mesh menu). The `walk84room` splat's centres in the mesh's frame (the
+same fit as above), each splat a point with its flattest axis as the normal,
+turned toward the nearest node, and Poisson's surface through them. At opacity
+≥ 0.5 and at most 0.05 spacings across, 396,860 splats (80% flat) made a
+sparse, holed surface. At opacity ≥ 0.15 and 0.15 spacings across it is
+fuller. From outside, the fans along the rock wall and posts are gone and the
+walkway, hut and arches keep one shape each, but every surface is porous with
+small holes, and it covers only the splat's area (13 of the 22 nodes). At MASS
+84 the projection is 0.8/255 from the game's face. Both meshes are kept.

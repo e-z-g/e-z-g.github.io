@@ -12,7 +12,8 @@ printed, then refined by ICP of the splats' centres onto the mesh's vertices (--
 farthest pairing; 0 for none), since the splat's model moved some nodes. Splats under --min-opacity, or larger than half a node spacing, are left out. Prints quantiles of
 the distance from the mesh's vertices to the nearest splat centre (in node spacings) and writes
 MESH_DIR\splat_dist.npy (per vertex) and MESH_DIR\splat_plan.png (from above: splats grey, vertices
-coloured by distance, green near, red far). Needs numpy, scipy, Pillow, open3d.
+coloured by distance, green near, red far), and MESH_DIR\splat_to_viewer.npy (the 4 x 4 from the splat's
+frame to the viewer frame, ICP included) for splat_mesh.py. Needs numpy, scipy, Pillow, open3d.
 """
 import argparse
 import json
@@ -72,10 +73,10 @@ def splat_in_mesh_frame(mesh_sparse, mesh_dir, splat_ply, splat_sparse, min_opac
     op = 1 / (1 + np.exp(-sp['opacity']))
     size = np.exp(np.stack([sp['scale_0'], sp['scale_1'], sp['scale_2']], 1)).max(1) * s
     keep = (op >= min_opacity) & (size < 0.5 * unit)
-    Xm = (X[keep] * s) @ R.T + t                              # the mesh's model frame
     n0 = nodes[0]; C0, R0 = A[n0][0], A[n0][1]
-    V = (Xm - C0) @ (F @ R0).T / unit                         # its viewer frame
-    return V, {'nodes_matched': len(both), 'scale': float(s), 'residual_spacings': res,
+    M = np.eye(4); M[:3, :3] = F @ R0 / unit * s @ R; M[:3, 3] = F @ R0 @ (t - C0) / unit    # splat to viewer frame
+    V = X[keep] @ M[:3, :3].T + M[:3, 3]
+    return V, M, {'nodes_matched': len(both), 'scale': float(s), 'residual_spacings': res,
                'splats': int(len(X)), 'kept': int(keep.sum()), 'mesh_nodes_in_splat': [n for n in nodes if n in B]}
 
 
@@ -86,7 +87,7 @@ def main():
     a = ap.parse_args()
     import open3d as o3d
     from scipy.spatial import cKDTree
-    S, rep = splat_in_mesh_frame(a.mesh_sparse, a.mesh, a.splat, a.splat_sparse, a.min_opacity)
+    S, M, rep = splat_in_mesh_frame(a.mesh_sparse, a.mesh, a.splat, a.splat_sparse, a.min_opacity)
     r = rep['residual_spacings']
     print(f"{rep['nodes_matched']} nodes matched, scale {rep['scale']:.4f}; residual median {np.median(list(r.values())):.3f}, "
           f"worst {max(r.values()):.3f} spacings ({max(r, key=r.get)}); {rep['kept']} of {rep['splats']} splats kept", flush=True)
@@ -98,10 +99,11 @@ def main():
             r = o3d.pipelines.registration.registration_icp(src, dst, dmax, np.eye(4),
                 o3d.pipelines.registration.TransformationEstimationPointToPoint(True),
                 o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=60))
-            src.transform(r.transformation)
+            src.transform(r.transformation); M = r.transformation @ M
             print(f'ICP within {dmax:.3f}: fitness {r.fitness:.3f}, rms {r.inlier_rmse:.4f}', flush=True)
         S = np.asarray(src.points)
         np.save(os.path.join(a.mesh, 'splat_centres.npy'), S.astype(np.float32))
+    np.save(os.path.join(a.mesh, 'splat_to_viewer.npy'), M)
     d, _ = cKDTree(S).query(V, workers=-1)
     np.save(os.path.join(a.mesh, 'splat_dist.npy'), d.astype(np.float32))
     q = np.quantile(d, [.1, .25, .5, .75, .9, .95, .99])

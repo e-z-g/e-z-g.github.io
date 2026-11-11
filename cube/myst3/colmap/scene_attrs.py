@@ -34,6 +34,7 @@ def main():
     ap.add_argument('root'); ap.add_argument('sparse'); ap.add_argument('mesh'); ap.add_argument('maps')
     ap.add_argument('--tolerance', type=float, default=0.06); ap.add_argument('--voxel', type=float, default=0.02)
     ap.add_argument('--size', type=int, default=2048)
+    ap.add_argument('--depth-from', help="where the nodes' moge\\ depth is, when MESH_DIR is not scene_mesh.py's own (splat_mesh.py's)")
     a = ap.parse_args()
     import open3d as o3d
     sc = json.load(open(os.path.join(a.mesh, 'scales.json')))
@@ -57,9 +58,10 @@ def main():
         if n not in sc['nodes']:
             continue
         C, R1 = face1[n]; s = sc['nodes'][n]['scale']
-        pre = os.path.join(a.mesh, 'moge', n + '_moge')
+        mdir = os.path.join(a.depth_from or a.mesh, 'moge')
+        pre = os.path.join(mdir, n + '_moge')
         D = np.load(pre + '_depth.npy').astype(np.float32)
-        anch = os.path.join(a.mesh, 'moge', n + '_anchored.npy')
+        anch = os.path.join(mdir, n + '_anchored.npy')
         if os.path.exists(anch):                              # scene_mesh.py --dense: already in the model's units
             D = cv2.resize(np.load(anch), (D.shape[1], D.shape[0]), interpolation=cv2.INTER_NEAREST); s = 1.0
         Mk = (np.load(pre + '_mask.npy') > 0.5) if os.path.exists(pre + '_mask.npy') else np.isfinite(D)

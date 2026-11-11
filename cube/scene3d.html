@@ -18,6 +18,7 @@ canvas { display: block; touch-action: none; }
 <div id="bar">
   <select id="node" title="Stand at a node"></select>
   <button id="orbit">Orbit</button>
+  <select id="meshsel" title="Which mesh"><option value="moge">Mesh from MoGe</option><option value="splat">Mesh from the splat</option></select>
   <select id="mode" title="What the surface shows">
     <option value="projected">Pictures</option><option value="pictures">Pictures, per vertex</option><option value="lit">Lit (albedo, sun)</option>
     <option value="albedo">Albedo</option><option value="rough">Roughness</option>
@@ -40,7 +41,9 @@ canvas { display: block; touch-action: none; }
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const BASE = './amateria/scene/';
+// ?mesh=splat: the mesh made from the Gaussian splat (myst3/splat/splat_mesh.py) in place of the nodes' MoGe depth
+const MESH = new URLSearchParams(location.search).get('mesh') === 'splat' ? 'splat' : 'moge';
+const BASE = MESH === 'splat' ? './amateria/scene_splat/' : './amateria/scene/', PICS = './amateria/scene/pictures/';
 const info = document.getElementById('info');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -73,6 +76,8 @@ function orbit() {
   controls.update();
 }
 const sel = document.getElementById('node');
+const meshSel = document.getElementById('meshsel'); meshSel.value = MESH;
+meshSel.addEventListener('change', () => { location.search = meshSel.value === 'splat' ? '?mesh=splat' : ''; });
 sel.addEventListener('change', () => standAt(sel.value));
 document.getElementById('orbit').addEventListener('click', orbit);
 document.getElementById('wire').addEventListener('click', () => { if (mesh) for (const m of Object.values(mats)) m.wireframe = !m.wireframe; });
@@ -192,7 +197,7 @@ void main(){ vec4 acc = vec4(0.0);${body}
     if (!e) {
       e = { pic: null, dep: null, Q: new THREE.Matrix3().set(...views[n].rot.flat()), pos: new THREE.Vector3(...views[n].pos) };
       cache.set(n, e);
-      loader.load(BASE + 'pictures/MA-' + n + '.jpg', t => {
+      loader.load(PICS + 'MA-' + n + '.jpg', t => {
         t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
         if (cache.get(n) === e) { e.pic = t; slotsAt = null; } else t.dispose();
       });

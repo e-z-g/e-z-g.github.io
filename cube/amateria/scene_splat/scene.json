@@ -1,0 +1,36 @@
+{
+ "vertices": 844653,
+ "triangles": 1500000,
+ "parts": {
+  "position": {
+   "offset": 0,
+   "bytes": 10135836,
+   "type": "float32",
+   "size": 3
+  },
+  "index": {
+   "offset": 10135836,
+   "bytes": 18000000,
+   "type": "uint32",
+   "size": 3
+  },
+  "color": {
+   "offset": 28135836,
+   "bytes": 2533959,
+   "type": "uint8",
+   "size": 3
+  },
+  "albedo": {
+   "offset": 30669796,
+   "bytes": 2533959,
+   "type": "uint8",
+   "size": 3
+  },
+  "roughMetal": {
+   "offset": 33203756,
+   "bytes": 1689306,
+   "type": "uint8",
+   "size": 2
+  }
+ }
+}
