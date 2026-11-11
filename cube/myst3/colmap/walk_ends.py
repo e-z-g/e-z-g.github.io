@@ -190,12 +190,20 @@ def draw_net(faces, Rcam, W, H, net, gap=0, fill=None, line=0):
     for _, rc, axes in cells + copies:
         x, y, cw, ch = R[rc]
         g[y:y + ch, x:x + cw] = draw(faces, np.stack(axes), cw, ch, cw / 2)
-    for a, b in false if line else []:            # a black line along each false join
-        xa, ya, cw, ch = R[a]
-        if b[0] == a[0]:
-            g[ya:ya + ch, xa + cw - line // 2:xa + cw + (line + 1) // 2] = 0
+    # A black line along each false join, wholly inside the copy's cell: the originals are what the viewer and
+    # cube_edges.py read, and a line centred on the join put 2 px of black inside three of them, which the
+    # score read as perfectly steady edges.
+    copy_cells = {rc for _, rc, _ in copies}
+    for a, b in false if line else []:            # a is left of or above b
+        horiz = b[0] == a[0]
+        inside = b if b in copy_cells else a
+        if inside not in copy_cells:
+            continue                              # no copy either side: leave both originals clean
+        x, y, cw, ch = R[inside]
+        if horiz:
+            g[y:y + ch, (x if inside == b else x + cw - line):(x + line if inside == b else x + cw)] = 0
         else:
-            g[ya + ch - line // 2:ya + ch + (line + 1) // 2, xa:xa + cw] = 0
+            g[(y if inside == b else y + ch - line):(y + line if inside == b else y + ch), x:x + cw] = 0
     return g
 
 
