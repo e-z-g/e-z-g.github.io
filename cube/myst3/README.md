@@ -218,6 +218,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/scene_attrs.py` | `scene_mesh.py`'s mesh with every node's picture, albedo, roughness and metallic (from `materials.py --nodes`) carried into its vertices, as `scene.bin` for `scene3d.html`; and each node's faces as a 3×2 atlas for its projection. |
 | `colmap/film_stretch.py` | A short video made longer by FILM's in-between frames, halving each gap `--levels` times. |
 | `splat/splat_mesh_check.py` | How far a mesh's vertices lie from a Gaussian splat of the same place: the splat's frame matched to the mesh's by the nodes both have and ICP, the splat's centres written in the mesh's frame for `scene_mesh.py --splat-centres`. |
+| `splat/splat_depth_train.py` | A Gaussian splat trained with gsplat on a splat dataset's pictures plus a depth loss: each node face's rendered depth held to the node's anchored MoGe depth (`scene_mesh.py --dense`). `--eval` measures any 3DGS `.ply` the same way (PSNR, depth misfit, coverage at the node faces). Needs gsplat (Python 3.10, torch 2.4 on Windows). |
+| `splat/splat_gsplat_render.py` | A 3DGS `.ply` rendered with gsplat from a dataset's cameras (such as `walk_dataset.py`'s walk), with the change from frame to frame. |
 
 ```sh
 python colmap/prepare_colmap.py C:\myst3_out\faces maps\rooms\ENSI.json maps\ages\Voltaic.json C:\myst3_colmap\ENSI
@@ -1692,3 +1694,46 @@ fuller. From outside, the fans along the rock wall and posts are gone and the
 walkway, hut and arches keep one shape each, but every surface is porous with
 small holes, and it covers only the splat's area (13 of the 22 nodes). At MASS
 84 the projection is 0.8/255 from the game's face. Both meshes are kept.
+
+## A splat trained with a depth loss (11 November 2026)
+
+Brush trains a splat on the pictures alone. Measured with gsplat at the 13
+nodes' faces of the `walk84room` splat (training views), it matches the
+pictures to a median 33.5 dB, but its depth is a median 25% from the nodes'
+anchored MoGe depth (35% against the pier mesh's own anchoring, in the frame
+before the MASS 82–90 move). Its surfaces are soft clouds of half-transparent
+splats, which is why the mesh made from it is porous.
+
+`splat/splat_depth_train.py` trains on the same 211 pictures with gsplat 1.5.3
+(the prebuilt Windows wheel, which needs Python 3.10 and torch 2.4 with CUDA
+12.4: a separate environment, `C:\myst3_out\gsplat_env`). The loss is the usual
+0.8 L1 + 0.2 (1 − SSIM) plus 0.1 × the mean |log rendered depth − log MoGe
+depth| over each node face's pixels that MoGe gives a distance within 10
+spacings. The depth is the 13 nodes' MoGe depth anchored to `dense_moved`, in
+the moved model's frame, which is the dataset's (similarity scale 1.0000,
+residual 0). The start is the dataset's cloud plus 400,000 points from that
+depth. 30,000 steps took 59 minutes beside a MoGe job; 2.05M splats.
+
+| at the 13 nodes' faces | Brush | depth loss |
+|---|---|---|
+| PSNR, median | 33.5 dB | 30.6 dB |
+| MASS 84 face 1 | 34.7 dB | 34.4 dB |
+| depth from MoGe's, median | 25% | 2.5% |
+
+Along the walk from MASS 84 to 89 (`splat_gsplat_render.py` on
+`walk_dataset.py`'s 48 cameras), halfway is about as soft in both. The
+depth-loss splat has a pink smear in the sky, where it has no depth to
+follow, and one jump of 9.8/255 at frame 28 (Brush: 5.5 at most). Meshes from
+both by `splat_mesh.py` (opacity ≥ 0.15, at most 0.15 spacings) in the moved
+frame: the depth-loss one has larger continuous pieces (the floor before the
+hut is one sheet), but it is still porous. In six directions from each node,
+the share of the view the mesh covers (sky included, so never 100%):
+
+| node | 1018 | 1021 | 4083 | 4084 | 4089 | 4090 |
+|---|---|---|---|---|---|---|
+| Brush | 84.8% | 71.7% | 60.8% | 66.7% | 65.0% | 65.4% |
+| depth loss | 88.3% | 82.0% | 59.3% | 64.1% | 65.6% | 64.7% |
+
+So the depth loss puts the splats on the surfaces, but a mesh made from the
+splat's centres keeps most of its holes: where the pictures leave a surface
+thin, the splat has few solid splats there whatever their depth.
