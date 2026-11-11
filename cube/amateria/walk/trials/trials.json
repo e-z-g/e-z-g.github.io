@@ -1998,6 +1998,67 @@
 ]
 },
 {
+"name": "trial-fisheye-s1",
+"label": "Trial: two 190-degree fisheyes (ahead, behind), seed 1 (overlap score, not cube edges)",
+"score": 1.36,
+"worst": 2.7,
+"rows": 3,
+"cols": 4,
+"video": "trial-fisheye-s1.mp4",
+"back": "trial-fisheye-s1_back.mp4",
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "trial-stair-skyonce-line12-s2",
 "label": "Trial: staircase filled, sky once, 12 px lines, seed 2 (centred lines: score flattered)",
 "score": 1.41,
@@ -2158,6 +2219,67 @@
 ]
 ]
 ]
+},
+{
+"name": "trial-fisheye-s2",
+"label": "Trial: two 190-degree fisheyes (ahead, behind), seed 2 (overlap score, not cube edges)",
+"score": 1.41,
+"worst": 2.5,
+"rows": 3,
+"cols": 4,
+"video": "trial-fisheye-s2.mp4",
+"back": "trial-fisheye-s2_back.mp4",
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
 },
 {
 "name": "trial-stair-skycopy-line12-s1",

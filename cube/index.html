@@ -1908,7 +1908,13 @@
                     // texture v of the 360 picture's bottom edge, and the flat picture's extent in u and v
                     eqV0: { value: pk ? (H - Wd / 2) / H : 0 }, flatU: { value: pk ? pk.flat[0] / Wd : 1 },
                     flatV: { value: pk ? pk.flat[1] / H : 1 }, texel: { value: new THREE.Vector2(1 / Wd, 1 / H) },
-                    crossOn: { value: eq.cells ? 1 : 0 }, grid: { value: new THREE.Vector2(eq.cols || 4, eq.rows || 3) },
+                    crossOn: { value: eq.cells ? 1 : 0 },
+                    // walk_ends.py --dual-fisheye: two equidistant fisheyes (axes in the walk's right, down, forward)
+                    fishOn: { value: eq.fisheye ? 1 : 0 }, fishHalf: { value: eq.fisheye ? eq.fisheye.fov * Math.PI / 360 : 1 },
+                    eX: { value: [0, 1].map(i => new THREE.Vector3(...(eq.fisheye ? eq.fisheye.eyes[i][0] : [1, 0, 0]))) },
+                    eY: { value: [0, 1].map(i => new THREE.Vector3(...(eq.fisheye ? eq.fisheye.eyes[i][1] : [0, 1, 0]))) },
+                    eZ: { value: [0, 1].map(i => new THREE.Vector3(...(eq.fisheye ? eq.fisheye.eyes[i][2] : [0, 0, 1]))) },
+                    eRect: { value: [0, 1].map(i => new THREE.Vector4(...(eq.fisheye ? eq.fisheye.eyes[i][3] : [0, 0, 1, 1]))) }, grid: { value: new THREE.Vector2(eq.cols || 4, eq.rows || 3) },
                     // each cell's camera axes in the walk's right, down, forward, and its column and row
                     cX: { value: (eq.cells || Array(6).fill([0, 0, [0, 0, 0], [0, 0, 0], [0, 0, 0]])).map(c => new THREE.Vector3(...c[2])) },
                     cY: { value: (eq.cells || Array(6).fill([0, 0, [0, 0, 0], [0, 0, 0], [0, 0, 0]])).map(c => new THREE.Vector3(...c[3])) },
@@ -1924,6 +1930,12 @@
           // right, down, forward (its layout.json, as cfg.eq.cross.cells); a direction lands on the cell whose z it
           // is most along, at (d.x / d.z, d.y / d.z) of that cell.
           uniform vec3 cX[6], cY[6], cZ[6]; uniform vec4 cRect[6]; uniform vec2 grid;   // each cell's u, v (from the top), width, height
+          uniform float fishOn, fishHalf; uniform vec3 eX[2], eY[2], eZ[2]; uniform vec4 eRect[2];
+          vec2 eyeUv(vec3 d, vec3 x, vec3 y, vec3 z, vec4 rect) {
+            float th = acos(clamp(dot(d, z), -1.0, 1.0)), ph = atan(dot(d, y), dot(d, x));
+            vec2 f = 0.5 + 0.5 * (th / fishHalf) * vec2(cos(ph), sin(ph));               // within the eye's square, y down
+            return vec2(rect.x + f.x * rect.z, 1.0 - (rect.y + f.y * rect.w));
+          }
           vec2 crossUv(vec3 d) {
             float best = -2.0; vec4 rect = vec4(0.0); vec2 q = vec2(0.0);
             for (int i = 0; i < 6; i++) {
@@ -1935,6 +1947,12 @@
           }
           void main(){
             vec3 c = texture2D(map, vec2(v.x, clamp(eqV0 + v.y * (1.0 - eqV0), eqV0 + texel.y, 1.0))).rgb;
+            if (fishOn > 0.5) {
+              float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
+              vec3 d = vec3(sin(lon) * cos(lat), -sin(lat), cos(lon) * cos(lat));    // right, down, forward
+              c = dot(d, eZ[0]) >= dot(d, eZ[1]) ? texture2D(map, eyeUv(d, eX[0], eY[0], eZ[0], eRect[0])).rgb
+                                                 : texture2D(map, eyeUv(d, eX[1], eY[1], eZ[1], eRect[1])).rgb;
+            }
             if (crossOn > 0.5) {
               float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
               vec3 d = vec3(sin(lon) * cos(lat), -sin(lat), cos(lon) * cos(lat));    // right, down, forward

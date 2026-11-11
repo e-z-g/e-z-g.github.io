@@ -21,7 +21,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def score(video, layout):
-    out = subprocess.run([sys.executable, os.path.join(HERE, 'cube_edges.py'), video, layout], capture_output=True, text=True).stdout
+    tool = 'fisheye_seam.py' if json.load(open(layout)).get('net') == 'dual-fisheye' else 'cube_edges.py'
+    out = subprocess.run([sys.executable, os.path.join(HERE, tool), video, layout], capture_output=True, text=True).stdout
     m = re.search(r'SCORE .*?: (-?[\d.]+); worst rise (-?[\d.]+)', out)
     return (float(m.group(1)), float(m.group(2))) if m else (None, None)
 
@@ -35,7 +36,12 @@ def main():
         L = json.load(open(e['layout']))
         rows, cols = L.get('rows', 3), L.get('cols', 4)
         cells = []
-        for c in L['cells']:
+        fisheye = None
+        if L.get('net') == 'dual-fisheye':
+            W, H = L['size']
+            fisheye = {'fov': L['fov'], 'eyes': [e2['axes'] + [[e2['rect'][0] / W, e2['rect'][1] / H, e2['rect'][2] / W, e2['rect'][3] / H]]
+                                                 for e2 in L['eyes']]}
+        for c in L.get('cells', []):
             cell = [c['row'], c['col']] + [[int(round(v)) for v in ax] for ax in c['axes']]
             if 'rect' in c and 'size' in L:
                 x, y, w, h = c['rect']; W, H = L['size']
@@ -47,8 +53,10 @@ def main():
             if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(e['video']):
                 subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', e['video'], '-an', *vf, '-c:v', 'libx264', '-crf', '20',
                                 '-g', '24', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', dst], check=True)
-        items.append({'name': e['name'], 'label': e['label'], 'score': s, 'worst': worst, 'rows': rows, 'cols': cols,
-                      'video': e['name'] + '.mp4', 'back': e['name'] + '_back.mp4', 'cells': cells})
+        item = {'name': e['name'], 'label': e['label'], 'score': s, 'worst': worst, 'rows': rows, 'cols': cols,
+                'video': e['name'] + '.mp4', 'back': e['name'] + '_back.mp4'}
+        item.update({'fisheye': fisheye} if fisheye else {'cells': cells})
+        items.append(item)
         print(f"{e['name']}: score {s}, worst {worst}", flush=True)
     items.sort(key=lambda x: (x['score'] is None, x['score']))
     json.dump(items, open(os.path.join(out, 'trials.json'), 'w'), indent=0)

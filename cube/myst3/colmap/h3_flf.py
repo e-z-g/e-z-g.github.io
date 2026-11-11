@@ -11,6 +11,8 @@ As ComfyUI's MiniMax H3 image-to-video template: the pruned int8 fl2va model,
 the Qwen3-VL text encoder (type minimax), MiniMaxH3ImageToVideo with both
 frames, BasicGuider, res_multistep on the simple schedule, the 8-step turbo
 LoRA at 8 steps (--turbo-strength 0 and --steps 20 for the model alone).
+With --control, the model goes through H3's Fun ControlNet-Union patch with a
+control video (depth, edges or pose) guiding the motion.
 Width and height are multiples of 32; frames are 17k+5 (124 is 5.2 s at 24
 fps). Writes OUT_DIR/walk.mp4 (24 fps, with H3's sound); with --seeds, one
 walk_s<seed>.mp4 for each, all queued at once on the one server, so the models
@@ -40,6 +42,10 @@ def main():
     ap.add_argument('--seeds', type=int, nargs='+', help='several walks, one for each seed, queued together')
     ap.add_argument('--turbo', default='h3\\minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors')
     ap.add_argument('--turbo-strength', type=float, default=1.0)
+    ap.add_argument('--control', help="a control video (depth_walk.py's depth, near white) for H3's Fun ControlNet-Union")
+    ap.add_argument('--control-strength', type=float, default=1.0)
+    ap.add_argument('--control-end', type=float, default=1.0, help='the share of the steps the control guides')
+    ap.add_argument('--control-patch', default='minimax_h3_fun_controlnet_union_pruned_int8_convrot.safetensors')
     ap.add_argument('--prompt', default='A smooth, steady first-person camera walking slowly forward along the pier, the same place '
                     'throughout, the scene getting nearer, no cuts, static lighting. Audio: soft footsteps on wood, gentle waves.')
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
@@ -48,6 +54,8 @@ def main():
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))
     names = []
+    if a.control:
+        shutil.copy(a.control, os.path.join(a.comfy_input, 'h3_control.mp4'))
     for f, n in ((a.first, 'h3_first.png'), (a.last, 'h3_last.png')):
         shutil.copy(f, os.path.join(a.comfy_input, n)); names.append(n)
     seeds = a.seeds or [a.seed]
@@ -74,6 +82,16 @@ def main():
           '16': {'class_type': 'CreateVideo', 'inputs': {'images': ['14', 0], 'audio': ['15', 0], 'fps': 24.0}},
           '17': {'class_type': 'SaveVideo', 'inputs': {'video': ['16', 0], 'filename_prefix': 'video/h3_flf', 'format': 'auto', 'codec': 'auto'}},
       }
+      if a.control:
+          # the turbo-LoRA'd model through the ControlNet patch, guided by the control video's frames
+          g['30'] = {'class_type': 'ModelPatchLoader', 'inputs': {'name': a.control_patch}}
+          g['31'] = {'class_type': 'LoadVideo', 'inputs': {'file': 'h3_control.mp4'}}
+          g['32'] = {'class_type': 'GetVideoComponents', 'inputs': {'video': ['31', 0]}}
+          g['33'] = {'class_type': 'MiniMaxH3FunControlNetApply', 'inputs': {'model': ['2', 0], 'model_patch': ['30', 0], 'vae': ['4', 0],
+                                                                             'strength': a.control_strength, 'start_percent': 0.0,
+                                                                             'end_percent': a.control_end, 'control_video': ['32', 0]}}
+          g['9']['inputs']['model'] = ['33', 0]
+          g['12']['inputs']['model'] = ['33', 0]
       r = api(a.server, '/prompt', {'prompt': g, 'client_id': uuid.uuid4().hex})
       if r.get('node_errors'):
           raise SystemExit('node errors: ' + json.dumps(r['node_errors'])[:3000])

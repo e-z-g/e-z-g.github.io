@@ -249,6 +249,31 @@ def draw_cross(faces, Rcam, W, H):
     return g
 
 
+def fisheye_eyes(Rcam):
+    """Two eyes for --dual-fisheye: looking ahead (up the picture's up) and behind (likewise level, so the
+    world's left is on its right). Axes (x right, y down, z forward) in the model's frame."""
+    right, down, fwd = Rcam
+    return [np.stack([right, down, fwd]), np.stack([-right, down, -fwd])]
+
+
+def draw_dual_fisheye(faces, Rcam, W, H, fov):
+    """Two circular equidistant fisheyes side by side, each H across and fov degrees wide (over 180 they
+    overlap at the rim): the walk's way ahead on the left, behind on the right; black outside the circles.
+    Ahead, the ground runs from the horizon down into the circle's lower part in one picture, where a cube
+    turns it 90 degrees across an edge."""
+    S = H
+    v, u = np.mgrid[0:S, 0:S].astype(np.float64)
+    x = (u + .5) / S * 2 - 1; y = (v + .5) / S * 2 - 1
+    r = np.sqrt(x * x + y * y); th = r * np.radians(fov) / 2; ph = np.arctan2(y, x)
+    cam = np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], -1)
+    g = np.zeros((H, W, 3), np.uint8)
+    for i, E in enumerate(fisheye_eyes(Rcam)):
+        img = sample_dirs(faces, cam @ E)
+        img[r > 1] = 0
+        g[:, i * S:(i + 1) * S] = img
+    return g
+
+
 def sample_dirs(faces, dirs):
     H, W = dirs.shape[:2]
     out = np.zeros((H, W, 3), np.float32); best = np.full((H, W), -np.inf)
@@ -281,6 +306,8 @@ def main():
                     help='as --cross with the floor at the hub: back wall, floor, front wall, sky in the long row')
     ap.add_argument('--cross-hub', choices=sorted(HUB_AXES),
                     help='the cross with this face at its hub (all four of its edges joined in the picture); writes layout.json')
+    ap.add_argument('--dual-fisheye', type=float, nargs='?', const=190.0,
+                    help='two circular fisheyes of this many degrees (190), ahead and behind, side by side (--size 2:1)')
     ap.add_argument('--net', choices=sorted(NETS) + sorted(STRIPS), help='another cube net (NETS) or rows of faces (STRIPS); writes layout.json')
     ap.add_argument('--gap', type=int, default=0, help='px of black between rows (with --net)')
     ap.add_argument('--fill', nargs='?', const='skycopy', help="the net's empty cells filled with copies (FILLS: skycopy, skyonce)")
@@ -303,6 +330,8 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     if a.equirect:
         render = lambda F: draw_equirect(F, Rcam, W, H)
+    elif a.dual_fisheye:
+        render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye)
     elif a.net:
         render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap, a.fill, a.false_line)
     elif a.cross_hub:
@@ -320,6 +349,11 @@ def main():
     # the direction in the nodes' own frame (node_depth.py's: face 1 looking along -z, y up), for the viewer
     M = FA[0][0].T @ np.diag([1.0, -1.0, -1.0])             # node frame -> model frame (walk_scene.py's)
     look = M.T @ fwd
+    if a.dual_fisheye:
+        json.dump({'net': 'dual-fisheye', 'fov': a.dual_fisheye, 'size': [W, H],
+                   'eyes': [{'rect': [i * H, 0, H, H], 'axes': [[round(float(v), 6) for v in Rcam @ ax] for ax in E]}
+                            for i, E in enumerate(fisheye_eyes(Rcam))]},
+                  open(os.path.join(a.out, 'layout.json'), 'w'), indent=1)
     if a.cross_hub or a.net:
         # each cell's face and axes in the walk's own frame (right, down, forward), for cube_edges.py and the viewer
         B = Rcam
