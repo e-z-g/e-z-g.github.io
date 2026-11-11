@@ -1,5 +1,67 @@
 [
 {
+"name": "full-fisheye-2048-22-depth",
+"label": "Full: two fisheyes, 2048x1024, 22 frames at best quality (20 steps, no turbo, depth 0.5), stretched to 3 s by FILM, seed 1",
+"score": 2.39,
+"worst": 4.1,
+"rows": 3,
+"cols": 4,
+"video": "full-fisheye-2048-22-depth.mp4",
+"back": "full-fisheye-2048-22-depth_back.mp4",
+"made": 1794404589.936465,
+"fisheye": {
+"fov": 190.0,
+"eyes": [
+[
+[
+1.0,
+0.0,
+-0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+-0.0,
+0.0,
+1.0
+],
+[
+0.0,
+0.0,
+0.5,
+1.0
+]
+],
+[
+[
+-1.0,
+0.0,
+0.0
+],
+[
+0.0,
+1.0,
+0.0
+],
+[
+0.0,
+0.0,
+-1.0
+],
+[
+0.5,
+0.0,
+0.5,
+1.0
+]
+]
+]
+}
+},
+{
 "name": "full-fisheye-1280-73-depth",
 "label": "Full: two fisheyes, 1280x640, 73 frames (3 s), seed 1 - WITH depth control 0.5 (pair with plain above)",
 "score": 2.1,
