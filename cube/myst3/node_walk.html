@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Myst III node walk</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 14px/1.4 system-ui, sans-serif; color: #eee; }
+  canvas { display: block; touch-action: none; }
+  #bar { position: fixed; top: 8px; left: 8px; right: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; pointer-events: none; }
+  #bar > * { pointer-events: auto; }
+  #here { background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; }
+  select, button { font: inherit; background: rgba(0,0,0,.6); color: #eee; border: 1px solid #666; border-radius: 4px; padding: 3px 6px; }
+  #moves { position: fixed; bottom: 8px; left: 8px; right: 8px; background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="bar">
+  <span id="here"></span>
+  <select id="sel"></select>
+  <button id="back" title="Back (Backspace)">Back</button>
+  <button id="show" title="Show the hotspots (H)">Hotspots</button>
+</div>
+<div id="moves"></div>
+<script type="module">
+// Myst III's nodes as the game shows them: a node's six faces as a cube round the eye, looked round by dragging,
+// and its movement hotspots tested on a click as ScummVM tests them (engines/myst3/hotspot.cpp: each rectangle
+// a quad facing the eye at its centre's pitch and heading, half its width and height w/90 and h/90 of its
+// distance). A walk keeps the way you look, as the game does. Conditions on hotspots (doors open or shut) are
+// not kept: every hotspot is live. Data: node_walk.py's walk.json; faces in faces/<ROOM>/.
+import * as THREE from 'three';
+
+const W = await (await fetch('walk.json')).json();
+const NODES = W.nodes, names = Object.keys(NODES).sort();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.01, 100);
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+// the node frame: x right, y up, -z face 1; face k's pixel (s, t) looks along DIRS[k] (moge_depth.py's)
+const DIRS = { 1: (s, t) => [2 * s - 1, 1 - 2 * t, -1], 2: (s, t) => [1 - 2 * s, -1, 1 - 2 * t], 3: (s, t) => [1 - 2 * s, 1 - 2 * t, 1],
+  4: (s, t) => [1, 1 - 2 * t, 2 * s - 1], 5: (s, t) => [-1, 1 - 2 * t, 1 - 2 * s], 6: (s, t) => [1 - 2 * s, 1, 2 * t - 1] };
+const loader = new THREE.TextureLoader(), cache = new Map();
+function tex(url) {
+  if (!cache.has(url)) cache.set(url, new Promise(res => loader.load(url, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; res(t); }, undefined, () => res(null))));
+  return cache.get(url);
+}
+const faceUrl = (n, k) => `faces/${n.slice(0, 4)}/${n}-f${k}.jpg`;
+const loadNode = n => Promise.all([1, 2, 3, 4, 5, 6].map(k => tex(faceUrl(n, k))));
+function cube(texs) {
+  const g = new THREE.Group();
+  for (let k = 1; k <= 6; k++) {
+    const P = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([s, t]) => DIRS[k](s, t));
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 0, 0, 1, 0], 2));
+    geo.setIndex([0, 2, 1, 1, 2, 3]);
+    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: texs[k - 1], side: THREE.DoubleSide, transparent: true, depthWrite: false })));
+  }
+  g.scale.setScalar(10);
+  return g;
+}
+
+// ScummVM's direction (x = cos p sin h, y = sin p, z = cos p cos h) is the node frame's with x turned round
+const sv = v => new THREE.Vector3(-v.x, v.y, v.z);
+const dirOf = (p, h) => { const P = p * Math.PI / 180, H = h * Math.PI / 180; return new THREE.Vector3(Math.cos(P) * Math.sin(H), Math.sin(P), Math.cos(P) * Math.cos(H)); };
+function rectCorners([p, h, w, hh]) {          // in ScummVM's frame, as polarRectTo3dRect
+  const d = dirOf(p, h).multiplyScalar(50), u = new THREE.Vector3(d.z, 0, -d.x).normalize();
+  const v = new THREE.Vector3().crossVectors(d, u).normalize();
+  const U = u.multiplyScalar(w / 90 * 50), V = v.multiplyScalar(hh / 90 * 50);
+  return [d.clone().add(V).sub(U), d.clone().add(V).add(U), d.clone().sub(V).add(U), d.clone().sub(V).sub(U)];   // TL TR BR BL
+}
+function hits(ray, rect) {                       // rayIntersectsRect, the ray from the origin
+  const [tl, tr, br, bl] = rectCorners(rect), top = tr.clone().sub(tl), left = bl.clone().sub(tl);
+  const n = new THREE.Vector3().crossVectors(top, left), nd = n.dot(ray);
+  if (Math.abs(nd) < 1e-6) return false;
+  const t = n.dot(tl) / nd; if (t < 0) return false;
+  const q = ray.clone().multiplyScalar(t).sub(tl), a = q.dot(top), b = q.dot(left);
+  return a >= 0 && a <= top.dot(top) && b >= 0 && b <= left.dot(left);
+}
+function spotAt(n, ray) {
+  const r = sv(ray);
+  for (const s of NODES[n] || []) for (const rect of s.rects) if (hits(r, rect)) return s;
+  return null;
+}
+
+// the outlines of the hotspots, for the button
+let showSpots = false, outlines = null;
+function drawSpots(n) {
+  if (outlines) { scene.remove(outlines); outlines.traverse(o => o.geometry && o.geometry.dispose()); outlines = null; }
+  if (!showSpots) return;
+  outlines = new THREE.Group();
+  for (const s of NODES[n] || []) for (const rect of s.rects) {
+    const pts = rectCorners(rect).map(c => sv(c).multiplyScalar(0.1));
+    const col = s.to ? (s.kind.startsWith('zip') ? 0x40c0ff : 0x40ff60) : 0xff6040;
+    outlines.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: col, depthTest: false })));
+  }
+  outlines.renderOrder = 10; scene.add(outlines);
+}
+
+// looking round: yaw about the node's up, pitch; the game's heading 0 looks along +z (face 3)
+let yaw = 0, pitch = 0, fov = 65;
+function look() {
+  const d = new THREE.Vector3(...dirOf(pitch, yaw).toArray()); d.x = -d.x;
+  camera.lookAt(d); camera.fov = fov; camera.updateProjectionMatrix();
+}
+
+let here = null, now = null, fading = null;
+const hist = [];
+const sel = document.getElementById('sel');
+for (const n of names) sel.add(new Option(n.replace('-', ' ').replace(/ 0+/, ' '), n));
+sel.onchange = () => go(sel.value, true);
+async function go(n, push = true) {
+  if (!NODES[n] || n === here) return;
+  const texs = await loadNode(n);
+  if (push && here) hist.push(here);
+  const next = cube(texs); scene.add(next);
+  if (now) { const old = now; fading = { old, next, t0: performance.now() }; next.children.forEach(m => m.material.opacity = 0); }
+  now = next; here = n; sel.value = n; location.hash = n;
+  document.getElementById('here').textContent = n;
+  document.getElementById('moves').textContent = (NODES[n] || []).map(s => `${s.kind}${s.to ? ' to ' + s.to : ' (' + s.args.join(' ') + ')'} at ${s.rects[0][1]}°/${s.rects[0][0]}°`).join(' · ') || 'no moves';
+  drawSpots(n);
+  for (const s of NODES[n] || []) if (s.to) loadNode(s.to);          // the next nodes' faces ready
+}
+document.getElementById('back').onclick = () => { if (hist.length) go(hist.pop(), false); };
+document.getElementById('show').onclick = () => { showSpots = !showSpots; drawSpots(here); };
+addEventListener('keydown', e => {
+  if (e.key === 'h' || e.key === 'H') { showSpots = !showSpots; drawSpots(here); }
+  if (e.key === 'Backspace' && hist.length) { e.preventDefault(); go(hist.pop(), false); }
+});
+
+// drag to look, click (or tap) a hotspot to move; the cursor shows a hotspot under it
+const el = renderer.domElement, ptr = new Map();
+let down = null, pinch = null;
+const rayAt = (x, y) => { const v = new THREE.Vector3(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1, 0.5).unproject(camera); return v.normalize(); };
+el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); down = { x: e.clientX, y: e.clientY, yaw, pitch, t: performance.now(), moved: false };
+  if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), fov }; } });
+el.addEventListener('pointermove', e => {
+  if (ptr.has(e.pointerId)) ptr.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pinch && ptr.size === 2) { const [a, b] = [...ptr.values()]; fov = Math.min(90, Math.max(20, pinch.fov * pinch.d / Math.hypot(a[0] - b[0], a[1] - b[1]))); down && (down.moved = true); return; }
+  if (down && ptr.size === 1) {
+    const dx = e.clientX - down.x, dy = e.clientY - down.y;
+    if (Math.hypot(dx, dy) > 6) down.moved = true;
+    if (down.moved) { const k = fov / innerHeight; yaw = down.yaw - dx * k; pitch = Math.max(-89, Math.min(89, down.pitch + dy * k)); }
+  } else if (here) el.style.cursor = spotAt(here, rayAt(e.clientX, e.clientY)) ? 'pointer' : 'grab';
+});
+const up = e => {
+  ptr.delete(e.pointerId); if (ptr.size < 2) pinch = null;
+  if (down && !down.moved && ptr.size === 0 && here) { const s = spotAt(here, rayAt(e.clientX, e.clientY)); if (s && s.to) go(s.to); }
+  if (ptr.size === 0) down = null;
+};
+el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+el.addEventListener('wheel', e => { fov = Math.min(90, Math.max(20, fov * Math.exp(e.deltaY * 0.001))); e.preventDefault(); }, { passive: false });
+
+renderer.setAnimationLoop(() => {
+  look();
+  if (fading) {
+    const f = Math.min(1, (performance.now() - fading.t0) / 350);
+    fading.next.children.forEach(m => m.material.opacity = f);
+    if (f >= 1) { scene.remove(fading.old); fading.old.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); fading = null; }
+  }
+  renderer.render(scene, camera);
+});
+window.nodeWalk = { go, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; } };
+go(NODES[location.hash.slice(1)] ? location.hash.slice(1) : 'MAIS-0006');
+</script>
+</body>
+</html>
