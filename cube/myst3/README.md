@@ -1972,3 +1972,27 @@ judge the move either way. (The warp's layout, fused the same way, lost a
 quarter of MAIS's points, but that test is unfair to any move that changes
 neighbours' relative places, since the depth maps were made with the old
 ones.)
+
+Built with MAIS 6–9 moved and MAIS 10, 11 placed (`age_v6`: `warp_model.py
+--rot-from` posing the six nodes at the fit's places with no sparse points,
+the dense cloud from `dense_mais_c`), with MACA 1, 5, 6, MALL 17 and MATO 3
+as placed before: 133 nodes. MAIS 10's shell, its depth anchored on only
+2,375 cells, read the MATO building across the water as farther than the
+mesh has it and carved 30,000 of MATO's triangles (MATO 3 left out 36.6);
+the carve leaves it out (MATO 3 31.2). Against the shipped mesh:
+
+| measured | shipped (126 nodes) | `age_v6` (133 nodes) |
+|---|---|---|
+| MAIS 6, 7, 8, 9 left out | 28.1, 27.3, 32.2, 38.8 | 24.9, 26.7, 32.0, 35.9 |
+| MAIS 10, 11 left out | — | 32.7, 32.8 |
+| MAIS 12, 13, 14, 15 left out | 34.1, 33.8, 31.2, 18.8 | 32.5, 31.3, 33.1, 15.8 |
+| MAIS 15–29 left out, median | 15.0 | 14.6 |
+| MAIS 30, 31 left out | 35.1, 38.9 | 35.2, 38.6 |
+| walks (9 points each) | 135 | 144 |
+| view no node sees, median along walks | 0.4% | 0.4% |
+| walks with a step changing over 30/255 | 8 | 7 |
+| standing at a node, the 126 nodes in both, mean | 1.21 | 1.26 |
+
+MAIS 14 is the one node worse (by 1.9); no node is worse by more than 0.5
+standing at it. Shipped in `scene_age` (12 November 2026). The node walk's map
+(`node_walk.py --views`) now has these places.
