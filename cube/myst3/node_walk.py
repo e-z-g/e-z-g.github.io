@@ -5,6 +5,7 @@ and its movement hotspots with their full rectangles.
 
     python node_walk.py MYST3_DAT FACES OUT [--rooms MACA MAIS MALL MASS MATO MAWW]
                         [--views VIEWS.json] [--placed PLACED.json ...] [--proposed LAYOUT.json [--height-from 2010=2009 ...]]
+                        [--sea 2006 2007 ... [--eye 0.226]]
 
 MYST3_DAT is ScummVM's myst3.dat (the game's node scripts); FACES myst3_nodes.py's faces folder (<ROOM>/<ROOM>-
 <node>-f<face>.jpg). Writes OUT/walk.json: per node ("MAIS-0006") its hotspots that move the player (walks,
@@ -17,7 +18,9 @@ order: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6). With --views (a scene's 
 y up, one unit the node spacing, heading 0 along +z) it also writes OUT/layout.json for the page's map: each node's
 place, "model" for the scene's nodes and "placed" for those in --placed (place_nodes.py's output, later files
 winning; a placed node also proposed is left to the proposal), and under "proposed" a layout not yet built (warp_model.py's LAYOUT.json: [x, z] keeps the node's height,
-or --height-from's node's). Needs only Python 3.
+or --height-from's node's). With --sea, layout.json's "sea" is the height taken as 0 on the map: the mean height of
+those nodes less --eye (the eye's height over the floor in node spacings, from the hotspots' paired pitches); for
+Amateria the walkway along MAIS 6-12, at the water. Needs only Python 3.
 """
 import argparse
 import json
@@ -80,6 +83,7 @@ def main():
     ap.add_argument('--rooms', nargs='+', default=['MACA', 'MAIS', 'MALL', 'MASS', 'MAWW', 'MATO'])
     ap.add_argument('--views'); ap.add_argument('--placed', nargs='*', default=[]); ap.add_argument('--proposed')
     ap.add_argument('--height-from', nargs='*', default=[])
+    ap.add_argument('--sea', nargs='*', default=[]); ap.add_argument('--eye', type=float, default=0.226)
     a = ap.parse_args()
     scripts = load_dat(a.dat)
     rooms = {1001 + i: r for i, r in enumerate(a.rooms)}
@@ -130,8 +134,12 @@ def main():
                 y = lay[hf.get(n, n)]['pos'][1] if len(p) == 2 else p[1]
                 prop[n] = [round(p[0], 4), round(y, 4), round(p[-1], 4)]
         lay = {n: v for n, v in lay.items() if not (v['kind'] == 'placed' and n in prop)}   # proposed supersedes placed
-        json.dump({'nodes': lay, 'proposed': prop}, open(os.path.join(a.out, 'layout.json'), 'w'), separators=(',', ':'))
-        print(f"layout: {len(lay)} nodes placed, {len(prop)} proposed")
+        res = {'nodes': lay, 'proposed': prop}
+        if a.sea:
+            res['sea'] = round(sum(lay[n]['pos'][1] for n in a.sea) / len(a.sea) - a.eye, 4)
+            res['sea_from'] = a.sea
+        json.dump(res, open(os.path.join(a.out, 'layout.json'), 'w'), separators=(',', ':'))
+        print(f"layout: {len(lay)} nodes placed, {len(prop)} proposed" + (f", sea at {res['sea']}" if a.sea else ''))
     print(f"{len(out)} nodes with faces; hotspots: {counts['walks']} to a node with faces, {counts['no faces']} to a node "
           f"without (a flat close-up), {counts['other']} movies, age changes and the like")
 

@@ -291,7 +291,7 @@ el.addEventListener('wheel', e => { fov = Math.min(FOV_MAX, Math.max(FOV_MIN, fo
 const MC = document.getElementById('map'), mcx = MC.getContext('2d');
 const ROOMCOL = ['#e8b04a', '#5ec4e8', '#b58cf0', '#7fd46a', '#f07a7a', '#e8e06a'];
 let mapOn = innerWidth > 600, mapScale = 30, mapHover = null;
-const P = LAY.nodes, PROP = LAY.proposed;
+const P = LAY.nodes, PROP = LAY.proposed, SEA = LAY.sea || 0;   // heights shown over SEA (node_walk.py --sea)
 let useProp = true;                                         // the proposed places where there are any, or the model's
 const posOf = n => (useProp && PROP[n]) || (P[n] && P[n].pos) || null;
 const other = n => useProp ? (PROP[n] && P[n] ? P[n].pos : null) : (PROP[n] || null);   // shown dashed
@@ -365,7 +365,7 @@ function drawMap() {
   if (hv) {
     const p = P[hv] ? P[hv].pos : null, q = PROP[hv];
     const at = posOf(hv);
-    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : '') + (at ? ` · height ${at[1].toFixed(2)}` : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
+    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : '') + (at ? ` · ${(at[1] - SEA).toFixed(2)} over ${LAY.sea !== undefined ? 'sea' : 'node 4084'}` : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
     c.fillText(t, 6, h - 22);
   }
   c.fillStyle = 'rgba(200,200,200,.7)'; c.fillText('N↑  ● model  ■ placed  ◯ proposed  - - ' + (useProp ? 'model' : 'proposed'), 6, h - 8);
