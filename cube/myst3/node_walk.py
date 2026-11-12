@@ -4,6 +4,7 @@ The data for node_walk.html, Myst III's nodes walked as the game walks them: eve
 and its movement hotspots with their full rectangles.
 
     python node_walk.py MYST3_DAT FACES OUT [--rooms MACA MAIS MALL MASS MATO MAWW]
+                        [--views VIEWS.json] [--placed PLACED.json ...] [--proposed LAYOUT.json [--height-from 2010=2009 ...]]
 
 MYST3_DAT is ScummVM's myst3.dat (the game's node scripts); FACES myst3_nodes.py's faces folder (<ROOM>/<ROOM>-
 <node>-f<face>.jpg). Writes OUT/walk.json: per node ("MAIS-0006") its hotspots that move the player (walks,
@@ -12,7 +13,11 @@ the script gives them (centre pitch and heading in degrees, width and height in 
 rectangle's side over its distance, times 90), the condition (a game variable; the walk ignores it) and the target
 node when it has faces. A hotspot whose target is a node with no cube faces (a close-up drawn as a flat frame) is
 kept with no target. The rooms' numbers in walk-room and zip-room are 1000 plus the room's place in --rooms (Amateria's
-order: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6). Needs only Python 3.
+order: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6). With --views (a scene's views.json, scene_mesh.py's frame:
+y up, one unit the node spacing, heading 0 along +z) it also writes OUT/layout.json for the page's map: each node's
+place, "model" for the scene's nodes and "placed" for those in --placed (place_nodes.py's output, later files
+winning; a placed node also proposed is left to the proposal), and under "proposed" a layout not yet built (warp_model.py's LAYOUT.json: [x, z] keeps the node's height,
+or --height-from's node's). Needs only Python 3.
 """
 import argparse
 import json
@@ -73,6 +78,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('dat'); ap.add_argument('faces'); ap.add_argument('out')
     ap.add_argument('--rooms', nargs='+', default=['MACA', 'MAIS', 'MALL', 'MASS', 'MAWW', 'MATO'])
+    ap.add_argument('--views'); ap.add_argument('--placed', nargs='*', default=[]); ap.add_argument('--proposed')
+    ap.add_argument('--height-from', nargs='*', default=[])
     a = ap.parse_args()
     scripts = load_dat(a.dat)
     rooms = {1001 + i: r for i, r in enumerate(a.rooms)}
@@ -110,6 +117,21 @@ def main():
             out[name] = keep
     os.makedirs(a.out, exist_ok=True)
     json.dump({'rooms': a.rooms, 'nodes': out}, open(os.path.join(a.out, 'walk.json'), 'w'), separators=(',', ':'))
+    if a.views:
+        lay = {n: {'pos': [round(x, 4) for x in v['pos']], 'kind': 'model'} for n, v in json.load(open(a.views)).items()}
+        for f in a.placed:
+            for n, v in json.load(open(f)).items():
+                if n not in lay or lay[n]['kind'] == 'placed':
+                    lay[n] = {'pos': [round(x, 4) for x in v['pos']], 'kind': 'placed'}
+        prop = {}
+        if a.proposed:
+            hf = dict(x.split('=') for x in a.height_from)
+            for n, p in json.load(open(a.proposed)).items():
+                y = lay[hf.get(n, n)]['pos'][1] if len(p) == 2 else p[1]
+                prop[n] = [round(p[0], 4), round(y, 4), round(p[-1], 4)]
+        lay = {n: v for n, v in lay.items() if not (v['kind'] == 'placed' and n in prop)}   # proposed supersedes placed
+        json.dump({'nodes': lay, 'proposed': prop}, open(os.path.join(a.out, 'layout.json'), 'w'), separators=(',', ':'))
+        print(f"layout: {len(lay)} nodes placed, {len(prop)} proposed")
     print(f"{len(out)} nodes with faces; hotspots: {counts['walks']} to a node with faces, {counts['no faces']} to a node "
           f"without (a flat close-up), {counts['other']} movies, age changes and the like")
 

@@ -13,6 +13,9 @@
   select, button { font: inherit; background: rgba(0,0,0,.6); color: #eee; border: 1px solid #666; border-radius: 4px; padding: 3px 6px; }
   #tip { position: fixed; pointer-events: none; background: rgba(0,0,0,.75); padding: 2px 6px; border-radius: 4px; font-size: 13px; display: none; }
   #moves { position: fixed; bottom: 8px; left: 8px; right: 8px; background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+  #map { position: fixed; right: 8px; bottom: 48px; width: 260px; height: 260px; background: rgba(0,0,0,.72); border: 1px solid #555; border-radius: 6px; touch-action: none; }
+  #map.big { width: min(560px, 90vw); height: min(560px, 70vh); }
+  #fovtxt { background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
@@ -23,8 +26,12 @@
   <span id="here"></span>
   <select id="sel"></select>
   <button id="back" title="Back (Backspace)">Back</button>
-  <button id="show" title="Show the hotspots (H)">Hotspots</button>
+  <button id="show" title="Hotspots: off, areas, centres, both (H)">Hotspots: off</button>
+  <button id="mapbtn" title="Map of the node layout (M); double-click it to enlarge">Map</button>
+  <button id="laybtn" title="The map's layout: the proposed places where there are any, or the model's (L)">Layout: proposed</button>
+  <span id="fovtxt"></span>
 </div>
+<canvas id="map"></canvas>
 <div id="moves"></div>
 <div id="tip"></div>
 <script type="module">
@@ -32,10 +39,14 @@
 // and its movement hotspots tested on a click as ScummVM tests them (engines/myst3/hotspot.cpp: each rectangle
 // a quad facing the eye at its centre's pitch and heading, half its width and height w/90 and h/90 of its
 // distance). A walk keeps the way you look, as the game does. Conditions on hotspots (doors open or shut) are
-// not kept: every hotspot is live. Data: node_walk.py's walk.json; faces in faces/<ROOM>/.
+// not kept: every hotspot is live. Data: node_walk.py's walk.json and layout.json; faces in faces/<ROOM>/.
+// Zoom (wheel, pinch, + and -) runs from 20 to 360 degrees top to bottom: up to 120 an ordinary perspective view,
+// beyond it the scene rendered into a cube map and drawn as a fisheye, r = tan(theta/s) / tan(fov/2s) with
+// s = max(1, fov/120), so that at 360 the whole sphere fills a circle the height of the window.
 import * as THREE from 'three';
 
 const W = await (await fetch('walk.json')).json();
+const LAY = await fetch('layout.json').then(r => r.ok ? r.json() : { nodes: {}, proposed: {} }).catch(() => ({ nodes: {}, proposed: {} }));
 const NODES = W.nodes;
 // the numbers the mesh work uses: room x 1000 + node (Amateria: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6)
 const num = n => (W.rooms.indexOf(n.slice(0, 4)) + 1) * 1000 + +n.slice(5);
@@ -93,37 +104,102 @@ function hits(ray, rect) {                       // rayIntersectsRect, the ray f
   return a >= 0 && a <= top.dot(top) && b >= 0 && b <= left.dot(left);
 }
 function spotAt(n, ray) {
+  if (!ray) return null;
   const r = sv(ray);
   for (const s of NODES[n] || []) for (const rect of s.rects) if (hits(r, rect)) return s;
   return null;
 }
 
-// the outlines of the hotspots, for the button
-let showSpots = false, outlines = null;
+// the hotspots drawn: 0 off, 1 their areas (filled, labelled with the move), 2 their centres (marked, labelled with
+// the heading and pitch), 3 both
+let spotMode = 0, outlines = null;
+const MODES = ['off', 'areas', 'centres', 'both'];
+const colOf = s => s.to ? (s.kind.startsWith('zip') ? 0x40c0ff : 0x40ff60) : 0xff8040;
+function labelSprite(text, col, w = 0.7) {
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d'); cx.font = 'bold 40px system-ui, sans-serif';
+  cv.width = Math.ceil(cx.measureText(text).width + 24); cv.height = 56;
+  cx.fillStyle = 'rgba(0,0,0,.7)'; cx.fillRect(0, 0, cv.width, cv.height); cx.fillStyle = '#' + col.toString(16).padStart(6, '0');
+  cx.font = 'bold 40px system-ui, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(text, cv.width / 2, 30);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false }));
+  sp.userData.size = [w * cv.width / 256 * 1.6, w * 0.3]; sp.renderOrder = 12;
+  return sp;
+}
 function drawSpots(n) {
-  if (outlines) { scene.remove(outlines); outlines.traverse(o => { if (o.isLineLoop) o.geometry.dispose(); if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); outlines = null; }
-  if (!showSpots) return;
+  if (outlines) { scene.remove(outlines); outlines.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); outlines = null; }
+  document.getElementById('show').textContent = 'Hotspots: ' + MODES[spotMode];
+  if (!spotMode) return;
   outlines = new THREE.Group();
   for (const s of NODES[n] || []) for (const rect of s.rects) {
-    const pts = rectCorners(rect).map(c => sv(c).multiplyScalar(0.1));
-    const col = s.to ? (s.kind.startsWith('zip') ? 0x40c0ff : 0x40ff60) : 0xff6040;
-    outlines.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: col, depthTest: false })));
-    // the target's number at the rectangle's centre
-    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64; const cx = cv.getContext('2d');
-    cx.fillStyle = 'rgba(0,0,0,.6)'; cx.fillRect(0, 0, 256, 64); cx.fillStyle = '#' + col.toString(16).padStart(6, '0');
-    cx.font = 'bold 40px system-ui, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(s.to ? String(num(s.to)) : s.kind, 128, 34);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false, sizeAttenuation: true }));
-    sp.position.copy(sv(dirOf(rect[0], rect[1])).multiplyScalar(5)); sp.scale.set(1.2, 0.3, 1); sp.renderOrder = 11;
-    outlines.add(sp);
+    const col = colOf(s), pts = rectCorners(rect).map(c => sv(c).multiplyScalar(0.1));
+    const target = s.to ? `${s.kind} → ${num(s.to)}` : `${s.kind} ${s.args.join(' ')}`;
+    if (spotMode & 1) {
+      outlines.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: col, depthTest: false })));
+      const fill = new THREE.BufferGeometry().setFromPoints([pts[0], pts[1], pts[2], pts[0], pts[2], pts[3]]);
+      const m = new THREE.Mesh(fill, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.16, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+      m.renderOrder = 9; outlines.add(m);
+      const sp = labelSprite(target, col);                     // at the area's top edge, inside it
+      const top = pts[0].clone().add(pts[1]).multiplyScalar(0.5), mid = pts[0].clone().add(pts[2]).multiplyScalar(0.5);
+      sp.position.copy(top.lerp(mid, 0.18)); outlines.add(sp);
+    }
+    if (spotMode & 2) {
+      const c = sv(dirOf(rect[0], rect[1])).multiplyScalar(5);
+      const dot = labelSprite('+', col, 0.4); dot.position.copy(c); outlines.add(dot);
+      const sp = labelSprite(`${s.to ? num(s.to) : s.kind} · ${rect[1]}° ${rect[0] >= 0 ? '+' : '−'}${Math.abs(rect[0])}°`, col, 0.55);
+      sp.position.copy(c).add(new THREE.Vector3(0, -0.2, 0)); sp.userData.below = true; outlines.add(sp);
+    }
   }
   outlines.renderOrder = 10; scene.add(outlines);
 }
+function sizeLabels() {                         // the labels' size kept about the same on screen as the view widens
+  if (!outlines) return;
+  const k = Math.max(fov, 20) / 65;
+  outlines.traverse(o => { if (o.isSprite) { o.scale.set(o.userData.size[0] * k, o.userData.size[1] * k, 1); } });
+}
 
 // looking round: yaw about the node's up, pitch; the game's heading 0 looks along +z (face 3)
-let yaw = 0, pitch = 0, fov = 65;
+let yaw = 0, pitch = 0, fov = 65, forceFish = false;
+const FOV_MIN = 20, FOV_MAX = 360;
+const fish = () => forceFish || fov > 120;
+const sOf = f => Math.max(1, f / 120);
 function look() {
   const d = new THREE.Vector3(...dirOf(pitch, yaw).toArray()); d.x = -d.x;
-  camera.lookAt(d); camera.fov = fov; camera.updateProjectionMatrix();
+  camera.lookAt(d); camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix();
+  document.getElementById('fovtxt').textContent = `${Math.round(fov)}°` + (fish() ? ' fisheye' : '');
+}
+// a window point's direction, as either view draws it (null outside the fisheye's circle)
+function rayAt(x, y) {
+  const X = (x / innerWidth * 2 - 1) * innerWidth / innerHeight, Y = 1 - y / innerHeight * 2, r = Math.hypot(X, Y);
+  const T = fov / 2 * Math.PI / 180, s = sOf(fov), th = s * Math.atan(r * Math.tan(T / s));
+  if (th > Math.PI) return null;
+  const q = r > 0 ? [X / r, Y / r] : [0, 0];
+  return new THREE.Vector3(Math.sin(th) * q[0], Math.sin(th) * q[1], -Math.cos(th)).applyQuaternion(camera.quaternion).normalize();
+}
+// the fisheye: the scene into a cube map, then each pixel's direction looked up in it
+const cubeRT = new THREE.WebGLCubeRenderTarget(Math.min(2048, renderer.capabilities.maxCubemapSize),
+  { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, colorSpace: THREE.SRGBColorSpace });
+const cubeCam = new THREE.CubeCamera(0.01, 100, cubeRT);
+const fishMat = new THREE.ShaderMaterial({
+  uniforms: { env: { value: cubeRT.texture }, rot: { value: new THREE.Matrix3() }, aspect: { value: 1 }, tanT: { value: 1 }, s: { value: 1 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `uniform samplerCube env; uniform mat3 rot; uniform float aspect, tanT, s; varying vec2 vUv;
+    void main() {
+      vec2 p = (vUv * 2.0 - 1.0) * vec2(aspect, 1.0); float r = length(p), th = s * atan(r * tanT);
+      if (th > 3.14159265) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+      vec2 q = r > 0.0 ? p / r : vec2(0.0);
+      gl_FragColor = textureCube(env, rot * vec3(sin(th) * q, -cos(th)));
+      #include <colorspace_fragment>
+    }`, depthTest: false, depthWrite: false });
+const fishScene = new THREE.Scene(), fishCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+fishScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fishMat));
+function render() {
+  sizeLabels();
+  if (!fish()) { renderer.render(scene, camera); return; }
+  cubeCam.update(renderer, scene);
+  const s = sOf(fov);
+  fishMat.uniforms.rot.value.setFromMatrix4(camera.matrixWorld); fishMat.uniforms.aspect.value = innerWidth / innerHeight;
+  fishMat.uniforms.tanT.value = Math.tan(fov / 2 * Math.PI / 180 / s); fishMat.uniforms.s.value = s;
+  renderer.render(fishScene, fishCam);
 }
 
 let here = null, now = null, fading = null;
@@ -144,25 +220,28 @@ async function go(n, push = true) {
   for (const s of NODES[n] || []) if (s.to) loadNode(s.to);          // the next nodes' faces ready
 }
 document.getElementById('back').onclick = () => { if (hist.length) go(hist.pop(), false); };
-document.getElementById('show').onclick = () => { showSpots = !showSpots; drawSpots(here); };
+document.getElementById('show').onclick = () => { spotMode = (spotMode + 1) % 4; drawSpots(here); };
 addEventListener('keydown', e => {
-  if (e.key === 'h' || e.key === 'H') { showSpots = !showSpots; drawSpots(here); }
+  if (e.key === 'h' || e.key === 'H') { spotMode = (spotMode + 1) % 4; drawSpots(here); }
+  if (e.key === 'm' || e.key === 'M') toggleMap();
+  if (e.key === 'l' || e.key === 'L') toggleLayout();
+  if (e.key === '+' || e.key === '=') fov = Math.max(FOV_MIN, fov / 1.25);
+  if (e.key === '-' || e.key === '_') fov = Math.min(FOV_MAX, fov * 1.25);
   if (e.key === 'Backspace' && hist.length) { e.preventDefault(); go(hist.pop(), false); }
 });
 
 // drag to look, click (or tap) a hotspot to move; the cursor shows a hotspot under it
 const el = renderer.domElement, ptr = new Map();
 let down = null, pinch = null;
-const rayAt = (x, y) => { const v = new THREE.Vector3(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1, 0.5).unproject(camera); return v.normalize(); };
 el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); down = { x: e.clientX, y: e.clientY, yaw, pitch, t: performance.now(), moved: false };
   if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), fov }; } });
 el.addEventListener('pointermove', e => {
   if (ptr.has(e.pointerId)) ptr.set(e.pointerId, [e.clientX, e.clientY]);
-  if (pinch && ptr.size === 2) { const [a, b] = [...ptr.values()]; fov = Math.min(90, Math.max(20, pinch.fov * pinch.d / Math.hypot(a[0] - b[0], a[1] - b[1]))); down && (down.moved = true); return; }
+  if (pinch && ptr.size === 2) { const [a, b] = [...ptr.values()]; fov = Math.min(FOV_MAX, Math.max(FOV_MIN, pinch.fov * pinch.d / Math.hypot(a[0] - b[0], a[1] - b[1]))); down && (down.moved = true); return; }
   if (down && ptr.size === 1) {
     const dx = e.clientX - down.x, dy = e.clientY - down.y;
     if (Math.hypot(dx, dy) > 6) down.moved = true;
-    if (down.moved) { const k = fov / innerHeight; yaw = down.yaw - dx * k; pitch = Math.max(-89, Math.min(89, down.pitch + dy * k)); }
+    if (down.moved) { const k = Math.min(fov, 180) / innerHeight; yaw = down.yaw - dx * k; pitch = Math.max(-89, Math.min(89, down.pitch + dy * k)); }
   } else if (here) {
     const s = spotAt(here, rayAt(e.clientX, e.clientY)), tip = document.getElementById('tip');
     el.style.cursor = s ? 'pointer' : 'grab';
@@ -176,7 +255,93 @@ const up = e => {
   if (ptr.size === 0) down = null;
 };
 el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-el.addEventListener('wheel', e => { fov = Math.min(90, Math.max(20, fov * Math.exp(e.deltaY * 0.001))); e.preventDefault(); }, { passive: false });
+el.addEventListener('wheel', e => { fov = Math.min(FOV_MAX, Math.max(FOV_MIN, fov * Math.exp(e.deltaY * 0.001))); e.preventDefault(); }, { passive: false });
+
+// the map: every node the layout places, seen from above with heading 0 up (the game's headings run clockwise),
+// the game's moves between them, the eye's node and the way it looks; proposed places (not built) as rings,
+// dashed from where the model has the node. Wheel over it to zoom, click a node to go there, double-click to enlarge.
+const MC = document.getElementById('map'), mcx = MC.getContext('2d');
+const ROOMCOL = ['#e8b04a', '#5ec4e8', '#b58cf0', '#7fd46a', '#f07a7a', '#e8e06a'];
+let mapOn = innerWidth > 600, mapScale = 30, mapHover = null;
+const P = LAY.nodes, PROP = LAY.proposed;
+let useProp = true;                                         // the proposed places where there are any, or the model's
+const posOf = n => (useProp && PROP[n]) || (P[n] && P[n].pos) || null;
+const other = n => useProp ? (PROP[n] && P[n] ? P[n].pos : null) : (PROP[n] || null);   // shown dashed
+function toggleLayout() { useProp = !useProp; document.getElementById('laybtn').textContent = 'Layout: ' + (useProp ? 'proposed' : 'model'); }
+document.getElementById('laybtn').onclick = toggleLayout;
+function toggleMap() { mapOn = !mapOn; MC.style.display = mapOn ? 'block' : 'none'; }
+MC.style.display = mapOn ? 'block' : 'none';
+document.getElementById('mapbtn').onclick = toggleMap;
+MC.addEventListener('dblclick', () => MC.classList.toggle('big'));
+MC.addEventListener('wheel', e => { mapScale = Math.min(400, Math.max(4, mapScale * Math.exp(-e.deltaY * 0.0015))); e.preventDefault(); }, { passive: false });
+let mapCentre = [0, 0, 0];
+const toMap = (p, w, h) => [w / 2 - (p[0] - mapCentre[0]) * mapScale, h / 2 - (p[2] - mapCentre[2]) * mapScale];
+function nodeAtMap(x, y) {
+  const w = MC.clientWidth, h = MC.clientHeight; let best = null, bd = matchMedia('(pointer: coarse)').matches ? 18 : 10;
+  for (const n of new Set([...Object.keys(P), ...Object.keys(PROP)])) {
+    const p = posOf(n); if (!p) continue; const [a, b] = toMap(p, w, h), d = Math.hypot(a - x, b - y); if (d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
+MC.addEventListener('pointermove', e => { mapHover = nodeAtMap(e.offsetX, e.offsetY); });
+MC.addEventListener('pointerleave', () => { mapHover = null; });
+MC.addEventListener('click', e => { const n = nodeAtMap(e.offsetX, e.offsetY); if (n && byNum[+n]) go(byNum[+n]); });
+function drawMap() {
+  if (!mapOn) return;
+  const dpr = Math.min(devicePixelRatio, 2), w = MC.clientWidth, h = MC.clientHeight;
+  if (MC.width !== Math.round(w * dpr) || MC.height !== Math.round(h * dpr)) { MC.width = Math.round(w * dpr); MC.height = Math.round(h * dpr); }
+  const c = mcx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+  const cur = here ? String(num(here)) : null;
+  if (cur && posOf(cur)) mapCentre = posOf(cur);
+  // the moves
+  for (const [n, spots] of Object.entries(NODES)) {
+    const a = posOf(String(num(n))); if (!a) continue;
+    for (const s of spots) {
+      if (!s.to) continue; const b = posOf(String(num(s.to))); if (!b) continue;
+      const [x1, y1] = toMap(a, w, h), [x2, y2] = toMap(b, w, h);
+      c.strokeStyle = s.kind.startsWith('zip') ? 'rgba(64,192,255,.55)' : 'rgba(200,200,200,.45)';
+      c.setLineDash(s.kind.startsWith('zip') ? [4, 3] : []); c.lineWidth = 1;
+      c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+    }
+  }
+  c.setLineDash([]);
+  // the proposed places, dashed from the model's
+  for (const n of Object.keys(PROP)) {
+    const q = other(n), [x, y] = toMap(posOf(n), w, h);
+    if (q) { const [x0, y0] = toMap(q, w, h); c.strokeStyle = 'rgba(255,90,220,.7)'; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(x0, y0); c.lineTo(x, y); c.stroke(); c.setLineDash([]);
+      c.strokeStyle = 'rgba(255,90,220,.6)'; c.lineWidth = 1; c.beginPath(); c.arc(x0, y0, 3.5, 0, 7); c.stroke(); }
+    c.strokeStyle = '#ff5adc'; c.lineWidth = 1.5; c.beginPath(); c.arc(x, y, 5, 0, 7); c.stroke();
+  }
+  // the nodes
+  const labels = mapScale >= 18;
+  c.font = '10px system-ui, sans-serif'; c.textBaseline = 'middle';
+  for (const [n, v] of Object.entries(P)) {
+    const [x, y] = toMap(posOf(n), w, h); if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
+    c.fillStyle = ROOMCOL[+n[0] - 1] || '#ccc';
+    if (v.kind === 'placed') c.fillRect(x - 3, y - 3, 6, 6); else { c.beginPath(); c.arc(x, y, 3, 0, 7); c.fill(); }
+    if (labels) { c.fillStyle = 'rgba(230,230,230,.85)'; c.fillText(n, x + 5, y - 6); }
+  }
+  if (labels) for (const n of Object.keys(PROP)) if (!P[n] && posOf(n)) { const [x, y] = toMap(posOf(n), w, h); c.fillStyle = '#ff9ae8'; c.fillText(n, x + 6, y - 6); }
+  // where the eye is and the way it looks
+  if (cur && posOf(cur)) { const p = posOf(cur);
+    const [x, y] = toMap(p, w, h), H = yaw * Math.PI / 180;
+    const half = Math.min(Math.PI, (fish() ? fov : 2 * Math.atan(Math.tan(fov * Math.PI / 360) * innerWidth / innerHeight) * 180 / Math.PI) / 2 * Math.PI / 180);
+    const ang = a => Math.atan2(-Math.cos(a), Math.sin(a));        // a heading's angle on the canvas
+    c.fillStyle = 'rgba(255,255,255,.18)'; c.beginPath(); c.moveTo(x, y); c.arc(x, y, 42, ang(H - half), ang(H + half)); c.closePath(); c.fill();
+    c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 22 * Math.sin(H), y - 22 * Math.cos(H)); c.stroke();
+    c.beginPath(); c.arc(x, y, 7, 0, 7); c.stroke();
+  }
+  // the legend and the node under the pointer
+  c.fillStyle = 'rgba(230,230,230,.9)'; c.font = '11px system-ui, sans-serif';
+  const hv = mapHover || cur;
+  if (hv) {
+    const p = P[hv] ? P[hv].pos : null, q = PROP[hv];
+    const at = posOf(hv);
+    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : '') + (at ? ` · height ${at[1].toFixed(2)}` : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
+    c.fillText(t, 6, h - 22);
+  }
+  c.fillStyle = 'rgba(200,200,200,.7)'; c.fillText('N↑  ● model  ■ placed  ◯ proposed  - - ' + (useProp ? 'model' : 'proposed'), 6, h - 8);
+}
 
 renderer.setAnimationLoop(() => {
   look();
@@ -185,9 +350,10 @@ renderer.setAnimationLoop(() => {
     fading.next.children.forEach(m => m.material.opacity = f);
     if (f >= 1) { scene.remove(fading.old); fading.old.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); fading = null; }
   }
-  renderer.render(scene, camera);
+  render(); drawMap();
 });
-window.nodeWalk = { go, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; } };
+window.nodeWalk = { go, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; },
+  set fisheye(b) { forceFish = b; }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
 const h0 = decodeURIComponent(location.hash.slice(1));
 go(NODES[h0] ? h0 : byNum[+h0] || 'MAIS-0006');
 addEventListener('hashchange', () => { const h = decodeURIComponent(location.hash.slice(1)), n = NODES[h] ? h : byNum[+h]; if (n && n !== here) go(n); });
