@@ -227,6 +227,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/layout_moves.py` | A layout of nodes (as `warp_model.py` takes it) written as `apply_moves.py`'s moves: each node's new centre and a depth scale (its walks' length in the layout over their length in the model), so a dense workspace can be fused again with the nodes moved. |
 | `colmap/mais_fit.py` | Least-squares fit of MAIS 6–11's places to the game's hotspot headings, step lengths near one spacing and the ladder from MAIS 30 to 6 near vertical; writes the layout for `warp_model.py`. |
 | `colmap/scene_alone.py` | Adds nodes to a scene as pictures only (`views.json` `"alone"`): interiors and views of a changed scene, which `scene3d.html` shows as their own panorama with the mesh hidden and does not project onto the mesh. Places them from an older scene's views, or step by step along the game's hotspots (heading, and distance and climb from the pair of hotspots' pitches), or at another node; writes their picture atlases. |
+| `colmap/caves_fit.py` | MACA's upper caves (MACA 1, 2, the stairs 28–31, 3, 4, 5, 6) fitted between MAIS 1 and MACA 7 by least squares on the game's hotspot headings and steps near one spacing, for the node walk's map and a later rebuild. |
 | `colmap/film_stretch.py` | A short video made longer by FILM's in-between frames, halving each gap `--levels` times. |
 | `splat/splat_mesh_check.py` | How far a mesh's vertices lie from a Gaussian splat of the same place: the splat's frame matched to the mesh's by the nodes both have and ICP, the splat's centres written in the mesh's frame for `scene_mesh.py --splat-centres`. |
 | `splat/splat_depth_train.py` | A Gaussian splat trained with gsplat on a splat dataset's pictures plus a depth loss: each node face's rendered depth held to the node's anchored MoGe depth (`scene_mesh.py --dense`). `--eval` measures any 3DGS `.ply` the same way (PSNR, depth misfit, coverage at the node faces). Needs gsplat (Python 3.10, torch 2.4 on Windows). |
@@ -2037,3 +2038,29 @@ stepped east from MATO 3 by their hotspots (0.38–0.48 spacings each, climbing
 ladder at −58°), 6203 at MATO 3, MASS 57 at MASS 90 raised to MATO 7's height.
 6203 and MASS 57 have no move into them; MATO 7 none from MATO 6 (the ladder is
 a movie). MATO 10, 11 and 12 wait for a place.
+
+### MACA's upper caves (12 November 2026)
+
+Sam: MACA 1 to MAIS 1, MACA 1 to 2 and MACA 3 to 4 are normal steps; MACA 2 to
+3 goes down a steep staircase of several nodes (MACA 28, 29, 30, 31); MACA 4 to
+7 looked squished. The model had MACA 1 4.5 spacings from MAIS 1, and MACA 5
+and 6 (placed nodes) 0.33 and 0.12 apart, with MACA 7 0.89 from MACA 4 though
+that move is a zip (pitches −6 and −7: about 2.3 spacings). From MACA 7 the
+model's MACA 4 lies at bearing 221, and from MACA 1 MAIS 1 at 217: the upper
+caves sit about three spacings too far from MAIS 1 and too near MACA 7.
+`caves_fit.py` moves them (MAIS 1 and MACA 7 held): MACA 1 3.5 spacings, the
+stairs 2.4–3.0, MACA 3 and 4 1.9–2.0, MACA 5 1.3. Every walk comes out at
+0.97–1.28 spacings and every hotspot heading within 15° but two: MACA 4 to 7
+(the zip at 76°, fitted 50°) and MACA 28–29 (22°); MACA 4 to 7 is 2.84. On the
+node walk's map as the proposal (`proposed_caves.json`); not yet built.
+
+### MATO 10, 11, 12
+
+The two movie models that registered them disagree. The ride (`video_ride`)
+puts MATO 10 within 0.15 spacings of MATO 7 and MASS 57, the cluster the sky
+alone held (above), at (−3.7, 0.5, −12.7), and MATO 11, 12 0.4 apart in a line
+from it. The flyover with the sky masked (`video_lemt_nosky`) puts MATO 10 at
+(12.9, 3.0, −4.6), again beside its MATO 7. Neither is used. The hotspots put
+MATO 12, 11, 10 in a line along heading 270, MATO 10 the far end, where the
+marble track runs on out to sea; looking back along heading 90 it sees the
+central structure across the water with the ride's cart in front.
