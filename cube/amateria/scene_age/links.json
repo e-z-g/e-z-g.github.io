@@ -1,0 +1,2498 @@
+{
+"1002": [
+{
+"to": "1004",
+"kind": "zip",
+"heading": 17,
+"pitch": -40,
+"bearing": 24.2,
+"dist": 3.213
+},
+{
+"to": "1028",
+"kind": "walk",
+"heading": 76,
+"pitch": -30,
+"bearing": 68.0,
+"dist": 0.859
+}
+],
+"1003": [
+{
+"to": "1031",
+"kind": "walk",
+"heading": 226,
+"pitch": -1,
+"bearing": 223.4,
+"dist": 0.718
+},
+{
+"to": "1004",
+"kind": "walk",
+"heading": 33,
+"pitch": -10,
+"bearing": 31.3,
+"dist": 1.071
+}
+],
+"1004": [
+{
+"to": "1002",
+"kind": "zip",
+"heading": 211,
+"pitch": 27,
+"bearing": 204.2,
+"dist": 3.213
+},
+{
+"to": "1007",
+"kind": "zip",
+"heading": 76,
+"pitch": -6,
+"bearing": 40.4,
+"dist": 0.877
+},
+{
+"to": "1003",
+"kind": "walk",
+"heading": 209,
+"pitch": -7,
+"bearing": 211.3,
+"dist": 1.071
+}
+],
+"1007": [
+{
+"to": "1004",
+"kind": "zip",
+"heading": 216,
+"pitch": -7,
+"bearing": 220.4,
+"dist": 0.877
+},
+{
+"to": "1010",
+"kind": "zip",
+"heading": 116,
+"pitch": -5,
+"bearing": 112.1,
+"dist": 2.989
+},
+{
+"to": "3003",
+"kind": "zip",
+"heading": 347,
+"pitch": -2,
+"bearing": 345.2,
+"dist": 3.802
+},
+{
+"to": "3001",
+"kind": "walk",
+"heading": 338,
+"pitch": -3,
+"bearing": 345.7,
+"dist": 1.243
+},
+{
+"to": "1008",
+"kind": "walk",
+"heading": 106,
+"pitch": -7,
+"bearing": 97.6,
+"dist": 0.979
+}
+],
+"1008": [
+{
+"to": "1007",
+"kind": "walk",
+"heading": 276,
+"pitch": -6,
+"bearing": 277.6,
+"dist": 0.979
+},
+{
+"to": "1009",
+"kind": "walk",
+"heading": 140,
+"pitch": -7,
+"bearing": 132.3,
+"dist": 1.131
+},
+{
+"to": "1035",
+"kind": "walk",
+"heading": 87,
+"pitch": -13,
+"bearing": 82.2,
+"dist": 0.749
+}
+],
+"1009": [
+{
+"to": "1008",
+"kind": "walk",
+"heading": 308,
+"pitch": -9,
+"bearing": 312.3,
+"dist": 1.131
+},
+{
+"to": "1010",
+"kind": "walk",
+"heading": 114,
+"pitch": -12,
+"bearing": 103.7,
+"dist": 0.99
+},
+{
+"to": "1035",
+"kind": "walk",
+"heading": 355,
+"pitch": -12,
+"bearing": 353.7,
+"dist": 0.869
+}
+],
+"1010": [
+{
+"to": "1014",
+"kind": "zip",
+"heading": 97,
+"pitch": -1,
+"bearing": 111.3,
+"dist": 4.868
+},
+{
+"to": "1007",
+"kind": "zip",
+"heading": 294,
+"pitch": -5,
+"bearing": 292.1,
+"dist": 2.989
+},
+{
+"to": "1009",
+"kind": "walk",
+"heading": 270,
+"pitch": -8,
+"bearing": 283.7,
+"dist": 0.99
+},
+{
+"to": "1011",
+"kind": "walk",
+"heading": 79,
+"pitch": -6,
+"bearing": 81.3,
+"dist": 1.062
+}
+],
+"1011": [
+{
+"to": "1010",
+"kind": "walk",
+"heading": 262,
+"pitch": -14,
+"bearing": 261.3,
+"dist": 1.062
+},
+{
+"to": "1012",
+"kind": "walk",
+"heading": 100,
+"pitch": -10,
+"bearing": 137.6,
+"dist": 2.073
+}
+],
+"1012": [
+{
+"to": "1011",
+"kind": "walk",
+"heading": 288,
+"pitch": -6,
+"bearing": 317.6,
+"dist": 2.073
+},
+{
+"to": "1013",
+"kind": "walk",
+"heading": 94,
+"pitch": -10,
+"bearing": 91.3,
+"dist": 1.171
+}
+],
+"1013": [
+{
+"to": "1012",
+"kind": "walk",
+"heading": 277,
+"pitch": -8,
+"bearing": 271.3,
+"dist": 1.171
+},
+{
+"to": "1014",
+"kind": "walk",
+"heading": 119,
+"pitch": -10,
+"bearing": 111.8,
+"dist": 0.992
+}
+],
+"1014": [
+{
+"to": "1010",
+"kind": "zip",
+"heading": 281,
+"pitch": -1,
+"bearing": 291.3,
+"dist": 4.868
+},
+{
+"to": "1019",
+"kind": "zip",
+"heading": 148,
+"pitch": -6,
+"bearing": 145.6,
+"dist": 3.369
+},
+{
+"to": "1013",
+"kind": "walk",
+"heading": 289,
+"pitch": -4,
+"bearing": 291.8,
+"dist": 0.992
+},
+{
+"to": "1015",
+"kind": "walk",
+"heading": 136,
+"pitch": -9,
+"bearing": 147.2,
+"dist": 0.811
+},
+{
+"to": "1038",
+"kind": "walk",
+"heading": 190,
+"pitch": 0,
+"bearing": 173.4,
+"dist": 0.731
+}
+],
+"1015": [
+{
+"to": "1014",
+"kind": "walk",
+"heading": 326,
+"pitch": -13,
+"bearing": 327.2,
+"dist": 0.811
+},
+{
+"to": "1016",
+"kind": "walk",
+"heading": 145,
+"pitch": -9,
+"bearing": 140.8,
+"dist": 1.005
+},
+{
+"to": "1038",
+"kind": "walk",
+"heading": 254,
+"pitch": 27,
+"bearing": 262.9,
+"dist": 0.358
+}
+],
+"1016": [
+{
+"to": "1015",
+"kind": "walk",
+"heading": 323,
+"pitch": -6,
+"bearing": 320.8,
+"dist": 1.005
+},
+{
+"to": "1017",
+"kind": "walk",
+"heading": 180,
+"pitch": -24,
+"bearing": 202.7,
+"dist": 0.806
+}
+],
+"1017": [
+{
+"to": "1016",
+"kind": "walk",
+"heading": 14,
+"pitch": -12,
+"bearing": 22.7,
+"dist": 0.806
+},
+{
+"to": "1018",
+"kind": "walk",
+"heading": 134,
+"pitch": -22,
+"bearing": 148.3,
+"dist": 0.627
+}
+],
+"1018": [
+{
+"to": "1017",
+"kind": "walk",
+"heading": 343,
+"pitch": -18,
+"bearing": 328.3,
+"dist": 0.627
+},
+{
+"to": "1019",
+"kind": "walk",
+"heading": 107,
+"pitch": -22,
+"bearing": 93.1,
+"dist": 0.81
+}
+],
+"1019": [
+{
+"to": "1014",
+"kind": "zip",
+"heading": 327,
+"pitch": -3,
+"bearing": 325.6,
+"dist": 3.369
+},
+{
+"to": "1024",
+"kind": "zip",
+"heading": 152,
+"pitch": -5,
+"bearing": 152.3,
+"dist": 4.843
+},
+{
+"to": "1018",
+"kind": "walk",
+"heading": 285,
+"pitch": -25,
+"bearing": 273.1,
+"dist": 0.81
+},
+{
+"to": "1021",
+"kind": "walk",
+"heading": 137,
+"pitch": -20,
+"bearing": 133.8,
+"dist": 1.215
+}
+],
+"1021": [
+{
+"to": "1019",
+"kind": "walk",
+"heading": 317,
+"pitch": -22,
+"bearing": 313.8,
+"dist": 1.215
+},
+{
+"to": "1022",
+"kind": "walk",
+"heading": 164,
+"pitch": -21,
+"bearing": 167.1,
+"dist": 1.268
+}
+],
+"1022": [
+{
+"to": "1021",
+"kind": "walk",
+"heading": 333,
+"pitch": -16,
+"bearing": 347.1,
+"dist": 1.268
+},
+{
+"to": "1023",
+"kind": "walk",
+"heading": 155,
+"pitch": -13,
+"bearing": 138.9,
+"dist": 1.238
+}
+],
+"1023": [
+{
+"to": "1022",
+"kind": "walk",
+"heading": 324,
+"pitch": -17,
+"bearing": 318.9,
+"dist": 1.238
+},
+{
+"to": "1024",
+"kind": "walk",
+"heading": 164,
+"pitch": -9,
+"bearing": 167.6,
+"dist": 1.316
+}
+],
+"1024": [
+{
+"to": "1019",
+"kind": "zip",
+"heading": 331,
+"pitch": -1,
+"bearing": 332.3,
+"dist": 4.843
+},
+{
+"to": "1023",
+"kind": "walk",
+"heading": 342,
+"pitch": -20,
+"bearing": 347.6,
+"dist": 1.316
+},
+{
+"to": "1025",
+"kind": "walk",
+"heading": 151,
+"pitch": -12,
+"bearing": 146.6,
+"dist": 1.036
+}
+],
+"1025": [
+{
+"to": "1024",
+"kind": "walk",
+"heading": 331,
+"pitch": -31,
+"bearing": 326.6,
+"dist": 1.036
+},
+{
+"to": "1041",
+"kind": "walk",
+"heading": 197,
+"pitch": 19,
+"bearing": 198.2,
+"dist": 0.697
+}
+],
+"1028": [
+{
+"to": "1002",
+"kind": "walk",
+"heading": 235,
+"pitch": -3,
+"bearing": 248.0,
+"dist": 0.859
+},
+{
+"to": "1029",
+"kind": "walk",
+"heading": 357,
+"pitch": -37,
+"bearing": 329.9,
+"dist": 0.746
+}
+],
+"1029": [
+{
+"to": "1028",
+"kind": "walk",
+"heading": 132,
+"pitch": 3,
+"bearing": 149.9,
+"dist": 0.746
+},
+{
+"to": "1030",
+"kind": "walk",
+"heading": 258,
+"pitch": -55,
+"bearing": 240.6,
+"dist": 0.864
+}
+],
+"1030": [
+{
+"to": "1029",
+"kind": "walk",
+"heading": 66,
+"pitch": -7,
+"bearing": 60.6,
+"dist": 0.864
+},
+{
+"to": "1031",
+"kind": "walk",
+"heading": 21,
+"pitch": -34,
+"bearing": 30.9,
+"dist": 0.765
+}
+],
+"1031": [
+{
+"to": "1030",
+"kind": "walk",
+"heading": 227,
+"pitch": -12,
+"bearing": 210.9,
+"dist": 0.765
+},
+{
+"to": "1003",
+"kind": "walk",
+"heading": 49,
+"pitch": -30,
+"bearing": 43.4,
+"dist": 0.718
+}
+],
+"1035": [
+{
+"to": "1008",
+"kind": "walk",
+"heading": 254,
+"pitch": -8,
+"bearing": 262.2,
+"dist": 0.749
+},
+{
+"to": "1009",
+"kind": "walk",
+"heading": 189,
+"pitch": -7,
+"bearing": 173.7,
+"dist": 0.869
+}
+],
+"1037": [
+{
+"to": "4084",
+"kind": "zip",
+"heading": 190,
+"pitch": -18,
+"bearing": 188.0,
+"dist": 3.776
+},
+{
+"to": "1038",
+"kind": "walk",
+"heading": 38,
+"pitch": -48,
+"bearing": 51.2,
+"dist": 1.593
+},
+{
+"to": "4082",
+"kind": "walk",
+"heading": 208,
+"pitch": -22,
+"bearing": 204.7,
+"dist": 1.29
+}
+],
+"1038": [
+{
+"to": "1037",
+"kind": "walk",
+"heading": 247,
+"pitch": 60,
+"bearing": 231.2,
+"dist": 1.593
+},
+{
+"to": "1015",
+"kind": "walk",
+"heading": 121,
+"pitch": -7,
+"bearing": 82.9,
+"dist": 0.358
+},
+{
+"to": "1014",
+"kind": "walk",
+"heading": 351,
+"pitch": -11,
+"bearing": 353.4,
+"dist": 0.731
+}
+],
+"1041": [
+{
+"to": "1025",
+"kind": "walk",
+"heading": 0,
+"pitch": -44,
+"bearing": 18.2,
+"dist": 0.697
+},
+{
+"to": "4001",
+"kind": "walk",
+"heading": 190,
+"pitch": 26,
+"bearing": 192.5,
+"dist": 0.999
+}
+],
+"2001": [
+{
+"to": "2002",
+"kind": "walk",
+"heading": 208,
+"pitch": -6,
+"bearing": 207.8,
+"dist": 1.329
+}
+],
+"2002": [
+{
+"to": "2005",
+"kind": "zip",
+"heading": 195,
+"pitch": -1,
+"bearing": 193.8,
+"dist": 3.843
+},
+{
+"to": "2001",
+"kind": "walk",
+"heading": 28,
+"pitch": -13,
+"bearing": 27.8,
+"dist": 1.329
+},
+{
+"to": "2003",
+"kind": "walk",
+"heading": 204,
+"pitch": -13,
+"bearing": 199.5,
+"dist": 1.531
+}
+],
+"2003": [
+{
+"to": "2002",
+"kind": "walk",
+"heading": 17,
+"pitch": 2,
+"bearing": 19.5,
+"dist": 1.531
+},
+{
+"to": "2004",
+"kind": "walk",
+"heading": 190,
+"pitch": -2,
+"bearing": 194.9,
+"dist": 1.134
+}
+],
+"2004": [
+{
+"to": "2003",
+"kind": "walk",
+"heading": 16,
+"pitch": -3,
+"bearing": 14.9,
+"dist": 1.134
+},
+{
+"to": "2005",
+"kind": "walk",
+"heading": 185,
+"pitch": 4,
+"bearing": 185.5,
+"dist": 1.2
+}
+],
+"2005": [
+{
+"to": "2002",
+"kind": "zip",
+"heading": 12,
+"pitch": 2,
+"bearing": 13.8,
+"dist": 3.843
+},
+{
+"to": "2004",
+"kind": "walk",
+"heading": 0,
+"pitch": -11,
+"bearing": 5.5,
+"dist": 1.2
+},
+{
+"to": "2030",
+"kind": "walk",
+"heading": 185,
+"pitch": -7,
+"bearing": 186.3,
+"dist": 0.801
+},
+{
+"to": "2031",
+"kind": "walk",
+"heading": 110,
+"pitch": -8,
+"bearing": 103.0,
+"dist": 0.759
+}
+],
+"2006": [
+{
+"to": "2030",
+"kind": "walk",
+"heading": 359,
+"pitch": 52,
+"bearing": 6.4,
+"dist": 3.218
+},
+{
+"to": "2007",
+"kind": "walk",
+"heading": 166,
+"pitch": -7,
+"bearing": 171.0,
+"dist": 0.821
+}
+],
+"2007": [
+{
+"to": "2006",
+"kind": "walk",
+"heading": 353,
+"pitch": 0,
+"bearing": 351.0,
+"dist": 0.821
+},
+{
+"to": "2008",
+"kind": "walk",
+"heading": 175,
+"pitch": -11,
+"bearing": 153.2,
+"dist": 0.841
+}
+],
+"2008": [
+{
+"to": "2007",
+"kind": "walk",
+"heading": 355,
+"pitch": -5,
+"bearing": 333.2,
+"dist": 0.841
+},
+{
+"to": "2009",
+"kind": "walk",
+"heading": 158,
+"pitch": -10,
+"bearing": 194.7,
+"dist": 1.18
+}
+],
+"2009": [
+{
+"to": "2008",
+"kind": "walk",
+"heading": 4,
+"pitch": -10,
+"bearing": 14.7,
+"dist": 1.18
+}
+],
+"2012": [
+{
+"to": "2013",
+"kind": "walk",
+"heading": 96,
+"pitch": -8,
+"bearing": 96.8,
+"dist": 1.245
+}
+],
+"2013": [
+{
+"to": "2012",
+"kind": "walk",
+"heading": 274,
+"pitch": -18,
+"bearing": 276.8,
+"dist": 1.245
+},
+{
+"to": "2014",
+"kind": "walk",
+"heading": 124,
+"pitch": 1,
+"bearing": 124.0,
+"dist": 1.215
+}
+],
+"2014": [
+{
+"to": "2018",
+"kind": "zip",
+"heading": 106,
+"pitch": 2,
+"bearing": 103.6,
+"dist": 5.08
+},
+{
+"to": "2013",
+"kind": "walk",
+"heading": 297,
+"pitch": -18,
+"bearing": 304.0,
+"dist": 1.215
+},
+{
+"to": "2015",
+"kind": "walk",
+"heading": 131,
+"pitch": -4,
+"bearing": 128.8,
+"dist": 1.618
+}
+],
+"2015": [
+{
+"to": "2014",
+"kind": "walk",
+"heading": 310,
+"pitch": -21,
+"bearing": 308.8,
+"dist": 1.618
+},
+{
+"to": "2016",
+"kind": "walk",
+"heading": 102,
+"pitch": -6,
+"bearing": 103.7,
+"dist": 1.234
+}
+],
+"2016": [
+{
+"to": "2015",
+"kind": "walk",
+"heading": 293,
+"pitch": -14,
+"bearing": 283.7,
+"dist": 1.234
+},
+{
+"to": "2017",
+"kind": "walk",
+"heading": 91,
+"pitch": -8,
+"bearing": 96.1,
+"dist": 1.259
+}
+],
+"2017": [
+{
+"to": "2016",
+"kind": "walk",
+"heading": 284,
+"pitch": -14,
+"bearing": 276.1,
+"dist": 1.259
+},
+{
+"to": "2018",
+"kind": "walk",
+"heading": 85,
+"pitch": -12,
+"bearing": 80.6,
+"dist": 1.275
+}
+],
+"2018": [
+{
+"to": "4039",
+"kind": "zip",
+"heading": 71,
+"pitch": 1,
+"bearing": 71.6,
+"dist": 11.778
+},
+{
+"to": "2014",
+"kind": "zip",
+"heading": 285,
+"pitch": -5,
+"bearing": 283.6,
+"dist": 5.08
+},
+{
+"to": "2017",
+"kind": "walk",
+"heading": 275,
+"pitch": -19,
+"bearing": 260.6,
+"dist": 1.275
+},
+{
+"to": "2022",
+"kind": "walk",
+"heading": 98,
+"pitch": -16,
+"bearing": 96.4,
+"dist": 1.744
+},
+{
+"to": "2019",
+"kind": "walk",
+"heading": 182,
+"pitch": -6,
+"bearing": 185.2,
+"dist": 1.054
+}
+],
+"2019": [
+{
+"to": "2018",
+"kind": "walk",
+"heading": 353,
+"pitch": -5,
+"bearing": 5.2,
+"dist": 1.054
+},
+{
+"to": "2003",
+"kind": "walk",
+"heading": 180,
+"pitch": -4,
+"bearing": 321.6,
+"dist": 13.973
+}
+],
+"2022": [
+{
+"to": "2018",
+"kind": "walk",
+"heading": 275,
+"pitch": -8,
+"bearing": 276.4,
+"dist": 1.744
+},
+{
+"to": "2023",
+"kind": "walk",
+"heading": 79,
+"pitch": -17,
+"bearing": 90.6,
+"dist": 1.31
+}
+],
+"2023": [
+{
+"to": "2022",
+"kind": "walk",
+"heading": 271,
+"pitch": -9,
+"bearing": 270.6,
+"dist": 1.31
+},
+{
+"to": "2024",
+"kind": "walk",
+"heading": 65,
+"pitch": -23,
+"bearing": 73.3,
+"dist": 1.193
+}
+],
+"2024": [
+{
+"to": "2023",
+"kind": "walk",
+"heading": 266,
+"pitch": -5,
+"bearing": 253.3,
+"dist": 1.193
+},
+{
+"to": "2025",
+"kind": "walk",
+"heading": 83,
+"pitch": -17,
+"bearing": 71.2,
+"dist": 1.227
+}
+],
+"2025": [
+{
+"to": "2024",
+"kind": "walk",
+"heading": 258,
+"pitch": -11,
+"bearing": 251.2,
+"dist": 1.227
+},
+{
+"to": "2026",
+"kind": "walk",
+"heading": 51,
+"pitch": -17,
+"bearing": 60.9,
+"dist": 1.001
+}
+],
+"2026": [
+{
+"to": "2025",
+"kind": "walk",
+"heading": 265,
+"pitch": -20,
+"bearing": 240.9,
+"dist": 1.001
+},
+{
+"to": "2027",
+"kind": "walk",
+"heading": 40,
+"pitch": -14,
+"bearing": 16.9,
+"dist": 0.883
+}
+],
+"2027": [
+{
+"to": "2026",
+"kind": "walk",
+"heading": 216,
+"pitch": -16,
+"bearing": 196.9,
+"dist": 0.883
+},
+{
+"to": "2028",
+"kind": "walk",
+"heading": 69,
+"pitch": -15,
+"bearing": 78.2,
+"dist": 0.865
+}
+],
+"2028": [
+{
+"to": "2027",
+"kind": "walk",
+"heading": 242,
+"pitch": -14,
+"bearing": 258.2,
+"dist": 0.865
+},
+{
+"to": "2029",
+"kind": "walk",
+"heading": 46,
+"pitch": -13,
+"bearing": 46.8,
+"dist": 1.227
+}
+],
+"2029": [
+{
+"to": "2028",
+"kind": "walk",
+"heading": 235,
+"pitch": -13,
+"bearing": 226.8,
+"dist": 1.227
+},
+{
+"to": "4013",
+"kind": "walk",
+"heading": 18,
+"pitch": -4,
+"bearing": 343.9,
+"dist": 0.747
+}
+],
+"2030": [
+{
+"to": "2005",
+"kind": "walk",
+"heading": 359,
+"pitch": -7,
+"bearing": 8.7,
+"dist": 0.801
+},
+{
+"to": "2006",
+"kind": "walk",
+"heading": 176,
+"pitch": -53,
+"bearing": 187.8,
+"dist": 3.218
+},
+{
+"to": "2031",
+"kind": "walk",
+"heading": 40,
+"pitch": -10,
+"bearing": 55.5,
+"dist": 0.971
+}
+],
+"2031": [
+{
+"to": "2005",
+"kind": "walk",
+"heading": 270,
+"pitch": -13,
+"bearing": 284.0,
+"dist": 0.759
+},
+{
+"to": "2032",
+"kind": "walk",
+"heading": 90,
+"pitch": 1,
+"bearing": 90.1,
+"dist": 1.379
+}
+],
+"2032": [
+{
+"to": "2031",
+"kind": "walk",
+"heading": 270,
+"pitch": -13,
+"bearing": 270.1,
+"dist": 1.379
+},
+{
+"to": "2033",
+"kind": "walk",
+"heading": 90,
+"pitch": 1,
+"bearing": 90.0,
+"dist": 1.378
+}
+],
+"2033": [
+{
+"to": "2032",
+"kind": "walk",
+"heading": 270,
+"pitch": -13,
+"bearing": 270.0,
+"dist": 1.378
+},
+{
+"to": "6002",
+"kind": "walk",
+"heading": 90,
+"pitch": 1,
+"bearing": 88.3,
+"dist": 1.157
+}
+],
+"3001": [
+{
+"to": "1007",
+"kind": "walk",
+"heading": 167,
+"pitch": -6,
+"bearing": 165.7,
+"dist": 1.243
+},
+{
+"to": "3002",
+"kind": "walk",
+"heading": 348,
+"pitch": -10,
+"bearing": 351.9,
+"dist": 1.149
+}
+],
+"3002": [
+{
+"to": "3001",
+"kind": "walk",
+"heading": 173,
+"pitch": -9,
+"bearing": 171.9,
+"dist": 1.149
+},
+{
+"to": "3003",
+"kind": "walk",
+"heading": 342,
+"pitch": -8,
+"bearing": 339.4,
+"dist": 1.426
+}
+],
+"3003": [
+{
+"to": "1007",
+"kind": "zip",
+"heading": 165,
+"pitch": -2,
+"bearing": 165.2,
+"dist": 3.802
+},
+{
+"to": "3002",
+"kind": "walk",
+"heading": 162,
+"pitch": -6,
+"bearing": 159.4,
+"dist": 1.426
+},
+{
+"to": "3004",
+"kind": "walk",
+"heading": 24,
+"pitch": -10,
+"bearing": 12.4,
+"dist": 1.305
+}
+],
+"3004": [
+{
+"to": "3003",
+"kind": "walk",
+"heading": 190,
+"pitch": -12,
+"bearing": 192.4,
+"dist": 1.305
+}
+],
+"3014": [
+{
+"to": "3015",
+"kind": "walk",
+"heading": 264,
+"pitch": -15,
+"bearing": 259.6,
+"dist": 0.693
+}
+],
+"3015": [
+{
+"to": "3014",
+"kind": "walk",
+"heading": 55,
+"pitch": -12,
+"bearing": 79.6,
+"dist": 0.693
+},
+{
+"to": "3016",
+"kind": "walk",
+"heading": 271,
+"pitch": -29,
+"bearing": 263.5,
+"dist": 1.178
+}
+],
+"3016": [
+{
+"to": "3015",
+"kind": "walk",
+"heading": 75,
+"pitch": -3,
+"bearing": 83.5,
+"dist": 1.178
+}
+],
+"4001": [
+{
+"to": "4005",
+"kind": "zip",
+"heading": 90,
+"pitch": 0,
+"bearing": 89.8,
+"dist": 4.702
+},
+{
+"to": "1041",
+"kind": "walk",
+"heading": 9,
+"pitch": -47,
+"bearing": 12.5,
+"dist": 0.999
+},
+{
+"to": "4002",
+"kind": "walk",
+"heading": 90,
+"pitch": -6,
+"bearing": 89.5,
+"dist": 1.819
+}
+],
+"4002": [
+{
+"to": "4001",
+"kind": "walk",
+"heading": 270,
+"pitch": -10,
+"bearing": 269.5,
+"dist": 1.819
+},
+{
+"to": "4003",
+"kind": "walk",
+"heading": 90,
+"pitch": -6,
+"bearing": 90.0,
+"dist": 1.462
+}
+],
+"4003": [
+{
+"to": "4002",
+"kind": "walk",
+"heading": 269,
+"pitch": -10,
+"bearing": 270.0,
+"dist": 1.462
+},
+{
+"to": "4005",
+"kind": "walk",
+"heading": 91,
+"pitch": -14,
+"bearing": 90.0,
+"dist": 1.425
+}
+],
+"4005": [
+{
+"to": "4001",
+"kind": "zip",
+"heading": 270,
+"pitch": -7,
+"bearing": 269.8,
+"dist": 4.702
+},
+{
+"to": "4018",
+"kind": "zip",
+"heading": 330,
+"pitch": -9,
+"bearing": 329.5,
+"dist": 4.632
+},
+{
+"to": "4032",
+"kind": "zip",
+"heading": 30,
+"pitch": -7,
+"bearing": 30.5,
+"dist": 4.674
+},
+{
+"to": "4009",
+"kind": "zip",
+"heading": 90,
+"pitch": -7,
+"bearing": 90.4,
+"dist": 4.698
+},
+{
+"to": "4025",
+"kind": "zip",
+"heading": 150,
+"pitch": -7,
+"bearing": 150.2,
+"dist": 4.655
+},
+{
+"to": "4039",
+"kind": "zip",
+"heading": 210,
+"pitch": -7,
+"bearing": 210.2,
+"dist": 4.594
+},
+{
+"to": "4003",
+"kind": "walk",
+"heading": 269,
+"pitch": -11,
+"bearing": 270.0,
+"dist": 1.425
+},
+{
+"to": "4006",
+"kind": "walk",
+"heading": 91,
+"pitch": -11,
+"bearing": 90.0,
+"dist": 1.379
+},
+{
+"to": "4021",
+"kind": "walk",
+"heading": 330,
+"pitch": -10,
+"bearing": 330.8,
+"dist": 1.322
+},
+{
+"to": "4022",
+"kind": "walk",
+"heading": 150,
+"pitch": -10,
+"bearing": 148.7,
+"dist": 1.363
+},
+{
+"to": "4035",
+"kind": "walk",
+"heading": 30,
+"pitch": -10,
+"bearing": 30.1,
+"dist": 1.376
+},
+{
+"to": "4036",
+"kind": "walk",
+"heading": 210,
+"pitch": -10,
+"bearing": 208.6,
+"dist": 1.372
+}
+],
+"4006": [
+{
+"to": "4005",
+"kind": "walk",
+"heading": 269,
+"pitch": -16,
+"bearing": 270.0,
+"dist": 1.379
+},
+{
+"to": "4007",
+"kind": "walk",
+"heading": 90,
+"pitch": -11,
+"bearing": 77.0,
+"dist": 1.112
+}
+],
+"4007": [
+{
+"to": "4006",
+"kind": "walk",
+"heading": 259,
+"pitch": -12,
+"bearing": 257.0,
+"dist": 1.112
+},
+{
+"to": "4008",
+"kind": "walk",
+"heading": 80,
+"pitch": -13,
+"bearing": 68.2,
+"dist": 1.523
+}
+],
+"4008": [
+{
+"to": "4007",
+"kind": "walk",
+"heading": 254,
+"pitch": -9,
+"bearing": 248.2,
+"dist": 1.523
+},
+{
+"to": "4009",
+"kind": "walk",
+"heading": 153,
+"pitch": -5,
+"bearing": 135.6,
+"dist": 1.182
+},
+{
+"to": "4044",
+"kind": "walk",
+"heading": 102,
+"pitch": -8,
+"bearing": 96.3,
+"dist": 2.433
+}
+],
+"4009": [
+{
+"to": "4005",
+"kind": "zip",
+"heading": 271,
+"pitch": 2,
+"bearing": 270.4,
+"dist": 4.698
+},
+{
+"to": "4014",
+"kind": "zip",
+"heading": 270,
+"pitch": -13,
+"bearing": 271.3,
+"dist": 4.677
+},
+{
+"to": "4008",
+"kind": "walk",
+"heading": 316,
+"pitch": -5,
+"bearing": 315.6,
+"dist": 1.182
+},
+{
+"to": "4010",
+"kind": "walk",
+"heading": 222,
+"pitch": -8,
+"bearing": 226.1,
+"dist": 1.141
+},
+{
+"to": "4044",
+"kind": "walk",
+"heading": 52,
+"pitch": -18,
+"bearing": 70.0,
+"dist": 1.693
+}
+],
+"4010": [
+{
+"to": "4009",
+"kind": "walk",
+"heading": 38,
+"pitch": -6,
+"bearing": 46.1,
+"dist": 1.141
+},
+{
+"to": "4011",
+"kind": "walk",
+"heading": 284,
+"pitch": -16,
+"bearing": 292.7,
+"dist": 1.569
+}
+],
+"4011": [
+{
+"to": "4010",
+"kind": "walk",
+"heading": 113,
+"pitch": 1,
+"bearing": 112.7,
+"dist": 1.569
+},
+{
+"to": "4012",
+"kind": "walk",
+"heading": 281,
+"pitch": -22,
+"bearing": 282.4,
+"dist": 1.154
+}
+],
+"4012": [
+{
+"to": "4011",
+"kind": "walk",
+"heading": 105,
+"pitch": 0,
+"bearing": 102.4,
+"dist": 1.154
+},
+{
+"to": "4014",
+"kind": "walk",
+"heading": 268,
+"pitch": -17,
+"bearing": 273.2,
+"dist": 1.314
+}
+],
+"4013": [
+{
+"to": "2029",
+"kind": "walk",
+"heading": 183,
+"pitch": -44,
+"bearing": 163.9,
+"dist": 0.747
+},
+{
+"to": "4041",
+"kind": "walk",
+"heading": 76,
+"pitch": -11,
+"bearing": 59.0,
+"dist": 0.729
+}
+],
+"4014": [
+{
+"to": "4018",
+"kind": "zip",
+"heading": 328,
+"pitch": 5,
+"bearing": 328.4,
+"dist": 4.636
+},
+{
+"to": "4032",
+"kind": "zip",
+"heading": 30,
+"pitch": 5,
+"bearing": 30.4,
+"dist": 4.62
+},
+{
+"to": "4009",
+"kind": "zip",
+"heading": 91,
+"pitch": 5,
+"bearing": 91.3,
+"dist": 4.677
+},
+{
+"to": "4025",
+"kind": "zip",
+"heading": 151,
+"pitch": 4,
+"bearing": 151.2,
+"dist": 4.726
+},
+{
+"to": "4012",
+"kind": "walk",
+"heading": 96,
+"pitch": -12,
+"bearing": 93.2,
+"dist": 1.314
+},
+{
+"to": "4015",
+"kind": "walk",
+"heading": 324,
+"pitch": -12,
+"bearing": 326.0,
+"dist": 1.282
+},
+{
+"to": "4028",
+"kind": "walk",
+"heading": 156,
+"pitch": -11,
+"bearing": 152.1,
+"dist": 1.405
+},
+{
+"to": "4029",
+"kind": "walk",
+"heading": 29,
+"pitch": -12,
+"bearing": 29.5,
+"dist": 1.289
+}
+],
+"4015": [
+{
+"to": "4014",
+"kind": "walk",
+"heading": 150,
+"pitch": -16,
+"bearing": 146.0,
+"dist": 1.282
+},
+{
+"to": "4016",
+"kind": "walk",
+"heading": 344,
+"pitch": -2,
+"bearing": 340.9,
+"dist": 1.159
+}
+],
+"4016": [
+{
+"to": "4015",
+"kind": "walk",
+"heading": 158,
+"pitch": -20,
+"bearing": 160.9,
+"dist": 1.159
+},
+{
+"to": "4017",
+"kind": "walk",
+"heading": 353,
+"pitch": -1,
+"bearing": 351.2,
+"dist": 1.648
+}
+],
+"4017": [
+{
+"to": "4016",
+"kind": "walk",
+"heading": 163,
+"pitch": -20,
+"bearing": 171.2,
+"dist": 1.648
+},
+{
+"to": "4018",
+"kind": "walk",
+"heading": 272,
+"pitch": -7,
+"bearing": 280.6,
+"dist": 1.087
+}
+],
+"4018": [
+{
+"to": "4005",
+"kind": "zip",
+"heading": 149,
+"pitch": 2,
+"bearing": 149.5,
+"dist": 4.632
+},
+{
+"to": "4014",
+"kind": "zip",
+"heading": 149,
+"pitch": -13,
+"bearing": 148.4,
+"dist": 4.636
+},
+{
+"to": "4017",
+"kind": "walk",
+"heading": 93,
+"pitch": -16,
+"bearing": 100.6,
+"dist": 1.087
+},
+{
+"to": "4019",
+"kind": "walk",
+"heading": 199,
+"pitch": -13,
+"bearing": 194.6,
+"dist": 1.123
+},
+{
+"to": "4042",
+"kind": "walk",
+"heading": 294,
+"pitch": -12,
+"bearing": 312.5,
+"dist": 1.594
+}
+],
+"4019": [
+{
+"to": "4018",
+"kind": "walk",
+"heading": 32,
+"pitch": -8,
+"bearing": 14.6,
+"dist": 1.123
+},
+{
+"to": "4020",
+"kind": "walk",
+"heading": 133,
+"pitch": -8,
+"bearing": 126.8,
+"dist": 1.529
+},
+{
+"to": "4042",
+"kind": "walk",
+"heading": 341,
+"pitch": -7,
+"bearing": 337.6,
+"dist": 2.34
+}
+],
+"4020": [
+{
+"to": "4019",
+"kind": "walk",
+"heading": 315,
+"pitch": -12,
+"bearing": 306.8,
+"dist": 1.529
+},
+{
+"to": "4021",
+"kind": "walk",
+"heading": 142,
+"pitch": -8,
+"bearing": 137.3,
+"dist": 1.141
+}
+],
+"4021": [
+{
+"to": "4020",
+"kind": "walk",
+"heading": 328,
+"pitch": -15,
+"bearing": 317.3,
+"dist": 1.141
+},
+{
+"to": "4005",
+"kind": "walk",
+"heading": 152,
+"pitch": -13,
+"bearing": 150.8,
+"dist": 1.322
+}
+],
+"4022": [
+{
+"to": "4005",
+"kind": "walk",
+"heading": 329,
+"pitch": -10,
+"bearing": 328.7,
+"dist": 1.363
+},
+{
+"to": "4023",
+"kind": "walk",
+"heading": 150,
+"pitch": -13,
+"bearing": 139.8,
+"dist": 1.137
+}
+],
+"4023": [
+{
+"to": "4022",
+"kind": "walk",
+"heading": 321,
+"pitch": -6,
+"bearing": 319.8,
+"dist": 1.137
+},
+{
+"to": "4024",
+"kind": "walk",
+"heading": 140,
+"pitch": -13,
+"bearing": 127.6,
+"dist": 1.477
+}
+],
+"4024": [
+{
+"to": "4023",
+"kind": "walk",
+"heading": 313,
+"pitch": -8,
+"bearing": 307.6,
+"dist": 1.477
+},
+{
+"to": "4025",
+"kind": "walk",
+"heading": 209,
+"pitch": -6,
+"bearing": 194.6,
+"dist": 1.145
+},
+{
+"to": "4045",
+"kind": "walk",
+"heading": 161,
+"pitch": -9,
+"bearing": 156.2,
+"dist": 2.379
+}
+],
+"4025": [
+{
+"to": "4005",
+"kind": "zip",
+"heading": 330,
+"pitch": 2,
+"bearing": 330.2,
+"dist": 4.655
+},
+{
+"to": "4014",
+"kind": "zip",
+"heading": 330,
+"pitch": -13,
+"bearing": 331.2,
+"dist": 4.726
+},
+{
+"to": "4024",
+"kind": "walk",
+"heading": 16,
+"pitch": -13,
+"bearing": 14.6,
+"dist": 1.145
+},
+{
+"to": "4026",
+"kind": "walk",
+"heading": 280,
+"pitch": -17,
+"bearing": 282.2,
+"dist": 1.055
+},
+{
+"to": "4045",
+"kind": "walk",
+"heading": 116,
+"pitch": -15,
+"bearing": 130.5,
+"dist": 1.644
+}
+],
+"4026": [
+{
+"to": "4025",
+"kind": "walk",
+"heading": 92,
+"pitch": -9,
+"bearing": 102.2,
+"dist": 1.055
+},
+{
+"to": "4027",
+"kind": "walk",
+"heading": 341,
+"pitch": -20,
+"bearing": 350.3,
+"dist": 1.638
+}
+],
+"4027": [
+{
+"to": "4026",
+"kind": "walk",
+"heading": 171,
+"pitch": 1,
+"bearing": 170.3,
+"dist": 1.638
+},
+{
+"to": "4028",
+"kind": "walk",
+"heading": 341,
+"pitch": -17,
+"bearing": 344.5,
+"dist": 1.139
+}
+],
+"4028": [
+{
+"to": "4027",
+"kind": "walk",
+"heading": 164,
+"pitch": -3,
+"bearing": 164.5,
+"dist": 1.139
+},
+{
+"to": "4014",
+"kind": "walk",
+"heading": 327,
+"pitch": -16,
+"bearing": 332.1,
+"dist": 1.405
+}
+],
+"4029": [
+{
+"to": "4014",
+"kind": "walk",
+"heading": 209,
+"pitch": -16,
+"bearing": 209.5,
+"dist": 1.289
+},
+{
+"to": "4030",
+"kind": "walk",
+"heading": 44,
+"pitch": -4,
+"bearing": 42.5,
+"dist": 1.144
+}
+],
+"4030": [
+{
+"to": "4029",
+"kind": "walk",
+"heading": 218,
+"pitch": -19,
+"bearing": 222.5,
+"dist": 1.144
+},
+{
+"to": "4031",
+"kind": "walk",
+"heading": 51,
+"pitch": 2,
+"bearing": 52.8,
+"dist": 1.551
+}
+],
+"4031": [
+{
+"to": "4030",
+"kind": "walk",
+"heading": 225,
+"pitch": -23,
+"bearing": 232.8,
+"dist": 1.551
+},
+{
+"to": "4032",
+"kind": "walk",
+"heading": 335,
+"pitch": -8,
+"bearing": 346.3,
+"dist": 1.128
+}
+],
+"4032": [
+{
+"to": "4005",
+"kind": "zip",
+"heading": 211,
+"pitch": 2,
+"bearing": 210.5,
+"dist": 4.674
+},
+{
+"to": "4014",
+"kind": "zip",
+"heading": 210,
+"pitch": -13,
+"bearing": 210.4,
+"dist": 4.62
+},
+{
+"to": "4031",
+"kind": "walk",
+"heading": 165,
+"pitch": -13,
+"bearing": 166.3,
+"dist": 1.128
+},
+{
+"to": "4033",
+"kind": "walk",
+"heading": 259,
+"pitch": -13,
+"bearing": 255.6,
+"dist": 1.175
+},
+{
+"to": "4043",
+"kind": "walk",
+"heading": 356,
+"pitch": -15,
+"bearing": 9.7,
+"dist": 1.571
+}
+],
+"4033": [
+{
+"to": "4032",
+"kind": "walk",
+"heading": 95,
+"pitch": -8,
+"bearing": 75.6,
+"dist": 1.175
+},
+{
+"to": "4034",
+"kind": "walk",
+"heading": 193,
+"pitch": -9,
+"bearing": 188.4,
+"dist": 1.501
+},
+{
+"to": "4043",
+"kind": "walk",
+"heading": 42,
+"pitch": -8,
+"bearing": 37.3,
+"dist": 2.315
+}
+],
+"4034": [
+{
+"to": "4033",
+"kind": "walk",
+"heading": 20,
+"pitch": -17,
+"bearing": 8.4,
+"dist": 1.501
+},
+{
+"to": "4035",
+"kind": "walk",
+"heading": 202,
+"pitch": -7,
+"bearing": 196.8,
+"dist": 1.116
+}
+],
+"4035": [
+{
+"to": "4034",
+"kind": "walk",
+"heading": 26,
+"pitch": -18,
+"bearing": 16.8,
+"dist": 1.116
+},
+{
+"to": "4005",
+"kind": "walk",
+"heading": 207,
+"pitch": -10,
+"bearing": 210.1,
+"dist": 1.376
+}
+],
+"4036": [
+{
+"to": "4005",
+"kind": "walk",
+"heading": 28,
+"pitch": -13,
+"bearing": 28.6,
+"dist": 1.372
+},
+{
+"to": "4037",
+"kind": "walk",
+"heading": 207,
+"pitch": -14,
+"bearing": 198.4,
+"dist": 1.258
+}
+],
+"4037": [
+{
+"to": "4036",
+"kind": "walk",
+"heading": 22,
+"pitch": -2,
+"bearing": 18.4,
+"dist": 1.258
+},
+{
+"to": "4038",
+"kind": "walk",
+"heading": 195,
+"pitch": -11,
+"bearing": 182.2,
+"dist": 1.228
+}
+],
+"4038": [
+{
+"to": "4037",
+"kind": "walk",
+"heading": 15,
+"pitch": -6,
+"bearing": 2.2,
+"dist": 1.228
+},
+{
+"to": "4039",
+"kind": "walk",
+"heading": 264,
+"pitch": -6,
+"bearing": 253.3,
+"dist": 1.267
+},
+{
+"to": "4046",
+"kind": "walk",
+"heading": 223,
+"pitch": -8,
+"bearing": 217.4,
+"dist": 2.596
+}
+],
+"4039": [
+{
+"to": "4005",
+"kind": "zip",
+"heading": 31,
+"pitch": 3,
+"bearing": 30.2,
+"dist": 4.594
+},
+{
+"to": "2018",
+"kind": "zip",
+"heading": 252,
+"pitch": -1,
+"bearing": 251.6,
+"dist": 11.778
+},
+{
+"to": "4038",
+"kind": "walk",
+"heading": 86,
+"pitch": -11,
+"bearing": 73.3,
+"dist": 1.267
+},
+{
+"to": "4040",
+"kind": "walk",
+"heading": 280,
+"pitch": -12,
+"bearing": 288.7,
+"dist": 1.173
+},
+{
+"to": "4046",
+"kind": "walk",
+"heading": 183,
+"pitch": -12,
+"bearing": 192.1,
+"dist": 1.737
+}
+],
+"4040": [
+{
+"to": "4039",
+"kind": "walk",
+"heading": 110,
+"pitch": -5,
+"bearing": 108.7,
+"dist": 1.173
+},
+{
+"to": "4041",
+"kind": "walk",
+"heading": 264,
+"pitch": -11,
+"bearing": 261.3,
+"dist": 1.468
+}
+],
+"4041": [
+{
+"to": "4040",
+"kind": "walk",
+"heading": 90,
+"pitch": -4,
+"bearing": 81.3,
+"dist": 1.468
+},
+{
+"to": "4013",
+"kind": "walk",
+"heading": 242,
+"pitch": -14,
+"bearing": 239.0,
+"dist": 0.729
+}
+],
+"4042": [
+{
+"to": "4018",
+"kind": "walk",
+"heading": 150,
+"pitch": -10,
+"bearing": 132.5,
+"dist": 1.594
+}
+],
+"4043": [
+{
+"to": "4032",
+"kind": "walk",
+"heading": 209,
+"pitch": -11,
+"bearing": 189.7,
+"dist": 1.571
+}
+],
+"4044": [
+{
+"to": "4009",
+"kind": "walk",
+"heading": 269,
+"pitch": -11,
+"bearing": 250.0,
+"dist": 1.693
+}
+],
+"4045": [
+{
+"to": "4025",
+"kind": "walk",
+"heading": 330,
+"pitch": -12,
+"bearing": 310.5,
+"dist": 1.644
+}
+],
+"4046": [
+{
+"to": "4039",
+"kind": "walk",
+"heading": 35,
+"pitch": -6,
+"bearing": 12.1,
+"dist": 1.737
+}
+],
+"4082": [
+{
+"to": "4083",
+"kind": "walk",
+"heading": 177,
+"pitch": -20,
+"bearing": 178.7,
+"dist": 1.305
+},
+{
+"to": "1037",
+"kind": "walk",
+"heading": 33,
+"pitch": 5,
+"bearing": 24.9,
+"dist": 1.29
+}
+],
+"4083": [
+{
+"to": "4082",
+"kind": "walk",
+"heading": 4,
+"pitch": 8,
+"bearing": 358.7,
+"dist": 1.305
+},
+{
+"to": "4084",
+"kind": "walk",
+"heading": 169,
+"pitch": -19,
+"bearing": 180.5,
+"dist": 1.271
+}
+],
+"4084": [
+{
+"to": "1037",
+"kind": "zip",
+"heading": 8,
+"pitch": 14,
+"bearing": 8.1,
+"dist": 3.776
+},
+{
+"to": "4083",
+"kind": "walk",
+"heading": 4,
+"pitch": 5,
+"bearing": 0.5,
+"dist": 1.271
+},
+{
+"to": "4089",
+"kind": "walk",
+"heading": 117,
+"pitch": -15,
+"bearing": 117.3,
+"dist": 0.679
+}
+],
+"4089": [
+{
+"to": "4084",
+"kind": "walk",
+"heading": 303,
+"pitch": -15,
+"bearing": 297.3,
+"dist": 0.679
+},
+{
+"to": "4090",
+"kind": "walk",
+"heading": 116,
+"pitch": -16,
+"bearing": 115.7,
+"dist": 0.622
+}
+],
+"4090": [
+{
+"to": "4089",
+"kind": "walk",
+"heading": 300,
+"pitch": -22,
+"bearing": 295.7,
+"dist": 0.622
+}
+],
+"6002": [
+{
+"to": "2033",
+"kind": "walk",
+"heading": 270,
+"pitch": -24,
+"bearing": 268.3,
+"dist": 1.157
+}
+]
+}

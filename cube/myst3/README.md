@@ -216,6 +216,9 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/ENSI/`, `colmap/Amateria/` | Pair lists, rig files, `nodes.json`, run summaries (no images). |
 | `colmap/scene_mesh.py` | One mesh of a stretch of an age from its nodes: MoGe-3's panorama depth per node, scaled by the model's points and anchored to a dense cloud, points other nodes see through dropped, far points kept only where a second node (or a splat) backs them up, Poisson's surface through the rest. Writes the mesh in a viewer frame (MASS 84 at the origin, one unit the node spacing), `nodes.json` and `views.json`. Needs numpy, Pillow, opencv-python, open3d. |
 | `colmap/scene_attrs.py` | `scene_mesh.py`'s mesh with every node's picture, albedo, roughness and metallic (from `materials.py --nodes`) carried into its vertices, as `scene.bin` for `scene3d.html`; and each node's faces as a 3×2 atlas for its projection. |
+| `colmap/scene_links.py` | The game's moves between a scene's nodes (walks and zips, from `myst3_nodes.py`'s room maps) as `links.json`, for `scene3d.html` to walk them; prints how far each hotspot's heading is from the bearing to the other node in the mesh. |
+| `colmap/scene_shells.py` | Each node's anchored distances as a 256 × 128 panorama (`shells/MA-<node>.png`, 16 bits in red and green), for `scene3d.html` to put the node's picture on its own shape behind the mesh. |
+| `colmap/scene_carve.py` | Cuts out of a scene mesh the surface a node sees through (well in front of what the node sees in that direction): Poisson's skins across passages and the loose pieces round the nodes, invisible at the node that made them and in the way between nodes. |
 | `colmap/film_stretch.py` | A short video made longer by FILM's in-between frames, halving each gap `--levels` times. |
 | `splat/splat_mesh_check.py` | How far a mesh's vertices lie from a Gaussian splat of the same place: the splat's frame matched to the mesh's by the nodes both have and ICP, the splat's centres written in the mesh's frame for `scene_mesh.py --splat-centres`. |
 | `splat/splat_depth_train.py` | A Gaussian splat trained with gsplat on a splat dataset's pictures plus a depth loss: each node face's rendered depth held to the node's anchored MoGe depth (`scene_mesh.py --dense`). `--eval` measures any 3DGS `.ply` the same way (PSNR, depth misfit, coverage at the node faces). Needs gsplat (Python 3.10, torch 2.4 on Windows). |
@@ -1769,3 +1772,67 @@ read as the game's (MASS 84 face 1: 1.1/255 from the face). Walking from MASS
 node; loading takes about 1 s from a local server. From outside the age is as
 rough as the pier was: the middle's shapes (the dome, the pier) are there,
 lumpy, and the sea, which MoGe gives a surface, fans out at the edge.
+
+## Walking between nodes (11 November 2026)
+
+`scene3d.html` now walks the game's own moves. `colmap/scene_links.py` reads
+them from the room maps (`maps/rooms/<ROOM>.json`: walks, walk-rooms, zips,
+zip-rooms) into `scene_age/links.json`: 283 moves, every one of the 116
+nodes with at least one. The game's hotspot headings agree with the bearings
+between the nodes in the mesh to 4.4° on median (17° at the 90th percentile;
+the heading counts from +z, face 3). Standing at a node, a faint dot marks
+each move; a tap near a dot (or the up arrow, the move most nearly ahead)
+glides the eye there, turning to the way it goes, in 0.5 s plus 1.3 s a
+node spacing; a zip cuts, as the game's. On the way, the sky is the two
+nearest nodes' pictures blended by distance, so it no longer jumps at the
+midpoint. Glides ran at 60 frames a second with no frame over 50 ms.
+
+Two tests measure it, both in `reference/myst3/scene_mesh`:
+`walk_test.js` puts the eye at nine points along each of the 124 walks and
+measures the share of the view no node sees and the change from step to step;
+`loo_test.js` stands at each node with that node left out (its picture,
+distances and backdrop unused), so the view comes from its neighbours as it
+would between them, and compares the four level faces with the game's (mean
+difference 0–255, and the same over 32-pixel blocks, which counts things in
+the wrong place, not blur).
+
+What they found: left out, a node's view is 24/255 from the game's on median
+(4084 12, MACA 2 27). The error is the fused mesh's fine shape near the eye:
+posts, railings and MAIS's red pillars land smeared or twice, and in MACA
+large blurred surfaces pass close by the nodes. Those surfaces are invisible
+at the node that made them, because its own picture lands on them from the
+same direction, and they are in the way between nodes. `colmap/scene_carve.py`
+cuts out the mesh surface the nodes see through (nearer than 0.7 of the least
+distance a node sees round that direction, by two nodes, or by one with none
+agreeing; `scene_shells.py`'s 256 × 128 panoramas of each node's distances):
+9.2% of the triangles, 12% in MACA and MAIS, 2% in MATO.
+
+| measured | before | carved |
+|---|---|---|
+| walks with a step changing over 30/255 (of 124) | 18 | 10 |
+| change a step, median (8 steps a walk) | 14.8 | 13.3 |
+| view no node sees, 90th percentile along walks | 3.5% | 2.0% |
+| MACA 37 to MASS 82, view no node sees | 79% | 2.8% |
+| standing at a node, from the game's faces, median | 1.9 | 1.1 |
+| a node left out, from the game's faces, median | 24.4 | 24.3 |
+
+Standing at a node got better with the carve only once the weight floor in
+the projection went from 0.002 to 0.0002 (squared radians): with the larger
+floor the other nodes still counted at a node on far surfaces, where their
+angle to the eye is small, and the carve had shown more of those. With the
+smaller one no node is worse by over 1/255 and 42 are better. The left-out
+score hardly moves: the carve takes away surfaces in the way, not the wrong
+shape of what is left.
+
+Tried and not kept, all by `loo_test.js` on a third of the nodes: each
+node's picture on its own distances (`scene_shells.py`) behind the mesh, to
+fill its holes at about the right place (coarse score 16.5 → 17.3–18.8,
+worse); the same at 1024 × 512 in front of the mesh, two nearest nodes, as
+the main surface (18.3, worse: a node's MoGe depth is right from the node,
+not from its neighbour); sharper blending between nodes, the weight's power
+2 or 4 (16.8, 17.4, worse: the blend hides misplacements a single picture
+shows).
+
+The walk from MASS 12 to 14 is still the worst (20% of the view no node sees
+before, 5.5% after; steps of 42): MASS 12 is one of the two nodes scaled by
+the dense cloud alone.

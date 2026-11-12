@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Amateria: the pier as one mesh</title>
+<title>Amateria as one mesh</title>
 <style>
 html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 14px/1.3 system-ui, sans-serif; color: #ddd; }
 canvas { display: block; touch-action: none; }
@@ -37,7 +37,8 @@ canvas { display: block; touch-action: none; }
 // node gives its colour only where it sees the surface, and the node whose line of sight lies closest to the
 // eye's counting most (at a node, that node's picture alone); where none of them sees it, the per-vertex
 // colour. Pictures, per vertex: only the colour carried into the vertices. Lit: the albedo under a sun.
-// Drag to look round; at a node, the eye stays there, as the game's; Orbit circles the whole stretch.
+// Drag to look round; at a node, the eye stays there, as the game's; tapping toward one of the game's moves from
+// that node (the dots) glides the eye to the next node (a zip cuts); Orbit circles the whole stretch.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -58,8 +59,12 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
-let nodes = {}, mesh = null;
+let nodes = {}, mesh = null, here = null, glide = null, moveDots = null;
+window.scene3d = { dots: true };
+// the game's moves between nodes (scene_links.py from its scripts): tap toward one, or the up arrow, to walk it
+const LINKS = await fetch('./amateria/scene_age/links.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
 function standAt(n) {
+  here = n; glide = null; sel.value = n;
   const p = new THREE.Vector3(...nodes[n]);
   // the eye at the node, the target a step ahead (face 1's direction, -z), so dragging turns the head
   const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
@@ -69,8 +74,11 @@ function standAt(n) {
   controls.minDistance = controls.maxDistance = 0.01;
   controls.enablePan = false; controls.rotateSpeed = -0.4;
   controls.update();
+  showMoves();
+  if (proj) proj.prewarm(moves(n).map(m => m.to));          // the next nodes' pictures ready before walking
 }
 function orbit() {
+  here = null; glide = null; showMoves();
   const box = new THREE.Box3().setFromObject(mesh), c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
   controls.minDistance = 0.1; controls.maxDistance = 200; controls.enablePan = true; controls.rotateSpeed = 1;
   controls.target.copy(c);
@@ -151,7 +159,7 @@ const depthMat = new THREE.ShaderMaterial({ side: THREE.DoubleSide,
 let proj = null;
 const views = await fetch(BASE + 'views.json').then(r => r.ok ? r.json() : null).catch(() => null);
 if (views) {
-  const uni = { np: { value: [] }, nr: { value: [] }, on: { value: new Array(SLOTS).fill(0) }, eye: { value: new THREE.Vector3() } };
+  const uni = { np: { value: [] }, nr: { value: [] }, on: { value: new Array(SLOTS).fill(0) }, eye: { value: new THREE.Vector3() }, holes: { value: 0 }, eps: { value: 0.0002 } };
   let body = '';
   for (let i = 0; i < SLOTS; i++) {
     uni['pic' + i] = { value: null }; uni['dep' + i] = { value: null };
@@ -162,7 +170,7 @@ if (views) {
     float D = unpackRGBAToDepth(texture2D(dep${i}, atlasUV(d, 0.5 / ${CELL}.0))) * ${DIST.toFixed(1)};
     if (abs(r - D) < 0.03 * r + 0.02) {
       float c = clamp(dot(normalize(vW - eye), normalize(vW - np[${i}])), -1.0, 1.0), ang = acos(c);
-      float w = 1.0 / (ang * ang + 0.002) / max(r, 0.3);
+      float w = 1.0 / (ang * ang + eps) / max(r, 0.3);
       acc += vec4(texture2D(pic${i}, atlasUV(d, 0.6 / 640.0)).rgb * w, w);
     }
   }`;
@@ -172,11 +180,11 @@ if (views) {
     vertexShader: 'varying vec3 vC; varying vec3 vW; void main(){ vC = color; vW = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `#include <packing>
 ${decl}
-uniform vec3 np[${SLOTS}]; uniform mat3 nr[${SLOTS}]; uniform float on[${SLOTS}]; uniform vec3 eye;
+uniform vec3 np[${SLOTS}]; uniform mat3 nr[${SLOTS}]; uniform float on[${SLOTS}]; uniform vec3 eye; uniform float holes, eps;
 varying vec3 vC; varying vec3 vW;
 ${atlasGLSL}
 void main(){ vec4 acc = vec4(0.0);${body}
-  gl_FragColor = vec4(acc.w > 0.0 ? acc.rgb / acc.w : vC, 1.0); }` });
+  gl_FragColor = vec4(acc.w > 0.0 ? acc.rgb / acc.w : holes > 0.5 ? vec3(1.0, 0.0, 1.0) : vC, 1.0); }` });
   // per node: its picture atlas (loaded when it is among the nearest) and its distances (rendered then);
   // the least recently needed beyond KEEP are let go
   const KEEP = 10, cache = new Map(), depthScene = new THREE.Scene(), dummy = new THREE.PerspectiveCamera();
@@ -213,11 +221,13 @@ void main(){ vec4 acc = vec4(0.0);${body}
     return e;
   }
   let slotsAt = null;
-  const order = Object.keys(views);
+  const allNodes = Object.keys(views);
+  // scene3d.exclude: nodes left out (the page tests' stand-in for a view between nodes: a node's own place seen from its neighbours)
+  const live = () => scene3d.exclude ? allNodes.filter(n => !scene3d.exclude.includes(n)) : allNodes;
   function update(ref) {
     if (slotsAt && slotsAt.distanceTo(ref) < 0.02) return;
     slotsAt = ref.clone();
-    const near = order.slice().sort((a, b) => ref.distanceToSquared(new THREE.Vector3(...views[a].pos)) - ref.distanceToSquared(new THREE.Vector3(...views[b].pos))).slice(0, SLOTS);
+    const near = live().sort((a, b) => ref.distanceToSquared(new THREE.Vector3(...views[a].pos)) - ref.distanceToSquared(new THREE.Vector3(...views[b].pos))).slice(0, SLOTS);
     near.forEach((n, i) => {
       const e = need(n);
       uni.np.value[i].copy(e.pos); uni.nr.value[i].copy(e.Q);
@@ -230,23 +240,35 @@ void main(){ vec4 acc = vec4(0.0);${body}
     }
   }
   // behind the mesh, where it has no surface (the sky, the sea, what is too far or seen by one node only),
-  // the nearest node's picture at infinity: a sphere round the eye
+  // the nearest nodes' pictures at infinity: a sphere round the eye; between two nodes, the two nearest
+  // blended by how near each is, so the sky does not jump halfway
   const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false,
-    uniforms: { pic: { value: null }, Q: { value: new THREE.Matrix3() }, eye: uni.eye },
+    uniforms: { pic: { value: null }, Q: { value: new THREE.Matrix3() }, pic1: { value: null }, Q1: { value: new THREE.Matrix3() },
+                f: { value: 0 }, eye: uni.eye, holes: uni.holes },
     vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-    fragmentShader: `uniform sampler2D pic; uniform mat3 Q; uniform vec3 eye; varying vec3 vW;
+    fragmentShader: `uniform sampler2D pic, pic1; uniform mat3 Q, Q1; uniform float f, holes; uniform vec3 eye; varying vec3 vW;
 ${atlasGLSL}
-void main(){ gl_FragColor = vec4(texture2D(pic, atlasUV(Q * normalize(vW - eye), 0.6 / 640.0)).rgb, 1.0); }` });
+void main(){ vec3 d = normalize(vW - eye), c = texture2D(pic, atlasUV(Q * d, 0.6 / 640.0)).rgb;
+  if (f > 0.0) c = mix(c, texture2D(pic1, atlasUV(Q1 * d, 0.6 / 640.0)).rgb, f);
+  gl_FragColor = vec4(holes > 0.5 ? vec3(0.0, 1.0, 0.0) : c, 1.0); }` });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), skyMat);
   sky.renderOrder = -1; sky.frustumCulled = false; sky.visible = false; scene.add(sky);
   const origUpdate = update;
   proj = { mat: projMat, uni, sky, update(ref, standing) {
     origUpdate(ref);
-    const near = order.reduce((a, b) => ref.distanceToSquared(new THREE.Vector3(...views[a].pos)) <= ref.distanceToSquared(new THREE.Vector3(...views[b].pos)) ? a : b);
-    const e = cache.get(near);
+    const dist = n => ref.distanceTo(new THREE.Vector3(...views[n].pos));
+    let a = null, b = null;
+    for (const n of live()) { if (a === null || dist(n) < dist(a)) { b = a; a = n; } else if (b === null || dist(n) < dist(b)) b = n; }
+    const e = cache.get(a), e1 = b !== null ? cache.get(b) : null;
     sky.visible = standing && !!(e && e.pic);
-    if (sky.visible) { skyMat.uniforms.pic.value = e.pic; skyMat.uniforms.Q.value.copy(e.Q); sky.position.copy(camera.position); }
-  } };
+    if (sky.visible) {
+      const u = skyMat.uniforms, da = dist(a), db = b !== null ? dist(b) : 1e9;
+      u.pic.value = e.pic; u.Q.value.copy(e.Q); u.f.value = 0;
+      // the second picture counts only off the node and only while it is loaded: none at a node, half at the midpoint
+      if (e1 && e1.pic && da > 1e-3) { u.pic1.value = e1.pic; u.Q1.value.copy(e1.Q); u.f.value = da / (da + db); }
+      sky.position.copy(camera.position);
+    }
+  }, refresh() { slotsAt = null; }, prewarm(list) { for (const n of list) if (views[n]) need(n); } };
 }
 const mats = { projected: proj ? proj.mat : flat, pictures: flat, albedo: flat, lit, rough: channel('vec3(vRM.x)'), metal: channel('vec3(vRM.y)'),
                normal: channel('normalize(vN) * 0.5 + 0.5') };
@@ -266,14 +288,87 @@ document.getElementById('mode').addEventListener('change', e => {
   mesh.material = mats[m];
   document.getElementById('sunbox').style.display = m === 'lit' ? '' : 'none';
 });
-info.textContent = `${(head.triangles / 1e6).toFixed(2)}M triangles, ${Object.keys(nodes).length} nodes. Drag to look; pick a node to stand at it, or Orbit.`;
+info.textContent = `${(head.triangles / 1e6).toFixed(2)}M triangles, ${Object.keys(nodes).length} nodes. Drag to look; tap toward a dot (or press the up arrow) to walk there; pick a node to jump to it, or Orbit.`;
 // the nodes in scene_mesh.py's order (MASS 84 first): numeric keys come out of JSON sorted
 sel.value = '4084' in nodes ? '4084' : Object.keys(nodes)[0];
+// walking: from the node you stand at to one it links to, the eye gliding there (a zip cuts, as the game's)
+function moves(n) { return (LINKS[n] || []).filter(m => m.to in nodes); }
+const level = v => new THREE.Vector3(v.x, 0, v.z).normalize();
+// a tap picks the move whose dot is nearest the tap (moves can lie the same way at different heights: MASS 84's
+// zip to MACA 37 above its walk to MASS 83); the up arrow, the move most nearly ahead on the level
+function pickMove(dir, within, flat) {
+  if (!here || glide) return null;
+  const p = new THREE.Vector3(...nodes[here]), f = v => flat ? level(v) : v.clone().normalize(), d = f(dir);
+  let best = null, ang = within;
+  for (const m of moves(here)) {
+    const a = d.angleTo(f(new THREE.Vector3(...nodes[m.to]).sub(p)));
+    if (a < ang) { ang = a; best = m; }
+  }
+  return best;
+}
+function go(m) {
+  if (m.kind === 'zip') { standAt(m.to); return; }
+  const p0 = new THREE.Vector3(...nodes[here]), p1 = new THREE.Vector3(...nodes[m.to]);
+  const d0 = new THREE.Vector3(); camera.getWorldDirection(d0);
+  glide = { to: m.to, p0, p1, d0, d1: level(p1.clone().sub(p0)), t0: performance.now(), ms: Math.min(2200, 500 + 1300 * p0.distanceTo(p1)) };
+  here = null; showMoves();
+}
+function stepGlide() {
+  const t = Math.min(1, (performance.now() - glide.t0) / glide.ms), s = t * t * (3 - 2 * t);
+  const p = glide.p0.clone().lerp(glide.p1, s), d = glide.d0.clone().lerp(glide.d1, Math.min(1, s * 2)).normalize();
+  camera.position.copy(p); controls.target.copy(p).addScaledVector(d, 0.01);
+  if (t >= 1) standAt(glide.to);
+}
+// a faint dot where each move leads
+function showMoves() {
+  if (moveDots) { scene.remove(moveDots); moveDots.geometry.dispose(); moveDots = null; }
+  if (!here || !scene3d.dots) return;
+  const pts = moves(here).map(m => new THREE.Vector3(...nodes[m.to]));
+  if (!pts.length) return;
+  moveDots = new THREE.Points(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.PointsMaterial({ color: 0xffffff, size: 9, sizeAttenuation: false, transparent: true, opacity: 0.55, depthTest: false }));
+  moveDots.renderOrder = 2; scene.add(moveDots);
+}
+const rayAt = (x, y) => new THREE.Vector3(x / innerWidth * 2 - 1, 1 - y / innerHeight * 2, 0.5).unproject(camera).sub(camera.position).normalize();
+let down = null;
+renderer.domElement.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 8 && performance.now() - down.t < 500) {
+    const m = pickMove(rayAt(e.clientX, e.clientY), THREE.MathUtils.degToRad(30)); if (m) go(m);
+  }
+  down = null;
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  if (e.buttons) return;
+  renderer.domElement.style.cursor = pickMove(rayAt(e.clientX, e.clientY), THREE.MathUtils.degToRad(30)) ? 'pointer' : '';
+});
+addEventListener('keydown', e => {
+  if (e.key !== 'ArrowUp' && e.key !== 'w') return;
+  const d = new THREE.Vector3(); camera.getWorldDirection(d);
+  const m = pickMove(d, THREE.MathUtils.degToRad(45), true); if (m) go(m);
+});
+// for the page tests: the eye a fraction of the way from one node to another, looking along the way;
+// holes(true) shows surface no node sees in magenta and the sky in green
+Object.assign(window.scene3d, { camera, controls, standAt, moves, go, links: LINKS,
+  place(a, b, f) { const p0 = new THREE.Vector3(...nodes[a]), p1 = new THREE.Vector3(...nodes[b]), p = p0.clone().lerp(p1, f);
+    here = null; glide = null; camera.position.copy(p); controls.target.copy(p).addScaledVector(level(p1.clone().sub(p0)), 0.01); controls.update(); },
+  holes(on) { if (proj) proj.uni.holes.value = on ? 1 : 0; },
+  refresh() { if (proj) proj.refresh(); },
+  eps(e) { if (proj) proj.uni.eps.value = e; },
+  // the eye at node n looking along its face k (1 3 4 5, the level ones), up the node's up, 90 degrees: the game's face
+  faceView(n, k) {
+    const Qt = new THREE.Matrix3().set(...views[n].rot.flat()).transpose(), p = new THREE.Vector3(...nodes[n]);
+    const dir = { 1: [0, 0, -1], 3: [0, 0, 1], 4: [1, 0, 0], 5: [-1, 0, 0] }[k];
+    here = null; glide = null; camera.up.copy(new THREE.Vector3(0, 1, 0).applyMatrix3(Qt));
+    camera.fov = 90; camera.aspect = 1; camera.updateProjectionMatrix();
+    camera.position.copy(p); controls.target.copy(p).addScaledVector(new THREE.Vector3(...dir).applyMatrix3(Qt), 0.01); controls.update(); },
+  grab() { renderer.render(scene, camera); const gl = renderer.getContext(), w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    const px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px); return px; } });
 standAt(sel.value);
-window.scene3d = { camera, controls, standAt };          // for the page tests
 
 renderer.setAnimationLoop(() => {
   controls.update();
+  if (glide) stepGlide();
   // the nodes nearest where you stand, or in Orbit nearest what you circle
   if (proj && mesh.material === proj.mat) { const standing = controls.maxDistance < 0.05;
     proj.uni.eye.value.copy(camera.position); proj.update(standing ? camera.position : controls.target, standing); }
