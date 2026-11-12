@@ -222,6 +222,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/scene_carve.py` | Cuts out of a scene mesh the surface a node sees through (well in front of what the node sees in that direction): Poisson's skins across passages and the loose pieces round the nodes, invisible at the node that made them and in the way between nodes. |
 | `node_walk.py`, `node_walk.html` | The nodes walked as the game walks them: every node's six faces as shipped, looked round by dragging, and its movement hotspots tested on a click with their full rectangles as ScummVM tests them (`hotspot.cpp`); conditions on hotspots are not kept. `node_walk.py` writes `walk.json` from ScummVM's `myst3.dat` and the faces folder; the page wants `walk.json` and `faces/<ROOM>/` beside it (served from `reference/myst3/node_walk` on 12 November 2026, not on the site). |
 | `colmap/place_nodes.py` | Places nodes the model lacks or misplaces in a scene: from each placed neighbour along the game's heading of the move between them, the position whose surroundings (the mesh and the neighbours' anchored distances) agree best with the node's MoGe distances, less a cost for disagreeing with the headings. A node already in the scene is placed as a test. Tested on 12 placed nodes (12 November 2026): 0.06–0.66 spacings off with two or more placed neighbours, 0.8–2 with one. |
+| `colmap/place_model.py` | Writes nodes placed in a scene's frame (`place_nodes.py`'s output, or positions and turns by hand) back into a COLMAP model as six images each with no points, replacing the node's images where the model has them, so `scene_mesh.py` builds with them. Checks that the model's own nodes come back to `views.json`. |
+| `colmap/warp_model.py` | Moves a stretch of a model's nodes to a new layout (positions in the scene's frame, heights kept or given) and the sparse points and dense cloud with them: each point by a Gaussian blend of every node's offset (unmoved nodes counting as none), fading to nothing a few spacings from any node. `--rot-from` poses a node new with another node's turn. Written for MAIS 8–29 (12 November 2026). |
 | `colmap/film_stretch.py` | A short video made longer by FILM's in-between frames, halving each gap `--levels` times. |
 | `splat/splat_mesh_check.py` | How far a mesh's vertices lie from a Gaussian splat of the same place: the splat's frame matched to the mesh's by the nodes both have and ICP, the splat's centres written in the mesh's frame for `scene_mesh.py --splat-centres`. |
 | `splat/splat_depth_train.py` | A Gaussian splat trained with gsplat on a splat dataset's pictures plus a depth loss: each node face's rendered depth held to the node's anchored MoGe depth (`scene_mesh.py --dense`). `--eval` measures any 3DGS `.ply` the same way (PSNR, depth misfit, coverage at the node faces). Needs gsplat (Python 3.10, torch 2.4 on Windows). |
@@ -1887,3 +1889,58 @@ not have (31 of them, all with faces but MAIS 20).
 
 The new MALL nodes left out come within 13–17/255 of the game's faces (MALL 5
 to 10) and 19–21 (11, 12); MALL 13 and 18 at 30 are the worst of the room.
+
+**Placing the nodes the model lacks.** `place_nodes.py` placed MACA 1, 5,
+6, MAIS 10, 11, MALL 17 and MATO 3 from their placed neighbours, and
+`place_model.py` wrote them into the moved model. Rendering the mesh from a
+grid of points round each placed node (that node's pictures left out) and
+comparing with the game's faces finds the true place within a grid step
+where the mesh is good (MACA 15, MASS 40, MAIS 27 tested at their own
+places), but drifts by up to 1.25 spacings where it is poor (MACA 4, MAIS 12,
+MALL 14), so its answer was taken only where it agreed with the headings.
+MACA 1, 5, 6, MALL 17 and MATO 3 held. MAIS 10 landed behind MAIS 11, and
+MAIS 11 two spacings from MAIS 12, because the model has MAIS 8–29 squeezed.
+
+**MAIS 8–29.** The game's moves agree with the model inside MAIS 1–9 and
+inside MAIS 12–29, and disagree only at the join (MAIS 7 to 8 by 22°, 8 to 9
+by 37°). The player's account of the path (12 November 2026) settled which
+side was wrong:
+
+- MAIS 12 to 6 is on one level, with a right angle at MAIS 12–11–10, then
+  two turns of about 45° and two of about 22° to MAIS 6;
+- the path climbs from MAIS 12 to 15, stays level and drops again only at
+  MAIS 23–24;
+- MAIS 29 to MASS 13 is about as far along the ground as MASS 13 to 41, a
+  big step up.
+
+The model's heights already fit that account (MAIS 12 at −0.53 spacings,
+15 at 0.28, level to 23, 24–29 at 0, MASS 13 at 0.35); the path is squeezed
+sideways. A layout fitted to the moves' headings and step lengths (median
+1.18 spacings) puts MAIS 12 1.61 spacings farther out, tapering to 0.36 at
+MAIS 29, with MAIS 10 and 11 on the level route (headings against bearings
+8° → 5° on median). The model's per-node scales (model distance over MoGe
+depth) point the same way: 1.65–1.74 at MAIS 12–14 against 2.3–3.2 on either
+side, though they spread too widely to prove it.
+
+`warp_model.py` moved the nodes and the sparse and dense clouds with them
+(Gaussian blend, σ 1 spacing; 17.6% of the dense points moved, at most 1.45
+spacings) and the age was rebuilt from it (`age_v4`, 133 nodes). It was not
+shipped:
+
+| measured | shipped (126 nodes) | MAIS warped (133 nodes) |
+|---|---|---|
+| walks (9 points each) | 135 | 144 |
+| view no node sees, median along walks | 0.4% | 0.4% |
+| walks with a step changing over 30/255 | 8 | 7 |
+| standing at a node, median | 1.1 | 1.2 |
+| MAIS 8, 9, 12, 14 left out | 32.3, 38.8, 34.1, 31.1 | 32.4, 36.6, 33.1, 34.5 |
+| MAIS 15–29 left out, median | 14.8 | 19.7 |
+
+The stretch the warp moved most (MAIS 8–14) is no better, and MAIS 15–29,
+the best-matched part of the room before, is 3–7/255 worse. Moving points by
+a blend of node offsets translates the scenery near each node, but a
+squeezed reconstruction is a shrunken copy that is consistent with its own
+cameras; translating its pieces apart breaks that consistency between
+neighbours, and scenery more than three spacings from every node does not
+move at all. The fix has to come from COLMAP: the moves as priors on the
+poses and the points triangulated again, not the cloud moved afterwards.
