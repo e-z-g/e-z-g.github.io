@@ -1927,14 +1927,14 @@ side, though they spread too widely to prove it.
 spacings) and the age was rebuilt from it (`age_v4`, 133 nodes). It was not
 shipped:
 
-| measured | shipped (126 nodes; MAIS left out on the 116-node mesh, the same in MAIS) | MAIS warped (133 nodes) |
+| measured | shipped (126 nodes) | MAIS warped (133 nodes) |
 |---|---|---|
 | walks (9 points each) | 135 | 144 |
 | view no node sees, median along walks | 0.4% | 0.4% |
 | walks with a step changing over 30/255 | 8 | 7 |
 | standing at a node, median | 1.1 | 1.2 |
-| MAIS 8, 9, 12, 14 left out | 32.3, 38.8, 34.1, 31.1 | 32.4, 36.6, 33.1, 34.5 |
-| MAIS 15–29 left out, median | 14.8 | 19.6 |
+| MAIS 8, 9, 12, 14 left out | 32.2, 38.8, 34.1, 31.2 | 32.4, 36.6, 33.1, 34.5 |
+| MAIS 15–29 left out, median | 15.0 | 19.6 |
 
 The stretch the warp moved most (MAIS 8–14) is no better, and MAIS 15–29,
 the best-matched part of the room before, is 3–7/255 worse. Moving points by
