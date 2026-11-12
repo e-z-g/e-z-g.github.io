@@ -27,6 +27,7 @@
   <select id="sel"></select>
   <button id="back" title="Back (Backspace)">Back</button>
   <button id="show" title="Hotspots: off, areas, centres, both (H)">Hotspots: off</button>
+  <button id="facebtn" title="The cube's faces and seams (F)">Faces</button>
   <button id="mapbtn" title="Map of the node layout (M); double-click it to enlarge">Map</button>
   <button id="laybtn" title="The map's layout: the proposed places where there are any, or the model's (L)">Layout: proposed</button>
   <span id="fovtxt"></span>
@@ -40,7 +41,7 @@
 // a quad facing the eye at its centre's pitch and heading, half its width and height w/90 and h/90 of its
 // distance). A walk keeps the way you look, as the game does. Conditions on hotspots (doors open or shut) are
 // not kept: every hotspot is live. Data: node_walk.py's walk.json and layout.json; faces in faces/<ROOM>/.
-// Zoom (wheel, pinch, + and -) runs from 20 to 360 degrees top to bottom: up to 120 an ordinary perspective view,
+// F draws the cube's seams and names its faces. Zoom (wheel, pinch, + and -) runs from 20 to 360 degrees top to bottom: up to 120 an ordinary perspective view,
 // beyond it the scene rendered into a cube map and drawn as a fisheye, r = tan(theta/s) / tan(fov/2s) with
 // s = max(1, fov/120), so that at 360 the whole sphere fills a circle the height of the window.
 import * as THREE from 'three';
@@ -152,10 +153,29 @@ function drawSpots(n) {
   outlines.renderOrder = 10; scene.add(outlines);
 }
 function sizeLabels() {                         // the labels' size kept about the same on screen as the view widens
-  if (!outlines) return;
   const k = Math.max(fov, 20) / 65;
-  outlines.traverse(o => { if (o.isSprite) { o.scale.set(o.userData.size[0] * k, o.userData.size[1] * k, 1); } });
+  for (const g of [outlines, seams]) if (g) g.traverse(o => { if (o.isSprite) { o.scale.set(o.userData.size[0] * k, o.userData.size[1] * k, 1); } });
 }
+// the cube's seams (its twelve edges, straight lines between the corners' directions, so they fall on the seams at
+// any zoom and in the fisheye) and each face's number and side at its centre
+let seams = null;
+const FACE = { 1: 'front', 2: 'bottom', 3: 'back', 4: 'right', 5: 'left', 6: 'top' };
+function toggleSeams() {
+  if (seams) { scene.remove(seams); seams.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); seams = null; }
+  else {
+    seams = new THREE.Group();
+    const mat = new THREE.LineBasicMaterial({ color: 0xffe040, depthTest: false, transparent: true, opacity: 0.85 });
+    for (let k = 1; k <= 6; k++) {
+      const P = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, t]) => new THREE.Vector3(...DIRS[k](u, t)).multiplyScalar(4));
+      const l = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(P), mat); l.renderOrder = 8; seams.add(l);
+      const sp = labelSprite(`f${k} ${FACE[k]}`, 0xffe040, 0.6);
+      sp.position.copy(new THREE.Vector3(...DIRS[k](0.5, 0.5)).multiplyScalar(4)); seams.add(sp);
+    }
+    scene.add(seams);
+  }
+  document.getElementById('facebtn').style.borderColor = seams ? '#ffe040' : '#666';
+}
+document.getElementById('facebtn').onclick = toggleSeams;
 
 // looking round: yaw about the node's up, pitch; the game's heading 0 looks along +z (face 3)
 let yaw = 0, pitch = 0, fov = 65, forceFish = false;
@@ -180,14 +200,20 @@ const cubeRT = new THREE.WebGLCubeRenderTarget(Math.min(2048, renderer.capabilit
   { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, colorSpace: THREE.SRGBColorSpace });
 const cubeCam = new THREE.CubeCamera(0.01, 100, cubeRT);
 const fishMat = new THREE.ShaderMaterial({
-  uniforms: { env: { value: cubeRT.texture }, rot: { value: new THREE.Matrix3() }, aspect: { value: 1 }, tanT: { value: 1 }, s: { value: 1 } },
+  uniforms: { env: { value: cubeRT.texture }, rot: { value: new THREE.Matrix3() }, aspect: { value: 1 }, tanT: { value: 1 }, s: { value: 1 }, seams: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-  fragmentShader: `uniform samplerCube env; uniform mat3 rot; uniform float aspect, tanT, s; varying vec2 vUv;
+  fragmentShader: `uniform samplerCube env; uniform mat3 rot; uniform float aspect, tanT, s, seams; varying vec2 vUv;
     void main() {
       vec2 p = (vUv * 2.0 - 1.0) * vec2(aspect, 1.0); float r = length(p), th = s * atan(r * tanT);
       if (th > 3.14159265) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
       vec2 q = r > 0.0 ? p / r : vec2(0.0);
-      gl_FragColor = textureCube(env, rot * vec3(sin(th) * q, -cos(th)));
+      vec3 d = rot * vec3(sin(th) * q, -cos(th));
+      gl_FragColor = textureCube(env, d);
+      if (seams > 0.5) {          // a seam: the two largest of the direction's components equal
+        vec3 a = abs(d); float hi = max(a.x, max(a.y, a.z)), lo = min(a.x, min(a.y, a.z)), mid = a.x + a.y + a.z - hi - lo;
+        float e = (hi - mid) / hi, w = fwidth(e) * 1.2;
+        if (e < w) gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.88, 0.25), 0.9);
+      }
       #include <colorspace_fragment>
     }`, depthTest: false, depthWrite: false });
 const fishScene = new THREE.Scene(), fishCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -199,6 +225,7 @@ function render() {
   const s = sOf(fov);
   fishMat.uniforms.rot.value.setFromMatrix4(camera.matrixWorld); fishMat.uniforms.aspect.value = innerWidth / innerHeight;
   fishMat.uniforms.tanT.value = Math.tan(fov / 2 * Math.PI / 180 / s); fishMat.uniforms.s.value = s;
+  fishMat.uniforms.seams.value = seams ? 1 : 0;
   renderer.render(fishScene, fishCam);
 }
 
@@ -225,6 +252,7 @@ addEventListener('keydown', e => {
   if (e.key === 'h' || e.key === 'H') { spotMode = (spotMode + 1) % 4; drawSpots(here); }
   if (e.key === 'm' || e.key === 'M') toggleMap();
   if (e.key === 'l' || e.key === 'L') toggleLayout();
+  if (e.key === 'f' || e.key === 'F') toggleSeams();
   if (e.key === '+' || e.key === '=') fov = Math.max(FOV_MIN, fov / 1.25);
   if (e.key === '-' || e.key === '_') fov = Math.min(FOV_MAX, fov * 1.25);
   if (e.key === 'Backspace' && hist.length) { e.preventDefault(); go(hist.pop(), false); }
@@ -353,7 +381,7 @@ renderer.setAnimationLoop(() => {
   render(); drawMap();
 });
 window.nodeWalk = { go, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; },
-  set fisheye(b) { forceFish = b; }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
+  set fisheye(b) { forceFish = b; }, set faces(b) { if (!!seams !== b) toggleSeams(); }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
 const h0 = decodeURIComponent(location.hash.slice(1));
 go(NODES[h0] ? h0 : byNum[+h0] || 'MAIS-0006');
 addEventListener('hashchange', () => { const h = decodeURIComponent(location.hash.slice(1)), n = NODES[h] ? h : byNum[+h]; if (n && n !== here) go(n); });
