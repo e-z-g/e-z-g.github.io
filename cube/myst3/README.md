@@ -1944,3 +1944,31 @@ cameras; translating its pieces apart breaks that consistency between
 neighbours, and scenery more than three spacings from every node does not
 move at all. The fix has to come from COLMAP: the moves as priors on the
 poses and the points triangulated again, not the cloud moved afterwards.
+
+**Where MAIS is really wrong.** The model's sparse points per MAIS node
+show where bundle adjustment had something to hold: MAIS 15–29 280–715
+each, MAIS 13 and 14 79 and 128, but MAIS 9–12 only 13–47. The warp had
+moved the well-held stretch. The game's moves between groups then point at
+MAIS 6–9 instead: MAIS 12–14 agree with MAIS 15 and 18 within 2°, while the
+long zips from MAIS 11 (to MAIS 6 at 344°, to MAIS 14 at 102°, and back)
+put MAIS 11 on top of MAIS 8 with the model's MAIS 6 and 14, and the model
+has MAIS 6 2.7 spacings sideways from MAIS 30, though the ladder between
+them is near vertical. MAIS 6–9 were the run `node_align.py` could not place
+("MAIS 6–10", left).
+
+`mais_fit.py` moves MAIS 6–9 as one piece (translation only: every node's
+cube has the age's turn) and places MAIS 10 and 11, everything else as the
+model has it, against the twelve headings of the moves among them (σ 10°)
+and steps of about one spacing. MAIS 6–9 go 2.34 spacings north; every
+heading fits within 10° (eight within 4°), the steps are 0.92–1.02, the
+right angle falls at MAIS 11, and MAIS 6 lands 0.25 spacings from MAIS 30
+with the ladder left out of the fit (0.36 with it in).
+
+Fusing the dense workspace again with MAIS 6–11 moved (`layout_moves.py`,
+`apply_moves.py`, `stereo_fusion`) gives the same cloud to within 11
+points: nothing near MAIS 6–9 is shared with any node outside them, only
+far scenery, which is why COLMAP placed them weakly and why fusion cannot
+judge the move either way. (The warp's layout, fused the same way, lost a
+quarter of MAIS's points, but that test is unfair to any move that changes
+neighbours' relative places, since the depth maps were made with the old
+ones.)
