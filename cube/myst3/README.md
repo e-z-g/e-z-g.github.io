@@ -1836,3 +1836,16 @@ shows).
 The walk from MASS 12 to 14 is still the worst (20% of the view no node sees
 before, 5.5% after; steps of 42): MASS 12 is one of the two nodes scaled by
 the dense cloud alone.
+
+The 6M-triangle budget of the whole-age mesh (`--triangles 6000000`) was
+the session's own choice, made to keep the download small; it should not have
+been made. Rebuilt with no budget (12 November 2026, 23 minutes on the PC
+with `scene_attrs.py`): 56.6M triangles, 28.6M vertices, 1.25 GB. Carved the
+same way and cut to the triangles within 6 spacings of 17 MASS nodes (27.7M
+triangles against the 6M mesh's 3.0M there), the left-out test gives the same
+result to 0.1/255 at every node (24.6 against 24.5 on median; coarse 16.1 and
+16.1). Quadric reduction kept the shape; the error between nodes is in the
+fused shape itself (the nodes' MoGe depths disagree by 10% or more over half
+of each panorama), not in how finely it is triangulated. The full mesh is
+kept on the PC (`C:\myst3_out\scene_mesh\age_full`); the site keeps the 6M
+one, as GitHub Pages publishes at most 1 GB.
