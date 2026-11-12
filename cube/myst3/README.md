@@ -1996,3 +1996,31 @@ the carve leaves it out (MATO 3 31.2). Against the shipped mesh:
 MAIS 14 is the one node worse (by 1.9); no node is worse by more than 0.5
 standing at it. Shipped in `scene_age` (12 November 2026). The node walk's map
 (`node_walk.py --views`) now has these places.
+
+### Interiors and other nodes left out of the mesh (12 November 2026)
+
+No picture sees both an interior and the outside, so the model cannot tie an
+interior's place or scale to the rest. An interior fused into the mesh puts
+its room in the wrong place, and its pictures projected onto the mesh paint
+the outside with the inside. Sam sorted the nodes, on 12 November 2026:
+
+| nodes | what | in the mesh |
+|---|---|---|
+| MATO 3, 4, 5, 6, 9 | inside the central structure | left out (only MATO 3 was in the model) |
+| MATO 6203 | MATO 3 with a door open on the outside (face 4) | left out; the door's view may help place MATO 3 |
+| MALL 16, 18 | inside the hut, a sliver of outside seen | left out |
+| MALL 15 | outside, by the hut's closed door | kept |
+| MALL 14 | outside | kept |
+| MATO 10, 11, 12 | west of the centre, reached at the end of the marble ride; 10 and 11 raised, 12 down some stairs; in a line pointing at the middle of the right side of MAIS 8 or 9 (pillars hide them from there; seen clearly from MAIS 6 and 30). Their pictures have a chair moved onto MATO 10's spot that no other node shows | not in the model; to be shown as their pictures only |
+| MATO 4057 | MATO 4090 with its platform raised to MATO 7's height (MATO 7: the middle of the top of the central structure, where the marble ride starts) | not in the model; pictures only |
+| MACA 3–13 | mostly tunnels with little outside; they place well | kept |
+
+Sam also put the step from MACA 1 to MAIS 1 at a normal walk; the model has
+4.5 spacings (MACA 1 is a placed node). Pitches of that pair's hotspots: −10
+from MACA 1, +1 from MAIS 1, so MACA 1 stands about 0.1 above MAIS 1 at a
+step of 1. Proposed on the node walk's map at that place
+(`reference/myst3/node_walk/proposed_1001.json`); MACA 1 to MACA 2 would then
+be 4.2 spacings long, so the gap has to be taken up somewhere in the caves.
+
+`age_v7` is `age_v6` fused with MATO 3, MALL 16 and 18 left out
+(`scene_mesh.py --exclude`).
