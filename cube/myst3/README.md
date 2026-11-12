@@ -2012,7 +2012,7 @@ the outside with the inside. Sam sorted the nodes, on 12 November 2026:
 | MALL 15 | outside, by the hut's closed door | kept |
 | MALL 14 | outside | kept |
 | MATO 10, 11, 12 | west of the centre, reached at the end of the marble ride; 10 and 11 raised, 12 down some stairs; in a line pointing at the middle of the right side of MAIS 8 or 9 (pillars hide them from there; seen clearly from MAIS 6 and 30). Their pictures have a chair moved onto MATO 10's spot that no other node shows | not in the model; to be shown as their pictures only |
-| MATO 4057 | MATO 4090 with its platform raised to MATO 7's height (MATO 7: the middle of the top of the central structure, where the marble ride starts) | not in the model; pictures only |
+| MASS 57 | MASS 90 with its platform raised to MATO 7's height (MATO 7: the middle of the top of the central structure, where the marble ride starts) | not in the model; pictures only |
 | MACA 3–13 | mostly tunnels with little outside; they place well | kept |
 
 Sam also put the step from MACA 1 to MAIS 1 at a normal walk; the model has
