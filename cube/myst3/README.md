@@ -218,6 +218,7 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/scene_attrs.py` | `scene_mesh.py`'s mesh with every node's picture, albedo, roughness and metallic (from `materials.py --nodes`) carried into its vertices, as `scene.bin` for `scene3d.html`; and each node's faces as a 3×2 atlas for its projection. |
 | `colmap/scene_links.py` | The game's moves between a scene's nodes (walks and zips, from `myst3_nodes.py`'s room maps) as `links.json`, for `scene3d.html` to walk them; prints how far each hotspot's heading is from the bearing to the other node in the mesh. |
 | `colmap/scene_shells.py` | Each node's anchored distances as a 256 × 128 panorama (`shells/MA-<node>.png`, 16 bits in red and green), for `scene3d.html` to put the node's picture on its own shape behind the mesh. |
+| `colmap/scene_refine.py` | A scene mesh handed to OpenMVS's `RefineMesh` with the nearby nodes' faces (points from the mesh, seen where the nodes' depth agrees, for its choice of picture pairs) and brought back to the viewer's frame. Tried on the MASS area on 12 November 2026: worse between nodes; not used. |
 | `colmap/scene_carve.py` | Cuts out of a scene mesh the surface a node sees through (well in front of what the node sees in that direction): Poisson's skins across passages and the loose pieces round the nodes, invisible at the node that made them and in the way between nodes. |
 | `colmap/film_stretch.py` | A short video made longer by FILM's in-between frames, halving each gap `--levels` times. |
 | `splat/splat_mesh_check.py` | How far a mesh's vertices lie from a Gaussian splat of the same place: the splat's frame matched to the mesh's by the nodes both have and ICP, the splat's centres written in the mesh's frame for `scene_mesh.py --splat-centres`. |
@@ -1849,3 +1850,14 @@ fused shape itself (the nodes' MoGe depths disagree by 10% or more over half
 of each panorama), not in how finely it is triangulated. The full mesh is
 kept on the PC (`C:\myst3_out\scene_mesh\age_full`); the site keeps the 6M
 one, as GitHub Pages publishes at most 1 GB.
+
+**Refining the mesh to the pictures** (12 November 2026). OpenMVS 2.4's
+`RefineMesh` moves a mesh's vertices until the pictures that see it agree
+on it. `colmap/scene_refine.py` gave it the carved 6M mesh cut to the 17
+MASS test nodes (3.0M triangles), the 456 faces of the 76 nodes within 8
+spacings, and for its choice of picture pairs 293,000 of the mesh's vertices,
+each seen by the faces whose node's anchored distance agrees with it to 10%
+(the model's own points gave most faces no partner). With no decimation and
+no hole closing, 15 minutes: vertices moved 1.3% of a spacing on median, 4%
+at the 99th percentile. The left-out test got worse at all 17 nodes (24.5 →
+25.4 on median, coarse 16.1 → 16.8; at the nodes 1.0 → 1.2). Not used.
