@@ -2919,6 +2919,106 @@
 "pitch": -5,
 "bearing": 268.7,
 "dist": 1.394
+},
+{
+"to": "6004",
+"kind": "walk",
+"heading": 89,
+"pitch": -15,
+"bearing": 90.5,
+"dist": 0.489
+}
+],
+"6004": [
+{
+"to": "6003",
+"kind": "walk",
+"heading": 269,
+"pitch": -34,
+"bearing": 269.0,
+"dist": 0.489
+},
+{
+"to": "6005",
+"kind": "walk",
+"heading": 90,
+"pitch": -9,
+"bearing": 90.0,
+"dist": 0.504
+}
+],
+"6005": [
+{
+"to": "6004",
+"kind": "walk",
+"heading": 270,
+"pitch": -38,
+"bearing": 270.0,
+"dist": 0.504
+},
+{
+"to": "6009",
+"kind": "walk",
+"heading": 90,
+"pitch": -21,
+"bearing": 90.0,
+"dist": 0.432
+}
+],
+"6006": [
+{
+"to": "6009",
+"kind": "walk",
+"heading": 269,
+"pitch": -26,
+"bearing": 269.0,
+"dist": 0.383
+}
+],
+"6007": [
+{
+"to": "6006",
+"kind": "walk",
+"heading": 270,
+"pitch": -58,
+"bearing": 270.0,
+"dist": 0.761
+}
+],
+"6009": [
+{
+"to": "6005",
+"kind": "walk",
+"heading": 270,
+"pitch": -34,
+"bearing": 270.0,
+"dist": 0.432
+},
+{
+"to": "6006",
+"kind": "walk",
+"heading": 89,
+"pitch": -35,
+"bearing": 89.0,
+"dist": 0.383
+}
+],
+"6203": [
+{
+"to": "6002",
+"kind": "walk",
+"heading": 269,
+"pitch": -5,
+"bearing": 267.4,
+"dist": 1.394
+},
+{
+"to": "6004",
+"kind": "walk",
+"heading": 89,
+"pitch": -15,
+"bearing": 89.0,
+"dist": 0.489
 }
 ]
 }

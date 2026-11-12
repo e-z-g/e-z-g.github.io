@@ -224,6 +224,9 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/place_nodes.py` | Places nodes the model lacks or misplaces in a scene: from each placed neighbour along the game's heading of the move between them, the position whose surroundings (the mesh and the neighbours' anchored distances) agree best with the node's MoGe distances, less a cost for disagreeing with the headings. A node already in the scene is placed as a test. Tested on 12 placed nodes (12 November 2026): 0.06–0.66 spacings off with two or more placed neighbours, 0.8–2 with one. |
 | `colmap/place_model.py` | Writes nodes placed in a scene's frame (`place_nodes.py`'s output, or positions and turns by hand) back into a COLMAP model as six images each with no points, replacing the node's images where the model has them, so `scene_mesh.py` builds with them. Checks that the model's own nodes come back to `views.json`. |
 | `colmap/warp_model.py` | Moves a stretch of a model's nodes to a new layout (positions in the scene's frame, heights kept or given) and the sparse points and dense cloud with them: each point by a Gaussian blend of every node's offset (unmoved nodes counting as none), fading to nothing a few spacings from any node. `--rot-from` poses a node new with another node's turn. Written for MAIS 8–29 (12 November 2026). |
+| `colmap/layout_moves.py` | A layout of nodes (as `warp_model.py` takes it) written as `apply_moves.py`'s moves: each node's new centre and a depth scale (its walks' length in the layout over their length in the model), so a dense workspace can be fused again with the nodes moved. |
+| `colmap/mais_fit.py` | Least-squares fit of MAIS 6–11's places to the game's hotspot headings, step lengths near one spacing and the ladder from MAIS 30 to 6 near vertical; writes the layout for `warp_model.py`. |
+| `colmap/scene_alone.py` | Adds nodes to a scene as pictures only (`views.json` `"alone"`): interiors and views of a changed scene, which `scene3d.html` shows as their own panorama with the mesh hidden and does not project onto the mesh. Places them from an older scene's views, or step by step along the game's hotspots (heading, and distance and climb from the pair of hotspots' pitches), or at another node; writes their picture atlases. |
 | `colmap/film_stretch.py` | A short video made longer by FILM's in-between frames, halving each gap `--levels` times. |
 | `splat/splat_mesh_check.py` | How far a mesh's vertices lie from a Gaussian splat of the same place: the splat's frame matched to the mesh's by the nodes both have and ICP, the splat's centres written in the mesh's frame for `scene_mesh.py --splat-centres`. |
 | `splat/splat_depth_train.py` | A Gaussian splat trained with gsplat on a splat dataset's pictures plus a depth loss: each node face's rendered depth held to the node's anchored MoGe depth (`scene_mesh.py --dense`). `--eval` measures any 3DGS `.ply` the same way (PSNR, depth misfit, coverage at the node faces). Needs gsplat (Python 3.10, torch 2.4 on Windows). |
@@ -2024,3 +2027,13 @@ be 4.2 spacings long, so the gap has to be taken up somewhere in the caves.
 
 `age_v7` is `age_v6` fused with MATO 3, MALL 16 and 18 left out
 (`scene_mesh.py --exclude`).
+
+`scene3d.html` shows a node marked `"alone"` in `views.json` as its own
+panorama, the mesh hidden; its pictures are not projected onto the mesh, and a
+move into or out of it cuts. `scene_alone.py` added MATO 4, 5, 6, 7, 9, 6203
+and MASS 57 to the shipped scene this way (12 November 2026): MATO 4, 5, 9, 6
+stepped east from MATO 3 by their hotspots (0.38–0.48 spacings each, climbing
+0.27 in all), MATO 7 0.5 east of 6 and 0.57 above it (one hotspot, down the
+ladder at −58°), 6203 at MATO 3, MASS 57 at MASS 90 raised to MATO 7's height.
+6203 and MASS 57 have no move into them; MATO 7 none from MATO 6 (the ladder is
+a movie). MATO 10, 11 and 12 wait for a place.

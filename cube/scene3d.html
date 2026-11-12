@@ -60,6 +60,9 @@ controls.enableDamping = true;
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 let nodes = {}, mesh = null, here = null, glide = null, moveDots = null;
+// nodes shown as their own pictures only (views.json's "alone": interiors, which no picture ties to the outside,
+// and views of a changed scene): not in the mesh, not projected onto it; standing at one shows its panorama alone
+let ALONE = new Set();
 window.scene3d = { dots: true };
 // the game's moves between nodes (scene_links.py from its scripts): tap toward one, or the up arrow, to walk it
 const LINKS = await fetch('./amateria/scene_age/links.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
@@ -158,6 +161,7 @@ const depthMat = new THREE.ShaderMaterial({ side: THREE.DoubleSide,
     varying vec3 vD; void main(){ gl_FragColor = packDepthToRGBA(min(length(vD) / ${DIST.toFixed(1)}, 0.999)); }` });
 let proj = null;
 const views = await fetch(BASE + 'views.json').then(r => r.ok ? r.json() : null).catch(() => null);
+if (views) ALONE = new Set(Object.keys(views).filter(n => views[n].alone));
 if (views) {
   const uni = { np: { value: [] }, nr: { value: [] }, on: { value: new Array(SLOTS).fill(0) }, eye: { value: new THREE.Vector3() }, holes: { value: 0 }, eps: { value: 0.0002 } };
   let body = '';
@@ -223,7 +227,7 @@ void main(){ vec4 acc = vec4(0.0);${body}
   let slotsAt = null;
   const allNodes = Object.keys(views);
   // scene3d.exclude: nodes left out (the page tests' stand-in for a view between nodes: a node's own place seen from its neighbours)
-  const live = () => scene3d.exclude ? allNodes.filter(n => !scene3d.exclude.includes(n)) : allNodes;
+  const live = () => allNodes.filter(n => !ALONE.has(n) && !(scene3d.exclude && scene3d.exclude.includes(n)));
   function update(ref) {
     if (slotsAt && slotsAt.distanceTo(ref) < 0.02) return;
     slotsAt = ref.clone();
@@ -258,7 +262,8 @@ void main(){ vec3 d = normalize(vW - eye), c = texture2D(pic, atlasUV(Q * d, 0.6
     origUpdate(ref);
     const dist = n => ref.distanceTo(new THREE.Vector3(...views[n].pos));
     let a = null, b = null;
-    for (const n of live()) { if (a === null || dist(n) < dist(a)) { b = a; a = n; } else if (b === null || dist(n) < dist(b)) b = n; }
+    if (standing && ALONE.has(here)) { a = here; need(here); }       // its panorama alone, the mesh hidden
+    else for (const n of live()) { if (a === null || dist(n) < dist(a)) { b = a; a = n; } else if (b === null || dist(n) < dist(b)) b = n; }
     const e = cache.get(a), e1 = b !== null ? cache.get(b) : null;
     sky.visible = standing && !!(e && e.pic);
     if (sky.visible) {
@@ -307,7 +312,7 @@ function pickMove(dir, within, flat) {
   return best;
 }
 function go(m) {
-  if (m.kind === 'zip') { standAt(m.to); return; }
+  if (m.kind === 'zip' || ALONE.has(m.to) || ALONE.has(here)) { standAt(m.to); return; }   // into or out of a pictures-only node: a cut
   const p0 = new THREE.Vector3(...nodes[here]), p1 = new THREE.Vector3(...nodes[m.to]);
   const d0 = new THREE.Vector3(); camera.getWorldDirection(d0);
   glide = { to: m.to, p0, p1, d0, d1: level(p1.clone().sub(p0)), t0: performance.now(), ms: Math.min(2200, 500 + 1300 * p0.distanceTo(p1)) };
@@ -371,8 +376,9 @@ renderer.setAnimationLoop(() => {
   if (glide) stepGlide();
   // the nodes nearest where you stand, or in Orbit nearest what you circle
   if (proj && mesh.material === proj.mat) { const standing = controls.maxDistance < 0.05;
-    proj.uni.eye.value.copy(camera.position); proj.update(standing ? camera.position : controls.target, standing); }
-  else if (proj) proj.sky.visible = false;
+    proj.uni.eye.value.copy(camera.position); proj.update(standing ? camera.position : controls.target, standing);
+    mesh.visible = !(standing && ALONE.has(here)); }
+  else { if (proj) proj.sky.visible = false; mesh.visible = true; }
   renderer.render(scene, camera);
 });
 </script>
