@@ -1,0 +1,41 @@
+{
+ "vertices": 3119045,
+ "triangles": 5999985,
+ "parts": {
+  "position": {
+   "offset": 0,
+   "bytes": 37428540,
+   "type": "float32",
+   "size": 3
+  },
+  "index": {
+   "offset": 37428540,
+   "bytes": 71999820,
+   "type": "uint32",
+   "size": 3
+  },
+  "color": {
+   "offset": 109428360,
+   "bytes": 9357135,
+   "type": "uint8",
+   "size": 3
+  },
+  "albedo": {
+   "offset": 118785496,
+   "bytes": 9357135,
+   "type": "uint8",
+   "size": 3
+  },
+  "roughMetal": {
+   "offset": 128142632,
+   "bytes": 6238090,
+   "type": "uint8",
+   "size": 2
+  }
+ },
+ "bytes": 134380724,
+ "files": [
+  "scene.bin.0",
+  "scene.bin.1"
+ ]
+}

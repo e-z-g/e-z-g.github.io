@@ -1682,7 +1682,7 @@ Behind the mesh, the nearest node's picture is drawn at infinity. At MASS 84
 facing face 1 with a 90° view the render is 0.7/255 from the game's face (the
 vertex colours: 22/255); walking to MASS 89, frames differ by 3/255 a step,
 9/255 once halfway where the sky changes node. The pictures are the game's
-640 px faces (`amateria/scene/pictures/`).
+640 px faces (now `amateria/scene_age/pictures/`, shared by every mesh).
 
 **A mesh from the splat instead** (`splat/splat_mesh.py`, `scene3d.html?mesh=splat`,
 or the Mesh menu). The `walk84room` splat's centres in the mesh's frame (the
@@ -1737,3 +1737,35 @@ the share of the view the mesh covers (sky included, so never 100%):
 So the depth loss puts the splats on the surfaces, but a mesh made from the
 splat's centres keeps most of its holes: where the pictures leave a surface
 thin, the splat has few solid splats there whatever their depth.
+
+## The whole age as one mesh (11 November 2026)
+
+`scene3d.html` now opens on all of Amateria (the Mesh menu still has the pier
+alone and the pier's splat mesh). It is `scene_mesh.py` over every node but
+those the model still has in the wrong place: 116 of the 131, leaving out
+MACA 1, 5 and 6, MAIS 10 and 11, MALL 5–13 and 18 (as for
+`dense_movies_moved`). The poses are the moved model's (`dense_moved`, where
+`node_align.py --runs` moved MASS 82–90, MAIS 1–5 and MAIS 30–33 with MATO 2),
+and every node's MoGe depth is anchored to `dense_moved`'s cloud. The moved
+nodes no longer fit the sparse points their scale used to come from, so with
+`--dense` each node's scale is first set by the dense cloud itself (MALL 14
+and MASS 12, with under ten sparse points, by the cloud alone). Misfit to the
+cloud after anchoring: at most 20%, mostly 2–7%.
+
+MoGe on the 94 new panoramas took 70 s each (about 1 h 50 min). One Poisson
+surface over the age would be as coarse as the age is wide (about 48 node
+spacings), so `--tile 12` lays it in 16 squares of 12 spacings, each with one
+spacing round it, keeping the triangles whose middle lies in the square:
+11.3M points, 6.0M triangles after reduction (shared by the tiles' points),
+3.1M vertices, 99.7% of them seen by a node face. No splat filter here (no
+splat covers the age with depth). `scene_attrs.py` gives a node with no
+material maps its picture as albedo, and only projects the vertices within 15
+spacings of each node. `scene.bin` is 134 MB, so it is cut into 90 MB pieces
+(`scene.bin.0`, `.1`, listed in `scene.json`), which the viewer joins.
+
+Standing at nodes in MASS, MACA, MAIS, MALL and MATO the projected pictures
+read as the game's (MASS 84 face 1: 1.1/255 from the face). Walking from MASS
+84 to 89, frames differ by 3.7–4.4/255 a step, 7.8 once where the sky changes
+node; loading takes about 1 s from a local server. From outside the age is as
+rough as the pier was: the middle's shapes (the dome, the pier) are there,
+lumpy, and the sea, which MoGe gives a surface, fans out at the edge.

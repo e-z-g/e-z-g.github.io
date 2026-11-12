@@ -18,7 +18,7 @@ canvas { display: block; touch-action: none; }
 <div id="bar">
   <select id="node" title="Stand at a node"></select>
   <button id="orbit">Orbit</button>
-  <select id="meshsel" title="Which mesh"><option value="moge">Mesh from MoGe</option><option value="splat">Mesh from the splat</option></select>
+  <select id="meshsel" title="Which mesh"><option value="age">Whole age, from MoGe</option><option value="moge">Pier, from MoGe</option><option value="splat">Pier, from the splat</option></select>
   <select id="mode" title="What the surface shows">
     <option value="projected">Pictures</option><option value="pictures">Pictures, per vertex</option><option value="lit">Lit (albedo, sun)</option>
     <option value="albedo">Albedo</option><option value="rough">Roughness</option>
@@ -41,9 +41,11 @@ canvas { display: block; touch-action: none; }
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// ?mesh=splat: the mesh made from the Gaussian splat (myst3/splat/splat_mesh.py) in place of the nodes' MoGe depth
-const MESH = new URLSearchParams(location.search).get('mesh') === 'splat' ? 'splat' : 'moge';
-const BASE = MESH === 'splat' ? './amateria/scene_splat/' : './amateria/scene/', PICS = './amateria/scene/pictures/';
+// the whole age by default (every node the model places, MoGe's depth); ?mesh=moge the pier alone, ?mesh=splat the
+// pier's mesh made from the Gaussian splat (myst3/splat/splat_mesh.py). Every node's pictures are in scene_age.
+const MESH = { moge: 'moge', splat: 'splat' }[new URLSearchParams(location.search).get('mesh')] || 'age';
+const BASE = { age: './amateria/scene_age/', moge: './amateria/scene/', splat: './amateria/scene_splat/' }[MESH],
+      PICS = './amateria/scene_age/pictures/';
 const info = document.getElementById('info');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -77,7 +79,7 @@ function orbit() {
 }
 const sel = document.getElementById('node');
 const meshSel = document.getElementById('meshsel'); meshSel.value = MESH;
-meshSel.addEventListener('change', () => { location.search = meshSel.value === 'splat' ? '?mesh=splat' : ''; });
+meshSel.addEventListener('change', () => { location.search = meshSel.value === 'age' ? '' : '?mesh=' + meshSel.value; });
 sel.addEventListener('change', () => standAt(sel.value));
 document.getElementById('orbit').addEventListener('click', orbit);
 document.getElementById('wire').addEventListener('click', () => { if (mesh) for (const m of Object.values(mats)) m.wireframe = !m.wireframe; });
