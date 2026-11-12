@@ -2064,3 +2064,15 @@ from it. The flyover with the sky masked (`video_lemt_nosky`) puts MATO 10 at
 MATO 12, 11, 10 in a line along heading 270, MATO 10 the far end, where the
 marble track runs on out to sea; looking back along heading 90 it sees the
 central structure across the water with the ride's cart in front.
+
+### Files moved off the Mac (12 November 2026)
+
+At Sam's request, the Mac's working copies under `reference/myst3` that the
+work has moved past went to the PC, `C:\myst3_out\mac_archive\<the same
+path>`: `scene_mesh/` `age_full`, `age_orig`, `carved`, `carved_v1`, `v2`,
+`v4`, `v6`, `v6_test`, `carved_sky`, `crop_6m`, `crop_refined`, `crop_full`,
+`full_carved`, `mais_fuse`, and `Amateria/` `dense_joined`, `dense_movies`,
+`dense_movies3_moved`, `splat`. Each was checked file by file (name and size)
+on the PC before the Mac copy was deleted (`reference/myst3/cleanup/archive.sh`).
+`age_v2` and `age_v4` were identical to the PC's own and were deleted. The Mac
+keeps `installed_v2`, `carved_v6b`, `age_v6` and the logs; 13 GB went to 5 GB.
