@@ -127,6 +127,7 @@ def main():
     ap.add_argument('--splat-centres'); ap.add_argument('--splat-radius', type=float, default=0.2)
     ap.add_argument('--tile', type=float, default=0, help='surface laid in square tiles this many spacings across (0: one surface)')
     ap.add_argument('--tile-margin', type=float, default=1.0)
+    ap.add_argument('--moge-nodes', nargs='*', help='the moge stage on these nodes instead (any node with faces in ROOT, in the model or not)')
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input')
     a = ap.parse_args()
@@ -142,7 +143,7 @@ def main():
     load = lambda n, k: np.asarray(Image.open(os.path.join(a.root, 'images', f'f{k}', f'MA-{n}.jpg')).convert('RGB'))
 
     if 'moge' in a.stage:
-        for n in nodes:
+        for n in a.moge_nodes or nodes:
             prefix = os.path.join(a.out, 'moge', n)
             if os.path.exists(prefix + '_moge_depth.npy'):
                 continue

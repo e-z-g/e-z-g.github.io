@@ -1861,3 +1861,27 @@ each seen by the faces whose node's anchored distance agrees with it to 10%
 no hole closing, 15 minutes: vertices moved 1.3% of a spacing on median, 4%
 at the 99th percentile. The left-out test got worse at all 17 nodes (24.5 →
 25.4 on median, coarse 16.1 → 16.8; at the nodes 1.0 → 1.2). Not used.
+
+## More of the age in the mesh (12 November 2026)
+
+**MALL 5–13 and 18.** The whole-age mesh had left out MALL 5–13 and 18
+only because COLMAP's dense cloud had ghosts of them; their poses in the
+moved model run along the path the game's headings give (spread 7.8°, the
+joins to MALL 4 and 14 within 7°). Rebuilt with them (`scene_mesh.py`, the
+five nodes the model still has misplaced, MACA 1, 5, 6 and MAIS 10, 11, left
+out), carved and given its moves again: 126 nodes, 309 moves (283 before),
+headings against bearings 4.6° on median. The full mesh (60.3M triangles) is
+kept on the PC (`C:\myst3_out\scene_mesh\age_v2_full`), the 6M one is in
+`scene_age`. `scene_mesh.py --moge-nodes` runs MoGe on nodes the model does
+not have (31 of them, all with faces but MAIS 20).
+
+| measured | 116 nodes | 126 nodes |
+|---|---|---|
+| walks (9 points each) | 124 | 135 |
+| view no node sees, median along walks | 0.5% | 0.4% |
+| walks with a step changing over 30/255 | 9 | 8 |
+| standing at a node, from the game's faces, median | 1.1 | 1.1 |
+| MALL's 17 nodes left out, median | — | 18.2 |
+
+The new MALL nodes left out come within 13–17/255 of the game's faces (MALL 5
+to 10) and 19–21 (11, 12); MALL 13 and 18 at 30 are the worst of the room.
