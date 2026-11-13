@@ -614,7 +614,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 170.
+    Version 171.
   </footer>
 </div>
 
@@ -909,7 +909,8 @@ function skinLadder(hex) {
 // group's middle shade (`ref`) moves to the picked one, keeping the shading,
 // as far as white and black allow (fitLightness).
 // A picked colour wins over the skin's (sleepy eyes' lids are skin, and have
-// a picker). The outline and anything else outside the groups stay as they are, and a
+// a picker), except on the pixels the exporter lists for the sprite in
+// `skinOnly`, the skin between sleepy eyes' lids. The outline and anything else outside the groups stay as they are, and a
 // hat's pixels are never skin (the cream has the Zoombini's lightest blue).
 // With nothing picked, or only a part's own colours, the sprite is the
 // sheet's own, untouched.
@@ -932,6 +933,8 @@ function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
   ctx.drawImage(sheet, sx, sy, w, h, 0, 0, w, h);
   const img = ctx.getImageData(0, 0, w, h), d = img.data;
   const ladder = skin && skinLadder(skin), steps = worn ? {} : SKIN_STEPS[kind];
+  const between = new Set(), listed = !worn && S.skinOnly && S.skinOnly[index];
+  for (let k = 0; listed && k < listed.length; k += 2) between.add((listed[k + 1] * w + listed[k]) * 4);
   const hexAt = i => ((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]).toString(16).padStart(6, '0');
   const byHex = new Map();
   for (const [g, pick] of active) {
@@ -944,7 +947,7 @@ function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
     const hex = hexAt(i), step = steps[hex];
     let rgb = null;
     // a picked colour first: sleepy eyes' lids are skin, and can be picked
-    if (byHex.has(hex)) {
+    if (byHex.has(hex) && !between.has(i)) {
       rgb = byHex.get(hex);
     } else if (step !== undefined) {
       if (ladder) rgb = ladder[step];
