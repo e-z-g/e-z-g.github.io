@@ -2,38 +2,38 @@
  "parts": {
   "position": {
    "offset": 0,
-   "bytes": 37575636,
+   "bytes": 37489008,
    "type": "float32",
    "size": 3
   },
   "index": {
-   "offset": 37575636,
-   "bytes": 63411528,
+   "offset": 37489008,
+   "bytes": 64572624,
    "type": "uint32",
    "size": 3
   },
   "color": {
-   "offset": 100987164,
-   "bytes": 9393909,
+   "offset": 102061632,
+   "bytes": 9372252,
    "type": "uint8",
    "size": 3
   },
   "albedo": {
-   "offset": 110381076,
-   "bytes": 9393909,
+   "offset": 111433884,
+   "bytes": 9372252,
    "type": "uint8",
    "size": 3
   },
   "roughMetal": {
-   "offset": 119774988,
-   "bytes": 6262606,
+   "offset": 120806136,
+   "bytes": 6248168,
    "type": "uint8",
    "size": 2
   }
  },
- "vertices": 3131303,
- "triangles": 5284294,
- "bytes": 126037596,
+ "vertices": 3124084,
+ "triangles": 5381052,
+ "bytes": 127054304,
  "files": [
   "scene.bin.0",
   "scene.bin.1"

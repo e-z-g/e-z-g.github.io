@@ -2086,3 +2086,24 @@ path>`: `scene_mesh/` `age_full`, `age_orig`, `carved`, `carved_v1`, `v2`,
 on the PC before the Mac copy was deleted (`reference/myst3/cleanup/archive.sh`).
 `age_v2` and `age_v4` were identical to the PC's own and were deleted. The Mac
 keeps `installed_v2`, `carved_v6b`, `age_v6` and the logs; 13 GB went to 5 GB.
+
+### `age_v7`: the interiors out of the mesh (12 November 2026)
+
+`age_v6` fused again with MATO 3, MALL 16 and 18 left out (`age_v7.ps1`),
+carved without MAIS 10's shell as before (10.3% of triangles cut). Leaving out
+three nodes moved the median spacing between neighbours, the frame's unit, by
+3.5%; the mesh and views were scaled back to `age_v6`'s unit so that heights,
+the node walk's sea level and the hand-placed nodes keep their numbers. The
+three are in the scene again as pictures only, with the ten added before: 130
+fused nodes and 13 pictures-only, 143 in all. Against `age_v6` as shipped (left
+out: the 25 MAIS nodes both runs measured; at node: the 130 fused nodes):
+
+| measured | `age_v6` | `age_v7` |
+|---|---|---|
+| left out, median / mean | 19.0 / 22.79 | 19.0 / 22.69 |
+| left out, the most worse | — | 0.2 (MAIS 8) |
+| standing at a node, mean | 1.31 | 1.25 |
+| walks (the 144 in both): view no node sees, median | 0.4% | 0.4% |
+| walks with a step changing over 30/255 | 7 | 7 |
+
+Nothing measured got worse by more than 0.2. Shipped in `scene_age`.

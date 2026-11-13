@@ -1713,7 +1713,7 @@
 "kind": "walk",
 "heading": 237,
 "pitch": -10,
-"bearing": 250.5,
+"bearing": 250.8,
 "dist": 1.017
 }
 ],
@@ -1733,7 +1733,7 @@
 "kind": "walk",
 "heading": 88,
 "pitch": -6,
-"bearing": 70.5,
+"bearing": 70.8,
 "dist": 1.017
 }
 ],
@@ -2917,7 +2917,7 @@
 "kind": "walk",
 "heading": 269,
 "pitch": -5,
-"bearing": 268.7,
+"bearing": 267.4,
 "dist": 1.394
 },
 {
@@ -2925,7 +2925,7 @@
 "kind": "walk",
 "heading": 89,
 "pitch": -15,
-"bearing": 90.5,
+"bearing": 89.0,
 "dist": 0.489
 }
 ],
