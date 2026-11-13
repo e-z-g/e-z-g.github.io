@@ -614,7 +614,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 169.
+    Version 170.
   </footer>
 </div>
 
@@ -2733,13 +2733,15 @@ dice.addEventListener('click', () => {
 });
 // Mix Colors! has the dice roll colours too (Sam, 5 November 2026: "add
 // color randomization option"): each part, the skin and each extra not
-// locked, every one of its colours a crayon from the crayon box (Sam: "have
-// the randomize draw from the crayon box"). Off, the dice gives back each
-// part's own colours, as before. (Swatches came before the crayons: as
-// light as the Zoombini's blue, they washed a part's shading out, and all
-// soft they were "too uniformly dun".)
+// locked, every one of its colours any colour at all, red, green and blue
+// each 0-255 at random (Sam, 13 November 2026: "randomize just randomizes
+// color completely now, no crayon preset"). Off, the dice gives back each
+// part's own colours, as before. (Swatches came first, then the crayons:
+// swatches as light as the Zoombini's blue washed a part's shading out, but
+// since Version 169 a feature keeps its shading at any colour, fitLightness
+// and skinLadder.)
 let hues = false;
-const tone = () => '#' + CRAYONS[Math.floor(Math.random() * CRAYONS.length)][1];
+const tone = () => '#' + Math.floor(Math.random() * 0x1000000).toString(16).padStart(6, '0');
 function rollColours(build) {
   const kind = state.kind;
   if (!locks.body) build.skin = tone();
