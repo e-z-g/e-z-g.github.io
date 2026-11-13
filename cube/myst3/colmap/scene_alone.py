@@ -6,6 +6,7 @@ the outside, and views of a changed scene (a chair moved, a platform raised). Ad
 
     python scene_alone.py MESH_DIR WALK.json [--from OLD_MESH_DIR --nodes 6003 3016 3018]
         [--place 6010=20.0,0.17,-5.03 ...] [--walk 6004 6005 ...] [--at 6203=6003 ...] [--height 4057=6007 ...] [--eye 0.226] [--pictures FACES]
+        [--age-map maps/ages/AGE.json] [--prefix MA]
 
 MESH_DIR's views.json and nodes.json gain the nodes; its frame (scene_mesh.py's: nodes.json's first node at the
 origin, y up, one unit the node spacing) is scales.json's unit. --nodes take their places from OLD_MESH_DIR's
@@ -17,7 +18,8 @@ climb = d (tan(-p_ba) - tan(-p_ab)) / 2, d held to 0.3-1.6), or from one hotspot
 --at puts a node at another's place; --height gives it another's height. The turn of every added node is the
 first node's (scene_mesh.py's views have nearly the same turn at every node). With --pictures (myst3_nodes.py's
 faces folder, <ROOM>/<ROOM>-<node>-f<k>.jpg) each added node's picture atlas is written to MESH_DIR/pictures as
-scene_attrs.py writes them (faces 1 2 3 above, 4 5 6 below). Needs Python 3, and Pillow for --pictures.
+scene_attrs.py writes them (faces 1 2 3 above, 4 5 6 below), named <prefix>-<node>.jpg. Node numbers are room
+times 1000 plus the node, the room its place in --age-map's room list (or Amateria's). Needs Python 3, and Pillow for --pictures.
 """
 import argparse
 import json
@@ -39,7 +41,10 @@ def main():
     ap.add_argument('--walk', dest='walkn', nargs='*', default=[]); ap.add_argument('--place', nargs='*', default=[])
     ap.add_argument('--at', nargs='*', default=[]); ap.add_argument('--height', nargs='*', default=[])
     ap.add_argument('--eye', type=float, default=0.226); ap.add_argument('--pictures')
+    ap.add_argument('--age-map'); ap.add_argument('--prefix', default='MA')
     a = ap.parse_args()
+    if a.age_map:
+        NAME.clear(); NAME.update({i + 1: r for i, r in enumerate(json.load(open(a.age_map))['rooms'])})
     vp, np_ = os.path.join(a.mesh, 'views.json'), os.path.join(a.mesh, 'nodes.json')
     views, nodes = json.load(open(vp)), json.load(open(np_))
     n0 = next(iter(nodes))
@@ -100,7 +105,7 @@ def main():
             fs = faces[0].size[0]; atlas = Image.new('RGB', (3 * fs, 2 * fs))
             for k, im in enumerate(faces):
                 atlas.paste(im, (k % 3 * fs, k // 3 * fs))
-            atlas.save(os.path.join(a.mesh, 'pictures', f'MA-{n}.jpg'), quality=92)
+            atlas.save(os.path.join(a.mesh, 'pictures', f'{a.prefix}-{n}.jpg'), quality=92)
     json.dump(views, open(vp, 'w'), indent=1)
     json.dump(nodes, open(np_, 'w'), indent=1)
     print(f'{len(added)} nodes added as pictures only')

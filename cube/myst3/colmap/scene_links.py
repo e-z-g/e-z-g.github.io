@@ -2,14 +2,15 @@
 r"""
 The game's moves between the nodes of a scene_mesh.py mesh, for the viewer to walk them.
 
-    python scene_links.py MAPS_ROOMS MESH_DIR
+    python scene_links.py MAPS_ROOMS MESH_DIR [--age-map maps/ages/AGE.json]
 
 MAPS_ROOMS is myst3_nodes.py's maps\rooms (one <ROOM>.json a room, its links as the game's scripts give
 them); MESH_DIR a scene folder with views.json (scene_attrs.py's). Keeps the links that move the player
 (walk 138/164, walk-room 139/165, zip 140, zip-room 141, and a movie that ends at another node of the room, 152,
 such as MACA 35's lift to MACA 36, kept as a zip: the viewer cuts) between two nodes both in views.json, node names
-as the mesh's (room number times 1000 plus the node: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6; a
-walk-room's room argument is 1000 plus that number). Writes MESH_DIR\links.json: per node, its moves with
+as the mesh's (room number times 1000 plus the node, the room number its place in the age map's room list,
+--age-map, or Amateria's: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6; a walk-room's room argument ends in that
+number: 1001-1006 in Amateria, 501-506 in J'nanin). Writes MESH_DIR\links.json: per node, its moves with
 the game's hotspot heading and pitch and the bearing to the other node in the mesh, and prints how far
 the two bearings differ (a large difference points at a node the mesh has in the wrong place; movies left out, as
 their hotspot is a lever or a door, not the way to the other node).
@@ -28,11 +29,12 @@ MOVIE = 152                     # args: the node it ends at, the movie
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('rooms'); ap.add_argument('mesh')
+    ap.add_argument('rooms'); ap.add_argument('mesh'); ap.add_argument('--age-map')
     a = ap.parse_args()
+    rooms = {r: i + 1 for i, r in enumerate(json.load(open(a.age_map))['rooms'])} if a.age_map else ROOMS
     views = json.load(open(os.path.join(a.mesh, 'views.json')))
     out, off = {}, []
-    for room, num in ROOMS.items():
+    for room, num in rooms.items():
         f = os.path.join(a.rooms, room + '.json')
         if not os.path.exists(f):
             continue
@@ -43,7 +45,7 @@ def main():
             if l['opcode'] == MOVIE:
                 dst = str(num * 1000 + l['args'][0])
             else:
-                dst = str((l['args'][0] - 1000) * 1000 + l['args'][1]) if len(l['args']) == 2 else str(num * 1000 + l['args'][0])
+                dst = str(l['args'][0] % 100 * 1000 + l['args'][1]) if len(l['args']) == 2 else str(num * 1000 + l['args'][0])
             if src not in views or dst not in views or src == dst:
                 continue
             v = views[src]

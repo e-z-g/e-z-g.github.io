@@ -96,10 +96,10 @@ def main():
     from scipy.spatial import cKDTree
     _, near = cKDTree(C).query(cen)
     rooms = np.array([names[i][0] for i in near])
-    for rm, label in zip('123456', ['MACA', 'MAIS', 'MALL', 'MASS', 'MAWW', 'MATO']):
+    for rm in sorted(set(rooms)):
         sel = rooms == rm
         if sel.any():
-            print(f'  {label}: {(~keep[sel]).sum()} of {sel.sum()} triangles cut ({(~keep[sel]).mean() * 100:.1f}%)')
+            print(f'  room {rm}: {(~keep[sel]).sum()} of {sel.sum()} triangles cut ({(~keep[sel]).mean() * 100:.1f}%)')
     parts = dict(parts); parts['index'] = T[keep]
     write_scene(a.out, parts)
     print(a.out)

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Amateria as one mesh</title>
+<title>Myst III ages as one mesh</title>
 <style>
 html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 14px/1.3 system-ui, sans-serif; color: #ddd; }
 canvas { display: block; touch-action: none; }
@@ -16,6 +16,7 @@ canvas { display: block; touch-action: none; }
 </script>
 </head><body>
 <div id="bar">
+  <select id="agesel" title="Which age"><option value="amateria">Amateria</option><option value="jnanin">J'nanin</option></select>
   <select id="node" title="Stand at a node"></select>
   <button id="orbit">Orbit</button>
   <select id="meshsel" title="Which mesh"><option value="age">Whole age, from MoGe</option><option value="moge">Pier, from MoGe</option><option value="splat">Pier, from the splat</option></select>
@@ -42,11 +43,19 @@ canvas { display: block; touch-action: none; }
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// the whole age by default (every node the model places, MoGe's depth); ?mesh=moge the pier alone, ?mesh=splat the
-// pier's mesh made from the Gaussian splat (myst3/splat/splat_mesh.py). Every node's pictures are in scene_age.
-const MESH = { moge: 'moge', splat: 'splat' }[new URLSearchParams(location.search).get('mesh')] || 'age';
-const BASE = { age: './amateria/scene_age/', moge: './amateria/scene/', splat: './amateria/scene_splat/' }[MESH],
-      PICS = './amateria/scene_age/pictures/';
+// ?age=jnanin for J'nanin, Amateria by default. The whole age (every node the model places, MoGe's depth); for
+// Amateria ?mesh=moge the pier alone, ?mesh=splat the pier's mesh made from the Gaussian splat
+// (myst3/splat/splat_mesh.py). Every node's pictures are in scene_age/pictures, <prefix>-<node>.jpg. A node's
+// number is its room's place in the age's room list times 1000 plus the node (MASS 84 is 4084, LEIS 75 1075).
+const AGES = {
+  amateria: { dir: './amateria/', prefix: 'MA', rooms: ['MACA', 'MAIS', 'MALL', 'MASS', 'MAWW', 'MATO'], start: '4084' },
+  jnanin: { dir: './jnanin/', prefix: 'LE', rooms: ['LEIS', 'LEOS', 'LEET', 'LELT', 'LEMT', 'LEOF'], start: '1066' },
+};
+const Q = new URLSearchParams(location.search), AGE_ID = Q.get('age') in AGES ? Q.get('age') : 'amateria', AGE = AGES[AGE_ID];
+const MESH = AGE_ID === 'amateria' && { moge: 'moge', splat: 'splat' }[Q.get('mesh')] || 'age';
+const BASE = AGE.dir + { age: 'scene_age/', moge: 'scene/', splat: 'scene_splat/' }[MESH],
+      PICS = AGE.dir + 'scene_age/pictures/';
+const nodeName = n => `${AGE.rooms[Math.floor(n / 1000) - 1]} ${n % 1000}`;
 const info = document.getElementById('info');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -65,7 +74,7 @@ let nodes = {}, mesh = null, here = null, glide = null, moveDots = null;
 let ALONE = new Set();
 window.scene3d = { dots: true };
 // the game's moves between nodes (scene_links.py from its scripts): tap toward one, or the up arrow, to walk it
-const LINKS = await fetch('./amateria/scene_age/links.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
+const LINKS = await fetch(AGE.dir + 'scene_age/links.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
 function standAt(n) {
   here = n; glide = null; sel.value = n;
   const p = new THREE.Vector3(...nodes[n]);
@@ -91,12 +100,15 @@ function orbit() {
 const sel = document.getElementById('node');
 const meshSel = document.getElementById('meshsel'); meshSel.value = MESH;
 meshSel.addEventListener('change', () => { location.search = meshSel.value === 'age' ? '' : '?mesh=' + meshSel.value; });
+meshSel.style.display = AGE_ID === 'amateria' ? '' : 'none';
+const ageSel = document.getElementById('agesel'); ageSel.value = AGE_ID;
+ageSel.addEventListener('change', () => { location.search = ageSel.value === 'amateria' ? '' : '?age=' + ageSel.value; });
 sel.addEventListener('change', () => standAt(sel.value));
 document.getElementById('orbit').addEventListener('click', orbit);
 document.getElementById('wire').addEventListener('click', () => { if (mesh) for (const m of Object.values(mats)) m.wireframe = !m.wireframe; });
 
 nodes = await (await fetch(BASE + 'nodes.json')).json(); window.__nodes = nodes;
-for (const n of Object.keys(nodes)) { const o = document.createElement('option'); o.value = n; o.textContent = 'MA ' + n; sel.appendChild(o); }
+for (const n of Object.keys(nodes)) { const o = document.createElement('option'); o.value = n; o.textContent = nodeName(+n); sel.appendChild(o); }
 const head = await (await fetch(BASE + 'scene.json')).json();
 // scene.bin, or for a large mesh its pieces (scene.json's files: under GitHub's 100 MB a file) joined in order
 const files = head.files || ['scene.bin'], chunks = []; let got = 0, total = head.bytes || 0;
@@ -215,7 +227,7 @@ void main(){ vec4 acc = vec4(0.0);${body}
     if (!e) {
       e = { pic: null, dep: null, Q: new THREE.Matrix3().set(...views[n].rot.flat()), pos: new THREE.Vector3(...views[n].pos) };
       cache.set(n, e);
-      loader.load(PICS + 'MA-' + n + '.jpg', t => {
+      loader.load(PICS + AGE.prefix + '-' + n + '.jpg', t => {
         t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
         if (cache.get(n) === e) { e.pic = t; slotsAt = null; } else t.dispose();
       });
@@ -295,7 +307,7 @@ document.getElementById('mode').addEventListener('change', e => {
 });
 info.textContent = `${(head.triangles / 1e6).toFixed(2)}M triangles, ${Object.keys(nodes).length} nodes. Drag to look; tap toward a dot (or press the up arrow) to walk there; pick a node to jump to it, or Orbit.`;
 // the nodes in scene_mesh.py's order (MASS 84 first): numeric keys come out of JSON sorted
-sel.value = '4084' in nodes ? '4084' : Object.keys(nodes)[0];
+sel.value = AGE.start in nodes ? AGE.start : Object.keys(nodes)[0];
 // walking: from the node you stand at to one it links to, the eye gliding there (a zip cuts, as the game's)
 function moves(n) { return (LINKS[n] || []).filter(m => m.to in nodes); }
 const level = v => new THREE.Vector3(v.x, 0, v.z).normalize();
