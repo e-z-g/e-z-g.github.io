@@ -10,7 +10,7 @@ the outside, and views of a changed scene (a chair moved, a platform raised). Ad
 MESH_DIR's views.json and nodes.json gain the nodes; its frame (scene_mesh.py's: nodes.json's first node at the
 origin, y up, one unit the node spacing) is scales.json's unit. --nodes take their places from OLD_MESH_DIR's
 views.json (the same first node; the place scaled by the two units), for nodes the old mesh fused and the new
-one leaves out. --place puts a node at a place given in the frame (measured by hand). --walk nodes are placed one after another from a node already placed that links to them in WALK.json
+one leaves out. --place puts a node at a place given in the frame (measured by hand). --walk nodes (N, or N:FROM to step from FROM only) are placed one after another from a node already placed that links to them in WALK.json
 (node_walk.py's), or that it links to (the hotspot turned round): along the hotspot's heading, at a distance and climb from the pitches of the pair of hotspots
 (each pitch to the other's floor from an eye --eye spacings above one's own: d = 2e / (tan(-p_ab) + tan(-p_ba)),
 climb = d (tan(-p_ba) - tan(-p_ab)) / 2, d held to 0.3-1.6), or from one hotspot at d 1 (0.5 past 45 degrees).
@@ -57,12 +57,14 @@ def main():
     pos.update(added)
     walk = json.load(open(a.walk))['nodes']
     spots = lambda n, m: [s for s in walk.get(name(n), []) if s['to'] == name(m) and s['kind'] in ('walk', 'walk-room', 'zip', 'zip-room')]
-    todo = list(a.walkn)
+    frm = dict(x.split(':') for x in a.walkn if ':' in x)          # N:FROM steps N from FROM only
+    todo = [x.split(':')[0] for x in a.walkn]
     while todo:
         for n in todo:
             # a placed node's hotspot to n, or else n's hotspot to a placed node (turned round)
-            src = [(m, spots(m, n)[0], spots(n, m), 1) for m in pos if spots(m, n)] or \
-                  [(m, spots(n, m)[0], [], -1) for m in pos if spots(n, m)]
+            ok = lambda m: m in pos and frm.get(n, m) == m
+            src = [(m, spots(m, n)[0], spots(n, m), 1) for m in list(pos) if ok(m) and spots(m, n)] or \
+                  [(m, spots(n, m)[0], [], -1) for m in list(pos) if ok(m) and spots(n, m)]
             if src:
                 break
         else:
