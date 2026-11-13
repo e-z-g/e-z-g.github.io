@@ -614,7 +614,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 168.
+    Version 169.
   </footer>
 </div>
 
@@ -874,38 +874,40 @@ function hslToRgb([h, s, l]) {
 }
 const clamp01 = v => Math.max(0, Math.min(1, v));
 // A feature's shades' lightnesses for a picked one, so that no two shades
-// meet and the texture stays. The picked colour takes the place of the
-// shade `ref`, every other shade keeping its distance from it. If that
-// would carry the lightest past white, the picked colour is the lightest
-// (the highlight) instead; if it would carry the darkest past black, the
-// picked colour is the darkest. Shades that would still run past white or
-// black are drawn in towards the picked colour, each in proportion.
+// meet and a lighter pick never makes the feature darker. The shades move
+// together by as much as the shade `ref` moves to the picked colour, but
+// never so far that the lightest passes white or the darkest passes black:
+// there they stop. So a pick too light to fit has the feature's highlight
+// at white (white itself is then the highlight), and one too dark its
+// darkest shade at black (black itself is then the darkest), and every
+// shade keeps its distance from the others.
 function fitLightness(ls, ref, pick) {
   const lo = Math.min(...ls), hi = Math.max(...ls);
-  const anchor = pick + hi - ref > 1 ? hi : pick + lo - ref < 0 ? lo : ref;
-  let k = 1;
-  if (hi > anchor && pick + hi - anchor > 1) k = Math.min(k, (1 - pick) / (hi - anchor));
-  if (lo < anchor && pick - (anchor - lo) < 0) k = Math.min(k, pick / (anchor - lo));
-  return ls.map(l => clamp01(pick + (l - anchor) * k));
+  const move = Math.min(Math.max(pick - ref, -lo), 1 - hi);
+  return ls.map(l => clamp01(l + move));
 }
 // The skin's seven steps for a picked colour, in its hue and saturation.
-// The steps scale with it, the picked colour the skin's own (step 5). One
-// darker than the natural skin's darkest step is the darkest step instead,
-// and one lighter than its highlight is the highlight, the others keeping
-// the natural steps' distances from it, so the shading never runs together.
+// The steps scale with it, the picked colour the skin's own (step 5), held
+// between two ladders that keep them apart: the natural steps' distances
+// from black at half their size (SKIN_FLOOR), so a dark pick keeps its
+// shading and black is the darkest step, and the natural steps' distances
+// below white (SKIN_CEILING), so a light pick keeps its shading and white is
+// the highlight. Each step only ever gets lighter as the pick does.
+const SKIN_FLOOR = STEP_LIGHT.map(v => (v - STEP_LIGHT[0]) * 0.5);
+const SKIN_CEILING = STEP_LIGHT.map(v => 1 - (STEP_LIGHT[6] - v));
 function skinLadder(hex) {
   const [h, s, l] = rgbToHsl(hexToRgb(hex));
-  const ls = l < STEP_LIGHT[0] ? fitLightness(STEP_LIGHT, STEP_LIGHT[0], l)
-    : l > STEP_LIGHT[6] ? fitLightness(STEP_LIGHT, STEP_LIGHT[6], l)
-    : STEP_LIGHT.map((sl, k) => (k < 6 ? l * sl / STEP_LIGHT[5] : l + (1 - l) * 0.35));
-  return ls.map(v => hslToRgb([h, s, clamp01(v)]));
+  return STEP_LIGHT.map((sl, k) => {
+    const scaled = k < 6 ? l * sl / STEP_LIGHT[5] : l + (1 - l) * 0.35;
+    return hslToRgb([h, s, clamp01(Math.min(Math.max(scaled, SKIN_FLOOR[k]), SKIN_CEILING[k]))]);
+  });
 }
 
 // A sprite recoloured: its host's skin to the `skin` ladder; and each of its
 // part's colours (`groups`, from the exporter) that has a pick, to the picked
 // hue and saturation, every shade's lightness moved by as much as the
 // group's middle shade (`ref`) moves to the picked one, keeping the shading,
-// or, where that would run past white or black, as fitLightness has it.
+// as far as white and black allow (fitLightness).
 // A picked colour wins over the skin's (sleepy eyes' lids are skin, and have
 // a picker). The outline and anything else outside the groups stay as they are, and a
 // hat's pixels are never skin (the cream has the Zoombini's lightest blue).
