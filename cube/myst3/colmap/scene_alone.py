@@ -6,7 +6,7 @@ the outside, and views of a changed scene (a chair moved, a platform raised). Ad
 
     python scene_alone.py MESH_DIR WALK.json [--from OLD_MESH_DIR --nodes 6003 3016 3018]
         [--place 6010=20.0,0.17,-5.03 ...] [--walk 6004 6005 ...] [--at 6203=6003 ...] [--height 4057=6007 ...] [--eye 0.226] [--pictures FACES]
-        [--age-map maps/ages/AGE.json] [--prefix MA]
+        [--age-map maps/ages/AGE.json] [--prefix MA] [--states]
 
 MESH_DIR's views.json and nodes.json gain the nodes; its frame (scene_mesh.py's: nodes.json's first node at the
 origin, y up, one unit the node spacing) is scales.json's unit. --nodes take their places from OLD_MESH_DIR's
@@ -19,7 +19,9 @@ climb = d (tan(-p_ba) - tan(-p_ab)) / 2, d held to 0.3-1.6), or from one hotspot
 first node's (scene_mesh.py's views have nearly the same turn at every node). With --pictures (myst3_nodes.py's
 faces folder, <ROOM>/<ROOM>-<node>-f<k>.jpg) each added node's picture atlas is written to MESH_DIR/pictures as
 scene_attrs.py writes them (faces 1 2 3 above, 4 5 6 below), named <prefix>-<node>.jpg. Node numbers are room
-times 1000 plus the node, the room its place in --age-map's room list (or Amateria's). Needs Python 3, and Pillow for --pictures.
+times 1000 plus the node, the room its place in --age-map's room list (or Amateria's). With --states, --walk
+takes a node of another state (n >= 100) as the place it stands at, n % 100, so that J'nanin's LEET 1, entered only
+as LEET 201 from LEIS 225, steps from LEIS 25. Needs Python 3, and Pillow for --pictures.
 """
 import argparse
 import json
@@ -41,7 +43,7 @@ def main():
     ap.add_argument('--walk', dest='walkn', nargs='*', default=[]); ap.add_argument('--place', nargs='*', default=[])
     ap.add_argument('--at', nargs='*', default=[]); ap.add_argument('--height', nargs='*', default=[])
     ap.add_argument('--eye', type=float, default=0.226); ap.add_argument('--pictures')
-    ap.add_argument('--age-map'); ap.add_argument('--prefix', default='MA')
+    ap.add_argument('--age-map'); ap.add_argument('--prefix', default='MA'); ap.add_argument('--states', action='store_true')
     a = ap.parse_args()
     if a.age_map:
         NAME.clear(); NAME.update({i + 1: r for i, r in enumerate(json.load(open(a.age_map))['rooms'])})
@@ -61,7 +63,11 @@ def main():
         n, v = x.split('='); added[n] = [float(c) for c in v.split(',')]; print(f'node {n}: placed at {added[n]}')
     pos.update(added)
     walk = json.load(open(a.walk))['nodes']
-    spots = lambda n, m: [s for s in walk.get(name(n), []) if s['to'] == name(m) and s['kind'] in ('walk', 'walk-room', 'zip', 'zip-room')]
+    base = lambda nm: nm if not a.states or nm is None else f'{nm[:5]}{int(nm[5:]) % 100:04d}'
+    by = {}
+    for k, v in walk.items():
+        by.setdefault(base(k), []).extend(v)
+    spots = lambda n, m: [s for s in by.get(name(n), []) if base(s['to']) == name(m) and s['kind'] in ('walk', 'walk-room', 'zip', 'zip-room')]
     frm = dict(x.split(':') for x in a.walkn if ':' in x)          # N:FROM steps N from FROM only
     todo = [x.split(':')[0] for x in a.walkn]
     while todo:
