@@ -2121,6 +2121,26 @@ stepped from it by their hotspots (0.44 and 0.30 spacings toward the central
 structure, 0.07 and 0.21 down), all three as pictures only
 (`scene_alone.py --place`).
 
+### MACA 36 and 26: the top of the lift (13 November 2026)
+
+MACA 35's lift (movie 10035 up, 10036 down) ends at MACA 36, outside on the
+rocks; MACA 26 is one step from it. Neither is in a model, and rendering the
+mesh from points above MACA 35 cannot place MACA 36 (the score stays at 28–34
+from 0 to 6 spacings up: the mesh has nothing of the lift's top). The lift's
+registered frames in `video_mato27007_chain` (10035's first 57, 10036's last
+32) rise straight up from MACA 35 (0.02 spacings sideways at most) to 1.01 and
+1.11 spacings above it, still in the shaft; MACA 36's faces show the lift's
+frame and rope where MACA 35's do. The rest of the ride, outside, did not
+register; its length is estimated from the frames' change from one to the next,
+taken as proportional to speed and scaled on the registered frames: 3.1–3.3
+spacings in all from 10035, 2.7 from 10036. MACA 36 is put 3.0 above MACA 35
+(about ±0.4), MACA 26 stepped from it by their hotspots (0.94 spacings at
+heading 15, level), both as pictures only (`scene_alone.py --place`, `--walk`).
+
+`scene_links.py` now keeps a movie that ends at another node of the same room
+(op 152) as a zip, which the viewer cuts: MACA 35 to 36 and back, MALL 8 to the
+turret (17) and back, MASS 90 to its raised platform (57) and back. 356 moves.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the

@@ -6,11 +6,13 @@ The game's moves between the nodes of a scene_mesh.py mesh, for the viewer to wa
 
 MAPS_ROOMS is myst3_nodes.py's maps\rooms (one <ROOM>.json a room, its links as the game's scripts give
 them); MESH_DIR a scene folder with views.json (scene_attrs.py's). Keeps the links that move the player
-(walk 138/164, walk-room 139/165, zip 140, zip-room 141) between two nodes both in views.json, node names
+(walk 138/164, walk-room 139/165, zip 140, zip-room 141, and a movie that ends at another node of the room, 152,
+such as MACA 35's lift to MACA 36, kept as a zip: the viewer cuts) between two nodes both in views.json, node names
 as the mesh's (room number times 1000 plus the node: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6; a
 walk-room's room argument is 1000 plus that number). Writes MESH_DIR\links.json: per node, its moves with
 the game's hotspot heading and pitch and the bearing to the other node in the mesh, and prints how far
-the two bearings differ (a large difference points at a node the mesh has in the wrong place).
+the two bearings differ (a large difference points at a node the mesh has in the wrong place; movies left out, as
+their hotspot is a lever or a door, not the way to the other node).
 """
 import argparse
 import json
@@ -20,7 +22,8 @@ import os
 import numpy as np
 
 ROOMS = {'MACA': 1, 'MAIS': 2, 'MALL': 3, 'MASS': 4, 'MAWW': 5, 'MATO': 6}
-MOVE = {138: 'walk', 164: 'walk', 139: 'walk', 165: 'walk', 140: 'zip', 141: 'zip'}
+MOVE = {138: 'walk', 164: 'walk', 139: 'walk', 165: 'walk', 140: 'zip', 141: 'zip', 152: 'zip'}
+MOVIE = 152                     # args: the node it ends at, the movie
 
 
 def main():
@@ -37,7 +40,10 @@ def main():
             if l['opcode'] not in MOVE:
                 continue
             src = str(num * 1000 + l['from'])
-            dst = str((l['args'][0] - 1000) * 1000 + l['args'][1]) if len(l['args']) == 2 else str(num * 1000 + l['args'][0])
+            if l['opcode'] == MOVIE:
+                dst = str(num * 1000 + l['args'][0])
+            else:
+                dst = str((l['args'][0] - 1000) * 1000 + l['args'][1]) if len(l['args']) == 2 else str(num * 1000 + l['args'][0])
             if src not in views or dst not in views or src == dst:
                 continue
             v = views[src]
@@ -45,9 +51,11 @@ def main():
             bearing = math.degrees(math.atan2(-d[0], d[2])) % 360       # the game's heading: 0 along +z, as face 3
             e = {'to': dst, 'kind': MOVE[l['opcode']], 'heading': l['heading'], 'pitch': l['pitch'],
                  'bearing': round(bearing, 1), 'dist': round(float(np.linalg.norm(d)), 3)}
+            if l['opcode'] == MOVIE:
+                e['movie'] = l['args'][1]
             if not any(x['to'] == dst for x in out.get(src, [])):
                 out.setdefault(src, []).append(e)
-                if l['heading'] is not None:
+                if l['heading'] is not None and l['opcode'] != MOVIE:
                     off.append(((bearing - l['heading'] + 180) % 360 - 180, src, dst))
     json.dump(out, open(os.path.join(a.mesh, 'links.json'), 'w'), indent=0)
     n = sum(len(x) for x in out.values())
