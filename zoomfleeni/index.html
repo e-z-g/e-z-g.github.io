@@ -614,7 +614,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 167.
+    Version 168.
   </footer>
 </div>
 
@@ -849,8 +849,9 @@ const NATURAL_SKIN = { zoombini: '#aac7ff', fleen: '#cff04a' };
 // The skins as stored, which links made before Version 167 may carry.
 const STORED_SKIN = { zoombini: '#9ebfff', fleen: '#c9ee31' };
 const isNaturalSkin = (kind, hex) => !!hex && [NATURAL_SKIN[kind], STORED_SKIN[kind]].includes(hex.toLowerCase());
-// The Zoombini's blues' lightness, step by step: a picked colour is step 5,
-// the others its own hue and saturation at those lightnesses relative to it.
+// The Zoombini's blues' lightness, step by step, and a highlight above them
+// (step 6, as skinLadder makes one): a picked colour is step 5, the others
+// its own hue and saturation at those lightnesses relative to it.
 const STEP_LIGHT = [0.24, 0.42, 0.57, 0.72, 0.78, 0.83, 0.88];
 
 const hexToRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -872,15 +873,39 @@ function hslToRgb([h, s, l]) {
   return [f(h + 1 / 3), f(h), f(h - 1 / 3)].map(v => Math.round(v * 255));
 }
 const clamp01 = v => Math.max(0, Math.min(1, v));
+// A feature's shades' lightnesses for a picked one, so that no two shades
+// meet and the texture stays. The picked colour takes the place of the
+// shade `ref`, every other shade keeping its distance from it. If that
+// would carry the lightest past white, the picked colour is the lightest
+// (the highlight) instead; if it would carry the darkest past black, the
+// picked colour is the darkest. Shades that would still run past white or
+// black are drawn in towards the picked colour, each in proportion.
+function fitLightness(ls, ref, pick) {
+  const lo = Math.min(...ls), hi = Math.max(...ls);
+  const anchor = pick + hi - ref > 1 ? hi : pick + lo - ref < 0 ? lo : ref;
+  let k = 1;
+  if (hi > anchor && pick + hi - anchor > 1) k = Math.min(k, (1 - pick) / (hi - anchor));
+  if (lo < anchor && pick - (anchor - lo) < 0) k = Math.min(k, pick / (anchor - lo));
+  return ls.map(l => clamp01(pick + (l - anchor) * k));
+}
+// The skin's seven steps for a picked colour, in its hue and saturation.
+// The steps scale with it, the picked colour the skin's own (step 5). One
+// darker than the natural skin's darkest step is the darkest step instead,
+// and one lighter than its highlight is the highlight, the others keeping
+// the natural steps' distances from it, so the shading never runs together.
 function skinLadder(hex) {
   const [h, s, l] = rgbToHsl(hexToRgb(hex));
-  return STEP_LIGHT.map((sl, k) => hslToRgb([h, s, clamp01(k < 6 ? l * sl / STEP_LIGHT[5] : l + (1 - l) * 0.35)]));
+  const ls = l < STEP_LIGHT[0] ? fitLightness(STEP_LIGHT, STEP_LIGHT[0], l)
+    : l > STEP_LIGHT[6] ? fitLightness(STEP_LIGHT, STEP_LIGHT[6], l)
+    : STEP_LIGHT.map((sl, k) => (k < 6 ? l * sl / STEP_LIGHT[5] : l + (1 - l) * 0.35));
+  return ls.map(v => hslToRgb([h, s, clamp01(v)]));
 }
 
 // A sprite recoloured: its host's skin to the `skin` ladder; and each of its
 // part's colours (`groups`, from the exporter) that has a pick, to the picked
 // hue and saturation, every shade's lightness moved by as much as the
-// group's middle shade (`ref`) moves to the picked one, keeping the shading.
+// group's middle shade (`ref`) moves to the picked one, keeping the shading,
+// or, where that would run past white or black, as fitLightness has it.
 // A picked colour wins over the skin's (sleepy eyes' lids are skin, and have
 // a picker). The outline and anything else outside the groups stay as they are, and a
 // hat's pixels are never skin (the cream has the Zoombini's lightest blue).
@@ -909,7 +934,8 @@ function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
   const byHex = new Map();
   for (const [g, pick] of active) {
     const to = rgbToHsl(hexToRgb(pick)), ref = rgbToHsl(hexToRgb('#' + g.ref))[2];
-    for (const hex of g.colours) byHex.set(hex, [to, ref]);
+    const fitted = fitLightness(g.colours.map(hex => rgbToHsl(hexToRgb('#' + hex))[2]), ref, to[2]);
+    g.colours.forEach((hex, k) => byHex.set(hex, hslToRgb([to[0], to[1], fitted[k]])));
   }
   for (let i = 0; i < d.length; i += 4) {
     if (!d[i + 3]) continue;
@@ -917,8 +943,7 @@ function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
     let rgb = null;
     // a picked colour first: sleepy eyes' lids are skin, and can be picked
     if (byHex.has(hex)) {
-      const [to, ref] = byHex.get(hex), [, , l] = rgbToHsl([d[i], d[i + 1], d[i + 2]]);
-      rgb = hslToRgb([to[0], to[1], clamp01(to[2] + l - ref)]);
+      rgb = byHex.get(hex);
     } else if (step !== undefined) {
       if (ladder) rgb = ladder[step];
     }
