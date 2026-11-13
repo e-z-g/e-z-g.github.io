@@ -8,7 +8,7 @@ better between nodes than the mesh alone, so not used there.)
 
 MESH_DIR is scene_mesh.py --dense's OUT: moge\<node>_anchored.npy (the anchored distances, in the model's
 units), moge\<node>_moge_mask.npy, scales.json (unit) and nodes.json (the nodes). Writes
-MESH_DIR\shells\MA-<node>.png: an equirectangular panorama (--width by half that, as moge_depth.py's:
+MESH_DIR\shells\<PREFIX>-<node>.png: an equirectangular panorama (--width by half that, as moge_depth.py's:
 longitude atan2(x, -z) from the left edge's -180 degrees, latitude asin(y) from the top's +90, in the node's
 frame, x right, y up, -z face 1) of the distance in the viewer's units (model units over unit) times 1000,
 as 16 bits split into red (high byte) and green (low byte); 0 where MoGe has no surface (the sky) or it is
@@ -26,6 +26,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('mesh'); ap.add_argument('--width', type=int, default=256); ap.add_argument('--far', type=float, default=60)
     ap.add_argument('--name', default='shells', help='the folder under MESH_DIR')
+    ap.add_argument('--prefix', default='MA', help="the faces' and pictures' file prefix: MA (Amateria), LE (J'nanin)")
     a = ap.parse_args()
     unit = json.load(open(os.path.join(a.mesh, 'scales.json')))['unit']
     nodes = list(json.load(open(os.path.join(a.mesh, 'nodes.json'))))
@@ -52,7 +53,7 @@ def main():
             med[np.isnan(blk).mean(axis=2) > 0.5] = np.nan
         q = np.where(np.isfinite(med), np.clip(np.rint(med * 1000), 1, 65535), 0).astype(np.uint16)
         rgb = np.zeros((H, W, 3), np.uint8); rgb[..., 0] = q >> 8; rgb[..., 1] = q & 255
-        Image.fromarray(rgb).save(os.path.join(out, f'MA-{n}.png'), optimize=True)
+        Image.fromarray(rgb).save(os.path.join(out, f'{a.prefix}-{n}.png'), optimize=True)
         print(f'node {n}: {np.isfinite(med).mean() * 100:.0f}% surface, median {np.nanmedian(med):.2f}', flush=True)
 
 

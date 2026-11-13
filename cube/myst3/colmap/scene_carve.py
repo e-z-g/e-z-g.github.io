@@ -59,13 +59,14 @@ def main():
     ap.add_argument('mesh'); ap.add_argument('out'); ap.add_argument('--shells')
     ap.add_argument('--front', type=float, default=0.7); ap.add_argument('--reach', type=float, default=8)
     ap.add_argument('--votes', type=int, default=2); ap.add_argument('--sky', action='store_true')
+    ap.add_argument('--prefix', default='MA', help="the faces' and pictures' file prefix: MA (Amateria), LE (J'nanin)")
     a = ap.parse_args()
     head, parts = read_scene(a.mesh)
     P = parts['position'].astype(np.float64); T = parts['index']
     views = json.load(open(os.path.join(a.mesh, 'views.json')))
     through = np.zeros(len(P), np.int32); agree = np.zeros(len(P), np.int32)
     for n, v in views.items():
-        f = os.path.join(a.shells or os.path.join(a.mesh, 'shells'), f'MA-{n}.png')
+        f = os.path.join(a.shells or os.path.join(a.mesh, 'shells'), f'{a.prefix}-{n}.png')
         if not os.path.exists(f):
             continue
         px = np.asarray(Image.open(f)).astype(np.int64); S = (px[..., 0] * 256 + px[..., 1]) / 1000.0

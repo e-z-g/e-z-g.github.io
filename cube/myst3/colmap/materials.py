@@ -8,8 +8,8 @@ and the residual the lighting model splits off (marigold-iid-lighting-v1-1).
     python materials.py ROOT OUT_DIR --nodes 4084 4089 ... [--ensemble 4] [--steps 4]
 
 Writes OUT_DIR/NAME<k>_albedo.png, _roughness.png, _metallic.png, _shading.png, _residual.png, and
-OUT_DIR/sheet.jpg (each face's picture and maps in a row). With --nodes, the faces are ROOT\images\f<k>\MA-<node>.jpg
-(the joined model's) and the maps OUT_DIR/MA-<node>-<k>_<map>.png, every node's faces done with each model
+OUT_DIR/sheet.jpg (each face's picture and maps in a row). With --nodes, the faces are ROOT\images\f<k>\<PREFIX>-<node>.jpg
+(the joined model's) and the maps OUT_DIR/<PREFIX>-<node>-<k>_<map>.png (PREFIX --prefix, default MA), every node's faces done with each model
 loaded once, no sheet; faces already done are skipped. The game's pictures have their lighting baked in,
 so these are the models' estimates, not data the game holds. Needs torch, diffusers, Pillow, numpy.
 """
@@ -37,11 +37,12 @@ def main():
     ap.add_argument('--nodes', nargs='+')
     ap.add_argument('--colour-suffix', default='_orig.jpg')
     ap.add_argument('--ensemble', type=int, default=4); ap.add_argument('--steps', type=int, default=4)
+    ap.add_argument('--prefix', default='MA', help="the faces' file prefix with --nodes: MA (Amateria), LE (J'nanin)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     from diffusers import MarigoldIntrinsicsPipeline
     if a.nodes:
-        jobs = [(os.path.join(a.inp, 'images', f'f{k}', f'MA-{n}.jpg'), f'MA-{n}-{k}') for n in a.nodes for k in range(1, 7)]
+        jobs = [(os.path.join(a.inp, 'images', f'f{k}', f'{a.prefix}-{n}.jpg'), f'{a.prefix}-{n}-{k}') for n in a.nodes for k in range(1, 7)]
         for repo, wanted in (('prs-eth/marigold-iid-appearance-v1-1', ('albedo', 'roughness', 'metallic')),
                              ('prs-eth/marigold-iid-lighting-v1-1', ('shading', 'residual'))):
             todo = [(f, n) for f, n in jobs if not os.path.exists(os.path.join(a.out, f'{n}_{wanted[-1]}.png'))]

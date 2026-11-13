@@ -7,7 +7,7 @@ surface (Poisson reconstruction, Open3D) and coloured from the game's own pictur
     python scene_mesh.py ROOT SPARSE_TXT OUT --nodes 4084 4089 [--near 20] [--exclude N ...] [--stage moge,fuse]
         [--size 2048] [--voxel 0.02] [--far 12] [--confirm-beyond 3] [--triangles 1500000] [--tile 12]
 
-ROOT holds images\f<k>\MA-<node>.jpg (k as node_depth.py's faces: front, bottom, back, right, left, top);
+ROOT holds images\f<k>\<PREFIX>-<node>.jpg (PREFIX --prefix: MA for Amateria, LE for J'nanin) (k as node_depth.py's faces: front, bottom, back, right, left, top);
 SPARSE_TXT the joined model as text. The nodes are those given and the --near nearest to their middle, less
 --exclude (nodes the model still has in the wrong place).
 
@@ -130,17 +130,18 @@ def main():
     ap.add_argument('--moge-nodes', nargs='*', help='the moge stage on these nodes instead (any node with faces in ROOT, in the model or not)')
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input')
+    ap.add_argument('--prefix', default='MA', help="the faces' and pictures' file prefix: MA (Amateria), LE (J'nanin)")
     a = ap.parse_args()
     os.makedirs(os.path.join(a.out, 'moge'), exist_ok=True)
     cams, imgs = read_model(a.sparse)
     by_name = {h[9]: (i, h, pts) for i, (h, pts) in imgs.items()}
-    face1 = {h[9].split('/')[1][3:-4]: centre(h) for h, _ in imgs.values() if h[9].startswith('f1/MA-')}
+    face1 = {h[9].split('/')[1][3:-4]: centre(h) for h, _ in imgs.values() if h[9].startswith(f'f1/{a.prefix}-')}
     mid = np.mean([face1[n][0] for n in a.nodes], axis=0)
     order = [n for n in sorted(face1, key=lambda n: np.linalg.norm(face1[n][0] - mid)) if n not in a.exclude]
     nodes = list(dict.fromkeys(a.nodes + order))[:len(a.nodes) + a.near]
     print(f'{len(nodes)} nodes: {" ".join(nodes)}', flush=True)
     W, H = a.size, a.size // 2
-    load = lambda n, k: np.asarray(Image.open(os.path.join(a.root, 'images', f'f{k}', f'MA-{n}.jpg')).convert('RGB'))
+    load = lambda n, k: np.asarray(Image.open(os.path.join(a.root, 'images', f'f{k}', f'{a.prefix}-{n}.jpg')).convert('RGB'))
 
     if 'moge' in a.stage:
         for n in a.moge_nodes or nodes:
@@ -175,7 +176,7 @@ def main():
         D[n], M[n] = d, (np.asarray(m) > 0.5) & np.isfinite(d) & (d > 0)
         ids = set()
         for k in range(1, 7):
-            e = by_name.get(f'f{k}/MA-{n}.jpg')
+            e = by_name.get(f'f{k}/{a.prefix}-{n}.jpg')
             if e:
                 ids |= {int(x) for x in e[2][2::3] if int(x) >= 0}
         X = np.array([pts3d[i] for i in ids if i in pts3d])

@@ -5,7 +5,7 @@ The material maps of every node's faces carried onto scene_mesh.py's mesh, for a
     python scene_attrs.py ROOT SPARSE_TXT MESH_DIR MAPS_DIR [--tolerance 0.06] [--stage attrs]
 
 MESH_DIR is scene_mesh.py's OUT (scene.ply, scales.json, moge\); MAPS_DIR materials.py --nodes' output
-(MA-<node>-<k>_albedo.png, _roughness.png, _metallic.png). The nodes are scales.json's. Each vertex is put
+(<PREFIX>-<node>-<k>_albedo.png, _roughness.png, _metallic.png). The nodes are scales.json's. Each vertex is put
 into every face of every node: where it falls inside the face and its distance along the face's axis agrees
 with the face's own depth there (MoGe's, scaled as the mesh was) to --tolerance of it plus two voxels, the
 face sees it, and the face's picture, albedo, roughness and metallic there are added in, weighted by how
@@ -13,7 +13,7 @@ squarely and how near the face sees it (cosine over distance). A vertex no face 
 colour and mid values; a node with no maps gives its picture as albedo and mid values. Writes MESH_DIR\scene.bin (cut into scene.bin.0, .1, ... over --piece MB) and scene.json for the viewer: positions (float32, the
 viewer's frame as scene.glb's), triangle indices (uint32), and per vertex the picture's colour, the albedo
 (uint8 RGB each) and roughness and metallic (uint8 each). Also each node's six faces as one picture,
-MESH_DIR\pictures\MA-<node>.jpg: three across and two down in face order (1 2 3 above, 4 5 6 below), each
+MESH_DIR\pictures\<PREFIX>-<node>.jpg: three across and two down in face order (1 2 3 above, 4 5 6 below), each
 face as in ROOT, for a viewer that projects them. Needs numpy, Pillow, opencv-python, open3d.
 """
 import argparse
@@ -36,12 +36,13 @@ def main():
     ap.add_argument('--size', type=int, default=2048); ap.add_argument('--piece', type=float, default=90, help='MB a piece of scene.bin')
     ap.add_argument('--reach', type=float, default=15, help='spacings from a node within which its faces colour vertices')
     ap.add_argument('--depth-from', help="where the nodes' moge\\ depth is, when MESH_DIR is not scene_mesh.py's own (splat_mesh.py's)")
+    ap.add_argument('--prefix', default='MA', help="the faces' and pictures' file prefix: MA (Amateria), LE (J'nanin)")
     a = ap.parse_args()
     import open3d as o3d
     sc = json.load(open(os.path.join(a.mesh, 'scales.json')))
     unit = sc['unit']; nodes = list(json.load(open(os.path.join(a.mesh, 'nodes.json'))).keys())
     _, imgs = read_model(a.sparse)
-    face1 = {h[9].split('/')[1][3:-4]: centre(h) for h, _ in imgs.values() if h[9].startswith('f1/MA-')}
+    face1 = {h[9].split('/')[1][3:-4]: centre(h) for h, _ in imgs.values() if h[9].startswith(f'f1/{a.prefix}-')}
     m = o3d.io.read_triangle_mesh(os.path.join(a.mesh, 'scene.ply'))
     V = np.asarray(m.vertices).astype(np.float64); T = np.asarray(m.triangles).astype(np.uint32)
     m.compute_vertex_normals(); Nrm = np.asarray(m.vertex_normals)
@@ -95,10 +96,10 @@ def main():
             cos = np.abs(np.sum(ray * Nc[idx], axis=1))
             wt = np.maximum(cos, 0.05) / (dist / unit)
             yy, xx = vi[idx], ui[idx]
-            pic = np.asarray(Image.open(os.path.join(a.root, 'images', f'f{k}', f'MA-{n}.jpg')).convert('RGB'), np.float64)
+            pic = np.asarray(Image.open(os.path.join(a.root, 'images', f'f{k}', f'{a.prefix}-{n}.jpg')).convert('RGB'), np.float64)
             vals = [pic[yy, xx]]
             for key, ch in (('albedo', 3), ('roughness', 1), ('metallic', 1)):
-                f = os.path.join(a.maps, f'MA-{n}-{k}_{key}.png')
+                f = os.path.join(a.maps, f'{a.prefix}-{n}-{k}_{key}.png')
                 if os.path.exists(f):
                     im = np.asarray(Image.open(f).convert('RGB').resize((N, N)), np.float64)
                     vals.append(im[yy, xx] if ch == 3 else im[yy, xx, :1])
@@ -109,12 +110,12 @@ def main():
             np.add.at(acc, cand[idx[good]], vals[good] * wt[good, None]); np.add.at(wsum, cand[idx[good]], wt[good])
             seen += len(idx)
         print(f'node {n}: {seen} vertex sightings', flush=True)
-        faces = [Image.open(os.path.join(a.root, 'images', f'f{k}', f'MA-{n}.jpg')).convert('RGB') for k in range(1, 7)]
+        faces = [Image.open(os.path.join(a.root, 'images', f'f{k}', f'{a.prefix}-{n}.jpg')).convert('RGB') for k in range(1, 7)]
         fs = faces[0].size[0]; atlas = Image.new('RGB', (3 * fs, 2 * fs))
         for k, im in enumerate(faces):
             atlas.paste(im, (k % 3 * fs, k // 3 * fs))
         os.makedirs(os.path.join(a.mesh, 'pictures'), exist_ok=True)
-        atlas.save(os.path.join(a.mesh, 'pictures', f'MA-{n}.jpg'), quality=92)
+        atlas.save(os.path.join(a.mesh, 'pictures', f'{a.prefix}-{n}.jpg'), quality=92)
     have = wsum > 0
     out = np.empty((len(V), 8))
     out[have] = acc[have] / wsum[have, None]
