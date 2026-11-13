@@ -2141,6 +2141,14 @@ heading 15, level), both as pictures only (`scene_alone.py --place`, `--walk`).
 (op 152) as a zip, which the viewer cuts: MACA 35 to 36 and back, MALL 8 to the
 turret (17) and back, MASS 90 to its raised platform (57) and back. 356 moves.
 
+### Node walks for the other ages (13 November 2026)
+
+`node_walk.py --age-map` lays an age out from its age map when there is no
+scene (map steps, no heights; the page says so in place of a height), so every
+age has a node walk: J'nanin 134 nodes with faces, Voltaic 187, Edanna 182,
+Narayan 26, Tomahna 9. Each is a folder beside Amateria's (`jnanin/`, `voltaic/`,
+`edanna/`, `narayan/`, `tomahna/`) with the page and one shared `faces/`.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the

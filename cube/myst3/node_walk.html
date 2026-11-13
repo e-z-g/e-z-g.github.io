@@ -365,7 +365,7 @@ function drawMap() {
   if (hv) {
     const p = P[hv] ? P[hv].pos : null, q = PROP[hv];
     const at = posOf(hv);
-    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : '') + (at ? ` · ${(at[1] - SEA).toFixed(2)} over ${LAY.sea !== undefined ? 'sea' : 'node 4084'}` : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
+    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : '') + (at ? (LAY.source === 'map' ? ' · placed by the age map, no height' : ` · ${(at[1] - SEA).toFixed(2)} over ${LAY.sea !== undefined ? 'sea' : 'node 4084'}`) : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
     c.fillText(t, 6, h - 22);
   }
   c.fillStyle = 'rgba(200,200,200,.7)'; c.fillText('N↑  ● model  ■ placed  ◯ proposed  - - ' + (useProp ? 'model' : 'proposed'), 6, h - 8);
@@ -383,7 +383,7 @@ renderer.setAnimationLoop(() => {
 window.nodeWalk = { go, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; },
   set fisheye(b) { forceFish = b; }, set faces(b) { if (!!seams !== b) toggleSeams(); }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
 const h0 = decodeURIComponent(location.hash.slice(1));
-go(NODES[h0] ? h0 : byNum[+h0] || 'MAIS-0006');
+go(NODES[h0] ? h0 : byNum[+h0] || (NODES['MAIS-0006'] ? 'MAIS-0006' : Object.keys(NODES).sort()[0]));
 addEventListener('hashchange', () => { const h = decodeURIComponent(location.hash.slice(1)), n = NODES[h] ? h : byNum[+h]; if (n && n !== here) go(n); });
 </script>
 </body>

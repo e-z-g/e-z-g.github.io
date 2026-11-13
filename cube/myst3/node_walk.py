@@ -5,7 +5,7 @@ and its movement hotspots with their full rectangles.
 
     python node_walk.py MYST3_DAT FACES OUT [--rooms MACA MAIS MALL MASS MATO MAWW]
                         [--views VIEWS.json] [--placed PLACED.json ...] [--proposed LAYOUT.json [--height-from 2010=2009 ...]]
-                        [--sea 2006 2007 ... [--eye 0.226]]
+                        [--sea 2006 2007 ... [--eye 0.226]] [--age-map maps/ages/AGE.json]
 
 MYST3_DAT is ScummVM's myst3.dat (the game's node scripts); FACES myst3_nodes.py's faces folder (<ROOM>/<ROOM>-
 <node>-f<face>.jpg). Writes OUT/walk.json: per node ("MAIS-0006") its hotspots that move the player (walks,
@@ -20,7 +20,9 @@ place, "model" for the scene's nodes and "placed" for those in --placed (place_n
 winning; a placed node also proposed is left to the proposal), and under "proposed" a layout not yet built (warp_model.py's LAYOUT.json: [x, z] keeps the node's height,
 or --height-from's node's). With --sea, layout.json's "sea" is the height taken as 0 on the map: the mean height of
 those nodes less --eye (the eye's height over the floor in node spacings, from the hotspots' paired pitches); for
-Amateria the walkway along MAIS 6-12, at the water. Needs only Python 3.
+Amateria the walkway along MAIS 6-12, at the water. For an age with no scene, --age-map (draw_maps.py's age map) writes
+layout.json from the map's places instead, in map steps, all at height 0 (layout.json's "source": "map"; the map's x
+is turned round to the frame's, in which heading 0 is +z and 90 is -x). Needs only Python 3.
 """
 import argparse
 import json
@@ -84,6 +86,7 @@ def main():
     ap.add_argument('--views'); ap.add_argument('--placed', nargs='*', default=[]); ap.add_argument('--proposed')
     ap.add_argument('--height-from', nargs='*', default=[])
     ap.add_argument('--sea', nargs='*', default=[]); ap.add_argument('--eye', type=float, default=0.226)
+    ap.add_argument('--age-map')
     a = ap.parse_args()
     scripts = load_dat(a.dat)
     rooms = {1001 + i: r for i, r in enumerate(a.rooms)}
@@ -121,6 +124,13 @@ def main():
             out[name] = keep
     os.makedirs(a.out, exist_ok=True)
     json.dump({'rooms': a.rooms, 'nodes': out}, open(os.path.join(a.out, 'walk.json'), 'w'), separators=(',', ':'))
+    if a.age_map and not a.views:
+        num = {r: 1000 * (i + 1) for i, r in enumerate(a.rooms)}
+        pos = json.load(open(a.age_map))['positions']
+        lay = {str(num[k.split(':')[0]] + int(k.split(':')[1])): {'pos': [round(-x, 4), 0.0, round(y, 4)], 'kind': 'map'}
+               for k, (x, y) in pos.items() if k.split(':')[0] in num}
+        json.dump({'nodes': lay, 'proposed': {}, 'source': 'map'}, open(os.path.join(a.out, 'layout.json'), 'w'), indent=0)
+        print(f'layout: {len(lay)} nodes from the age map')
     if a.views:
         lay = {n: {'pos': [round(x, 4) for x in v['pos']], 'kind': 'model'} for n, v in json.load(open(a.views)).items()}
         for f in a.placed:
