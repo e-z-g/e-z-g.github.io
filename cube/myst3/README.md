@@ -2149,6 +2149,16 @@ age has a node walk: J'nanin 134 nodes with faces, Voltaic 187, Edanna 182,
 Narayan 26, Tomahna 9. Each is a folder beside Amateria's (`jnanin/`, `voltaic/`,
 `edanna/`, `narayan/`, `tomahna/`) with the page and one shared `faces/`.
 
+**Room numbers.** The game numbers J'nanin's rooms 501–506, not 1001–1006 as
+Amateria's; in both the last two digits are the room's place in the age's list.
+`node_walk.py` and `prepare_age.py` read them that way now (before, every other
+age's walks between rooms were lost: J'nanin's walk had 330 moves, now 356;
+Voltaic 425 to 434, Edanna 410 to 419). `prepare_age.py` also takes zip-room
+links, and a node of another state as the place it stands at, `n % 100` (LEIS
+175, 375 and 475 are LEIS 75; before, 201 became 101): J'nanin 146 linked pairs,
+none between rooms, to 154 with 27 room hotspots; Amateria 177 to 180, 12 room
+hotspots to 18.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the

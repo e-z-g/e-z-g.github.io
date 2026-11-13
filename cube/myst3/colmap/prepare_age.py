@@ -14,7 +14,8 @@ a node's number from its file name. A node gets the number
 
 so Amateria's MAIS node 18 (MAIS second in the list) is node 2018, file
 f<face>/MA-2018.jpg. Room-to-room walks are the room maps' 'walk-room' links,
-whose first argument is 1000 + the other room's place in that same list; every one
+whose first argument is the other room's number in the game, its last two digits the room's place in that same
+list (Amateria's rooms are 1001-1006, J'nanin's 501-506), and zip-room links likewise; every one
 decoded is checked against the age map's cross_used list. nodes.json also gets
 'rooms' (number -> room) so the numbers can be read back. Standard library only.
 """
@@ -27,7 +28,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from face_geometry import FACES, rotations  # noqa: E402
-from prepare_colmap import CAMERA, base  # noqa: E402
+from prepare_colmap import CAMERA  # noqa: E402
+
+
+def base(n):
+    """The place a node of another state stands at: nodes 100 and up are node n % 100 in another state (LEIS 175,
+    375 and 475 are LEIS 75; the age maps' same_place has LEMT 612, 712 and 1012 as one)."""
+    return n % 100 if n >= 100 else n
 
 
 def main():
@@ -41,7 +48,8 @@ def main():
     rooms = a.rooms.split(',') if a.rooms else order
     prefix = a.prefix or order[0][:2]
     gid = lambda room, n: (order.index(room) + 1) * 1000 + n
-    cross = {tuple(sorted((p, q))) for p, q, _ in age['cross_used']}
+    place = lambda x: f"{x.split(':')[0]}:{base(int(x.split(':')[1]))}"
+    cross = {tuple(sorted((place(p), place(q)))) for p, q, _ in age['cross_used'] + [r[:2] + [0] for r in age.get('cross_unused', [])]}
 
     nodes, skipped, room_of = [], [], {}
     for room in rooms:
@@ -64,8 +72,9 @@ def main():
                 continue
             if l['kind'] in ('walk', 'zip'):
                 other, b = room, l['args'][0]
-            elif l['kind'] == 'walk-room' and len(l['args']) >= 2 and 1001 <= l['args'][0] <= 1000 + len(order):
-                other, b = order[l['args'][0] - 1001], l['args'][1]
+            elif l['kind'] in ('walk-room', 'zip-room') and len(l['args']) >= 2 and l['args'][0] > 100 \
+                    and 1 <= l['args'][0] % 100 <= len(order):
+                other, b = order[l['args'][0] % 100 - 1], l['args'][1]
                 pair = tuple(sorted((f'{room}:{base(l["from"])}', f'{other}:{base(b)}')))
                 if pair not in cross:
                     bad_cross.append(pair)
@@ -77,8 +86,8 @@ def main():
             if x == y or x not in node_set or y not in node_set:
                 continue
             links.add((min(x, y), max(x, y)))
-            used.append({'from': x, 'to': y, 'kind': 'walk' if l['kind'] == 'walk-room' else l['kind'],
-                         'room_link': l['kind'] == 'walk-room',
+            used.append({'from': x, 'to': y, 'kind': l['kind'].replace('-room', ''),
+                         'room_link': l['kind'].endswith('-room'),
                          'heading': l['heading'], 'pitch': l['pitch']})
     links = sorted(links)
 

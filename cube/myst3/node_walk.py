@@ -13,8 +13,8 @@ walk-rooms, zips, zip-rooms, and the movies and age changes, shown but not follo
 the script gives them (centre pitch and heading in degrees, width and height in ScummVM's units: half the
 rectangle's side over its distance, times 90), the condition (a game variable; the walk ignores it) and the target
 node when it has faces. A hotspot whose target is a node with no cube faces (a close-up drawn as a flat frame) is
-kept with no target. The rooms' numbers in walk-room and zip-room are 1000 plus the room's place in --rooms (Amateria's
-order: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6). With --views (a scene's views.json, scene_mesh.py's frame:
+kept with no target. The last two digits of a room's number in walk-room and zip-room are its place in --rooms (Amateria's rooms are 1001-
+1006: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6; J'nanin's 501-506). With --views (a scene's views.json, scene_mesh.py's frame:
 y up, one unit the node spacing, heading 0 along +z) it also writes OUT/layout.json for the page's map: each node's
 place, "model" for the scene's nodes and "placed" for those in --placed (place_nodes.py's output, later files
 winning; a placed node also proposed is left to the proposal), and under "proposed" a layout not yet built (warp_model.py's LAYOUT.json: [x, z] keeps the node's height,
@@ -89,7 +89,7 @@ def main():
     ap.add_argument('--age-map')
     a = ap.parse_args()
     scripts = load_dat(a.dat)
-    rooms = {1001 + i: r for i, r in enumerate(a.rooms)}
+    rooms = {1 + i: r for i, r in enumerate(a.rooms)}         # a room's number's last two digits: its place in --rooms
     has = set()
     for room in a.rooms:
         for f in os.listdir(os.path.join(a.faces, room)):
@@ -112,8 +112,8 @@ def main():
                 to = None
                 if kind in ('walk', 'zip') and args:
                     to = f'{room}-{args[0]:04d}'
-                elif kind in ('walk-room', 'zip-room') and len(args) >= 2 and args[0] in rooms:
-                    to = f'{rooms[args[0]]}-{args[1]:04d}'
+                elif kind in ('walk-room', 'zip-room') and len(args) >= 2 and args[0] > 100 and args[0] % 100 in rooms:
+                    to = f'{rooms[args[0] % 100]}-{args[1]:04d}'
                 if to is not None and to not in has:
                     counts['no faces'] += 1; to = None
                 elif to is not None:
