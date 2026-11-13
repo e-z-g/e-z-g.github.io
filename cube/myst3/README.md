@@ -2077,6 +2077,29 @@ scale (MACA 29 19,462), and round MACA 7, which stays, it falls from 9,958 to
 442: its tunnel was seen mostly from MACA 3 and 4, and went with them.
 `age_v8` is built from it (`caves_rigid_fuse.ps1`, `age_v8.ps1`).
 
+### `age_v8`: MACA's upper caves moved (13 November 2026)
+
+`age_v7` with the caves at `caves_rigid.py`'s places, carved without MAIS 10's
+shell and scaled to `age_v6`'s unit as before (the unit moved 0.65%); every
+node outside the ten moved stays within 0.005 spacings. The moved nodes have no
+sparse points of their own any more and are scaled by the dense cloud alone;
+all anchored with misfits of 2–9% (MACA 1 14%, as in `age_v7`), MACA 7 on 8,552
+cells, so its tunnel did not come out empty. Against `age_v7` as shipped:
+
+| measured | `age_v7` | `age_v8` |
+|---|---|---|
+| standing at a node, mean (130 fused nodes) | 1.25 | 1.23 |
+| MACA 1, 2, 28, 29, 30, 31, 3, 4 at node | 1.8, 1.8, 1.8, 1.4, 1.4, 1.5, 1.6, 1.8 | 1.6, 1.5, 1.3, 1.1, 0.9, 1.1, 1.3, 1.2 |
+| MACA 5, 6, 7 at node | 3.4, 3.6, 1.7 | 1.1, 1.0, 1.0 |
+| left out, median / mean (37 nodes) | 25.9 / 24.18 | 25.9 / 24.13 |
+| left out, worse by over 0.5 | — | MAIS 1 29.0 → 31.4, MAIS 4 27.0 → 27.9, MACA 1 31.3 → 32.1 |
+| left out, better by over 0.5 | — | MAIS 2, MACA 6, MALL 15, 14 (by 1.1–2.6) |
+| walks (154): view no node sees, median | 0.4% | 0.5% |
+| MACA 1 → MAIS 1: view no node sees / largest step change | 4.1% / 23.2 | 0.4% / 11.3 |
+| walks with a step changing over 30/255 | 9 | 10 (crossings near 30 on MASS walks, none in the caves) |
+
+Shipped in `scene_age`; the node walk's map has the new places.
+
 ### MATO 10, 11, 12
 
 The two movie models that registered them disagree. The ride (`video_ride`)

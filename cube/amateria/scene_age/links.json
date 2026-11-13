@@ -5,16 +5,16 @@
 "kind": "walk",
 "heading": 218,
 "pitch": -10,
-"bearing": 217.0,
-"dist": 4.515
+"bearing": 210.7,
+"dist": 1.155
 },
 {
 "to": "1002",
 "kind": "walk",
 "heading": 38,
 "pitch": -10,
-"bearing": 34.3,
-"dist": 0.792
+"bearing": 35.2,
+"dist": 1.108
 }
 ],
 "1002": [
@@ -24,15 +24,15 @@
 "heading": 17,
 "pitch": -40,
 "bearing": 24.2,
-"dist": 3.263
+"dist": 3.89
 },
 {
 "to": "1001",
 "kind": "walk",
 "heading": 224,
 "pitch": -10,
-"bearing": 214.3,
-"dist": 0.792
+"bearing": 215.2,
+"dist": 1.108
 },
 {
 "to": "1028",
@@ -40,7 +40,7 @@
 "heading": 76,
 "pitch": -30,
 "bearing": 68.0,
-"dist": 0.872
+"dist": 1.04
 }
 ],
 "1003": [
@@ -50,7 +50,7 @@
 "heading": 226,
 "pitch": -1,
 "bearing": 223.4,
-"dist": 0.729
+"dist": 0.869
 },
 {
 "to": "1004",
@@ -58,7 +58,7 @@
 "heading": 33,
 "pitch": -10,
 "bearing": 31.3,
-"dist": 1.088
+"dist": 1.296
 }
 ],
 "1004": [
@@ -68,15 +68,15 @@
 "heading": 211,
 "pitch": 27,
 "bearing": 204.2,
-"dist": 3.263
+"dist": 3.89
 },
 {
 "to": "1007",
 "kind": "zip",
 "heading": 76,
 "pitch": -6,
-"bearing": 40.4,
-"dist": 0.891
+"bearing": 42.0,
+"dist": 3.378
 },
 {
 "to": "1003",
@@ -84,15 +84,15 @@
 "heading": 209,
 "pitch": -7,
 "bearing": 211.3,
-"dist": 1.088
+"dist": 1.296
 },
 {
 "to": "1005",
 "kind": "walk",
 "heading": 78,
 "pitch": -9,
-"bearing": 72.8,
-"dist": 0.566
+"bearing": 64.3,
+"dist": 0.856
 }
 ],
 "1005": [
@@ -101,16 +101,16 @@
 "kind": "walk",
 "heading": 237,
 "pitch": -4,
-"bearing": 252.8,
-"dist": 0.566
+"bearing": 244.3,
+"dist": 0.856
 },
 {
 "to": "1006",
 "kind": "walk",
 "heading": 57,
 "pitch": -5,
-"bearing": 49.5,
-"dist": 0.148
+"bearing": 48.8,
+"dist": 1.149
 }
 ],
 "1006": [
@@ -119,16 +119,16 @@
 "kind": "walk",
 "heading": 229,
 "pitch": -7,
-"bearing": 229.5,
-"dist": 0.148
+"bearing": 228.8,
+"dist": 1.149
 },
 {
 "to": "1007",
 "kind": "walk",
 "heading": 30,
 "pitch": -11,
-"bearing": 18.2,
-"dist": 0.647
+"bearing": 24.3,
+"dist": 1.518
 }
 ],
 "1007": [
@@ -137,8 +137,8 @@
 "kind": "zip",
 "heading": 216,
 "pitch": -7,
-"bearing": 220.4,
-"dist": 0.891
+"bearing": 222.0,
+"dist": 3.378
 },
 {
 "to": "1010",
@@ -169,8 +169,8 @@
 "kind": "walk",
 "heading": 208,
 "pitch": -7,
-"bearing": 198.2,
-"dist": 0.647
+"bearing": 204.3,
+"dist": 1.518
 },
 {
 "to": "1008",
@@ -582,7 +582,7 @@
 "heading": 235,
 "pitch": -3,
 "bearing": 248.0,
-"dist": 0.872
+"dist": 1.04
 },
 {
 "to": "1029",
@@ -590,7 +590,7 @@
 "heading": 357,
 "pitch": -37,
 "bearing": 329.9,
-"dist": 0.758
+"dist": 0.903
 }
 ],
 "1029": [
@@ -600,7 +600,7 @@
 "heading": 132,
 "pitch": 3,
 "bearing": 149.9,
-"dist": 0.758
+"dist": 0.903
 },
 {
 "to": "1030",
@@ -608,7 +608,7 @@
 "heading": 258,
 "pitch": -55,
 "bearing": 240.6,
-"dist": 0.878
+"dist": 1.046
 }
 ],
 "1030": [
@@ -618,7 +618,7 @@
 "heading": 66,
 "pitch": -7,
 "bearing": 60.6,
-"dist": 0.878
+"dist": 1.046
 },
 {
 "to": "1031",
@@ -626,7 +626,7 @@
 "heading": 21,
 "pitch": -34,
 "bearing": 30.9,
-"dist": 0.776
+"dist": 0.926
 }
 ],
 "1031": [
@@ -636,7 +636,7 @@
 "heading": 227,
 "pitch": -12,
 "bearing": 210.9,
-"dist": 0.776
+"dist": 0.926
 },
 {
 "to": "1003",
@@ -644,7 +644,7 @@
 "heading": 49,
 "pitch": -30,
 "bearing": 43.4,
-"dist": 0.729
+"dist": 0.869
 }
 ],
 "1035": [
@@ -741,8 +741,8 @@
 "kind": "walk",
 "heading": 35,
 "pitch": 1,
-"bearing": 37.7,
-"dist": 4.515
+"bearing": 30.7,
+"dist": 1.155
 },
 {
 "to": "2002",
