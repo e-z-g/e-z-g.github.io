@@ -225,6 +225,8 @@ checks the geometry; nothing has been reconstructed yet.
 | `colmap/place_model.py` | Writes nodes placed in a scene's frame (`place_nodes.py`'s output, or positions and turns by hand) back into a COLMAP model as six images each with no points, replacing the node's images where the model has them, so `scene_mesh.py` builds with them. Checks that the model's own nodes come back to `views.json`. |
 | `colmap/warp_model.py` | Moves a stretch of a model's nodes to a new layout (positions in the scene's frame, heights kept or given) and the sparse points and dense cloud with them: each point by a Gaussian blend of every node's offset (unmoved nodes counting as none), fading to nothing a few spacings from any node. `--rot-from` poses a node new with another node's turn. Written for MAIS 8–29 (12 November 2026). |
 | `colmap/layout_moves.py` | A layout of nodes (as `warp_model.py` takes it) written as `apply_moves.py`'s moves: each node's new centre and a depth scale (its walks' length in the layout over their length in the model), so a dense workspace can be fused again with the nodes moved. |
+| `colmap/caves_fit.py` | MACA's upper caves placed again from the hotspots (headings, step lengths), each node free; the layout Sam agreed. |
+| `colmap/caves_rigid.py` | The same with the nodes COLMAP placed moved as one piece (a shift and a scale), so their depth maps still agree when fused again; heights from the pitches. |
 | `colmap/mais_fit.py` | Least-squares fit of MAIS 6–11's places to the game's hotspot headings, step lengths near one spacing and the ladder from MAIS 30 to 6 near vertical; writes the layout for `warp_model.py`. |
 | `colmap/scene_alone.py` | Adds nodes to a scene as pictures only (`views.json` `"alone"`): interiors and views of a changed scene, which `scene3d.html` shows as their own panorama with the mesh hidden and does not project onto the mesh. Places them from an older scene's views, or step by step along the game's hotspots (heading, and distance and climb from the pair of hotspots' pitches), or at another node; writes their picture atlases. |
 | `colmap/caves_fit.py` | MACA's upper caves (MACA 1, 2, the stairs 28–31, 3, 4, 5, 6) fitted between MAIS 1 and MACA 7 by least squares on the game's hotspot headings and steps near one spacing, for the node walk's map and a later rebuild. |
@@ -2052,7 +2054,29 @@ caves sit about three spacings too far from MAIS 1 and too near MACA 7.
 stairs 2.4–3.0, MACA 3 and 4 1.9–2.0, MACA 5 1.3. Every walk comes out at
 0.97–1.28 spacings and every hotspot heading within 15° but two: MACA 4 to 7
 (the zip at 76°, fitted 50°) and MACA 28–29 (22°); MACA 4 to 7 is 2.84. On the
-node walk's map as the proposal (`proposed_caves.json`); not yet built.
+node walk's map as the proposal (`proposed_caves.json`). Sam agreed (12
+November 2026): the stairs' hotspots do not point straight at the next node,
+and the zip's hotspot stands in for a view it cannot see past.
+
+Fused with that layout (`caves_fuse.ps1`: `layout_moves.py`, `apply_moves.py`,
+`stereo_fusion` from `dense_mais_c`), the cloud round the moved nodes all but
+vanished (within 1.5 spacings of MACA 29: 26,884 points to 1; MACA 30 to 0,
+MACA 3 and 4 to 16), whatever the depth scales (all 1, or as measured: 523,776
+and 523,653 points in all against 573,801). Fusion keeps a point only where
+depth maps agree, and those maps were made for the old places: a layout that
+changes the caves' places relative to one another breaks them, as the warp did
+for MAIS. `caves_rigid.py` fits again with the nodes COLMAP placed (MACA 2,
+28–31, 3, 4) moved as one piece, a shift and one scale about their middle, and
+MACA 1, 5, 6 (placed by hand) free, heights included, against the same headings
+and lengths plus each walk's climb from its pair of pitches (0.15 spacings).
+The piece moves 2.8 spacings toward MAIS 1 and grows by 1.19; every heading
+fits within 15° but the zip MACA 4 to 7, every climb within 0.08 of the
+pitches; the walks are 0.77–1.30 (MACA 3–4 1.30, the stairs 0.77–0.97), MACA
+6–7 1.52. Fused with the piece's depth maps scaled by 1.19 and MACA 1, 5, 6's
+left alone, the cloud keeps 571,895 points; round the caves it thins with the
+scale (MACA 29 19,462), and round MACA 7, which stays, it falls from 9,958 to
+442: its tunnel was seen mostly from MACA 3 and 4, and went with them.
+`age_v8` is built from it (`caves_rigid_fuse.ps1`, `age_v8.ps1`).
 
 ### MATO 10, 11, 12
 
