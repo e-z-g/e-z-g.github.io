@@ -110,7 +110,12 @@ def main():
                 op, args = nav[0]
                 kind = NAV[op]
                 to = None
-                if kind in ('walk', 'zip') and args:
+                door = [x[1] for op_, x in s['ops'] if op_ == 53 and x[:1] == [190] and x[1] % 100 in rooms]
+                if kind in ('walk', 'zip') and args and door:
+                    # a door to another room: the hotspot sets variable 190 to that room's number first, and the
+                    # walk's node is in that room (MAIS 19 to MAWW 3 and back; Sam, 13 November 2026)
+                    to = f'{rooms[door[0] % 100]}-{args[0]:04d}'
+                elif kind in ('walk', 'zip') and args:
                     to = f'{room}-{args[0]:04d}'
                 elif kind in ('walk-room', 'zip-room') and len(args) >= 2 and args[0] > 100 and args[0] % 100 in rooms:
                     to = f'{rooms[args[0] % 100]}-{args[1]:04d}'

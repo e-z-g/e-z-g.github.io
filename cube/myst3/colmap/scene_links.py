@@ -25,6 +25,10 @@ import numpy as np
 ROOMS = {'MACA': 1, 'MAIS': 2, 'MALL': 3, 'MASS': 4, 'MAWW': 5, 'MATO': 6}
 MOVE = {138: 'walk', 164: 'walk', 139: 'walk', 165: 'walk', 140: 'zip', 141: 'zip', 152: 'zip'}
 MOVIE = 152                     # args: the node it ends at, the movie
+# walks through a door to another room: the game's hotspot sets variable 190 to the other room first (op 53) and
+# then walks to a node number of that room, which the room files keep as a walk in the same room. The only two in
+# Amateria, MAIS 19 to MAWW 3 and back (Sam, 13 November 2026: MAWW 3 is one pace past MAIS 19's door)
+DOORS = {('MAIS', 19, 3): 'MAWW', ('MAWW', 3, 19): 'MAIS'}
 
 
 def main():
@@ -46,6 +50,8 @@ def main():
                 dst = str(num * 1000 + l['args'][0])
             else:
                 dst = str(l['args'][0] % 100 * 1000 + l['args'][1]) if len(l['args']) == 2 else str(num * 1000 + l['args'][0])
+                if (room, l['from'], l['args'][0]) in DOORS and DOORS[room, l['from'], l['args'][0]] in rooms:
+                    dst = str(rooms[DOORS[room, l['from'], l['args'][0]]] * 1000 + l['args'][0])
             if src not in views or dst not in views or src == dst:
                 continue
             v = views[src]

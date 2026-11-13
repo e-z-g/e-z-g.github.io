@@ -2159,6 +2159,28 @@ links, and a node of another state as the place it stands at, `n % 100` (LEIS
 none between rooms, to 154 with 27 room hotspots; Amateria 177 to 180, 12 room
 hotspots to 18.
 
+### MAWW 1–3 and MALL 17 (13 November 2026)
+
+Sam: MAWW 3 is past the door seen from MAIS 19, about one pace towards MAIS 19's
+face 1; MAWW 2 one pace further; MAWW 1 is MAWW 2 with the platform raised, as
+MALL 17 is MALL 8 raised. The scripts agree. MAIS 19's hotspot at heading 180
+and MAWW 3's at 359 each set variable 190 to the other room (1005, 1002; op 53)
+before a walk to node 3 or 19, a node number of the other room. The room files
+kept these as walks in the same room, so the viewer had a move from MAIS 19 to
+MAIS 3, 14 spacings away, and MAWW had no way in. Only one other hotspot in
+the game does this (TOHB 301, a node with no faces). `node_walk.py` now follows
+variable 190 to the other room; `scene_links.py` has the two Amateria doors in a
+table (`DOORS`), as its room files do not keep the op.
+
+MAWW 3 and 2 are pictures-only nodes 1 and 2 spacings from MAIS 19 along face 1,
+level with it. MAWW 1 is above MAWW 2, and MALL 17 is moved above MALL 8 and made
+pictures-only. Both rises are 2.5 spacings for now, the same as MASS 57's, until
+measured. MALL 17's old place, 3.7 spacings off, came from its neighbours'
+hotspots, not from pictures. Its depth is still fused into the mesh there;
+`age_v9.ps1` fuses again without it. In MAWW the hotspots agree with the places:
+MAIS 19 to MAWW 3 heading 180 against a bearing of 180, MAWW 3 to 2 180 against
+180.3. 361 moves in all.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the
