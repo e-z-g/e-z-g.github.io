@@ -98,25 +98,29 @@
      tiles beside them. */
   :root {
     color-scheme: dark;
-    --night: #1c185a;                    /* the builder's sky, darkest to lightest */
-    --night-deep: #101042;
-    --night-hi: #212173;
-    --cloud: #7384ce;
-    --rock: #312929;                     /* the rock round the builder's tiles */
-    --rock-lo: #211818;
-    --rock-hi: #423942;
-    --stone: #828282;                    /* a tile: face, bevel, pressed */
-    --stone-hi: #c0c0c0;
-    --stone-lo: #414141;
-    --stone-deep: #202020;
-    --tan: #e7b55a;
-    --tan-hi: #f1dfb2;
-    --tan-lo: #ce8431;
-    --tan-deep: #844a39;
-    --window: #828282;                   /* behind the character: the tiles' grey stone, so dark hair shows */
-    --zoombini: #9ebfff;                 /* the two skins, for the title */
-    --fleen: #c9ee31;
-    --text: #f1dfb2;
+    /* The game's colours as the Windows game shows them, each component c
+       brightened to c + 31 - c/8, as sprites.js's are (export_web.py,
+       windows_colours). The Mac game shows them as stored, a little darker
+       on a screen of today. */
+    --night: #38346e;                    /* the builder's sky, darkest to lightest */
+    --night-deep: #2d2d59;
+    --night-hi: #3c3c84;
+    --cloud: #8493d4;
+    --rock: #4a4343;                     /* the rock round the builder's tiles */
+    --rock-lo: #3c3434;
+    --rock-hi: #595159;
+    --stone: #919191;                    /* a tile: face, bevel, pressed */
+    --stone-hi: #c7c7c7;
+    --stone-lo: #585858;
+    --stone-deep: #3b3b3b;
+    --tan: #eabe6e;
+    --tan-hi: #f2e3bb;
+    --tan-lo: #d4934a;
+    --tan-deep: #936051;
+    --window: #919191;                   /* behind the character: the tiles' grey stone, so dark hair shows */
+    --zoombini: #aac7ff;                 /* the two skins, for the title */
+    --fleen: #cff04a;
+    --text: #f2e3bb;
     --rock-img: none;
     /* the game's own pixel serif, WordLa, each size drawn by hand and set
        at its own height in px or twice it (fonts.js) - Sam's pick over
@@ -610,7 +614,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 166.
+    Version 167.
   </footer>
 </div>
 
@@ -838,13 +842,16 @@ function drawSprite(ctx, index, x, y, scale = 1, axis = null, src = null) {
 // the Zoombini's blues (palette 15-20) and the Fleen's limes (85-89), each
 // a step on one ladder of seven, darkest to highlight.
 const SKIN_STEPS = {
-  zoombini: { '112135': 0, '2e4f7f': 1, '4677bf': 2, '5e9eff': 3, '7daeff': 4, '9ebfff': 5 },
-  fleen: { '697905': 1, '83a407': 2, 'afd609': 4, 'c9ee31': 5, 'ebff9e': 6 },
+  zoombini: { '2e3c4e': 0, '48658f': 1, '5d88c7': 2, '72aaff': 3, '8db8ff': 4, 'aac7ff': 5 },
+  fleen: { '7b8924': 1, '92af26': 2, 'b9db27': 4, 'cff04a': 5, 'edffaa': 6 },
 };
-const NATURAL_SKIN = { zoombini: '#9ebfff', fleen: '#c9ee31' };
+const NATURAL_SKIN = { zoombini: '#aac7ff', fleen: '#cff04a' };
+// The skins as stored, which links made before Version 167 may carry.
+const STORED_SKIN = { zoombini: '#9ebfff', fleen: '#c9ee31' };
+const isNaturalSkin = (kind, hex) => !!hex && [NATURAL_SKIN[kind], STORED_SKIN[kind]].includes(hex.toLowerCase());
 // The Zoombini's blues' lightness, step by step: a picked colour is step 5,
 // the others its own hue and saturation at those lightnesses relative to it.
-const STEP_LIGHT = [0.14, 0.34, 0.51, 0.68, 0.74, 0.81, 0.88];
+const STEP_LIGHT = [0.24, 0.42, 0.57, 0.72, 0.78, 0.83, 0.88];
 
 const hexToRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 function rgbToHsl([r, g, b]) {
@@ -882,7 +889,7 @@ function skinLadder(hex) {
 const recolourCache = new Map(), RECOLOUR_KEPT = 2000;
 function recoloured(index, kind, skin, groups = [], picks = [], part = null) {
   picks = picks || [];
-  if (skin && skin.toLowerCase() === NATURAL_SKIN[kind]) skin = undefined;
+  if (isNaturalSkin(kind, skin)) skin = undefined;
   const active = groups.map((g, k) => picks[k] && picks[k].toLowerCase() !== '#' + g.ref ? [g, picks[k]] : null)
     .filter(Boolean);
   if (!skin && !active.length) return null;
@@ -1806,7 +1813,7 @@ const colourPick = (build, feat, k) => feat === 'body' ? build.skin : ((build.co
 function setColour(feat, k, value) {
   const build = state.build[state.kind];
   value = value.toLowerCase();
-  if (feat === 'body') { build.skin = value === NATURAL_SKIN[state.kind] ? undefined : value; return; }
+  if (feat === 'body') { build.skin = isNaturalSkin(state.kind, value) ? undefined : value; return; }
   const own = (groupsOf(state.kind, build, feat)[k] || {}).ref;
   build.colours = Object.assign({}, build.colours);
   (build.colours[feat] = (build.colours[feat] || []).slice())[k] = value === '#' + own ? undefined : value;
@@ -1886,7 +1893,7 @@ const ICONS = {
   tumble: ['....#....', '...#o#...', '####o####', '#ooooooo#', '.#ooooo#.', '..#ooo#..', '.#oo#oo#.',
            '.#o#.#o#.', '.##...##.'],
 };
-const ICON_TONES = { '#': '#000', w: '#fefefe', o: '#c0c0c0', g: '#828282', d: '#414141' };
+const ICON_TONES = { '#': '#000', w: '#fefefe', o: '#c7c7c7', g: '#919191', d: '#585858' };
 const shadedIcons = {};
 function shaded(icon) {
   if (shadedIcons[icon]) return shadedIcons[icon];
@@ -2647,11 +2654,11 @@ function rockURL() {
   const c = document.createElement('canvas');
   c.width = c.height = 32;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#312929';
+  ctx.fillStyle = '#4a4343';
   ctx.fillRect(0, 0, 32, 32);
   let seed = 7;
   const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const specks = [['#211818', 0.3], ['#393131', 0.15], ['#423942', 0.1], ['#311821', 0.1]];
+  const specks = [['#3c3434', 0.3], ['#514a4a', 0.15], ['#595159', 0.1], ['#4a343c', 0.1]];
   for (let y = 0; y < 32; y++) {
     for (let x = 0; x < 32; x++) {
       let r = next();
