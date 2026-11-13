@@ -2065,6 +2065,16 @@ MATO 12, 11, 10 in a line along heading 270, MATO 10 the far end, where the
 marble track runs on out to sea; looking back along heading 90 it sees the
 central structure across the water with the ride's cart in front.
 
+Sam found MATO 10's platform in MAIS 30's face 4 (heading 270); MAIS 6's face 4,
+1.79 spacings straight below, shows it too, so the two give its distance by
+parallax. The platform's red post (its top and its foot read off both 640 px
+faces) is 7.1 and 6.9 spacings ahead along heading 270; the two views put it
+within 0.6 of each other across the line of sight; its deck is about 0.95 above
+sea level. MATO 10 is put at the post (19.99, 0.17, −5.03), MATO 11 and 12
+stepped from it by their hotspots (0.44 and 0.30 spacings toward the central
+structure, 0.07 and 0.21 down), all three as pictures only
+(`scene_alone.py --place`).
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the

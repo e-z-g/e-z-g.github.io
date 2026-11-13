@@ -5,12 +5,12 @@ alone, with the mesh hidden, and does not project its pictures onto the mesh): i
 the outside, and views of a changed scene (a chair moved, a platform raised). Adds them to a scene_mesh.py folder.
 
     python scene_alone.py MESH_DIR WALK.json [--from OLD_MESH_DIR --nodes 6003 3016 3018]
-        [--walk 6004 6005 ...] [--at 6203=6003 ...] [--height 4057=6007 ...] [--eye 0.226] [--pictures FACES]
+        [--place 6010=20.0,0.17,-5.03 ...] [--walk 6004 6005 ...] [--at 6203=6003 ...] [--height 4057=6007 ...] [--eye 0.226] [--pictures FACES]
 
 MESH_DIR's views.json and nodes.json gain the nodes; its frame (scene_mesh.py's: nodes.json's first node at the
 origin, y up, one unit the node spacing) is scales.json's unit. --nodes take their places from OLD_MESH_DIR's
 views.json (the same first node; the place scaled by the two units), for nodes the old mesh fused and the new
-one leaves out. --walk nodes are placed one after another from a node already placed that links to them in WALK.json
+one leaves out. --place puts a node at a place given in the frame (measured by hand). --walk nodes are placed one after another from a node already placed that links to them in WALK.json
 (node_walk.py's), or that it links to (the hotspot turned round): along the hotspot's heading, at a distance and climb from the pitches of the pair of hotspots
 (each pitch to the other's floor from an eye --eye spacings above one's own: d = 2e / (tan(-p_ab) + tan(-p_ba)),
 climb = d (tan(-p_ba) - tan(-p_ab)) / 2, d held to 0.3-1.6), or from one hotspot at d 1 (0.5 past 45 degrees).
@@ -36,7 +36,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('mesh'); ap.add_argument('walk')
     ap.add_argument('--from', dest='old'); ap.add_argument('--nodes', nargs='*', default=[])
-    ap.add_argument('--walk', dest='walkn', nargs='*', default=[])
+    ap.add_argument('--walk', dest='walkn', nargs='*', default=[]); ap.add_argument('--place', nargs='*', default=[])
     ap.add_argument('--at', nargs='*', default=[]); ap.add_argument('--height', nargs='*', default=[])
     ap.add_argument('--eye', type=float, default=0.226); ap.add_argument('--pictures')
     a = ap.parse_args()
@@ -52,6 +52,8 @@ def main():
         k = unit(a.old) / unit(a.mesh)
         for n in a.nodes:
             added[n] = [x * k for x in old[n]['pos']]; print(f'node {n}: from {a.old}')
+    for x in a.place:
+        n, v = x.split('='); added[n] = [float(c) for c in v.split(',')]; print(f'node {n}: placed at {added[n]}')
     pos.update(added)
     walk = json.load(open(a.walk))['nodes']
     spots = lambda n, m: [s for s in walk.get(name(n), []) if s['to'] == name(m) and s['kind'] in ('walk', 'walk-room', 'zip', 'zip-room')]
