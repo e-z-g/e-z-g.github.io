@@ -614,7 +614,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 172.
+    Version 173.
   </footer>
 </div>
 
@@ -643,7 +643,10 @@ const BOX_HATS = [...new Set([...S.hats.keys()].filter(k => k < COMPACT_HATS).co
 const LABEL = { zoombini: 'Zoombini', fleen: 'Fleen' };
 const OTHER = { zoombini: 'fleen', fleen: 'zoombini' };
 const PAD = 3;                               // source pixels around the figure
-const TICK_MS = 100;                         // one script section per tick
+// One script section per tick: the program steps a snoid's view every 6
+// ticks of its clock, which counts 17 ms (addView's interval 6, and
+// clockTime's ms / 17; zbtools view.cpp and debug.cpp), so 102 ms.
+const TICK_MS = 102;
 // which way a walk's frames face: one for a set of walks, or one a direction
 const facesAt = (faces, d) => Array.isArray(faces) ? faces[d] : faces;
 const walkClip = (walk, d) => ({ ticks: walk.dirs[d], walk: true, faces: facesAt(walk.faces, d) });
