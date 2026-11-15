@@ -614,7 +614,7 @@
     <a href="../">More tools</a>.
     <!-- one up with every commit that changes the maker, so a phone shows which is live;
          sprites.js is loaded under the same number -->
-    Version 173.
+    Version 174.
   </footer>
 </div>
 
@@ -2914,8 +2914,12 @@ const sounds = (() => {
         // the feet sound as whose they are, on either body: a Fleen's run,
         // or a Zoombini's steps
         if ((kind === 'fleen') !== f.borrowed) {
+          // a run starts with the feet's leaving sound, which in the game
+          // a Fleen makes as it turns to run off (FLEENS SCRS 4046-4050),
+          // over the run's own (Sam: "play the sound when start any run")
           if (at === 0) {
             stopFeet();
+            play('FLEENS-' + snd.fleenLeave[f.v]);
             feet = play('FLEENS-' + snd.fleenFeet[f.v]);
           }
           if (f.v === snd.fleenRattle.feet && snd.fleenRattle.ticks.includes(at)) play('FLEENS-' + snd.fleenRattle.sound);
