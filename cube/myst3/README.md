@@ -2174,8 +2174,8 @@ table (`DOORS`), as its room files do not keep the op.
 
 MAWW 3 and 2 are pictures-only nodes 1 and 2 spacings from MAIS 19 along face 1,
 level with it. MAWW 1 is above MAWW 2, and MALL 17 is moved above MALL 8 and made
-pictures-only. Both rises are 2.5 spacings for now, the same as MASS 57's, until
-measured. MALL 17's old place, 3.7 spacings off, came from its neighbours'
+pictures-only. Both rise 3 spacings, Sam's estimate from the raised views (13
+November 2026), the same as the MACA lift's measured 3.0. MALL 17's old place, 3.7 spacings off, came from its neighbours'
 hotspots, not from pictures. Its depth is still fused into the mesh there;
 `age_v9.ps1` fuses again without it. In MAWW the hotspots agree with the places:
 MAIS 19 to MAWW 3 heading 180 against a bearing of 180, MAWW 3 to 2 180 against

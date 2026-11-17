@@ -1575,8 +1575,8 @@
 "kind": "zip",
 "heading": 129,
 "pitch": -35,
-"bearing": 155.5,
-"dist": 2.5,
+"bearing": 155.6,
+"dist": 3.0,
 "movie": 10008
 },
 {
@@ -1771,7 +1771,7 @@
 "heading": 129,
 "pitch": -36,
 "bearing": 318.3,
-"dist": 2.5,
+"dist": 3.0,
 "movie": 25017
 },
 {
@@ -1780,7 +1780,7 @@
 "heading": 126,
 "pitch": -14,
 "bearing": 124.3,
-"dist": 6.292
+"dist": 6.52
 }
 ],
 "3018": [
@@ -2976,7 +2976,7 @@
 "heading": 86,
 "pitch": -43,
 "bearing": 1.3,
-"dist": 2.5,
+"dist": 3.0,
 "movie": 10303
 }
 ],
@@ -2995,7 +2995,7 @@
 "heading": 86,
 "pitch": -28,
 "bearing": 181.3,
-"dist": 2.5,
+"dist": 3.0,
 "movie": 11002
 }
 ],
