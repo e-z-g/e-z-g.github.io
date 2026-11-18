@@ -25,8 +25,8 @@
  {
   "a": "1001",
   "b": "1002",
-  "video": "trials/maca1-2-fisheye360-down-1152-s1.mp4",
-  "back": "trials/maca1-2-fisheye360-down-1152-s1_back.mp4",
+  "video": "trials/maca1-2-lowdenoise045-down.mp4",
+  "back": "trials/maca1-2-lowdenoise045-down_back.mp4",
   "fisheye": [
    [
     1,
@@ -43,6 +43,27 @@
     1,
     0
    ]
-  ]
+  ],
+  "up": {
+   "video": "trials/maca1-2-lowdenoise045-up.mp4",
+   "back": "trials/maca1-2-lowdenoise045-up_back.mp4",
+   "fisheye": [
+    [
+     1,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     1
+    ],
+    [
+     0,
+     -1,
+     0
+    ]
+   ]
+  }
  }
 ]
