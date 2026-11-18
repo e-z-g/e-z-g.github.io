@@ -53,8 +53,10 @@ const AGES = {
 };
 const Q = new URLSearchParams(location.search), AGE_ID = Q.get('age') in AGES ? Q.get('age') : 'amateria', AGE = AGES[AGE_ID];
 const MESH = AGE_ID === 'amateria' && { moge: 'moge', splat: 'splat' }[Q.get('mesh')] || 'age';
-const BASE = AGE.dir + { age: 'scene_age/', moge: 'scene/', splat: 'scene_splat/' }[MESH],
-      PICS = AGE.dir + 'scene_age/pictures/';
+// the meshes and pictures are on Hugging Face (the site's 1 GB would not hold them); ?local reads the site's own copies
+const ROOT = Q.has('local') ? AGE.dir : `https://huggingface.co/datasets/EgadZoundsGadzooks/myst3-ages/resolve/main/${AGE_ID}/`;
+const BASE = ROOT + { age: 'scene_age/', moge: 'scene/', splat: 'scene_splat/' }[MESH],
+      PICS = ROOT + 'scene_age/pictures/';
 const nodeName = n => `${AGE.rooms[Math.floor(n / 1000) - 1]} ${n % 1000}`;
 const info = document.getElementById('info');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -75,7 +77,7 @@ let nodes = {}, mesh = null, here = null, glide = null, moveDots = null;
 let ALONE = new Set();
 window.scene3d = { dots: true };
 // the game's moves between nodes (scene_links.py from its scripts): tap toward one, or the up arrow, to walk it
-const LINKS = await fetch(AGE.dir + 'scene_age/links.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
+const LINKS = await fetch(ROOT + 'scene_age/links.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
 function standAt(n) {
   here = n; glide = null; sel.value = n;
   const p = new THREE.Vector3(...nodes[n]);
