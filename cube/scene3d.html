@@ -63,7 +63,8 @@ renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x3a3550);
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.01, 500);
+// ?near= the nearest distance drawn, in node spacings (0.01 by default); for testing the glides' shards
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, +(new URLSearchParams(location.search).get('near') || 0.01), 500);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });

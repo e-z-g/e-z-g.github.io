@@ -1883,6 +1883,11 @@
       walkBtn.style.display = cfg ? 'inline-flex' : 'none';
       if (cfg && !walk.loading && !walk.anim) walkBtn.textContent = 'Walk';
       walkBtn.title = cfg ? `Walk to ${cfg.label}, looking round as you go` : '';
+      // a trial walk's address (?crosswalk=NAME, walk-trials.html's links) starts the walk at once
+      if (cfg && !walkLabel.started && new URLSearchParams(location.search).get('crosswalk')) {
+        walkLabel.started = true;
+        const tryWalk = setInterval(() => { if (walk.loading || walk.anim || eqWalk.key) { clearInterval(tryWalk); return; } walkBtn.click(); }, 500);
+      }
     }
 
     // A test (?eqwalk): the walk as a 360-degree video made by Wan 2.2's
