@@ -403,16 +403,18 @@ const h3For = (a, b) => { for (const e of H3) { if (e.a === a && e.b === b) retu
 // x right, y back, z down), at size x size, returned as a PNG data URL. Renders the scene into a cube round the eye.
 const capCube = new THREE.WebGLCubeRenderTarget(1024, { generateMipmaps: false, minFilter: THREE.LinearFilter });
 const capCam = new THREE.CubeCamera(0.01, 500, capCube);
-const capMat = new THREE.ShaderMaterial({ uniforms: { cube: { value: capCube.texture }, right: { value: new THREE.Vector3() }, fwd: { value: new THREE.Vector3() } },
+const capMat = new THREE.ShaderMaterial({ uniforms: { cube: { value: capCube.texture }, right: { value: new THREE.Vector3() }, fwd: { value: new THREE.Vector3() }, up: { value: 0 } },
   vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-  fragmentShader: `uniform samplerCube cube; uniform vec3 right, fwd; varying vec2 v;
+  fragmentShader: `uniform samplerCube cube; uniform vec3 right, fwd; uniform float up; varying vec2 v;
 void main(){ vec2 f = (v - 0.5) * 2.0; f.y = -f.y; float r = length(f); if (r > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
   float th = r * 3.1415927, ph = atan(f.y, f.x);
   vec3 d = vec3(sin(th) * cos(ph), sin(th) * sin(ph), cos(th));         // in the eye's axes: x right, y back, z down
-  vec3 w = d.x * right - d.y * fwd + d.z * vec3(0.0, -1.0, 0.0);
+  // looking down: y back, z down; looking up (--eye-pitch 90): y forward, z up
+  vec3 w = up > 0.5 ? d.x * right + d.y * fwd + d.z * vec3(0.0, 1.0, 0.0) : d.x * right - d.y * fwd + d.z * vec3(0.0, -1.0, 0.0);
   gl_FragColor = vec4(textureCube(cube, w).rgb, 1.0); }` });
 const capQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), capMat), capScene = new THREE.Scene(); capScene.add(capQuad);
-scene3d.fisheyeDown = (size = 1152) => {
+scene3d.fisheyeDown = (size = 1152, up = false) => {
+  capMat.uniforms.up.value = up ? 1 : 0;
   const f = glide ? level(glide.p1.clone().sub(glide.p0)) : level(controls.target.clone().sub(camera.position));
   capCam.position.copy(camera.position); scene.add(capCam); capCam.update(renderer, scene); scene.remove(capCam);
   capMat.uniforms.fwd.value.copy(f); capMat.uniforms.right.value.copy(new THREE.Vector3(0, -1, 0).cross(f));
