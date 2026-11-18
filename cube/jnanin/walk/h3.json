@@ -1,0 +1,52 @@
+[
+ {
+  "a": "1062",
+  "b": "1078",
+  "version": "Equidistant",
+  "projection": "equidistant",
+  "video": "compare/leis6278-eq.mp4",
+  "back": "compare/leis6278-eq_back.mp4",
+  "fisheye": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    -1
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ]
+ },
+ {
+  "a": "1062",
+  "b": "1078",
+  "version": "Horizon-weighted",
+  "projection": "horizon",
+  "video": "compare/leis6278-hz.mp4",
+  "back": "compare/leis6278-hz_back.mp4",
+  "fisheye": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    -1
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ]
+ }
+]

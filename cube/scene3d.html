@@ -383,9 +383,10 @@ const h3Mat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthTest: false,
               right: { value: new THREE.Vector3() }, down: { value: new THREE.Vector3(0, -1, 0) }, fwd: { value: new THREE.Vector3() } },
   vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz - cameraPosition; gl_Position = projectionMatrix * viewMatrix * w; }',
   fragmentShader: `uniform sampler2D map, map2; uniform vec3 fx, fy, fz, ux, uy, uz, right, down, fwd; uniform float upOn, ea, ea2; varying vec3 vW;
-// equidistant (r = theta / pi) or, with ea, the equal-area fisheye (walk_ends.py --equal-area: r = sin(theta / 2))
+// equidistant (r = theta / pi); e = 1 the equal-area fisheye (walk_ends.py --projection equal-area: r = sin(theta / 2));
+// e = 2 the horizon-weighted one (--projection horizon: r = (theta - sin(2 theta) / 4) / pi)
 vec2 fishUv(vec3 d, vec3 x, vec3 y, vec3 z, float e) { float th = acos(clamp(dot(d, z), -1.0, 1.0)), ph = atan(dot(d, y), dot(d, x));
-  float r = e > 0.5 ? sin(th * 0.5) : th / 3.1415927;
+  float r = e > 1.5 ? (th - sin(2.0 * th) * 0.25) / 3.1415927 : e > 0.5 ? sin(th * 0.5) : th / 3.1415927;
   vec2 f = 0.5 + 0.5 * r * vec2(cos(ph), sin(ph)); return vec2(f.x, 1.0 - f.y); }
 void main(){ vec3 w = normalize(vW), d = vec3(dot(w, right), dot(w, down), dot(w, fwd));
   vec3 c = texture2D(map, fishUv(d, fx, fy, fz, ea)).rgb;
@@ -404,7 +405,17 @@ function h3Video(url) {
   }
   return h3Videos.get(url);
 }
-const h3For = (a, b) => { for (const e of H3) {
+// a walk may have several versions (entries for the same pair with a "version" label); the bar's picker chooses
+const projNo = p => p === 'horizon' ? 2 : p === 'equal-area' ? 1 : 0;
+const h3Versions = [...new Set(H3.map(e => e.version).filter(Boolean))];
+scene3d.h3Version = h3Versions[0] || null;
+if (scene3d.h3 && h3Versions.length > 1) {
+  const sel = document.createElement('select'); sel.title = 'Which version of the H3 walks';
+  for (const v of h3Versions) { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); }
+  sel.onchange = () => { scene3d.h3Version = sel.value; }; document.getElementById('info').before(sel);
+}
+const h3For = (a, b) => { const fits = H3.filter(e => (e.a === a && e.b === b) || (e.a === b && e.b === a));
+  for (const e of [...fits.filter(e => e.version === scene3d.h3Version), ...fits]) {
   if (e.a === a && e.b === b) return { e, url: e.video, up: e.up && e.up.video };
   if (e.a === b && e.b === a) return { e, url: e.back, up: e.up && e.up.back }; } return null; };
 // for making walk videos (the low-denoise H3 pass): the view from the eye as ONE 360-degree fisheye looking straight
@@ -449,7 +460,7 @@ async function go(m) {
     const f = level(p1.clone().sub(p0)), u = h3Mat.uniforms;
     u.map.value = vid.tex; u.fwd.value.copy(f); u.right.value.copy(new THREE.Vector3(0, -1, 0).cross(f));
     [u.fx, u.fy, u.fz].forEach((x, i) => x.value.set(...h.e.fisheye[i]));
-    u.ea.value = h.e.projection === 'equal-area' ? 1 : 0; u.ea2.value = h.e.up && h.e.up.projection === 'equal-area' ? 1 : 0;
+    u.ea.value = projNo(h.e.projection); u.ea2.value = projNo(h.e.up && h.e.up.projection);
     u.upOn.value = 0;
     if (h.up) { const v2 = h3Video(h.up); await v2.ready; v2.v.currentTime = 0; v2.v.play().catch(() => {}); vid.pair = v2;
       u.map2.value = v2.tex; u.upOn.value = 1; [u.ux, u.uy, u.uz].forEach((x, i) => x.value.set(...h.e.up.fisheye[i])); } }
