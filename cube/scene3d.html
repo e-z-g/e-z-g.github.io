@@ -398,6 +398,30 @@ function h3Video(url) {
   return h3Videos.get(url);
 }
 const h3For = (a, b) => { for (const e of H3) { if (e.a === a && e.b === b) return { e, url: e.video }; if (e.a === b && e.b === a) return { e, url: e.back }; } return null; };
+// for making walk videos (the low-denoise H3 pass): the view from the eye as ONE 360-degree fisheye looking straight
+// down, as walk_ends.py --single-fisheye --eye-pitch -90 draws it (axes in the walk's right, down, forward:
+// x right, y back, z down), at size x size, returned as a PNG data URL. Renders the scene into a cube round the eye.
+const capCube = new THREE.WebGLCubeRenderTarget(1024, { generateMipmaps: false, minFilter: THREE.LinearFilter });
+const capCam = new THREE.CubeCamera(0.01, 500, capCube);
+const capMat = new THREE.ShaderMaterial({ uniforms: { cube: { value: capCube.texture }, right: { value: new THREE.Vector3() }, fwd: { value: new THREE.Vector3() } },
+  vertexShader: 'varying vec2 v; void main(){ v = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `uniform samplerCube cube; uniform vec3 right, fwd; varying vec2 v;
+void main(){ vec2 f = (v - 0.5) * 2.0; f.y = -f.y; float r = length(f); if (r > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  float th = r * 3.1415927, ph = atan(f.y, f.x);
+  vec3 d = vec3(sin(th) * cos(ph), sin(th) * sin(ph), cos(th));         // in the eye's axes: x right, y back, z down
+  vec3 w = d.x * right - d.y * fwd + d.z * vec3(0.0, -1.0, 0.0);
+  gl_FragColor = vec4(textureCube(cube, w).rgb, 1.0); }` });
+const capQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), capMat), capScene = new THREE.Scene(); capScene.add(capQuad);
+scene3d.fisheyeDown = (size = 1152) => {
+  const f = glide ? level(glide.p1.clone().sub(glide.p0)) : level(controls.target.clone().sub(camera.position));
+  capCam.position.copy(camera.position); scene.add(capCam); capCam.update(renderer, scene); scene.remove(capCam);
+  capMat.uniforms.fwd.value.copy(f); capMat.uniforms.right.value.copy(new THREE.Vector3(0, -1, 0).cross(f));
+  const rt = new THREE.WebGLRenderTarget(size, size); renderer.setRenderTarget(rt); renderer.render(capScene, new THREE.Camera());
+  const px = new Uint8Array(size * size * 4); renderer.readRenderTargetPixels(rt, 0, 0, size, size, px); renderer.setRenderTarget(null); rt.dispose();
+  const c = document.createElement('canvas'); c.width = c.height = size; const g = c.getContext('2d'), im = g.createImageData(size, size);
+  for (let y = 0; y < size; y++) im.data.set(px.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
+  g.putImageData(im, 0, 0); return c.toDataURL('image/png');
+};
 // for tests: the glide from a to b held at s (0-1), the eye there looking along the way
 scene3d.glideAt = (a, b, s) => {
   const p0 = new THREE.Vector3(...nodes[a]), p1 = new THREE.Vector3(...nodes[b]), d = level(p1.clone().sub(p0));

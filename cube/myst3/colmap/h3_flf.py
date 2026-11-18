@@ -47,6 +47,9 @@ def main():
     ap.add_argument('--control', help="a control video (depth_walk.py's depth, near white) for H3's Fun ControlNet-Union")
     ap.add_argument('--control-strength', type=float, default=1.0)
     ap.add_argument('--control-end', type=float, default=1.0, help='the share of the steps the control guides')
+    ap.add_argument('--init', help='a video to start from (a rendered walk), sampled at --denoise: the low-denoise pass '
+                    '(needs the MiniMaxH3VideoInitLatent node, pc_scripts/comfy_nodes/minimax_h3_init.py, in custom_nodes)')
+    ap.add_argument('--denoise', type=float, default=1.0)
     ap.add_argument('--control-patch', default='minimax_h3_fun_controlnet_union_pruned_int8_convrot.safetensors')
     ap.add_argument('--prompt', default='A smooth, steady first-person camera walking slowly forward along the pier, the same place '
                     'throughout, the scene getting nearer, no cuts, static lighting. Audio: soft footsteps on wood, gentle waves.')
@@ -58,6 +61,8 @@ def main():
     names = []
     if a.control:
         shutil.copy(a.control, os.path.join(a.comfy_input, 'h3_control.mp4'))
+    if a.init:
+        shutil.copy(a.init, os.path.join(a.comfy_input, 'h3_init.mp4'))
     for f, n in ((a.first, 'h3_first.png'), (a.last, 'h3_last.png')):
         shutil.copy(f, os.path.join(a.comfy_input, n)); names.append(n)
     seeds = a.seeds or [a.seed]
@@ -94,6 +99,13 @@ def main():
                                                                              'end_percent': a.control_end, 'control_video': ['32', 0]}}
           g['9']['inputs']['model'] = ['33', 0]
           g['12']['inputs']['model'] = ['33', 0]
+      if a.init:
+          # the rendered walk's frames as the starting latent, noised to --denoise and sampled from there
+          g['40'] = {'class_type': 'LoadVideo', 'inputs': {'file': 'h3_init.mp4'}}
+          g['41'] = {'class_type': 'GetVideoComponents', 'inputs': {'video': ['40', 0]}}
+          g['42'] = {'class_type': 'MiniMaxH3VideoInitLatent', 'inputs': {'latent': ['8', 1], 'vae': ['4', 0], 'images': ['41', 0]}}
+          g['13']['inputs']['latent_image'] = ['42', 0]
+          g['12']['inputs']['denoise'] = a.denoise
       r = api(a.server, '/prompt', {'prompt': g, 'client_id': uuid.uuid4().hex})
       if r.get('node_errors'):
           raise SystemExit('node errors: ' + json.dumps(r['node_errors'])[:3000])
