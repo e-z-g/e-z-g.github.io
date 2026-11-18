@@ -113,7 +113,8 @@ def main():
     # directions, checked against the hotspots
     hot = defaultdict(list)
     for l in meta['links_used']:
-        hot[(l['from'], l['to'])].append(l['heading'])
+        if l['heading'] is not None:                 # a few of Edanna's hotspots carry no heading
+            hot[(l['from'], l['to'])].append(l['heading'])
     links, notes = {}, []
     for (x, y), v in rel.items():
         if v.get('inliers', 0) < a.min_inliers or v.get('front', 0) < a.min_front:

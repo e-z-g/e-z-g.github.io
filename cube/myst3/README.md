@@ -2226,6 +2226,16 @@ headings 80 and 270, and the model climbs 70 spacings on it: likely not a walk a
 all, which both the model and the hotspot layout take it for. Where LEOF stands
 waits on how the game gets there.
 
+### Edanna's first model (17 November 2026)
+
+`age_sparse.ps1 -Age Edanna -Prefix LI` (J'nanin's run, solve and join as one
+script; `age_join.ps1` the join alone). COLMAP made 26 pieces; the joined model
+has 48 nodes of the 182 with faces; hotspot bearings median 10.8°, 90% within
+38.1° (J'nanin 7.2° and 22.2°), the worst LISP 63 to 66 at 164°. Edanna is mostly
+leaves, which match poorly between nodes. Two hotspots in Edanna carry no
+heading; `link_scales.py` and `evaluate_model.py` now skip such hotspots. Not
+taken further yet.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the

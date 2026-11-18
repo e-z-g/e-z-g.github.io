@@ -85,7 +85,7 @@ def main():
     errs, rows = [], []
     for l in nodes['links_used']:
         a, b = l['from'], l['to'] % 100 if 100 <= l['to'] < 1000 else l['to']
-        if a not in frames or b not in frames or a == b:
+        if a not in frames or b not in frames or a == b or l['heading'] is None:
             continue
         Ra, Ca = frames[a]
         d = Ra @ (frames[b][1] - Ca)
