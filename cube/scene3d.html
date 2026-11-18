@@ -450,7 +450,7 @@ async function go(m) {
     u.upOn.value = 0;
     if (h.up) { const v2 = h3Video(h.up); await v2.ready; v2.v.currentTime = 0; v2.v.play().catch(() => {}); vid.pair = v2;
       u.map2.value = v2.tex; u.upOn.value = 1; [u.ux, u.uy, u.uz].forEach((x, i) => x.value.set(...h.e.up.fisheye[i])); } }
-  glide = { from: here, to: m.to, s: 0, vid, p0, p1, d0, d1: level(p1.clone().sub(p0)), t0: performance.now(), ms: Math.min(2200, 500 + 1300 * p0.distanceTo(p1)) };
+  glide = { from: here, to: m.to, s: 0, vid, cap: !!(h && h.e.cap), p0, p1, d0, d1: level(p1.clone().sub(p0)), t0: performance.now(), ms: Math.min(2200, 500 + 1300 * p0.distanceTo(p1)) };
   here = null; showMoves();
 }
 function stepGlide() {
@@ -520,7 +520,8 @@ renderer.setAnimationLoop(() => {
   if (proj && mesh.material === proj.mat && glide && glide.vid) {        // an H3 walk: the video, the warped cap over it
     h3Sphere.position.copy(camera.position); proj.uni.eye.value.copy(camera.position); proj.sky.visible = false;
     mesh.visible = false;
-    if (h3Mat.uniforms.upOn.value > 0.5) proj.warpOff(); else proj.warp(glide.from, glide.to, glide.s, true); }
+    // the warped cap only for a walk that asks for it ("cap": true); Sam, 18 November 2026: the video alone reads best
+    if (h3Mat.uniforms.upOn.value > 0.5 || !glide.cap) proj.warpOff(); else proj.warp(glide.from, glide.to, glide.s, true); }
   else if (proj && mesh.material === proj.mat && glide && scene3d.warp) {      // a glide as the two nodes' own views
     proj.uni.eye.value.copy(camera.position); proj.update(camera.position, false);
     mesh.visible = true; proj.warp(glide.from, glide.to, glide.s); }
