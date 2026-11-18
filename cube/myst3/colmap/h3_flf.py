@@ -57,6 +57,8 @@ def main():
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input'); ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output')
     ap.add_argument('--timeout', type=int, default=5400)
+    ap.add_argument('--decode-vae', help='decode with this VAE file instead (MiniMax-H3-X2-Detail-v1.safetensors: twice the size, '
+                                         'through the ComfyUI-MiniMaxH3_LatentUpscaler add-on\'s MiniMaxH3VAEDecodeFast)')
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))
     names = []
@@ -109,6 +111,14 @@ def main():
           g['42'] = {'class_type': 'MiniMaxH3VideoInitLatent', 'inputs': {'latent': ['8', 1], 'vae': ['4', 0], 'images': ['41', 0]}}
           g['13']['inputs']['latent_image'] = ['42', 0]
           g['12']['inputs']['denoise'] = a.denoise
+      if a.decode_vae:
+          info = api(a.server, '/object_info/MiniMaxH3VAEDecodeFast')['MiniMaxH3VAEDecodeFast']['input']['required']
+          inp = {k: v[1]['default'] for k, v in info.items() if len(v) > 1 and isinstance(v[1], dict) and 'default' in v[1]}
+          if isinstance(info.get('output_device', [None])[0], list):
+              inp['output_device'] = 'cpu' if 'cpu' in info['output_device'][0] else info['output_device'][0][0]
+          g['19'] = {'class_type': 'VAELoader', 'inputs': {'vae_name': a.decode_vae}}
+          inp.update({'samples': g['14']['inputs']['samples'], 'vae': ['19', 0]})
+          g['14'] = {'class_type': 'MiniMaxH3VAEDecodeFast', 'inputs': inp}
       r = api(a.server, '/prompt', {'prompt': g, 'client_id': uuid.uuid4().hex})
       if r.get('node_errors'):
           raise SystemExit('node errors: ' + json.dumps(r['node_errors'])[:3000])
