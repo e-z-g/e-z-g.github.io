@@ -375,22 +375,27 @@ function pickMove(dir, within, flat) {
 // <age>/walk/h3.json as {a, b, video, back, fisheye: [x, y, z] axes in the walk's right, down, forward}: a glide
 // from a to b (or back) plays the video round the eye, the two nodes' warped views over it above the horizon band.
 // With "up" ({video, back, fisheye}, a looking-up walk made from the same render, so the two agree) the ceiling or sky
-// comes from it instead, crossfaded about the horizon: for indoor walks, where the warped views tear
+// comes from it instead, crossfaded about the horizon: for indoor walks, where the warped views tear.
+// With "turns" (h3_steady.py's JSON for the forward video: each frame's turn against the first, R q0 = qk), the
+// picture is turned back frame by frame: for walks whose two ends are aimed apart (walk_ends.py --auto-aim), and
+// the small turns H3 adds of its own. "fisheye" is then the first frame's axes; the back video reads the frames
+// in reverse.
 const H3 = await fetch(AGE.dir + 'walk/h3.json').then(r => r.ok ? r.json() : []).catch(() => []);
 const h3Mat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthTest: false, depthWrite: false,
   uniforms: { map: { value: null }, fx: { value: new THREE.Vector3() }, fy: { value: new THREE.Vector3() }, fz: { value: new THREE.Vector3() },
-              map2: { value: null }, upOn: { value: 0 }, ea: { value: 0 }, ea2: { value: 0 }, ux: { value: new THREE.Vector3() }, uy: { value: new THREE.Vector3() }, uz: { value: new THREE.Vector3() },
+              map2: { value: null }, turn: { value: new THREE.Matrix3() }, upOn: { value: 0 }, ea: { value: 0 }, ea2: { value: 0 }, ux: { value: new THREE.Vector3() }, uy: { value: new THREE.Vector3() }, uz: { value: new THREE.Vector3() },
               right: { value: new THREE.Vector3() }, down: { value: new THREE.Vector3(0, -1, 0) }, fwd: { value: new THREE.Vector3() } },
   vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz - cameraPosition; gl_Position = projectionMatrix * viewMatrix * w; }',
-  fragmentShader: `uniform sampler2D map, map2; uniform vec3 fx, fy, fz, ux, uy, uz, right, down, fwd; uniform float upOn, ea, ea2; varying vec3 vW;
+  fragmentShader: `uniform sampler2D map, map2; uniform vec3 fx, fy, fz, ux, uy, uz, right, down, fwd; uniform float upOn, ea, ea2; uniform mat3 turn; varying vec3 vW;
 // equidistant (r = theta / pi); e = 1 the equal-area fisheye (walk_ends.py --projection equal-area: r = sin(theta / 2));
 // e = 2 the horizon-weighted one (--projection horizon: r = (theta - sin(2 theta) / 4) / pi)
-vec2 fishUv(vec3 d, vec3 x, vec3 y, vec3 z, float e) { float th = acos(clamp(dot(d, z), -1.0, 1.0)), ph = atan(dot(d, y), dot(d, x));
+vec2 fishUv(vec3 d, vec3 x, vec3 y, vec3 z, float e, mat3 m) { vec3 q = m * vec3(dot(d, x), dot(d, y), dot(d, z));
+  float th = acos(clamp(q.z, -1.0, 1.0)), ph = atan(q.y, q.x);
   float r = e > 1.5 ? (th - sin(2.0 * th) * 0.25) / 3.1415927 : e > 0.5 ? sin(th * 0.5) : th / 3.1415927;
   vec2 f = 0.5 + 0.5 * r * vec2(cos(ph), sin(ph)); return vec2(f.x, 1.0 - f.y); }
 void main(){ vec3 w = normalize(vW), d = vec3(dot(w, right), dot(w, down), dot(w, fwd));
-  vec3 c = texture2D(map, fishUv(d, fx, fy, fz, ea)).rgb;
-  if (upOn > 0.5) c = mix(c, texture2D(map2, fishUv(d, ux, uy, uz, ea2)).rgb, smoothstep(-0.3, 0.3, -d.y));
+  vec3 c = texture2D(map, fishUv(d, fx, fy, fz, ea, turn)).rgb;
+  if (upOn > 0.5) c = mix(c, texture2D(map2, fishUv(d, ux, uy, uz, ea2, mat3(1.0))).rgb, smoothstep(-0.3, 0.3, -d.y));
   gl_FragColor = vec4(c, 1.0); }` });
 const h3Sphere = new THREE.Mesh(new THREE.SphereGeometry(50, 64, 32), h3Mat);
 h3Sphere.renderOrder = -1; h3Sphere.frustumCulled = false; h3Sphere.visible = false; scene.add(h3Sphere);
@@ -414,10 +419,12 @@ if (scene3d.h3 && h3Versions.length > 1) {
   for (const v of h3Versions) { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); }
   sel.onchange = () => { scene3d.h3Version = sel.value; }; document.getElementById('info').before(sel);
 }
+const h3Turns = new Map();
+const h3TurnsOf = url => { if (!h3Turns.has(url)) h3Turns.set(url, fetch(AGE.dir + 'walk/' + url).then(r => r.json()).catch(() => null)); return h3Turns.get(url); };
 const h3For = (a, b) => { const fits = H3.filter(e => (e.a === a && e.b === b) || (e.a === b && e.b === a));
   for (const e of [...fits.filter(e => e.version === scene3d.h3Version), ...fits]) {
-  if (e.a === a && e.b === b) return { e, url: e.video, up: e.up && e.up.video };
-  if (e.a === b && e.b === a) return { e, url: e.back, up: e.up && e.up.back }; } return null; };
+  if (e.a === a && e.b === b) return { e, url: e.video, up: e.up && e.up.video, rev: false };
+  if (e.a === b && e.b === a) return { e, url: e.back, up: e.up && e.up.back, rev: true }; } return null; };
 // for making walk videos (the low-denoise H3 pass): the view from the eye as ONE 360-degree fisheye looking straight
 // down, as walk_ends.py --single-fisheye --eye-pitch -90 draws it (axes in the walk's right, down, forward:
 // x right, y back, z down), at size x size, returned as a PNG data URL. Renders the scene into a cube round the eye.
@@ -461,7 +468,8 @@ async function go(m) {
     u.map.value = vid.tex; u.fwd.value.copy(f); u.right.value.copy(new THREE.Vector3(0, -1, 0).cross(f));
     [u.fx, u.fy, u.fz].forEach((x, i) => x.value.set(...h.e.fisheye[i]));
     u.ea.value = projNo(h.e.projection); u.ea2.value = projNo(h.e.up && h.e.up.projection);
-    u.upOn.value = 0;
+    u.upOn.value = 0; u.turn.value.identity();
+    vid.turns = h.e.turns ? await h3TurnsOf(h.e.turns) : null; vid.rev = h.rev;
     if (h.up) { const v2 = h3Video(h.up); await v2.ready; v2.v.currentTime = 0; v2.v.play().catch(() => {}); vid.pair = v2;
       u.map2.value = v2.tex; u.upOn.value = 1; [u.ux, u.uy, u.uz].forEach((x, i) => x.value.set(...h.e.up.fisheye[i])); } }
   glide = { from: here, to: m.to, s: 0, vid, cap: !!(h && h.e.cap), p0, p1, d0, d1: level(p1.clone().sub(p0)), t0: performance.now(), ms: Math.min(2200, 500 + 1300 * p0.distanceTo(p1)) };
@@ -533,6 +541,9 @@ renderer.setAnimationLoop(() => {
   h3Sphere.visible = !!(glide && glide.vid);
   if (proj && mesh.material === proj.mat && glide && glide.vid) {        // an H3 walk: the video, the warped cap over it
     h3Sphere.position.copy(camera.position); proj.uni.eye.value.copy(camera.position); proj.sky.visible = false;
+    const T = glide.vid.turns;                           // this frame's turn (h3_steady.py), back videos read in reverse
+    if (T) { const n = T.rot.length; let k = Math.min(n - 1, Math.floor(glide.vid.v.currentTime * T.fps + 0.01)); if (glide.vid.rev) k = n - 1 - k;
+      h3Mat.uniforms.turn.value.set(...T.rot[k]); }
     mesh.visible = false;
     // the warped cap only for a walk that asks for it ("cap": true); Sam, 18 November 2026: the video alone reads best
     if (h3Mat.uniforms.upOn.value > 0.5 || !glide.cap) proj.warpOff(); else proj.warp(glide.from, glide.to, glide.s, true); }

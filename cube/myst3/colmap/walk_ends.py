@@ -295,6 +295,32 @@ def draw_single_fisheye(faces, Rcam, W, H, fov=360.0, yaw=0.0, pitch=0.0, projec
     return g
 
 
+def weak_spot(faces, Rcam, cap=40.0, n=2000):
+    """The direction with the least detail around it (the mean gradient within cap degrees, weighted toward the
+    middle): where a single fisheye's one bad point (the rim, straight behind its centre) costs least. In the walk's
+    axes (x right, y down, z forward)."""
+    grad = []
+    for R, t, img in faces:
+        g = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY).astype(np.float32)
+        m = np.hypot(cv2.Sobel(g, cv2.CV_32F, 1, 0), cv2.Sobel(g, cv2.CV_32F, 0, 1))
+        m = cv2.GaussianBlur(m, (0, 0), 3)
+        grad.append((R, t, np.repeat(np.clip(m / 4, 0, 255).astype(np.uint8)[..., None], 3, 2)))
+    k = np.arange(n) + .5
+    th, ph = np.arccos(1 - 2 * k / n), np.pi * (1 + 5 ** .5) * k
+    D = np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], 1)      # walk axes
+    d = sample_dirs(grad, (D @ Rcam)[None])[0, :, 0].astype(np.float64)
+    c = D @ D.T
+    w = np.clip((c - np.cos(np.radians(cap))) / (1 - np.cos(np.radians(cap))), 0, None)
+    score = (w @ d) / w.sum(1)
+    return D[np.argmin(score)], float(score.min()), float(np.median(score))
+
+
+def aim_of(weak):
+    """--eye-yaw and --eye-pitch that put a single fisheye's centre straight away from weak (its rim on it)."""
+    c = -weak
+    return float(np.degrees(np.arctan2(c[0], c[2]))), float(np.degrees(np.arcsin(np.clip(-c[1], -1, 1))))
+
+
 def draw_dual_fisheye(faces, Rcam, W, H, fov, yaw=0.0):
     """Two circular equidistant fisheyes side by side, each H across and fov degrees wide (over 180 they
     overlap at the rim): the walk's way ahead on the left, behind on the right; black outside the circles.
@@ -355,6 +381,12 @@ def main():
     ap.add_argument('--projection', choices=['equidistant', 'equal-area', 'horizon'], default='equidistant',
                     help='with --single-fisheye: how angle from the centre maps to radius (horizon: the pixels drawn to the horizon)')
     ap.add_argument('--eye-pitch', type=float, default=0.0, help='with --single-fisheye: tilted this many degrees up (-90: straight down)')
+    ap.add_argument('--last-eye', type=float, nargs=2, metavar=('YAW', 'PITCH'),
+                    help='with --single-fisheye: the last frame aimed apart (the video model then makes the turn; the '
+                         'viewer takes it out). Default: as the first')
+    ap.add_argument('--auto-aim', action='store_true',
+                    help="with --single-fisheye: each end aimed so its rim (the fisheye's one bad point) falls where that "
+                         "node's view has least detail (weak_spot); overrides --eye-yaw, --eye-pitch and --last-eye")
     ap.add_argument('--net', choices=sorted(NETS) + sorted(STRIPS), help='another cube net (NETS) or rows of faces (STRIPS); writes layout.json')
     ap.add_argument('--gap', type=int, default=0, help='px of black between rows (with --net)')
     ap.add_argument('--fill', nargs='?', const='skycopy', help="the net's empty cells filled with copies (FILLS: skycopy, skyonce)")
@@ -381,7 +413,15 @@ def main():
         render = lambda F: draw_equirect(F, Rcam, W, H)
     elif a.single_fisheye:
         proj = 'equal-area' if a.equal_area else a.projection
-        render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, a.eye_yaw, a.eye_pitch, proj)
+        aims = [(a.eye_yaw, a.eye_pitch), tuple(a.last_eye) if a.last_eye else (a.eye_yaw, a.eye_pitch)]
+        if a.auto_aim:
+            for i, F in enumerate((FA, FB)):
+                wk, lo, med = weak_spot(F, Rcam)
+                aims[i] = aim_of(wk)
+                print(f"{'first' if i == 0 else 'last'}: weakest spot {np.round(wk, 3)} (detail {lo:.1f}, median {med:.1f}); "
+                      f"aimed yaw {aims[i][0]:.1f} pitch {aims[i][1]:.1f}")
+        ends = {id(FA): aims[0], id(FB): aims[1]}
+        render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, *ends[id(F)], proj)
     elif a.dual_fisheye:
         render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw)
     elif a.net:
@@ -402,9 +442,11 @@ def main():
     M = FA[0][0].T @ np.diag([1.0, -1.0, -1.0])             # node frame -> model frame (walk_scene.py's)
     look = M.T @ fwd
     if a.single_fisheye:
-        E = fisheye_eyes(Rcam, a.eye_yaw, a.eye_pitch)[0]
-        json.dump({'net': 'single-fisheye', 'projection': 'equal-area' if a.equal_area else a.projection, 'fov': a.single_fisheye, 'yaw': a.eye_yaw, 'pitch': a.eye_pitch, 'size': [W, H],
-                   'eyes': [{'rect': [0, 0, H, H], 'axes': [[round(float(v), 6) for v in Rcam @ ax] for ax in E]}]},
+        E = fisheye_eyes(Rcam, *aims[0])[0]; E2 = fisheye_eyes(Rcam, *aims[1])[0]
+        json.dump({'net': 'single-fisheye', 'projection': 'equal-area' if a.equal_area else a.projection, 'fov': a.single_fisheye,
+                   'yaw': aims[0][0], 'pitch': aims[0][1], 'last_yaw': aims[1][0], 'last_pitch': aims[1][1], 'size': [W, H],
+                   'eyes': [{'rect': [0, 0, H, H], 'axes': [[round(float(v), 6) for v in Rcam @ ax] for ax in E]}],
+                   'last_eyes': [{'rect': [0, 0, H, H], 'axes': [[round(float(v), 6) for v in Rcam @ ax] for ax in E2]}]},
                   open(os.path.join(a.out, 'layout.json'), 'w'), indent=1)
     if a.dual_fisheye:
         json.dump({'net': 'dual-fisheye', 'fov': a.dual_fisheye, 'yaw': a.eye_yaw, 'size': [W, H],

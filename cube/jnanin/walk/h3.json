@@ -22,7 +22,8 @@
     1,
     0
    ]
-  ]
+  ],
+  "turns": "compare/leis6278-eq.turns.json"
  },
  {
   "a": "1062",
@@ -47,6 +48,7 @@
     1,
     0
    ]
-  ]
+  ],
+  "turns": "compare/leis6278-hz.turns.json"
  }
 ]

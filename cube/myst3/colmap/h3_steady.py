@@ -9,7 +9,8 @@ should only glide forward and never turn. Points over the whole picture are trac
 (Lucas-Kanade) and turned into directions; each step's turn and way of travel are fitted together (the essential
 matrix from eight-point samples, RANSAC, refitted on the points that agree; of its two turns the one nearer none).
 A turn fitted to far points alone took the glide forward for a pitch. The turns add up to each frame's turn against
-the first; the last frame is the same still as the walk's end, so whatever turn is left there is drift, taken out
+the first; the last frame is the same still as the walk's end, so whatever turn is left there (against none, or with --layout
+the turn between the two ends' aims) is drift, taken out
 evenly along the walk. Also printed: the sway, the spread of the way of travel to the side and up and down (a
 walking gait sways it from side to side about once a second; a turn of the picture cannot take that out).
 
@@ -80,6 +81,8 @@ def main():
     ap.add_argument('video'); ap.add_argument('out')
     ap.add_argument('--projection', default='equidistant', choices=['equidistant', 'equal-area', 'horizon'])
     ap.add_argument('--show', action='store_true')
+    ap.add_argument('--layout', help="walk_ends.py's layout.json: with ends aimed apart (--last-eye, --auto-aim) the last "
+                                     "frame's turn is known (the last eye's axes against the first's), not none")
     a = ap.parse_args()
     cap = cv2.VideoCapture(a.video)
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -117,7 +120,12 @@ def main():
         T.append(-t if t[1] > 0 else t)
     # the last frame is the end still: any turn left there is drift, taken out evenly
     from scipy.spatial.transform import Rotation as Rot
-    left = Rot.from_matrix(Rs[-1]).inv().as_rotvec()
+    end = np.eye(3)
+    if a.layout:
+        L = json.load(open(a.layout))
+        if 'last_eyes' in L:
+            end = np.array(L['last_eyes'][0]['axes']) @ np.array(L['eyes'][0]['axes']).T
+    left = Rot.from_matrix(end @ Rs[-1].T).as_rotvec()
     n = len(Rs) - 1
     Rs = [Rot.from_rotvec(left * k / n).as_matrix() @ R for k, R in enumerate(Rs)]
     turns = [angle(R) for R in Rs]
