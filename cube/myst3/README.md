@@ -2299,6 +2299,43 @@ a video model clean it at low denoise, the game's own first and last frames held
    versions there and back, switching at the same moment. `pc_scripts/lowdenoise_walk.ps1`
    makes one walk (about 35 minutes on the PC).
 
+Sam, 18 November 2026: plain H3 (no render) reads far better than any low-denoise
+version, so the render pass was dropped.
+
+### H3 walks as two fisheyes, plus the game's detail (18 November 2026)
+
+What came out of a day of tests on LEIS 62 to 78 (J'nanin, level), all seed 1, viewed
+in a 360-degree page (a claude.ai artifact, private) and scored by
+`colmap/walk_fidelity.py`: the video's first or last frame turned back into the node's
+six 640 px faces and compared with them (PSNR, the share of fine detail kept, SSIM; by
+angle from the horizon). Only the end frames have a true picture to compare with.
+
+- **Layout.** Two 190-degree equidistant fisheyes side by side, one straight along the
+  walk and one straight back (`walk_ends.py --dual-fisheye 190 --along-motion`; the
+  5 degrees of overlap are crossfaded in the viewer and the seam does not show). Sam:
+  smooth, no distortion. The single looking-down fisheye pinched (equal-area worse);
+  ends aimed at each node's dullest spot (`--auto-aim`) made H3 jump to a clone of the
+  place instead of walking.
+- **Size.** 22 frames (4 frames a latent, less 3 for each block of five latents: 5, 22, 39 ...). At
+  22 frames 3328x1664 fits the 16 GB card (22 minutes); 3584x1792 runs out of memory.
+  5 frames gives a dissolve, not a walk. The weights swap to system memory; the
+  activations cannot, which is what limits the size.
+- **Where detail goes.** H3's VAE is 16x16 in space and 4 in time. The VAE alone,
+  encoding and decoding the first picture, scores SSIM 0.724 where H3's walk scores
+  0.719 (the drawing it was given: 0.955), so more steps cannot help; more pixels do.
+  ComfyUI's MP4 cost 0.006 more; `h3_flf.py` now keeps every frame as PNG.
+- **Small gains.** Rows drawn toward the horizon (`--squash 0.35`): SSIM +0.007. Each
+  circle stretched to fill its square (`--fill-square`, the elliptical grid mapping):
+  +0.011 at 2048. SeedVR2 to 4096 adds detail (0.46 to 0.65) but not the game's (SSIM
+  0.725 to 0.696) and takes 81 minutes.
+- **The game's detail.** `colmap/detail_transfer.py` carries the fine detail of the two
+  nodes' own drawings onto each frame along chained RAFT flow, mixed by how far along
+  the walk the frame is, only where the flow checks out there and back (all of the end
+  frames, about a third mid-walk). Carried across a whole walk from one end it scores
+  worse than H3 alone (SSIM 0.711 against 0.733 on LEIS 78); in motion Sam slightly
+  prefers it to plain 3328, and it is the first choice for now. Untried on other
+  scenes: thin things, water, reflections and quick parallax are where flow fails.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the
