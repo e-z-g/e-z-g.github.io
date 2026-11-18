@@ -1,4 +1,48 @@
 [
- {"a": "4084", "b": "4089", "video": "trials/full-fisheye360-down-1152-s1.mp4", "back": "trials/full-fisheye360-down-1152-s1_back.mp4",
-  "fisheye": [[1, 0, 0], [0, 0, -1], [0, 1, 0]]}
+ {
+  "a": "4084",
+  "b": "4089",
+  "video": "trials/full-fisheye360-down-1152-s1.mp4",
+  "back": "trials/full-fisheye360-down-1152-s1_back.mp4",
+  "fisheye": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    -1
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ]
+ },
+ {
+  "a": "1001",
+  "b": "1002",
+  "video": "trials/maca1-2-fisheye360-down-1152-s1.mp4",
+  "back": "trials/maca1-2-fisheye360-down-1152-s1_back.mp4",
+  "fisheye": [
+   [
+    1,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    -1
+   ],
+   [
+    0,
+    1,
+    0
+   ]
+  ]
+ }
 ]
