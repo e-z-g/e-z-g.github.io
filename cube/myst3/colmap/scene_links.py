@@ -29,6 +29,9 @@ MOVIE = 152                     # args: the node it ends at, the movie
 # then walks to a node number of that room, which the room files keep as a walk in the same room. The only two in
 # Amateria, MAIS 19 to MAWW 3 and back (Sam, 13 November 2026: MAWW 3 is one pace past MAIS 19's door)
 DOORS = {('MAIS', 19, 3): 'MAWW', ('MAWW', 3, 19): 'MAIS'}
+# rides the game plays as a movie before the move (op 149, then the walk), kept as zips so the viewer cuts:
+# J'nanin's elevator from LEOS 1 up to LEOF 11 (movies 14601, 14701; Sam, 17 November 2026: an indoor elevator)
+RIDES = {('LEOS', 1, 11)}
 
 
 def main():
@@ -57,7 +60,8 @@ def main():
             v = views[src]
             d = np.array(v['rot']) @ (np.array(views[dst]['pos']) - np.array(v['pos']))   # in the node's frame, face 1 = -z
             bearing = math.degrees(math.atan2(-d[0], d[2])) % 360       # the game's heading: 0 along +z, as face 3
-            e = {'to': dst, 'kind': MOVE[l['opcode']], 'heading': l['heading'], 'pitch': l['pitch'],
+            kind = 'zip' if (room, l['from'], l['args'][-1]) in RIDES else MOVE[l['opcode']]
+            e = {'to': dst, 'kind': kind, 'heading': l['heading'], 'pitch': l['pitch'],
                  'bearing': round(bearing, 1), 'dist': round(float(np.linalg.norm(d)), 3)}
             if l['opcode'] == MOVIE:
                 e['movie'] = l['args'][1]

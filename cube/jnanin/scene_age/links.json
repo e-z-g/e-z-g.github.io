@@ -1898,11 +1898,11 @@
 },
 {
 "to": "6011",
-"kind": "walk",
+"kind": "zip",
 "heading": 270,
 "pitch": -2,
-"bearing": 345.3,
-"dist": 9.186
+"bearing": 12.3,
+"dist": 3.0
 }
 ],
 "2002": [
