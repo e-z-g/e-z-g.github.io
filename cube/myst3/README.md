@@ -2181,6 +2181,28 @@ hotspots, not from pictures. Its depth is still fused into the mesh there;
 MAIS 19 to MAWW 3 heading 180 against a bearing of 180, MAWW 3 to 2 180 against
 180.3. 361 moves in all.
 
+### J'nanin as one mesh (13–17 November 2026)
+
+`scene3d.html?age=jnanin` (or the age list). Built as Amateria's, from the 640 px
+faces only: the joined model `joined2_floor_map` (86 nodes; hotspot bearings
+median 7.2°, 90% within 22.2°), its dense cloud (1.8 M points), Marigold maps
+and MoGe depth for every node, fused to 6.0 M triangles (`jnanin_mesh.ps1`;
+the mesh tools take `--prefix LE`). The ssh link dropped during the run, but the
+job finished on the PC.
+
+25 more nodes are pictures only, stepped from their neighbours by the hotspots
+(`scene_alone.py --states`, which takes a node of another state as the place it
+stands at): LEOS 2–8, LEOF 1–10, 21, 22, LEET 1–2, LELT 1–2, LEMT 8, 13. LEET 1
+and LELT 1 are entered only as other states (LEET 201 from LEIS 225), hence
+`--states`. LEOS 1 is pictures only too: outdoor mesh crossed its room. Not
+placed: LEIS 59, LEIS 86 and LEMT 11, which no walk enters or leaves. 289 moves;
+hotspot heading against bearing median 6.1°, 90% 17.8°. The worst, LEOS 1 to
+LEOF 11 (+75°, a climb of +70 in the model), is probably a lift; all of LEOF is
+stepped from LEOF 11, so it stands or falls with it.
+
+Carving (`scene_carve.py`) would cut 29% of the triangles (89% in LEOS); at
+nine nodes the carved and uncarved views are the same, so the scene is uncarved.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the
