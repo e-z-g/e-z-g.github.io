@@ -2236,6 +2236,35 @@ leaves, which match poorly between nodes. Two hotspots in Edanna carry no
 heading; `link_scales.py` and `evaluate_model.py` now skip such hotspots. Not
 taken further yet.
 
+### Shards on the glides (17 November 2026)
+
+Sam: walks between nodes show shards everywhere once a place is complicated, in
+J'nanin and Amateria (LEIS 76 to 33 is good). The walk test's hole count missed
+them (it counts surface no node sees; shards are seen surface in the wrong
+shape). Its largest step-to-step change of the view does show them: LEIS 76–33
+15.6, the shattered walks 38–62 (LEIS 6–7, 49–50, 29–30, 60–67). Tried on
+J'nanin, worst walk and 90th percentile against 61.5 and 34.9 before:
+
+| change | worst | 90% |
+|---|---|---|
+| triangles stretched edge-on to their nearest node cut (4.4%) | 56.3 | 34.0 |
+| nothing drawn nearer than 0.15 / 0.35 spacings | 60.3 / 56.8 | 32.7 / 31.8 |
+| fused again with surfaces past 1 spacing (not 3) confirmed by the dense cloud (`jnanin_c1.ps1`) | 58.6 | 35.2 |
+
+16 of J'nanin's 126 walks (6 of Amateria's 154) pass through the mesh; the near
+plane mends those (LEIS 29–30: 51 to 22), but the worst pass close by it instead.
+The shards are the nodes' separate depth guesses disagreeing, which no filter on
+the fused mesh takes out.
+
+### The meshes on Hugging Face (18 November 2026)
+
+The site reached 917 MB of GitHub Pages' 1 GB. The scene folders (meshes,
+pictures, views, links) moved to the dataset `EgadZoundsGadzooks/myst3-ages`
+(`<age>/scene_age/`, and Amateria's `scene/`, `scene_splat/`); `scene3d.html`
+reads them from there (`?local` for the site's own folder, for testing). The
+site is now 412 MB. To update a scene: `hf upload EgadZoundsGadzooks/myst3-ages
+DIR jnanin/scene_age --repo-type dataset`.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the
