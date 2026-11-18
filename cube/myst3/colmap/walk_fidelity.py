@@ -42,7 +42,7 @@ def main():
     ap.add_argument('--last', action='store_true'); ap.add_argument('--prefix', default='LE')
     ap.add_argument('--single', action='store_true'); ap.add_argument('--projection', default='equidistant')
     ap.add_argument('--dual', type=float); ap.add_argument('--squash', type=float, default=0.0)
-    ap.add_argument('--fill', action='store_true', help="walk_ends --fill: each circle stretched to fill its square")
+    ap.add_argument('--fill-square', action='store_true', help="walk_ends --fill-square: each circle stretched to fill its square")
     ap.add_argument('--along-motion', action='store_true')
     a = ap.parse_args()
     we.PREFIX = a.prefix
@@ -91,7 +91,7 @@ def main():
             th = np.arccos(np.clip(q[..., 2], -1, 1)); ph = np.arctan2(q[..., 1], q[..., 0])
             r = th / np.radians(a.dual / 2)
             x, y = r * np.cos(ph), r * np.sin(ph)
-            if a.fill:
+            if a.fill_square:
                 x, y = we.disc_to_square(x, y)
             if a.squash:
                 y = we.squash_y(y, a.squash)

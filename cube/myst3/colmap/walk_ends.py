@@ -342,7 +342,7 @@ def squash_y(yf, a):
 
 
 def square_to_disc(x, y):
-    """--fill: the elliptical grid mapping, the square [-1, 1]^2 onto the unit disc (its edges onto the rim, a corner
+    """--fill-square: the elliptical grid mapping, the square [-1, 1]^2 onto the unit disc (its edges onto the rim, a corner
     onto the rim at 45 degrees), so a fisheye's circle fills its whole square and no pixel is black."""
     return x * np.sqrt(np.clip(1 - y * y / 2, 0, None)), y * np.sqrt(np.clip(1 - x * x / 2, 0, None))
 
@@ -421,7 +421,7 @@ def main():
                     help='with --dual-fisheye: rows moved toward the middle, picture y = y + A (sin(pi y / 2) - y) of the '
                          "fisheye's y: the band round the horizon drawn 1 + A (pi / 2 - 1) times taller, the top and "
                          'bottom 1 - A times (0.35: 1.2 and 0.65)')
-    ap.add_argument('--fill', action='store_true',
+    ap.add_argument('--fill-square', action='store_true',
                     help="with --dual-fisheye: each circle stretched to fill its square (square_to_disc), no black corners")
     ap.add_argument('--along-motion', action='store_true',
                     help='forward is the straight line from NODE_A to NODE_B, climb included (not levelled): with '
@@ -478,7 +478,7 @@ def main():
         ends = {id(FA): E0, id(FB): E1}
         render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, projection=proj, axes=ends[id(F)])
     elif a.dual_fisheye:
-        render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw, a.squash, a.fill)
+        render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw, a.squash, a.fill_square)
     elif a.net:
         render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap, a.fill, a.false_line)
     elif a.cross_hub:
