@@ -27,11 +27,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from view_check import read_model  # noqa: E402
 
 
+PREFIX = 'MA'                    # the faces' file prefix (--prefix): MA Amateria, LE J'nanin
+
+
 def faces_of(images, imgs, node):
     out = []
     for k in range(1, 7):
-        R, t = imgs[f'f{k}/MA-{node}.jpg'][:2]
-        img = np.asarray(Image.open(os.path.join(images, f'f{k}', f'MA-{node}.jpg')).convert('RGB'))
+        R, t = imgs[f'f{k}/{PREFIX}-{node}.jpg'][:2]
+        img = np.asarray(Image.open(os.path.join(images, f'f{k}', f'{PREFIX}-{node}.jpg')).convert('RGB'))
         out.append((R, t, img))
     C = -out[0][0].T @ out[0][1]
     return C, out
@@ -314,6 +317,7 @@ def sample_dirs(faces, dirs):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('images'); ap.add_argument('sparse'); ap.add_argument('out'); ap.add_argument('a'); ap.add_argument('b')
+    ap.add_argument('--prefix', default='MA', help="the faces' file prefix: MA (Amateria), LE (J'nanin)")
     ap.add_argument('--size', default='832x480'); ap.add_argument('--fov', type=float, default=90.0)
     ap.add_argument('--yaw', type=float, default=0.0); ap.add_argument('--pitch', type=float, default=0.0)
     ap.add_argument('--equirect', action='store_true',
@@ -337,6 +341,8 @@ def main():
     ap.add_argument('--fill', nargs='?', const='skycopy', help="the net's empty cells filled with copies (FILLS: skycopy, skyonce)")
     ap.add_argument('--false-line', type=int, default=0, help='px of black along joins between cells that do not truly meet (with --fill)')
     a = ap.parse_args()
+    global PREFIX
+    PREFIX = a.prefix
     W, H = (int(x) for x in a.size.split('x'))
     _, imgs = read_model(a.sparse)
     CA, FA = faces_of(a.images, imgs, a.a)
