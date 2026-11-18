@@ -1,5 +1,124 @@
 [
  {
+  "name": "full-fisheye360-down-skycap-1152-s1",
+  "label": "Full: ONE 360-degree fisheye looking down, the sky above 17-33 degrees from the game's own pictures of the two ends faded along the walk, 1152x1152, seed 1",
+  "score": null,
+  "worst": null,
+  "rows": 3,
+  "cols": 4,
+  "video": "full-fisheye360-down-1152-s1.mp4",
+  "back": "full-fisheye360-down-1152-s1_back.mp4",
+  "made": 1794978148.116427,
+  "fisheye": {
+   "fov": 360.0,
+   "eyes": [
+    [
+     [
+      1.0,
+      0.0,
+      -0.0
+     ],
+     [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     [
+      -0.0,
+      1.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.0,
+      1.0,
+      1.0
+     ]
+    ],
+    [
+     [
+      1.0,
+      0.0,
+      -0.0
+     ],
+     [
+      0.0,
+      0.0,
+      -1.0
+     ],
+     [
+      -0.0,
+      1.0,
+      0.0
+     ],
+     [
+      0.0,
+      0.0,
+      1.0,
+      1.0
+     ]
+    ]
+   ]
+  },
+  "sky": {
+   "first": "sky84-89-first.jpg",
+   "last": "sky84-89-last.jpg",
+   "fisheye": {
+    "fov": 360.0,
+    "eyes": [
+     [
+      [
+       1.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       1.0
+      ],
+      [
+       0.0,
+       -1.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       1.0,
+       1.0
+      ]
+     ],
+     [
+      [
+       1.0,
+       0.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       1.0
+      ],
+      [
+       0.0,
+       -1.0,
+       0.0
+      ],
+      [
+       0.0,
+       0.0,
+       1.0,
+       1.0
+      ]
+     ]
+    ]
+   },
+   "lo": 0.3,
+   "hi": 0.55
+  }
+ },
+ {
   "name": "full-fisheye360-updown-1152-s1",
   "label": "Full: the looking-down and looking-up fisheye walks blended (ground from down, sky from up), 1152x1152, seed 1 (unscored)",
   "score": null,

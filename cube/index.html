@@ -1928,6 +1928,9 @@
         if (!tr) throw new Error('no trial walk ' + CROSS_TRIAL);
         cross = Object.assign({}, tr, { video: '../walk/trials/' + tr.video, back: '../walk/trials/' + tr.back });
         // a trial with "blend": a second fisheye walk (looking up) for the sky, the first (looking down) for the ground
+        // a trial with "sky": the game's own views up from the two ends (walk_ends.py --single-fisheye --eye-pitch 90),
+        // faded from one to the other along the walk, over the video above the horizon (its weak pole)
+        if (tr.sky) cross.sky = Object.assign({}, tr.sky, { first: '../walk/trials/' + tr.sky.first, last: '../walk/trials/' + tr.sky.last });
         if (tr.blend) cross.blend = Object.assign({}, tr.blend, { video: '../walk/trials/' + tr.blend.video, back: '../walk/trials/' + tr.blend.back });
       }
       const eq = CROSS_WALK && cross ? Object.assign({}, cfg.eq, cross, { packed: null }) : cfg.eq;
@@ -1940,6 +1943,8 @@
       // one where it reaches, its edges feathered: the whole-sphere video has
       // a quarter of the panorama's detail. One video, not two kept in step:
       // seeking one to the other's time every frame made a phone stutter.
+      const sk = eq.sky || null, skyTex = sk ? await Promise.all([sk.first, sk.last].map(u => new THREE.TextureLoader().loadAsync(base + u).then(t => {
+        t.colorSpace = THREE.NoColorSpace; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; return t; }))) : null;
       await Promise.all([fwd.ready, back.ready].concat(bl ? [fwd.pair.ready, back.pair.ready] : []));
       const pk = eq.packed || null;
       const tx = pk ? Math.tan(pk.hfov * Math.PI / 360) : 1, ty = pk ? tx * pk.flat[1] / pk.flat[0] : 1;
@@ -1955,6 +1960,10 @@
                     crossOn: { value: eq.cells ? 1 : 0 },
                     // walk_ends.py --dual-fisheye: two equidistant fisheyes (axes in the walk's right, down, forward)
                     map2: { value: bl ? fwd.pair.tex : null }, blendOn: { value: bl ? 1 : 0 },
+                    sky0: { value: skyTex ? skyTex[0] : null }, sky1: { value: skyTex ? skyTex[1] : null }, skyOn: { value: sk ? 1 : 0 },
+                    skyT: { value: 0 }, skyLo: { value: sk ? sk.lo : 0.3 }, skyHi: { value: sk ? sk.hi : 0.55 },
+                    sX: { value: new THREE.Vector3(...(sk ? sk.fisheye.eyes[0][0] : [1, 0, 0])) }, sY: { value: new THREE.Vector3(...(sk ? sk.fisheye.eyes[0][1] : [0, 1, 0])) },
+                    sZ: { value: new THREE.Vector3(...(sk ? sk.fisheye.eyes[0][2] : [0, 0, 1])) }, sRect: { value: new THREE.Vector4(...(sk ? sk.fisheye.eyes[0][3] : [0, 0, 1, 1])) },
                     gX: { value: new THREE.Vector3(...(bl ? bl.fisheye.eyes[0][0] : [1, 0, 0])) }, gY: { value: new THREE.Vector3(...(bl ? bl.fisheye.eyes[0][1] : [0, 1, 0])) },
                     gZ: { value: new THREE.Vector3(...(bl ? bl.fisheye.eyes[0][2] : [0, 0, 1])) }, gRect: { value: new THREE.Vector4(...(bl ? bl.fisheye.eyes[0][3] : [0, 0, 1, 1])) },
                     fishOn: { value: eq.fisheye ? 1 : 0 }, fishHalf: { value: eq.fisheye ? eq.fisheye.fov * Math.PI / 360 : 1 },
@@ -1978,6 +1987,7 @@
           // is most along, at (d.x / d.z, d.y / d.z) of that cell.
           uniform vec3 cX[6], cY[6], cZ[6]; uniform vec4 cRect[6]; uniform vec2 grid;   // each cell's u, v (from the top), width, height
           uniform float fishOn, fishHalf; uniform vec3 eX[2], eY[2], eZ[2]; uniform vec4 eRect[2];
+          uniform sampler2D sky0, sky1; uniform float skyOn, skyT, skyLo, skyHi; uniform vec3 sX, sY, sZ; uniform vec4 sRect;   // the ends' views up
           uniform sampler2D map2; uniform float blendOn; uniform vec3 gX, gY, gZ; uniform vec4 gRect;   // the looking-up walk
           vec2 eyeUv(vec3 d, vec3 x, vec3 y, vec3 z, vec4 rect) {
             float th = acos(clamp(dot(d, z), -1.0, 1.0)), ph = atan(dot(d, y), dot(d, x));
@@ -2007,6 +2017,8 @@
               // with a looking-up walk: its picture above the horizon, the looking-down one's below (each sharp at its
               // centre, weak at its rim, the other pole), crossfaded over 35 degrees about the horizon
               if (blendOn > 0.5) c = mix(c, texture2D(map2, eyeUv(d, gX, gY, gZ, gRect)).rgb, smoothstep(-0.3, 0.3, -d.y));
+              if (skyOn > 0.5) { vec2 su = eyeUv(d, sX, sY, sZ, sRect);
+                c = mix(c, mix(texture2D(sky0, su).rgb, texture2D(sky1, su).rgb, skyT), smoothstep(skyLo, skyHi, -d.y)); }
             }
             if (crossOn > 0.5) {
               float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
@@ -2127,6 +2139,8 @@
       if (walk.mode === 'eq') {
         if (!walk.anim) return false;
         const v = eqWalk.playing.v, u = Math.min(v.currentTime / (v.duration || 1), 1);
+        // the sky's fade follows the video (from the walk's first end to its last, the other way back)
+        eqWalk.mat.uniforms.skyT.value = eqWalk.playing === eqWalk.back ? 1 - u : u;
         const pv = eqWalk.playing.pair && eqWalk.playing.pair.v;   // the looking-up walk kept to the looking-down one's time
         if (pv && Math.abs(pv.currentTime - v.currentTime) > 0.05) pv.currentTime = v.currentTime;
         walk.t = walk.anim.from + (walk.anim.to - walk.anim.from) * u;
