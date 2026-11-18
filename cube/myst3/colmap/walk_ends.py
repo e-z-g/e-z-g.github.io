@@ -272,7 +272,7 @@ def horizon_r(th):
     return (th - np.sin(2 * th) / 4) / np.pi
 
 
-def draw_single_fisheye(faces, Rcam, W, H, fov=360.0, yaw=0.0, pitch=0.0, projection='equidistant'):
+def draw_single_fisheye(faces, Rcam, W, H, fov=360.0, yaw=0.0, pitch=0.0, projection='equidistant', axes=None):
     """The whole view as one circular equidistant fisheye, fov degrees across (360: everything; straight behind
     is the whole rim): ahead at the centre, so nothing is split between pictures. Square, H across. projection
     'equal-area': r = sin(theta / 2) / sin(fov / 4), every solid angle the same share of the circle; 'horizon'
@@ -289,7 +289,7 @@ def draw_single_fisheye(faces, Rcam, W, H, fov=360.0, yaw=0.0, pitch=0.0, projec
     else:
         th = r * np.radians(fov) / 2
     cam = np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], -1)
-    img = sample_dirs(faces, cam @ fisheye_eyes(Rcam, yaw, pitch)[0])
+    img = sample_dirs(faces, cam @ (fisheye_eyes(Rcam, yaw, pitch)[0] if axes is None else axes))
     img[r > 1] = 0
     g = np.zeros((H, W, 3), np.uint8); g[:, :S] = img
     return g
@@ -319,6 +319,19 @@ def aim_of(weak):
     """--eye-yaw and --eye-pitch that put a single fisheye's centre straight away from weak (its rim on it)."""
     c = -weak
     return float(np.degrees(np.arctan2(c[0], c[2]))), float(np.degrees(np.arcsin(np.clip(-c[1], -1, 1))))
+
+
+def turned_eye(E0, c1):
+    """The eye E0 (rows x, y, z in the model's frame) turned the shortest way to look along c1: the last end's eye
+    for aimed ends, so the two differ by the least turn and no spin about the centre (aiming each end by yaw and
+    pitch alone spun MACA 1 to 2's last picture half round, a 174 degree turn that H3 made as a dissolve)."""
+    a = E0[2]; b = c1 / np.linalg.norm(c1)
+    v = np.cross(a, b); s_, c_ = np.linalg.norm(v), float(a @ b)
+    if s_ < 1e-9:
+        return E0.copy()
+    k = v / s_; K = np.array([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]])
+    R = np.eye(3) + s_ * K + (1 - c_) * K @ K
+    return E0 @ R.T
 
 
 def draw_dual_fisheye(faces, Rcam, W, H, fov, yaw=0.0):
@@ -420,8 +433,10 @@ def main():
                 aims[i] = aim_of(wk)
                 print(f"{'first' if i == 0 else 'last'}: weakest spot {np.round(wk, 3)} (detail {lo:.1f}, median {med:.1f}); "
                       f"aimed yaw {aims[i][0]:.1f} pitch {aims[i][1]:.1f}")
-        ends = {id(FA): aims[0], id(FB): aims[1]}
-        render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, *ends[id(F)], proj)
+        E0 = fisheye_eyes(Rcam, *aims[0])[0]
+        E1 = turned_eye(E0, fisheye_eyes(Rcam, *aims[1])[0][2])
+        ends = {id(FA): E0, id(FB): E1}
+        render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, projection=proj, axes=ends[id(F)])
     elif a.dual_fisheye:
         render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw)
     elif a.net:
@@ -442,7 +457,7 @@ def main():
     M = FA[0][0].T @ np.diag([1.0, -1.0, -1.0])             # node frame -> model frame (walk_scene.py's)
     look = M.T @ fwd
     if a.single_fisheye:
-        E = fisheye_eyes(Rcam, *aims[0])[0]; E2 = fisheye_eyes(Rcam, *aims[1])[0]
+        E, E2 = E0, E1
         json.dump({'net': 'single-fisheye', 'projection': 'equal-area' if a.equal_area else a.projection, 'fov': a.single_fisheye,
                    'yaw': aims[0][0], 'pitch': aims[0][1], 'last_yaw': aims[1][0], 'last_pitch': aims[1][1], 'size': [W, H],
                    'eyes': [{'rect': [0, 0, H, H], 'axes': [[round(float(v), 6) for v in Rcam @ ax] for ax in E]}],
