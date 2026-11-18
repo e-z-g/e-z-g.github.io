@@ -341,7 +341,22 @@ def squash_y(yf, a):
     return yf + a * (np.sin(np.pi * yf / 2) - yf)
 
 
-def draw_dual_fisheye(faces, Rcam, W, H, fov, yaw=0.0, squash=0.0):
+def square_to_disc(x, y):
+    """--fill: the elliptical grid mapping, the square [-1, 1]^2 onto the unit disc (its edges onto the rim, a corner
+    onto the rim at 45 degrees), so a fisheye's circle fills its whole square and no pixel is black."""
+    return x * np.sqrt(np.clip(1 - y * y / 2, 0, None)), y * np.sqrt(np.clip(1 - x * x / 2, 0, None))
+
+
+def disc_to_square(u, v):
+    """The inverse of square_to_disc (for the viewer and walk_fidelity)."""
+    s2 = 2 * np.sqrt(2)
+    a, b = 2 + u * u - v * v, 2 - u * u + v * v
+    x = (np.sqrt(np.clip(a + s2 * u, 0, None)) - np.sqrt(np.clip(a - s2 * u, 0, None))) / 2
+    y = (np.sqrt(np.clip(b + s2 * v, 0, None)) - np.sqrt(np.clip(b - s2 * v, 0, None))) / 2
+    return x, y
+
+
+def draw_dual_fisheye(faces, Rcam, W, H, fov, yaw=0.0, squash=0.0, fill=False):
     """Two circular equidistant fisheyes side by side, each H across and fov degrees wide (over 180 they
     overlap at the rim): the walk's way ahead on the left, behind on the right; black outside the circles.
     Ahead, the ground runs from the horizon down into the circle's lower part in one picture, where a cube
@@ -352,12 +367,15 @@ def draw_dual_fisheye(faces, Rcam, W, H, fov, yaw=0.0, squash=0.0):
     if squash:                                           # the picture's rows back to the fisheye's (the table inverts it)
         g = np.linspace(-1, 1, 8193)
         y = np.interp(y, squash_y(g, squash), g)
+    if fill:                                             # the square's pixel to its point in the circle
+        x, y = square_to_disc(x, y)
     r = np.sqrt(x * x + y * y); th = r * np.radians(fov) / 2; ph = np.arctan2(y, x)
     cam = np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], -1)
     g = np.zeros((H, W, 3), np.uint8)
     for i, E in enumerate(fisheye_eyes(Rcam, yaw)):
         img = sample_dirs(faces, cam @ E)
-        img[r > 1] = 0
+        if not fill:
+            img[r > 1] = 0
         g[:, i * S:(i + 1) * S] = img
     return g
 
@@ -403,6 +421,8 @@ def main():
                     help='with --dual-fisheye: rows moved toward the middle, picture y = y + A (sin(pi y / 2) - y) of the '
                          "fisheye's y: the band round the horizon drawn 1 + A (pi / 2 - 1) times taller, the top and "
                          'bottom 1 - A times (0.35: 1.2 and 0.65)')
+    ap.add_argument('--fill', action='store_true',
+                    help="with --dual-fisheye: each circle stretched to fill its square (square_to_disc), no black corners")
     ap.add_argument('--along-motion', action='store_true',
                     help='forward is the straight line from NODE_A to NODE_B, climb included (not levelled): with '
                          '--dual-fisheye the two eyes look straight along the walk and straight back')
@@ -458,7 +478,7 @@ def main():
         ends = {id(FA): E0, id(FB): E1}
         render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, projection=proj, axes=ends[id(F)])
     elif a.dual_fisheye:
-        render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw, a.squash)
+        render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw, a.squash, a.fill)
     elif a.net:
         render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap, a.fill, a.false_line)
     elif a.cross_hub:
