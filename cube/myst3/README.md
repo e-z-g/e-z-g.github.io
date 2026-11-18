@@ -2203,6 +2203,29 @@ stepped from LEOF 11, so it stands or falls with it.
 Carving (`scene_carve.py`) would cut 29% of the triangles (89% in LEOS); at
 nine nodes the carved and uncarved views are the same, so the scene is uncarved.
 
+### Hotspot priors for COLMAP (17 November 2026)
+
+`hotspot_layout.py` places every node of an age from the hotspots alone (headings;
+distances and climbs from paired pitches). Zips are left out (`--no-zips`): their
+lengths are guesses, and with them Amateria's layout was 5.7 spacings from the
+model; without, 1.0 (90% within 2.0). The pitch distances are right on average
+(model/pitch median 1.03) but noisy (10–90%: 0.54–1.58). J'nanin's layout is 1.9
+spacings from its model (90% 3.2), except LEOF 11, 10 spacings off.
+
+`add_priors.py` writes the layout into a COLMAP database as position priors.
+J'nanin's run2 database mapped again with `pose_prior_mapper` (COLMAP 4.2.1;
+std 1.5 spacings, robust; `jnanin_priors.ps1`): 12 pieces, 90 nodes in all (the
+joined model has 86), each piece within 0.4–2.4 spacings (median) of the priors.
+LEOF 1–10 and LEOS 2–8 were registered from their pictures for the first time,
+but in pieces of their own, placed only by the priors; LEOF 11 in none. Not used.
+
+Moving LEOF to the hotspot layout's places (fitted to the scene by a similarity,
+median misfit 1.9) put the walks LEOS 1 to LEOF 11 and LEIS 77 to LEOF 22 77–92°
+off their hotspots, worse than now; undone. LEOS 1 to LEOF 11 has two hotspots, at
+headings 80 and 270, and the model climbs 70 spacings on it: likely not a walk at
+all, which both the model and the hotspot layout take it for. Where LEOF stands
+waits on how the game gets there.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the
