@@ -14,7 +14,7 @@ The add-on's four nodes are found by name in the server's /object_info and
 each input set by name: the settings here where given, the node's default
 otherwise. For a 16 GB card: the DiT kept in system memory and swapped in
 block by block (--swap), the VAE tiled. Writes OUT.mp4 at the input's frame
-rate divided by --every. Standard library only.
+rate divided by --every, and every frame losslessly as OUT_frames/0000.png ... Standard library only.
 """
 import argparse
 import json
@@ -98,6 +98,8 @@ def main():
         '3': {'class_type': n_up, 'inputs': up},
         '4': {'class_type': 'CreateVideo', 'inputs': {'images': ['3', out_idx], 'fps': ['11', 2]}},
         '5': {'class_type': 'SaveVideo', 'inputs': {'video': ['4', 0], 'filename_prefix': 'video/seedvr2', 'format': 'auto', 'codec': 'auto'}},
+        # every frame as a PNG too: the lossless master beside the H.264 MP4
+        '6': {'class_type': 'SaveImage', 'inputs': {'images': ['3', out_idx], 'filename_prefix': f'seedvr2_frames/{uuid.uuid4().hex[:8]}'}},
     }
     r = api(a.server, '/prompt', {'prompt': g, 'client_id': uuid.uuid4().hex})
     if r.get('node_errors'):
@@ -119,6 +121,11 @@ def main():
         for it in items if isinstance(items, list) else []:
             if isinstance(it, dict) and 'filename' in it:
                 shutil.copy(os.path.join(a.comfy_output, it.get('subfolder', ''), it['filename']), a.out)
+    fdir = os.path.splitext(a.out)[0] + '_frames'
+    os.makedirs(fdir, exist_ok=True)
+    pngs = [it for it in h[pid]['outputs'].get('6', {}).get('images', []) if isinstance(it, dict) and 'filename' in it]
+    for k, it in enumerate(pngs):
+        shutil.move(os.path.join(a.comfy_output, it.get('subfolder', ''), it['filename']), os.path.join(fdir, f'{k:04d}.png'))
     print(f'{a.out}: done in {time.time() - t0:.0f} s', flush=True)
 
 
