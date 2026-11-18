@@ -37,6 +37,10 @@ const WALKS = [
     ['d060', 'Render + H3 0.6', 'Denoise 0.6: cleanest, drifts further from the render and adds things.'],
     ['up045', 'Looking up, 0.45', 'The looking-up render through H3 at 0.45: the ceiling in the centre, the floor round the rim. In the 3D viewer (?glide=h3) its upper half is laid over the looking-down 0.45 walk.'],
   ] },
+  { id: 'leis6278', label: "J'nanin: LEIS 62 to 78 (two projections)", dir: './jnanin/walk/compare/', versions: [
+    ['eq', 'Equidistant', 'Plain H3 at 1152, seed 1. The fisheye spaces angles evenly from the centre (straight down) to the rim (straight up).'],
+    ['hz', 'Horizon-weighted', 'Plain H3 at 1152, seed 1. The fisheye gives the horizon about three times the pixels per degree that the ground and sky get.'],
+  ] },
 ];
 const v = document.getElementById('v'), walkSel = document.getElementById('walk'), box = document.getElementById('versions');
 const pos = document.getElementById('pos'), playBtn = document.getElementById('play'), note = document.getElementById('note'), dirEl = document.getElementById('dir');
