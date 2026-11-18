@@ -75,7 +75,8 @@ let nodes = {}, mesh = null, here = null, glide = null, moveDots = null;
 // nodes shown as their own pictures only (views.json's "alone": interiors, which no picture ties to the outside,
 // and views of a changed scene): not in the mesh, not projected onto it; standing at one shows its panorama alone
 let ALONE = new Set();
-window.scene3d = { dots: true };
+// ?glide=warp: glides drawn as the two nodes' own views crossfaded, not the fused mesh (scene3d.warp)
+window.scene3d = { dots: true, warp: new URLSearchParams(location.search).get('glide') === 'warp' };
 // the game's moves between nodes (scene_links.py from its scripts): tap toward one, or the up arrow, to walk it
 const LINKS = await fetch(ROOT + 'scene_age/links.json').then(r => r.ok ? r.json() : {}).catch(() => ({}));
 function standAt(n) {
@@ -272,8 +273,45 @@ void main(){ vec3 d = normalize(vW - eye), c = texture2D(pic, atlasUV(Q * d, 0.6
   gl_FragColor = vec4(holes > 0.5 ? vec3(0.0, 1.0, 0.0) : c, 1.0); }` });
   const sky = new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), skyMat);
   sky.renderOrder = -1; sky.frustumCulled = false; sky.visible = false; scene.add(sky);
+  // the glide drawn without the fused mesh (?glide=warp): the two nodes' own views, each its picture on a sphere
+  // pushed out by its own distances (the mesh rendered from that node), torn where the distance jumps (a fragment
+  // whose distance from the node differs from the node's own distance in its direction by more than tear), crossfaded
+  // from the node left to the node reached; the fragments the fused mesh has between nodes are behind what each
+  // node sees, so they are never drawn
+  const warpMat = () => new THREE.ShaderMaterial({ transparent: true, side: THREE.DoubleSide,
+    uniforms: { pic: { value: null }, dep: { value: null }, Q: { value: new THREE.Matrix3() }, np: { value: new THREE.Vector3() },
+                alpha: { value: 1 }, tear: { value: 0.06 } },
+    vertexShader: `#include <packing>
+uniform sampler2D dep; uniform mat3 Q; uniform vec3 np; varying vec3 vW;
+${atlasGLSL}
+float far(float r) { return r > ${(DIST * 0.99).toFixed(2)} ? 60.0 : r; }
+void main(){ vec3 d = normalize(position);
+  float r = far(unpackRGBAToDepth(texture2D(dep, atlasUV(Q * d, 0.5 / ${CELL.toFixed(1)}))) * ${DIST.toFixed(1)});
+  vW = np + d * r; gl_Position = projectionMatrix * viewMatrix * vec4(vW, 1.0); }`,
+    fragmentShader: `#include <packing>
+uniform sampler2D pic, dep; uniform mat3 Q; uniform vec3 np; uniform float alpha, tear; varying vec3 vW;
+${atlasGLSL}
+float far(float r) { return r > ${(DIST * 0.99).toFixed(2)} ? 60.0 : r; }
+void main(){ vec3 v = vW - np; float l = length(v); vec3 d = Q * (v / l);
+  float r = far(unpackRGBAToDepth(texture2D(dep, atlasUV(d, 0.5 / ${CELL.toFixed(1)}))) * ${DIST.toFixed(1)});
+  if (abs(l - r) > tear * r) discard;
+  gl_FragColor = vec4(texture2D(pic, atlasUV(d, 0.6 / 640.0)).rgb, alpha); }` });
+  const warpGeo = new THREE.SphereGeometry(1, 384, 192);
+  const warps = [new THREE.Mesh(warpGeo, warpMat()), new THREE.Mesh(warpGeo, warpMat())];
+  warps[1].onBeforeRender = r => r.clearDepth();            // the node reached over the node left, each hiding only itself
+  warps.forEach((w, i) => { w.frustumCulled = false; w.visible = false; w.renderOrder = 1 + i; scene.add(w); });
+  function warp(a, b, f) {
+    [a, b].forEach((n, i) => { const e = need(n), u = warps[i].material.uniforms;
+      u.pic.value = e.pic; u.dep.value = e.dep.texture; u.Q.value.copy(e.Q); u.np.value.copy(e.pos);
+      u.alpha.value = i ? f : 1; warps[i].visible = !!e.pic; });
+    const ea = cache.get(a), eb = cache.get(b), u = skyMat.uniforms;
+    sky.visible = !!(ea && ea.pic); if (!sky.visible) return;
+    u.pic.value = ea.pic; u.Q.value.copy(ea.Q); u.f.value = 0;
+    if (eb && eb.pic) { u.pic1.value = eb.pic; u.Q1.value.copy(eb.Q); u.f.value = f; }
+    sky.position.copy(camera.position);
+  }
   const origUpdate = update;
-  proj = { mat: projMat, uni, sky, update(ref, standing) {
+  proj = { mat: projMat, uni, sky, warp, warpOff() { warps.forEach(w => { w.visible = false; }); }, update(ref, standing) {
     origUpdate(ref);
     const dist = n => ref.distanceTo(new THREE.Vector3(...views[n].pos));
     let a = null, b = null;
@@ -326,15 +364,23 @@ function pickMove(dir, within, flat) {
   }
   return best;
 }
+// for tests: the glide from a to b held at s (0-1), the eye there looking along the way
+scene3d.glideAt = (a, b, s) => {
+  const p0 = new THREE.Vector3(...nodes[a]), p1 = new THREE.Vector3(...nodes[b]), d = level(p1.clone().sub(p0));
+  here = null; glide = { from: a, to: b, s, frozen: true, p0, p1 }; showMoves();
+  const p = p0.clone().lerp(p1, s); camera.position.copy(p); controls.target.copy(p).addScaledVector(d, 0.01); controls.update();
+};
 function go(m) {
   if (m.kind === 'zip' || ALONE.has(m.to) || ALONE.has(here)) { standAt(m.to); return; }   // into or out of a pictures-only node: a cut
   const p0 = new THREE.Vector3(...nodes[here]), p1 = new THREE.Vector3(...nodes[m.to]);
   const d0 = new THREE.Vector3(); camera.getWorldDirection(d0);
-  glide = { to: m.to, p0, p1, d0, d1: level(p1.clone().sub(p0)), t0: performance.now(), ms: Math.min(2200, 500 + 1300 * p0.distanceTo(p1)) };
+  glide = { from: here, to: m.to, s: 0, p0, p1, d0, d1: level(p1.clone().sub(p0)), t0: performance.now(), ms: Math.min(2200, 500 + 1300 * p0.distanceTo(p1)) };
   here = null; showMoves();
 }
 function stepGlide() {
+  if (glide.frozen) return;
   const t = Math.min(1, (performance.now() - glide.t0) / glide.ms), s = t * t * (3 - 2 * t);
+  glide.s = s;
   const p = glide.p0.clone().lerp(glide.p1, s), d = glide.d0.clone().lerp(glide.d1, Math.min(1, s * 2)).normalize();
   camera.position.copy(p); controls.target.copy(p).addScaledVector(d, 0.01);
   if (t >= 1) standAt(glide.to);
@@ -390,10 +436,12 @@ renderer.setAnimationLoop(() => {
   controls.update();
   if (glide) stepGlide();
   // the nodes nearest where you stand, or in Orbit nearest what you circle
-  if (proj && mesh.material === proj.mat) { const standing = controls.maxDistance < 0.05;
-    proj.uni.eye.value.copy(camera.position); proj.update(standing ? camera.position : controls.target, standing);
+  if (proj && mesh.material === proj.mat && glide && scene3d.warp) {      // a glide as the two nodes' own views
+    mesh.visible = false; proj.warp(glide.from, glide.to, glide.s); }
+  else if (proj && mesh.material === proj.mat) { const standing = controls.maxDistance < 0.05;
+    proj.warpOff(); proj.uni.eye.value.copy(camera.position); proj.update(standing ? camera.position : controls.target, standing);
     mesh.visible = !(standing && ALONE.has(here)); }
-  else { if (proj) proj.sky.visible = false; mesh.visible = true; }
+  else { if (proj) { proj.sky.visible = false; proj.warpOff(); } mesh.visible = true; }
   renderer.render(scene, camera);
 });
 </script>
