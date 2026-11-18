@@ -298,7 +298,9 @@ void main(){ vec3 v = vW - np; float l = length(v); vec3 d = Q * (v / l);
   gl_FragColor = vec4(texture2D(pic, atlasUV(d, 0.6 / 640.0)).rgb, alpha); }` });
   const warpGeo = new THREE.SphereGeometry(1, 384, 192);
   const warps = [new THREE.Mesh(warpGeo, warpMat()), new THREE.Mesh(warpGeo, warpMat())];
-  warps[1].onBeforeRender = r => r.clearDepth();            // the node reached over the node left, each hiding only itself
+  // the fused mesh drawn first and the two views over it, each hiding only itself: the mesh shows only through
+  // the views' tears (where neither node saw), not as shards in front of them
+  warps.forEach(w => { w.onBeforeRender = r => r.clearDepth(); });
   warps.forEach((w, i) => { w.frustumCulled = false; w.visible = false; w.renderOrder = 1 + i; scene.add(w); });
   function warp(a, b, f) {
     [a, b].forEach((n, i) => { const e = need(n), u = warps[i].material.uniforms;
@@ -437,7 +439,8 @@ renderer.setAnimationLoop(() => {
   if (glide) stepGlide();
   // the nodes nearest where you stand, or in Orbit nearest what you circle
   if (proj && mesh.material === proj.mat && glide && scene3d.warp) {      // a glide as the two nodes' own views
-    mesh.visible = false; proj.warp(glide.from, glide.to, glide.s); }
+    proj.uni.eye.value.copy(camera.position); proj.update(camera.position, false);
+    mesh.visible = true; proj.warp(glide.from, glide.to, glide.s); }
   else if (proj && mesh.material === proj.mat) { const standing = controls.maxDistance < 0.05;
     proj.warpOff(); proj.uni.eye.value.copy(camera.position); proj.update(standing ? camera.position : controls.target, standing);
     mesh.visible = !(standing && ALONE.has(here)); }

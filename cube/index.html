@@ -1927,16 +1927,20 @@
         const tr = list.find(x => x.name === CROSS_TRIAL);
         if (!tr) throw new Error('no trial walk ' + CROSS_TRIAL);
         cross = Object.assign({}, tr, { video: '../walk/trials/' + tr.video, back: '../walk/trials/' + tr.back });
+        // a trial with "blend": a second fisheye walk (looking up) for the sky, the first (looking down) for the ground
+        if (tr.blend) cross.blend = Object.assign({}, tr.blend, { video: '../walk/trials/' + tr.blend.video, back: '../walk/trials/' + tr.blend.back });
       }
       const eq = CROSS_WALK && cross ? Object.assign({}, cfg.eq, cross, { packed: null }) : cfg.eq;
       const fwd = video(base + eq.video), back = video(base + eq.back);
+      const bl = eq.blend || null;
+      if (bl) { fwd.pair = video(base + bl.video); back.pair = video(base + bl.back); }
       // cfg.eq.packed: one video holding both the 360 walk (top, W x W/2) and
       // a flat walk looking ahead (below it, left; the same model, 90 degrees
       // across, so about as sharp as the panorama there), laid over the 360
       // one where it reaches, its edges feathered: the whole-sphere video has
       // a quarter of the panorama's detail. One video, not two kept in step:
       // seeking one to the other's time every frame made a phone stutter.
-      await Promise.all([fwd.ready, back.ready]);
+      await Promise.all([fwd.ready, back.ready].concat(bl ? [fwd.pair.ready, back.pair.ready] : []));
       const pk = eq.packed || null;
       const tx = pk ? Math.tan(pk.hfov * Math.PI / 360) : 1, ty = pk ? tx * pk.flat[1] / pk.flat[0] : 1;
       const H = pk ? pk.size[1] : 1, Wd = pk ? pk.size[0] : 1;
@@ -1950,6 +1954,9 @@
                     flatV: { value: pk ? pk.flat[1] / H : 1 }, texel: { value: new THREE.Vector2(1 / Wd, 1 / H) },
                     crossOn: { value: eq.cells ? 1 : 0 },
                     // walk_ends.py --dual-fisheye: two equidistant fisheyes (axes in the walk's right, down, forward)
+                    map2: { value: bl ? fwd.pair.tex : null }, blendOn: { value: bl ? 1 : 0 },
+                    gX: { value: new THREE.Vector3(...(bl ? bl.fisheye.eyes[0][0] : [1, 0, 0])) }, gY: { value: new THREE.Vector3(...(bl ? bl.fisheye.eyes[0][1] : [0, 1, 0])) },
+                    gZ: { value: new THREE.Vector3(...(bl ? bl.fisheye.eyes[0][2] : [0, 0, 1])) }, gRect: { value: new THREE.Vector4(...(bl ? bl.fisheye.eyes[0][3] : [0, 0, 1, 1])) },
                     fishOn: { value: eq.fisheye ? 1 : 0 }, fishHalf: { value: eq.fisheye ? eq.fisheye.fov * Math.PI / 360 : 1 },
                     eX: { value: [0, 1].map(i => new THREE.Vector3(...(eq.fisheye ? eq.fisheye.eyes[i][0] : [1, 0, 0]))) },
                     eY: { value: [0, 1].map(i => new THREE.Vector3(...(eq.fisheye ? eq.fisheye.eyes[i][1] : [0, 1, 0]))) },
@@ -1971,6 +1978,7 @@
           // is most along, at (d.x / d.z, d.y / d.z) of that cell.
           uniform vec3 cX[6], cY[6], cZ[6]; uniform vec4 cRect[6]; uniform vec2 grid;   // each cell's u, v (from the top), width, height
           uniform float fishOn, fishHalf; uniform vec3 eX[2], eY[2], eZ[2]; uniform vec4 eRect[2];
+          uniform sampler2D map2; uniform float blendOn; uniform vec3 gX, gY, gZ; uniform vec4 gRect;   // the looking-up walk
           vec2 eyeUv(vec3 d, vec3 x, vec3 y, vec3 z, vec4 rect) {
             float th = acos(clamp(dot(d, z), -1.0, 1.0)), ph = atan(dot(d, y), dot(d, x));
             vec2 f = 0.5 + 0.5 * (th / fishHalf) * vec2(cos(ph), sin(ph));               // within the eye's square, y down
@@ -1996,6 +2004,9 @@
               vec3 c0 = texture2D(map, eyeUv(d, eX[0], eY[0], eZ[0], eRect[0])).rgb;
               vec3 c1 = texture2D(map, eyeUv(d, eX[1], eY[1], eZ[1], eRect[1])).rgb;
               c = mix(c1, c0, w);
+              // with a looking-up walk: its picture above the horizon, the looking-down one's below (each sharp at its
+              // centre, weak at its rim, the other pole), crossfaded over 35 degrees about the horizon
+              if (blendOn > 0.5) c = mix(c, texture2D(map2, eyeUv(d, gX, gY, gZ, gRect)).rgb, smoothstep(-0.3, 0.3, -d.y));
             }
             if (crossOn > 0.5) {
               float lon = (v.x - 0.5) * 6.2831853, lat = (v.y - 0.5) * 3.1415927;
@@ -2026,11 +2037,13 @@
       // walk's first frame (it held the picture a fifth of a second)
       if (renderer.compileAsync) await renderer.compileAsync(sc, camera);   // for the screen, where it is drawn
       const warm = new THREE.WebGLRenderTarget(16, 16);
-      for (const w of [fwd, back]) { mat.uniforms.map.value = w.tex; w.tex.needsUpdate = true; renderer.setRenderTarget(warm); renderer.render(sc, camera); }
+      for (const w of [fwd, back]) { mat.uniforms.map.value = w.tex; w.tex.needsUpdate = true;
+        if (w.pair) { mat.uniforms.map2.value = w.pair.tex; w.pair.tex.needsUpdate = true; }
+        renderer.setRenderTarget(warm); renderer.render(sc, camera); }
       renderer.setRenderTarget(null); warm.dispose();
       // each video played a moment and rewound while loading, so its decoder
       // is running before the walk (it waited for frames a tenth of a second in)
-      for (const w of [fwd, back]) {
+      for (const w of [fwd, back].concat(bl ? [fwd.pair, back.pair] : [])) {
         await w.v.play().catch(() => {});
         await new Promise(r => { const t0 = setTimeout(r, 400); w.v.requestVideoFrameCallback ? w.v.requestVideoFrameCallback(() => { clearTimeout(t0); r(); }) : null; });
         w.v.pause();
@@ -2052,6 +2065,7 @@
         eqWalk.playing = w;
         if (w.v.currentTime !== 0) w.v.currentTime = 0;   // rewound when the last walk ended, so normally no seek here
         w.v.play().catch(() => {});
+        if (w.pair) { eqWalk.mat.uniforms.map2.value = w.pair.tex; if (w.pair.v.currentTime !== 0) w.pair.v.currentTime = 0; w.pair.v.play().catch(() => {}); }
         prefetchLocation(cfg.to);
         walk.mode = 'eq';
         walk.anim = { from: cfg.at || 0, to: 1 - (cfg.at || 0), at: performance.now(), toLoc: cfg.to };
@@ -2113,12 +2127,14 @@
       if (walk.mode === 'eq') {
         if (!walk.anim) return false;
         const v = eqWalk.playing.v, u = Math.min(v.currentTime / (v.duration || 1), 1);
+        const pv = eqWalk.playing.pair && eqWalk.playing.pair.v;   // the looking-up walk kept to the looking-down one's time
+        if (pv && Math.abs(pv.currentTime - v.currentTime) > 0.05) pv.currentTime = v.currentTime;
         walk.t = walk.anim.from + (walk.anim.to - walk.anim.from) * u;
         if (!(v.ended || u >= 0.999)) { drawEqWalk(); return true; }
         // arrived: the video's last frame is what the other location's panorama fades in over
         const to = locations.find(l => l.name === walk.anim.toLoc);
         const done = eqWalk.playing;
-        setTimeout(() => { done.v.pause(); done.v.currentTime = 0; }, WALK_ARRIVE_MS + 100);   // rewound for next time, off the walk's clock
+        setTimeout(() => { for (const x of [done, done.pair]) if (x) { x.v.pause(); x.v.currentTime = 0; } }, WALK_ARRIVE_MS + 100);   // rewound for next time, off the walk's clock
         walk.anim = null; walk.mode = null;
         if (!to) { walkLabel(); return false; }
         drawEqWalk(rtOld);
