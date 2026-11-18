@@ -265,13 +265,15 @@ def fisheye_eyes(Rcam, yaw=0.0, pitch=0.0):
     return [np.stack([r, d, f]), np.stack([-r, d, -f])]
 
 
-def draw_single_fisheye(faces, Rcam, W, H, fov=360.0, yaw=0.0, pitch=0.0):
+def draw_single_fisheye(faces, Rcam, W, H, fov=360.0, yaw=0.0, pitch=0.0, equal_area=False):
     """The whole view as one circular equidistant fisheye, fov degrees across (360: everything; straight behind
-    is the whole rim): ahead at the centre, so nothing is split between pictures. Square, H across."""
+    is the whole rim): ahead at the centre, so nothing is split between pictures. Square, H across. equal_area: the
+    equal-area fisheye instead (r = sin(theta / 2) / sin(fov / 4)), every solid angle the same share of the circle."""
     S = H
     v, u = np.mgrid[0:S, 0:S].astype(np.float64)
     x = (u + .5) / S * 2 - 1; y = (v + .5) / S * 2 - 1
-    r = np.sqrt(x * x + y * y); th = r * np.radians(fov) / 2; ph = np.arctan2(y, x)
+    r = np.sqrt(x * x + y * y); ph = np.arctan2(y, x)
+    th = 2 * np.arcsin(np.clip(r * np.sin(np.radians(fov) / 4), -1, 1)) if equal_area else r * np.radians(fov) / 2
     cam = np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], -1)
     img = sample_dirs(faces, cam @ fisheye_eyes(Rcam, yaw, pitch)[0])
     img[r > 1] = 0
@@ -335,6 +337,7 @@ def main():
     ap.add_argument('--single-fisheye', type=float, nargs='?', const=360.0,
                     help='the whole view as one circular fisheye of this many degrees (360) ahead (--size square)')
     ap.add_argument('--eye-yaw', type=float, default=0.0, help='with --dual-fisheye: both eyes turned this many degrees to the right')
+    ap.add_argument('--equal-area', action='store_true', help='with --single-fisheye: the equal-area fisheye, not equidistant')
     ap.add_argument('--eye-pitch', type=float, default=0.0, help='with --single-fisheye: tilted this many degrees up (-90: straight down)')
     ap.add_argument('--net', choices=sorted(NETS) + sorted(STRIPS), help='another cube net (NETS) or rows of faces (STRIPS); writes layout.json')
     ap.add_argument('--gap', type=int, default=0, help='px of black between rows (with --net)')
@@ -361,7 +364,7 @@ def main():
     if a.equirect:
         render = lambda F: draw_equirect(F, Rcam, W, H)
     elif a.single_fisheye:
-        render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, a.eye_yaw, a.eye_pitch)
+        render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, a.eye_yaw, a.eye_pitch, a.equal_area)
     elif a.dual_fisheye:
         render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw)
     elif a.net:
@@ -383,7 +386,7 @@ def main():
     look = M.T @ fwd
     if a.single_fisheye:
         E = fisheye_eyes(Rcam, a.eye_yaw, a.eye_pitch)[0]
-        json.dump({'net': 'single-fisheye', 'fov': a.single_fisheye, 'yaw': a.eye_yaw, 'pitch': a.eye_pitch, 'size': [W, H],
+        json.dump({'net': 'single-fisheye', 'projection': 'equal-area' if a.equal_area else 'equidistant', 'fov': a.single_fisheye, 'yaw': a.eye_yaw, 'pitch': a.eye_pitch, 'size': [W, H],
                    'eyes': [{'rect': [0, 0, H, H], 'axes': [[round(float(v), 6) for v in Rcam @ ax] for ax in E]}]},
                   open(os.path.join(a.out, 'layout.json'), 'w'), indent=1)
     if a.dual_fisheye:
