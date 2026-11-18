@@ -2265,6 +2265,40 @@ reads them from there (`?local` for the site's own folder, for testing). The
 site is now 412 MB. To update a scene: `hf upload EgadZoundsGadzooks/myst3-ages
 DIR jnanin/scene_age --repo-type dataset`.
 
+### Walks rendered, then cleaned by H3 at low denoise (18 November 2026)
+
+Sam's idea, after the warped views and the fused mesh both left shards: render the
+glide from the geometry (its layout and motion right, its surfaces broken), then let
+a video model clean it at low denoise, the game's own first and last frames held.
+
+1. `scene3d.html` renders any glide as walk_ends.py's ONE 360-degree fisheye, looking
+   down or up (`scene3d.fisheyeDown(size, up)`; at MASS 84 it matches walk_ends.py's
+   picture). `reference/myst3/warp_test/render_walk.js` saves 124 frames in
+   `?glide=warp` (the two nodes' warped views over the mesh).
+2. `h3_flf.py --init VIDEO --denoise D` starts H3 from that video: a node in the
+   PC's ComfyUI `custom_nodes` (`pc_scripts/comfy_nodes/minimax_h3_init.py`, from
+   e-z-g-disassembly) VAE-encodes it into the video half of H3's latent.
+3. MACA 1 to 2 at 0.3, 0.45 and 0.6 against the render (`warp_test/denoise_score.py`,
+   at 288 px; drift is the mean difference after a blur, flicker the frame-to-frame
+   change; the render's own flicker 0.46):
+
+| version | drift | flicker |
+|---|---|---|
+| plain H3 (no render) | 14.8 | 2.18 |
+| 0.3 | 3.3 | 0.70 |
+| 0.45 | 5.7 | 0.89 |
+| 0.6 | 9.4 | 1.41 |
+
+   0.45 is used: the shards mostly gone, the tunnel's layout kept. 0.6 adds things.
+4. The looking-up render is cleaned the same way and gives the ceiling; two passes
+   over one render agree, where two separate H3 walks blended about the horizon
+   ghosted. `scene3d.html?glide=h3` plays a walk listed in `<age>/walk/h3.json` (the
+   looking-down video round the eye, the looking-up one's upper half over it, the eye
+   kept to the video's time); MACA 1 to 2 is the first. The warped views as the cap
+   (tried first) tore under a near ceiling. `walk-compare.html` plays a walk's
+   versions there and back, switching at the same moment. `pc_scripts/lowdenoise_walk.ps1`
+   makes one walk (about 35 minutes on the PC).
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the
