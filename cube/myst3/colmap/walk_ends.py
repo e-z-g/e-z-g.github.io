@@ -389,6 +389,9 @@ def main():
                     help='two circular fisheyes of this many degrees (190), ahead and behind, side by side (--size 2:1)')
     ap.add_argument('--single-fisheye', type=float, nargs='?', const=360.0,
                     help='the whole view as one circular fisheye of this many degrees (360) ahead (--size square)')
+    ap.add_argument('--along-motion', action='store_true',
+                    help='forward is the straight line from NODE_A to NODE_B, climb included (not levelled): with '
+                         '--dual-fisheye the two eyes look straight along the walk and straight back')
     ap.add_argument('--eye-yaw', type=float, default=0.0, help='with --dual-fisheye: both eyes turned this many degrees to the right')
     ap.add_argument('--equal-area', action='store_true', help='with --single-fisheye: the equal-area fisheye (as --projection equal-area)')
     ap.add_argument('--projection', choices=['equidistant', 'equal-area', 'horizon'], default='equidistant',
@@ -412,7 +415,10 @@ def main():
     CA, FA = faces_of(a.images, imgs, a.a)
     CB, FB = faces_of(a.images, imgs, a.b)
     up = -FA[0][0][1]                                        # minus the y axis of face 1's camera
-    fwd = CB - CA; fwd -= up * (fwd @ up); fwd /= np.linalg.norm(fwd)
+    fwd = CB - CA
+    if not a.along_motion:
+        fwd -= up * (fwd @ up)
+    fwd /= np.linalg.norm(fwd)
     yaw, pitch = np.radians(a.yaw), np.radians(a.pitch)
     right = np.cross(fwd, up); right /= np.linalg.norm(right)
     fwd = np.cos(yaw) * fwd + np.sin(yaw) * right
