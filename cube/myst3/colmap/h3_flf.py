@@ -15,7 +15,8 @@ With --control, the model goes through H3's Fun ControlNet-Union patch with a
 control video (depth, edges or pose) guiding the motion.
 Width and height are multiples of 32; frames are 17k+5 (124 is 5.2 s at 24
 fps). Writes OUT_DIR/walk.mp4 (24 fps, with H3's sound); with --seeds, one
-walk_s<seed>.mp4 for each, all queued at once on the one server, so the models
+walk_s<seed>.mp4 for each (H.264, with the sound), and every frame losslessly as
+OUT_DIR/frames_s<seed>/0000.png ... (the master to measure and build from), all queued at once on the one server, so the models
 load once. Standard library only.
 """
 import argparse
@@ -88,6 +89,8 @@ def main():
           '15': {'class_type': 'VAEDecodeAudio', 'inputs': {'samples': ['13', 0], 'vae': ['5', 0]}},
           '16': {'class_type': 'CreateVideo', 'inputs': {'images': ['14', 0], 'audio': ['15', 0], 'fps': 24.0}},
           '17': {'class_type': 'SaveVideo', 'inputs': {'video': ['16', 0], 'filename_prefix': 'video/h3_flf', 'format': 'auto', 'codec': 'auto'}},
+          # every decoded frame as a PNG too: the lossless master (the MP4 is H.264, for a quick look and the sound)
+          '18': {'class_type': 'SaveImage', 'inputs': {'images': ['14', 0], 'filename_prefix': f'h3_frames/{uuid.uuid4().hex[:8]}_s{seed}'}},
       }
       if a.control:
           # the turbo-LoRA'd model through the ControlNet patch, guided by the control video's frames
@@ -130,6 +133,11 @@ def main():
           for it in items if isinstance(items, list) else []:
               if isinstance(it, dict) and 'filename' in it:
                   shutil.copy(os.path.join(a.comfy_output, it.get('subfolder', ''), it['filename']), os.path.join(a.out, name))
+      fdir = os.path.join(a.out, f'frames_s{seed}')
+      os.makedirs(fdir, exist_ok=True)
+      pngs = [it for it in h[pid]['outputs'].get('18', {}).get('images', []) if isinstance(it, dict) and 'filename' in it]
+      for k, it in enumerate(pngs):
+          shutil.move(os.path.join(a.comfy_output, it.get('subfolder', ''), it['filename']), os.path.join(fdir, f'{k:04d}.png'))
       print(f'{a.out}\\{name}: {W}x{H}, {a.frames} frames, {a.steps} steps, seed {seed}, {time.time() - t0:.0f} s since queued', flush=True)
 
 
