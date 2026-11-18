@@ -334,7 +334,14 @@ def turned_eye(E0, c1):
     return E0 @ R.T
 
 
-def draw_dual_fisheye(faces, Rcam, W, H, fov, yaw=0.0):
+def squash_y(yf, a):
+    """--squash: a fisheye's height (-1 top, 1 bottom) to the picture's, y + a (sin(pi y / 2) - y): the rows round the
+    middle (the horizon, for eyes along a level walk) drawn 1 + a (pi / 2 - 1) times taller, the top and bottom
+    rows 1 - a times as tall."""
+    return yf + a * (np.sin(np.pi * yf / 2) - yf)
+
+
+def draw_dual_fisheye(faces, Rcam, W, H, fov, yaw=0.0, squash=0.0):
     """Two circular equidistant fisheyes side by side, each H across and fov degrees wide (over 180 they
     overlap at the rim): the walk's way ahead on the left, behind on the right; black outside the circles.
     Ahead, the ground runs from the horizon down into the circle's lower part in one picture, where a cube
@@ -342,6 +349,9 @@ def draw_dual_fisheye(faces, Rcam, W, H, fov, yaw=0.0):
     S = H
     v, u = np.mgrid[0:S, 0:S].astype(np.float64)
     x = (u + .5) / S * 2 - 1; y = (v + .5) / S * 2 - 1
+    if squash:                                           # the picture's rows back to the fisheye's (the table inverts it)
+        g = np.linspace(-1, 1, 8193)
+        y = np.interp(y, squash_y(g, squash), g)
     r = np.sqrt(x * x + y * y); th = r * np.radians(fov) / 2; ph = np.arctan2(y, x)
     cam = np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], -1)
     g = np.zeros((H, W, 3), np.uint8)
@@ -389,6 +399,10 @@ def main():
                     help='two circular fisheyes of this many degrees (190), ahead and behind, side by side (--size 2:1)')
     ap.add_argument('--single-fisheye', type=float, nargs='?', const=360.0,
                     help='the whole view as one circular fisheye of this many degrees (360) ahead (--size square)')
+    ap.add_argument('--squash', type=float, default=0.0,
+                    help='with --dual-fisheye: rows moved toward the middle, picture y = y + A (sin(pi y / 2) - y) of the '
+                         "fisheye's y: the band round the horizon drawn 1 + A (pi / 2 - 1) times taller, the top and "
+                         'bottom 1 - A times (0.35: 1.2 and 0.65)')
     ap.add_argument('--along-motion', action='store_true',
                     help='forward is the straight line from NODE_A to NODE_B, climb included (not levelled): with '
                          '--dual-fisheye the two eyes look straight along the walk and straight back')
@@ -444,7 +458,7 @@ def main():
         ends = {id(FA): E0, id(FB): E1}
         render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, projection=proj, axes=ends[id(F)])
     elif a.dual_fisheye:
-        render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw)
+        render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw, a.squash)
     elif a.net:
         render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap, a.fill, a.false_line)
     elif a.cross_hub:
