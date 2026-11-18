@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Walk versions compared</title>
+<style>
+html, body { margin: 0; background: #111; color: #ddd; font: 15px/1.35 system-ui, sans-serif; }
+#wrap { max-width: 720px; margin: 0 auto; padding: 8px; }
+h1 { font-size: 17px; margin: 4px 0 8px; font-weight: 600; }
+select, button { background: #2a2a33; color: #eee; border: 0; border-radius: 8px; padding: 9px 12px; font: inherit; }
+#versions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+#versions button.on { background: #5a6acf; }
+video { width: 100%; aspect-ratio: 1; background: #000; display: block; border-radius: 8px; }
+#bar { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+#pos { flex: 1; }
+#note { color: #999; font-size: 13px; margin: 6px 0; }
+#dir { color: #aaa; font-size: 13px; min-width: 70px; }
+</style>
+</head><body><div id="wrap">
+<h1>Walk versions compared</h1>
+<select id="walk"></select>
+<div id="versions"></div>
+<video id="v" muted playsinline preload="auto"></video>
+<div id="bar"><button id="play">Pause</button><input id="pos" type="range" min="0" max="1000" value="0"><span id="dir"></span></div>
+<div id="note"></div>
+</div>
+<script>
+// One walk in several versions (amateria/walk/compare/<id>-<version>.mp4 and _back.mp4, made in e-z-g-disassembly's
+// reference/myst3/warp_test), played there and back on a loop; a version's button swaps the video at the same moment
+// of the walk. Each picture is ONE 360-degree fisheye looking straight down: the ground in the centre, the sky round
+// the rim. One video plays at a time (a phone decodes one 1152 px video well, not five).
+const WALKS = [
+  { id: 'maca1', label: "Amateria: MACA 1 to 2 (into the tunnel)", dir: './amateria/walk/compare/', versions: [
+    ['render', 'Geometry render', "The viewer's own render of the glide: the two nodes' views warped by their depth, over the mesh. Right layout and motion; shards and smears."],
+    ['plain', 'Plain H3', 'MiniMax H3 from the first and last frames alone: its own idea of the tunnel.'],
+    ['d030', 'Render + H3 0.3', 'The render through H3 at denoise 0.3: closest to the render, shards mostly kept.'],
+    ['d045', 'Render + H3 0.45', 'Denoise 0.45 (chosen by measurement: drift 5.7, flicker 0.89 against the render\'s 0.46).'],
+    ['d060', 'Render + H3 0.6', 'Denoise 0.6: cleanest, drifts further from the render and adds things.'],
+  ] },
+];
+const v = document.getElementById('v'), walkSel = document.getElementById('walk'), box = document.getElementById('versions');
+const pos = document.getElementById('pos'), playBtn = document.getElementById('play'), note = document.getElementById('note'), dirEl = document.getElementById('dir');
+let walk = WALKS[0], ver = null, back = false, playing = true, dragging = false;
+WALKS.forEach((w, i) => { const o = document.createElement('option'); o.value = i; o.textContent = w.label; walkSel.appendChild(o); });
+// the walk's progress, 0 at its first node and 1 at its last, whichever way it is playing
+const progress = () => v.duration ? (back ? 1 - v.currentTime / v.duration : v.currentTime / v.duration) : 0;
+// each file fetched whole once and kept (seeking a streamed file needs the server's range requests, which not every
+// server or phone handles; a kept file also switches back at once)
+const kept = new Map();
+const fileUrl = f => { if (!kept.has(f)) kept.set(f, fetch(f).then(r => r.blob()).then(b => URL.createObjectURL(b))); return kept.get(f); };
+let loadNo = 0;
+async function load(id, prog, isBack) {
+  ver = id; back = isBack;
+  [...box.children].forEach(b => b.classList.toggle('on', b.dataset.id === id));
+  note.textContent = walk.versions.find(x => x[0] === id)[2];
+  dirEl.textContent = 'loading…';
+  const n = ++loadNo, url = await fileUrl(walk.dir + `${walk.id}-${id}${back ? '_back' : ''}.mp4`);
+  if (n !== loadNo) return;                                    // another switch came first
+  v.src = url;
+  v.addEventListener('loadedmetadata', () => {
+    v.currentTime = Math.min(v.duration - 0.05, Math.max(0, (back ? 1 - prog : prog) * v.duration));
+    if (playing) v.play().catch(() => {});
+  }, { once: true });
+  dirEl.textContent = back ? '← back' : 'forward →';
+  // the same version the other way, fetched ahead for the turn at the end
+  fileUrl(walk.dir + `${walk.id}-${id}${back ? '' : '_back'}.mp4`);
+}
+function showWalk(i) {
+  walk = WALKS[i]; box.innerHTML = '';
+  for (const [id, label] of walk.versions) {
+    const b = document.createElement('button'); b.textContent = label; b.dataset.id = id;
+    b.onclick = () => load(id, progress(), back); box.appendChild(b);
+  }
+  load(walk.versions[0][0], 0, false);
+}
+// at either end, the same version the other way
+v.addEventListener('ended', () => load(ver, back ? 0 : 1, !back));
+v.addEventListener('timeupdate', () => { if (!dragging) pos.value = Math.round(progress() * 1000); });
+pos.addEventListener('input', () => { dragging = true; const p = pos.value / 1000; if (v.duration) v.currentTime = (back ? 1 - p : p) * v.duration; });
+pos.addEventListener('change', () => { dragging = false; });
+playBtn.onclick = () => { playing = !playing; playBtn.textContent = playing ? 'Pause' : 'Play'; playing ? v.play().catch(() => {}) : v.pause(); };
+walkSel.onchange = () => showWalk(+walkSel.value);
+// the arrow keys switch versions, the space bar pauses
+addEventListener('keydown', e => {
+  const ids = walk.versions.map(x => x[0]), k = ids.indexOf(ver);
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') load(ids[(k + (e.key === 'ArrowRight' ? 1 : ids.length - 1)) % ids.length], progress(), back);
+  if (e.key === ' ') { e.preventDefault(); playBtn.click(); }
+});
+showWalk(0);
+</script>
+</body></html>
