@@ -2336,6 +2336,66 @@ angle from the horizon). Only the end frames have a true picture to compare with
   prefers it to plain 3328, and it is the first choice for now. Untried on other
   scenes: thin things, water, reflections and quick parallax are where flow fails.
 
+### H3 walks on MACA 1 to 2: seed, upscaler and seam (18 and 19 November 2026)
+
+The recipe above on MACA 1 to 2 (Amateria, a tunnel): two 190-degree fisheyes along the
+walk, `--fill-square --squash 0.35`, 3328x1664, 22 frames, then `detail_transfer.py`.
+`colmap/seam_score.py` measures the seam: the two circles' colors and fine detail
+compared over their overlap band, frame by frame (0 to 255). The drawing H3 was given
+scores 5.5 for color and 2.2 for detail. That is what resampling alone costs.
+
+| MACA 1 to 2 | seam color, median | worst frame | seam detail, median |
+|---|---|---|---|
+| seed 1, 190 degrees | 25.0 | 48.6 | 5.6 |
+| seed 2, 190 degrees | 21.7 | 47.1 | 5.5 |
+| seed 3, 190 degrees | 22.0 | 45.9 | 5.3 |
+| seed 2, 200 degrees | 22.5 | 47.0 | 5.8 |
+| seed 2, 190, seam pass (one 360-degree fisheye, denoise 0.3) | 7.3 | 12.4 | 1.6 |
+| the same, then the game's detail | 7.6 | 12.4 | 1.9 |
+| the same with a 240-degree fisheye | 7.6 | 12.7 | 2.1 |
+| the same at denoise 0.2 | 7.4 | 12.8 | 2.0 |
+
+- **The seam.** Sam found it plain on MACA, where it never showed on LEIS. The first
+  and last frames match. Mid-walk H3 draws different things in the two circles' overlap
+  (a red beam in one only, rock edges at other angles), so the seed changes little. A
+  wider overlap (200 degrees) spreads the mismatch without making it smaller. The
+  210-degree run took 29 minutes a step instead of 4 and was stopped. Matching the
+  circles' colors (`colmap/seam_fix.py`, one gain per circle, then a correction round the
+  ring faded over 25 degrees) took the median only from 21.7 to 20.1.
+- **The seam pass.** `colmap/seam_pass.py single` draws the finished walk again as one
+  fisheye looking ahead, and the seam becomes a ring inside that picture. H3 samples it
+  again from that video (`h3_flf.py --init`, denoise 0.3, 2304x2304, 21 minutes) and
+  draws the ring as one picture, so the stones and rock cut at the seam join up.
+  `seam_pass.py back` copies the band within 12 degrees of the seam into both circles and
+  fades it in. The score falls to 7.3 even with no H3 pass, because both circles then
+  show the same pixels, so the pictures are the evidence that the pass joins the scene.
+  Sam judged the seam much less obvious, and denoise 0.3 clearly better than 0.2. Sam
+  saw no difference between a 360-degree and a 240-degree fisheye (`--single-fov 240`,
+  1.5 times the pixels at the seam), and 240 is the base. The seam pass runs before
+  `detail_transfer.py` (`colmap/seam_pass.ps1`, then `colmap/seam_pass_post.ps1`), so
+  the band gets the game's detail too.
+- **Passes from lower sizes.** On LEIS 62 to 78, first frame: two passes 1664 to 3328 at
+  denoise 0.5 scored SSIM 0.755 and detail 0.53. Three passes (832, 1664, 3328) scored
+  0.755 and 0.54, denoise 0.35 scored 0.757 and 0.54, and denoise 0.65 scored 0.752 and
+  0.52. The differences are noise. The upscaler alone, decoded with no second pass (3328
+  to 6656), scores 0.711. The X2 Detail VAE decodes at twice the size (detail 0.59) but
+  scores lower (SSIM 0.744 against 0.753).
+- **More of the game's detail mid-walk.** `detail_transfer.py` trusts 14 to 20% of each
+  frame mid-walk on MACA. Taking each frame's detail from the nearer end only, with the
+  trust falling smoothly with the flow's misses (`--nearest --soft --fb 3`,
+  `colmap/dt_loose.ps1`), gave 13 to 20%. The flow fails mid-walk because the frames
+  disagree, and the cut-off makes little difference. Depth from the nodes would place
+  the detail without flow. Fitted to COLMAP's 48 sparse points in MACA 1 and 2,
+  `node_depth.py` missed held-out points by 74 to 125%. With `node_stereo.py`'s stereo
+  (one source picture for most faces, none for the faces up and down) MACA 2 came within
+  4 to 13% on two faces and 42% on one, and MACA 1 within 30 to 49%. At 10% a tunnel
+  wall a metre off moves several pixels, so the geometry route is not used here. Scenes
+  with more nodes round them may measure better.
+- **Time per walk.** H3 takes 21 minutes, the seam pass 21 to 23, and the copy-back,
+  detail transfer and web copies about 12: about 55 minutes a pair of nodes (the walk
+  back is the same frames reversed). Amateria's scripts have 302 walks between its 148
+  nodes, 156 pairs: about 143 hours, six days of the PC, or 83 hours with no seam pass.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the
