@@ -76,9 +76,15 @@ def back(a):
     look = []
     for s in (0, 1):
         A, E = pixel_dirs(S, a.dual, a.fill_square, a.squash, s)
-        t = np.clip(1 - np.abs(np.nan_to_num(E, nan=np.pi)) / W, 0, 1)
-        fade = (t * t * (3 - 2 * t)).astype(np.float32)
         th = np.pi / 2 - np.nan_to_num(E)                  # angle from straight ahead
+        if a.front_fade:
+            # the redraw kept whole up to the first angle from straight ahead (the front half and the seam), fading
+            # into the back half by the second, so the two drawings are mixed only in one ring of the back half
+            lo, hi = np.radians(a.front_fade)
+            t = np.clip((hi - np.where(np.isnan(E), np.pi, th)) / (hi - lo), 0, 1)
+        else:
+            t = np.clip(1 - np.abs(np.nan_to_num(E, nan=np.pi)) / W, 0, 1)
+        fade = (t * t * (3 - 2 * t)).astype(np.float32)
         r = th / np.radians(a.single_fov / 2)
         look.append((((r * np.cos(A) + 1) / 2 * N - .5).astype(np.float32), ((r * np.sin(A) + 1) / 2 * N - .5).astype(np.float32), fade))
     for d, s in zip(dp, sp):
@@ -103,6 +109,8 @@ def main():
         p.add_argument('--fill-square', action='store_true'); p.add_argument('--squash', type=float, default=0.0)
         p.add_argument('--size', type=int, default=2304); p.add_argument('--width', type=float, default=12.0)
         p.add_argument('--single-fov', type=float, default=360.0)
+        p.add_argument('--front-fade', type=float, nargs=2, metavar=('FROM', 'TO'),
+                       help='back: keep the redraw whole up to FROM degrees from straight ahead, fading out by TO (in place of --width)')
     a = ap.parse_args()
     (to_single if a.cmd == 'single' else back)(a)
 
