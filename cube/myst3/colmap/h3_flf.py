@@ -57,6 +57,12 @@ def main():
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input'); ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output')
     ap.add_argument('--timeout', type=int, default=5400)
+    ap.add_argument('--upscale', nargs='+', help="WxH: the sampled latent doubled (or to any size) by H3's trained latent upscaler "
+                    "(core ComfyUI's MiniMaxH3LatentUpscaleWithModel) before decoding")
+    ap.add_argument('--upscale-model', default='minimax_h3_latent_upscaler_3d_conv_v1_bf16.safetensors')
+    ap.add_argument('--pass2-denoise', type=float, nargs='+', help='after --upscale, a second pass at the new size from the upscaled '
+                    'latent at this denoise (the first frames conditioned at the new size)')
+    ap.add_argument('--pass2-steps', type=int, default=4)
     ap.add_argument('--decode-vae', help='decode with this VAE file instead (MiniMax-H3-X2-Detail-v1.safetensors: twice the size, '
                                          'through the ComfyUI-MiniMaxH3_LatentUpscaler add-on\'s MiniMaxH3VAEDecodeFast)')
     a = ap.parse_args()
@@ -111,6 +117,24 @@ def main():
           g['42'] = {'class_type': 'MiniMaxH3VideoInitLatent', 'inputs': {'latent': ['8', 1], 'vae': ['4', 0], 'images': ['41', 0]}}
           g['13']['inputs']['latent_image'] = ['42', 0]
           g['12']['inputs']['denoise'] = a.denoise
+      if a.upscale:
+          # one or more upscales, each (with --pass2-denoise, one value per upscale or one for all) followed by a pass
+          g['50'] = {'class_type': 'LatentUpscaleModelLoader', 'inputs': {'model_name': a.upscale_model}}
+          last = ['13', 0]
+          for u, size in enumerate(a.upscale):
+              UW, UH = (int(v) for v in size.split('x'))
+              b = 60 + 10 * u
+              g[str(b)] = {'class_type': 'MiniMaxH3LatentUpscaleWithModel', 'inputs': {'model': ['50', 0], 'samples': last, 'width': UW, 'height': UH}}
+              last = [str(b), 0]
+              if a.pass2_denoise:
+                  d = a.pass2_denoise[min(u, len(a.pass2_denoise) - 1)]
+                  g[str(b + 1)] = dict(g['8']); g[str(b + 1)]['inputs'] = dict(g['8']['inputs'], width=UW, height=UH)
+                  g[str(b + 2)] = {'class_type': 'BasicGuider', 'inputs': {'model': ['2', 0], 'conditioning': [str(b + 1), 0]}}
+                  g[str(b + 3)] = {'class_type': 'BasicScheduler', 'inputs': {'model': ['2', 0], 'scheduler': 'simple', 'steps': a.pass2_steps, 'denoise': d}}
+                  g[str(b + 4)] = {'class_type': 'SamplerCustomAdvanced', 'inputs': {'noise': ['10', 0], 'guider': [str(b + 2), 0], 'sampler': ['11', 0],
+                                                                                   'sigmas': [str(b + 3), 0], 'latent_image': last}}
+                  last = [str(b + 4), 0]
+          g['14']['inputs']['samples'] = last; g['15']['inputs']['samples'] = last
       if a.decode_vae:
           info = api(a.server, '/object_info/MiniMaxH3VAEDecodeFast')['MiniMaxH3VAEDecodeFast']['input']['required']
           inp = {k: v[1]['default'] for k, v in info.items() if len(v) > 1 and isinstance(v[1], dict) and 'default' in v[1]}
