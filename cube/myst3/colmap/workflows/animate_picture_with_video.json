@@ -1,0 +1,387 @@
+{
+ "1": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "wan_animate_2_distill_int8_convrot.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "Wan Animate 2 (distilled)"
+  }
+ },
+ "2": {
+  "class_type": "WanAnimate2Cache",
+  "inputs": {
+   "model": [
+    "1",
+    0
+   ],
+   "device": "cpu",
+   "dtype": "int8"
+  },
+  "_meta": {
+   "title": "Pose cache in system memory (GPU runs a 16 GB card out of memory)"
+  }
+ },
+ "3": {
+  "class_type": "ModelSamplingSD3",
+  "inputs": {
+   "model": [
+    "2",
+    0
+   ],
+   "shift": 5.0
+  },
+  "_meta": {
+   "title": "Shift 5"
+  }
+ },
+ "4": {
+  "class_type": "BasicScheduler",
+  "inputs": {
+   "model": [
+    "2",
+    0
+   ],
+   "scheduler": "simple",
+   "steps": 10,
+   "denoise": 1.0
+  },
+  "_meta": {
+   "title": "Steps"
+  }
+ },
+ "5": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "type": "wan"
+  },
+  "_meta": {
+   "title": "Text encoder"
+  }
+ },
+ "6": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "5",
+    0
+   ],
+   "text": "Character Description: A man in his late thirties with a high receding hairline, shoulder-length dark brown hair, a short neat beard and moustache and a small gold hoop earring, wearing a black Elizabethan doublet with a plain white falling collar and white cuffs, dancing with energy. Background description: A sunlit Elizabethan inn courtyard with timber-framed walls, wooden galleries and barrels, warm afternoon light, the camera still."
+  },
+  "_meta": {
+   "title": "PROMPT: the person in the picture, and the background"
+  }
+ },
+ "7": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "5",
+    0
+   ],
+   "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合"
+  },
+  "_meta": {
+   "title": "Negative"
+  }
+ },
+ "8": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "5",
+    0
+   ],
+   "text": "A reference video of a person dancing in front of a plain background"
+  },
+  "_meta": {
+   "title": "PROMPT: the driving video (describe the motion)"
+  }
+ },
+ "9": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "Wan2_1_VAE_bf16.safetensors"
+  },
+  "_meta": {
+   "title": "VAE"
+  }
+ },
+ "10": {
+  "class_type": "CLIPVisionLoader",
+  "inputs": {
+   "clip_name": "clip_vision_h.safetensors"
+  },
+  "_meta": {
+   "title": "CLIP vision"
+  }
+ },
+ "11": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "bard_2.png"
+  },
+  "_meta": {
+   "title": "IMAGE: the person"
+  }
+ },
+ "12": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "11",
+    0
+   ],
+   "upscale_method": "area",
+   "width": 512,
+   "height": 896,
+   "crop": "center"
+  },
+  "_meta": {
+   "title": "Picture to size (set width and height here and below)"
+  }
+ },
+ "13": {
+  "class_type": "LoadVideo",
+  "inputs": {
+   "file": "dance.mp4"
+  },
+  "_meta": {
+   "title": "VIDEO: the motion"
+  }
+ },
+ "14": {
+  "class_type": "GetVideoComponents",
+  "inputs": {
+   "video": [
+    "13",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Video frames"
+  }
+ },
+ "15": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "14",
+    0
+   ],
+   "upscale_method": "area",
+   "width": 512,
+   "height": 896,
+   "crop": "center"
+  },
+  "_meta": {
+   "title": "Video to size"
+  }
+ },
+ "16": {
+  "class_type": "CLIPVisionEncode",
+  "inputs": {
+   "clip_vision": [
+    "10",
+    0
+   ],
+   "image": [
+    "12",
+    0
+   ],
+   "crop": "none"
+  },
+  "_meta": {
+   "title": "CLIP vision of the picture"
+  }
+ },
+ "17": {
+  "class_type": "ImageFromBatch",
+  "inputs": {
+   "image": [
+    "15",
+    0
+   ],
+   "batch_index": 0,
+   "length": 1
+  },
+  "_meta": {
+   "title": "Video's first frame"
+  }
+ },
+ "18": {
+  "class_type": "CLIPVisionEncode",
+  "inputs": {
+   "clip_vision": [
+    "10",
+    0
+   ],
+   "image": [
+    "17",
+    0
+   ],
+   "crop": "none"
+  },
+  "_meta": {
+   "title": "CLIP vision of the video"
+  }
+ },
+ "19": {
+  "class_type": "WanAnimate2ToVideo",
+  "inputs": {
+   "positive": [
+    "6",
+    0
+   ],
+   "negative": [
+    "7",
+    0
+   ],
+   "vae": [
+    "9",
+    0
+   ],
+   "width": 512,
+   "height": 896,
+   "length": 81,
+   "batch_size": 1,
+   "video_frame_offset": 0,
+   "pose_strength": 1.0,
+   "pose_start_percent": 0.0,
+   "pose_end_percent": 1.0,
+   "reference_image_strength": 1.0,
+   "reference_image": [
+    "12",
+    0
+   ],
+   "pose_video": [
+    "15",
+    0
+   ],
+   "clip_vision_output": [
+    "16",
+    0
+   ],
+   "positive_pose": [
+    "8",
+    0
+   ],
+   "clip_vision_output_pose": [
+    "18",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Animate (length = frames, 81 at most in one go)"
+  }
+ },
+ "20": {
+  "class_type": "KSamplerSelect",
+  "inputs": {
+   "sampler_name": "lcm"
+  },
+  "_meta": {
+   "title": "Sampler"
+  }
+ },
+ "21": {
+  "class_type": "SamplerCustom",
+  "inputs": {
+   "model": [
+    "3",
+    0
+   ],
+   "add_noise": true,
+   "noise_seed": 2,
+   "cfg": 1.0,
+   "positive": [
+    "19",
+    0
+   ],
+   "negative": [
+    "19",
+    1
+   ],
+   "sampler": [
+    "20",
+    0
+   ],
+   "sigmas": [
+    "4",
+    0
+   ],
+   "latent_image": [
+    "19",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Sample (seed)"
+  }
+ },
+ "22": {
+  "class_type": "TrimVideoLatent",
+  "inputs": {
+   "samples": [
+    "21",
+    0
+   ],
+   "trim_amount": [
+    "19",
+    3
+   ]
+  },
+  "_meta": {
+   "title": "Trim"
+  }
+ },
+ "23": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "22",
+    0
+   ],
+   "vae": [
+    "9",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Decode"
+  }
+ },
+ "24": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "images": [
+    "23",
+    0
+   ],
+   "fps": [
+    "14",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Video at the driving video's frame rate"
+  }
+ },
+ "25": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "video": [
+    "24",
+    0
+   ],
+   "filename_prefix": "video/animate2",
+   "format": "auto",
+   "codec": "auto"
+  },
+  "_meta": {
+   "title": "Save"
+  }
+ }
+}
