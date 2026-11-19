@@ -17,6 +17,8 @@ VAE took detail away). For each frame k, at s = k / (n - 1) along the walk:
   - frame k's own fine detail replaced by the mix, as far as it is trusted: out = frame + c (mix - frame's detail).
 Colour, light and broad shapes stay the video's. The flow is found at --flow-scale of the size, in --split squares
 side by side (two for the two-fisheye layout, so no flow crosses the seam), and scaled up.
+--nearest: each frame's detail from the nearer end only, at full weight (mid-walk the mix of both halves the
+trust). --soft: trust falls smoothly with the misses rather than stopping at --fb (try --fb 3).
 --only first (or last): every frame from that end alone, for testing: --only first, scored on the last frame
 against the last node's faces (walk_fidelity.py --last), shows how far the detail carries across a whole walk.
 Writes OUT_DIR/0000.png ... Needs torch, torchvision, numpy, opencv-python.
@@ -68,12 +70,12 @@ def warp(img, flow):
     return cv2.remap(img, gx + flow[..., 0], gy + flow[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
 
 
-def chained(flow, frames, k, j, fb):
+def chained(flow, frames, k, j, fb, soft=False):
     """Where each pixel of frame k is in frame j, by composing the flows between neighbouring frames (each step
     small), and whether every step passed the there-and-back check."""
     H, W = frames[k].shape[:2]
     gx, gy = np.meshgrid(np.arange(W, dtype=np.float32), np.arange(H, dtype=np.float32))
-    px, py, ok = gx.copy(), gy.copy(), np.ones((H, W), bool)
+    px, py, ok = gx.copy(), gy.copy(), (np.ones((H, W), np.float32) if soft else np.ones((H, W), bool))
     step = -1 if j < k else 1
     for i in range(k, j, step):
         f, g = flow(frames[i], frames[i + step]), flow(frames[i + step], frames[i])
@@ -82,8 +84,12 @@ def chained(flow, frames, k, j, fb):
         qx, qy = px + fx, py + fy
         bx = cv2.remap(g[..., 0], qx, qy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
         by = cv2.remap(g[..., 1], qx, qy, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
-        ok &= np.hypot(fx + bx, fy + by) < fb
-        ok &= (qx >= 0) & (qx < W) & (qy >= 0) & (qy < H)
+        err = np.hypot(fx + bx, fy + by)
+        inside = (qx >= 0) & (qx < W) & (qy >= 0) & (qy < H)
+        if soft:                                           # each step's miss lowers the trust smoothly
+            ok *= np.exp(-(err / fb) ** 2).astype(np.float32) * inside
+        else:
+            ok &= (err < fb) & inside
         px, py = qx, qy
     return px, py, ok
 
@@ -94,6 +100,8 @@ def main():
     ap.add_argument('--only', choices=['first', 'last']); ap.add_argument('--sigma', type=float, default=2.0)
     ap.add_argument('--fb', type=float, default=1.5); ap.add_argument('--flow-scale', type=float, default=0.5)
     ap.add_argument('--split', type=int, default=2); ap.add_argument('--frames-only', type=int, nargs='*')
+    ap.add_argument('--nearest', action='store_true', help='each frame from the nearer end alone (weight 1), not both mixed')
+    ap.add_argument('--soft', action='store_true', help='trust falls smoothly with each step\'s there-and-back miss, exp(-(miss / fb)^2), not cut at --fb')
     ap.add_argument('--direct', action='store_true', help='one flow straight to the end frame, not chained through the frames between')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -115,7 +123,9 @@ def main():
         for name, (j, _) in ends.items():
             if a.only and name != a.only:
                 continue
-            wt = (1 - s if name == 'first' else s) if not a.only else 1.0
+            if a.nearest and name != ('first' if s <= .5 else 'last'):
+                continue
+            wt = (1 - s if name == 'first' else s) if not (a.only or a.nearest) else 1.0
             if wt <= 0:
                 continue
             for c in range(a.split):
@@ -129,7 +139,7 @@ def main():
                     ok = np.linalg.norm(f_kj + back, axis=-1) < a.fb
                     w_hf = warp(np.ascontiguousarray(dends[name][sl]), f_kj)
                 else:
-                    px, py, ok = chained(flow, circles[c], k, j, a.fb)
+                    px, py, ok = chained(flow, circles[c], k, j, a.fb, a.soft)
                     w_hf = cv2.remap(np.ascontiguousarray(dends[name][sl]), px, py, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
                 mix[sl] += wt * ok[..., None] * w_hf; wsum[sl] += wt * ok
         tot = 1.0 if a.only else 1.0                          # (1 - s) + s
