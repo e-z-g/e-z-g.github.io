@@ -67,6 +67,18 @@ def draw_equirect(faces, Rcam, W, H):
     return sample_dirs(faces, cam @ Rcam)
 
 
+def draw_polar_equirect(faces, Rcam, W, H, pad=20.0):
+    """The whole view, equirectangular with its poles straight ahead (top edge) and straight behind (bottom edge):
+    down the picture the angle from straight ahead (0 to 180 degrees), across it the turn round the line of travel
+    (straight up in the middle, right of it to the right), 360 degrees and --polar's PAD more at each side repeated,
+    so the join, straight down, is drawn twice. Moving forward, everything slides down the picture."""
+    v, u = np.mgrid[0:H, 0:W].astype(np.float64)
+    th = (v + .5) / H * np.pi
+    ph = ((u + .5) / W * 2 - 1) * (np.pi + np.radians(pad))
+    cam = np.stack([np.sin(th) * np.sin(ph), -np.sin(th) * np.cos(ph), np.cos(th)], -1)
+    return sample_dirs(faces, cam @ Rcam)
+
+
 def draw_grid(faces, W, H):
     """The six faces as grid_depth_test.py's 5x3 grid: the walls in a row (and the
     first again), the top and bottom above and below each wall, turned to meet it."""
@@ -405,6 +417,9 @@ def main():
     ap.add_argument('--yaw', type=float, default=0.0); ap.add_argument('--pitch', type=float, default=0.0)
     ap.add_argument('--equirect', action='store_true',
                     help='the whole view instead, equirectangular (--size 2:1), the walk straight ahead in the middle')
+    ap.add_argument('--polar', type=float, nargs='?', const=20.0, metavar='PAD',
+                    help='the whole view, equirectangular with poles straight ahead (top) and behind (bottom), '
+                         'PAD degrees (20) repeated at each side (draw_polar_equirect)')
     ap.add_argument('--grid', action='store_true',
                     help="the six faces instead, as grid_depth_test.py's 5x3 grid (--size 5:3), the model's own face cameras")
     ap.add_argument('--cross', action='store_true',
@@ -462,7 +477,9 @@ def main():
     Rcam = np.stack([right, down, fwd])                     # world -> camera rows: x right, y down, z forward
     f = W / 2 / np.tan(np.radians(a.fov) / 2)
     os.makedirs(a.out, exist_ok=True)
-    if a.equirect:
+    if a.polar is not None:
+        render = lambda F: draw_polar_equirect(F, Rcam, W, H, a.polar)
+    elif a.equirect:
         render = lambda F: draw_equirect(F, Rcam, W, H)
     elif a.single_fisheye:
         proj = 'equal-area' if a.equal_area else a.projection
