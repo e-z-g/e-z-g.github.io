@@ -9,7 +9,8 @@ inside the picture, sampled again at low denoise (h3_flf.py --init), and the ban
 DUAL_DIR holds the walk's frames (0000.png ...) drawn as walk_ends.py --dual-fisheye --along-motion: two fisheyes,
 ahead and behind, that meet in a ring square to the walk. The two halves of that ring are drawn by the model apart from
 each other, and mid-walk they show different things (seam_fix.py's colour matching cannot help that).
-  single: every frame redrawn as one 360-degree equidistant fisheye looking ahead (the angle from straight ahead
+  single: every frame redrawn as one equidistant fisheye of --single-fov degrees (360 by default; 240 gives the seam
+          1.5 times the pixels, the ring three quarters of the way out) looking ahead (the angle from straight ahead
           proportional to the distance from the centre: straight ahead in the middle, the seam ring half way out, straight
           behind all round the rim), --size px square; writes OUT_DIR/frames/0000.png ..., first.png, last.png and
           init.mp4 (near lossless) for h3_flf.py first.png last.png ... --init init.mp4 --denoise 0.3.
@@ -32,11 +33,11 @@ from seam_fix import pixel_dirs  # noqa: E402
 from seam_score import maps  # noqa: E402
 
 
-def single_dirs(N):
-    """Directions (right, down, forward) of a 360-degree equidistant fisheye's pixels, looking forward."""
+def single_dirs(N, fov=360.0):
+    """Directions (right, down, forward) of an equidistant fisheye's pixels (fov degrees across), looking forward."""
     v, u = np.mgrid[0:N, 0:N].astype(np.float64)
     x, y = (u + .5) / N * 2 - 1, (v + .5) / N * 2 - 1
-    r = np.minimum(np.hypot(x, y), 1); ph = np.arctan2(y, x); th = r * np.pi
+    r = np.minimum(np.hypot(x, y), 1); ph = np.arctan2(y, x); th = r * np.radians(fov / 2)
     return np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], -1)
 
 
@@ -44,7 +45,7 @@ def to_single(a):
     os.makedirs(os.path.join(a.out, 'frames'), exist_ok=True)
     paths = sorted(glob.glob(os.path.join(a.dual_dir, '*.png')))
     S = cv2.imread(paths[0]).shape[0]
-    w = single_dirs(a.size).reshape(-1, 3)
+    w = single_dirs(a.size, a.single_fov).reshape(-1, 3)
     side = (w[:, 2] < 0).astype(int)                      # ahead or behind: each direction from the eye it is nearer
     mx, my = np.zeros(len(w), np.float32), np.zeros(len(w), np.float32)
     for s in (0, 1):
@@ -78,7 +79,7 @@ def back(a):
         t = np.clip(1 - np.abs(np.nan_to_num(E, nan=np.pi)) / W, 0, 1)
         fade = (t * t * (3 - 2 * t)).astype(np.float32)
         th = np.pi / 2 - np.nan_to_num(E)                  # angle from straight ahead
-        r = th / np.pi
+        r = th / np.radians(a.single_fov / 2)
         look.append((((r * np.cos(A) + 1) / 2 * N - .5).astype(np.float32), ((r * np.sin(A) + 1) / 2 * N - .5).astype(np.float32), fade))
     for d, s in zip(dp, sp):
         im, si = cv2.imread(d).astype(np.float32), cv2.imread(s)
@@ -101,6 +102,7 @@ def main():
         p.add_argument('out'); p.add_argument('--dual', type=float, required=True)
         p.add_argument('--fill-square', action='store_true'); p.add_argument('--squash', type=float, default=0.0)
         p.add_argument('--size', type=int, default=2304); p.add_argument('--width', type=float, default=12.0)
+        p.add_argument('--single-fov', type=float, default=360.0)
     a = ap.parse_args()
     (to_single if a.cmd == 'single' else back)(a)
 
