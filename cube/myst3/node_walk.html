@@ -300,7 +300,8 @@ el.addEventListener('wheel', e => { fov = Math.min(FOV_MAX, Math.max(FOV_MIN, fo
 const MC = document.getElementById('map'), mcx = MC.getContext('2d');
 const ROOMCOL = ['#e8b04a', '#5ec4e8', '#b58cf0', '#7fd46a', '#f07a7a', '#e8e06a'];
 let mapOn = innerWidth > 600, mapScale = 30, mapHover = null;
-const P = LAY.nodes, PROP = LAY.proposed, SEA = LAY.sea || 0;   // heights shown over SEA (node_walk.py --sea)
+const P = LAY.nodes, PROP = LAY.proposed, SEA = LAY.sea || 0;
+if (!Object.keys(PROP || {}).length) document.getElementById('laybtn').hidden = true;   // nothing to switch to   // heights shown over SEA (node_walk.py --sea)
 // close-ups on the map: each set out from the node it is seen from, along its hotspot's heading, nearer the bigger the
 // hotspot looks (a close-up fills the screen, so a thing seen large is near); pitch shortens the step on the ground
 const CLOSE = {};
