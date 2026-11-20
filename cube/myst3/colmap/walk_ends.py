@@ -525,8 +525,8 @@ def main():
     Image.fromarray(render(FB)).save(os.path.join(a.out, 'last.png'))
     if a.plan:
         pl = json.load(open(a.plan))
-        def pframe(fw):
-            fw = np.array(fw) / np.linalg.norm(fw); r = np.cross(fw, up); r /= np.linalg.norm(r)
+        def pframe(fw):                                 # right kept near the straight line's right: no roll past vertical
+            fw = np.array(fw) / np.linalg.norm(fw); r = right - fw * (right @ fw); r /= np.linalg.norm(r)
             return np.stack([r, np.cross(fw, r), fw])
         Image.fromarray(renderer(pframe(pl['departure_model']))(FA)).save(os.path.join(a.out, 'first.png'))
         Image.fromarray(renderer(pframe(pl['arrival_model']))(FB)).save(os.path.join(a.out, 'last.png'))
