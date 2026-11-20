@@ -34,7 +34,7 @@ node(11, 'LoadVideo', '<Video 1>: the dance (convert to 24 fps first)', file=a.v
 node(12, 'GetVideoComponents', 'Dance frames and sound', video=['11', 0])
 node(20, 'UNETLoader', 'H3 reference-to-video', unet_name='minimax_h3_ref2va_pruned_int8_convrot.safetensors', weight_dtype='default')
 node(21, 'LoraLoaderModelOnly', 'Character swap LoRA V1.5', model=['20', 0], lora_name='h3_character_swap_v1.5.safetensors', strength_model=1.0)
-node(22, 'LoraLoaderModelOnly', 'Turbo LoRA (8 steps at cfg 1)', model=['21', 0], lora_name='minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors', strength_model=1.0)
+node(22, 'LoraLoaderModelOnly', 'Turbo LoRA (8 steps at cfg 1)', model=['21', 0], lora_name='h3\\minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors', strength_model=1.0)
 last = '22'
 for k in range(5):
     last = node(23 + k, 'LoraLoaderModelOnly', f'LoRA {k + 1} (pick a file, then raise the strength from 0)', model=[last, 0],
