@@ -46,8 +46,8 @@
 // s = max(1, fov/120), so that at 360 the whole sphere fills a circle the height of the window.
 import * as THREE from 'three';
 
-const W = await (await fetch('walk.json')).json();
-const LAY = await fetch('layout.json').then(r => r.ok ? r.json() : { nodes: {}, proposed: {} }).catch(() => ({ nodes: {}, proposed: {} }));
+const W = await (await fetch('walk.json', { cache: 'no-store' })).json();
+const LAY = await fetch('layout.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : { nodes: {}, proposed: {} }).catch(() => ({ nodes: {}, proposed: {} }));
 const NODES = W.nodes;
 // the numbers the mesh work uses: room x 1000 + node (Amateria: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6)
 const num = n => (W.rooms.indexOf(n.slice(0, 4)) + 1) * 1000 + +n.slice(5);
