@@ -301,6 +301,24 @@ const MC = document.getElementById('map'), mcx = MC.getContext('2d');
 const ROOMCOL = ['#e8b04a', '#5ec4e8', '#b58cf0', '#7fd46a', '#f07a7a', '#e8e06a'];
 let mapOn = innerWidth > 600, mapScale = 30, mapHover = null;
 const P = LAY.nodes, PROP = LAY.proposed, SEA = LAY.sea || 0;   // heights shown over SEA (node_walk.py --sea)
+// close-ups on the map: each set out from the node it is seen from, along its hotspot's heading, nearer the bigger the
+// hotspot looks (a close-up fills the screen, so a thing seen large is near); pitch shortens the step on the ground
+const CLOSE = {};
+for (const [n, spots] of Object.entries(NODES)) for (const sp of spots) {
+  if (!sp.frame) continue;
+  const fn = sp.frame.slice(0, -4), k = String(num(fn)), base = P[String(num(n))];
+  if (!base || CLOSE[k]) continue;
+  const [pt, hd, w, h] = sp.rects[0], H = hd * Math.PI / 180, T = pt * Math.PI / 180;
+  const d = Math.min(0.6, Math.max(0.12, 0.08 * 90 / Math.max(w, h, 1))) * Math.cos(T);
+  CLOSE[k] = { from: n, spot: sp };
+  P[k] = { pos: [base.pos[0] - Math.sin(H) * d, base.pos[1], base.pos[2] + Math.cos(H) * d], kind: 'closeup' };
+}
+// to a close-up from the map: to its node, turned to the hotspot, with the close-up open
+async function openClose(k) {
+  const c = CLOSE[k]; if (!c) return;
+  if (here !== c.from) await go(c.from);
+  yaw = c.spot.rects[0][1]; pitch = c.spot.rects[0][0]; showFrame(c.spot.frame);
+}
 let useProp = true;                                         // the proposed places where there are any, or the model's
 const posOf = n => (useProp && PROP[n]) || (P[n] && P[n].pos) || null;
 const other = n => useProp ? (PROP[n] && P[n] ? P[n].pos : null) : (PROP[n] || null);   // shown dashed
@@ -345,7 +363,7 @@ const mup = e => {
     const t = performance.now();
     if (t - lastTap < 300) { mapPan = [0, 0]; MC.classList.toggle('big'); lastTap = 0; return; }
     lastTap = t;
-    const n = nodeAtMap(...q); if (n && byNum[+n]) { mapPan = [0, 0]; go(byNum[+n]); }
+    const n = nodeAtMap(...q); if (n && CLOSE[n]) { mapPan = [0, 0]; openClose(n); } else if (n && byNum[+n]) { mapPan = [0, 0]; go(byNum[+n]); }
   }
 };
 MC.addEventListener('pointerup', mup); MC.addEventListener('pointercancel', e => mptr.delete(e.pointerId));
@@ -382,8 +400,9 @@ function drawMap() {
   for (const [n, v] of Object.entries(P)) {
     const [x, y] = toMap(posOf(n), w, h); if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
     // a node with no pictures (another state of a place, shown in the game by a movie or a flat frame) is drawn hollow
-    const has = !!byNum[+n], col = ROOMCOL[+n[0] - 1] || '#ccc';
-    if (!has) { c.strokeStyle = col; c.globalAlpha = .5; c.beginPath(); c.arc(x, y, 3, 0, 7); c.stroke(); c.globalAlpha = 1; }
+    const has = !!byNum[+n] || !!CLOSE[n], col = ROOMCOL[+n[0] - 1] || '#ccc';
+    if (CLOSE[n]) { c.fillStyle = '#ffe040'; c.beginPath(); c.moveTo(x, y - 4); c.lineTo(x + 4, y); c.lineTo(x, y + 4); c.lineTo(x - 4, y); c.closePath(); c.fill(); }
+    else if (!has) { c.strokeStyle = col; c.globalAlpha = .5; c.beginPath(); c.arc(x, y, 3, 0, 7); c.stroke(); c.globalAlpha = 1; }
     else { c.fillStyle = col; if (v.kind === 'placed') c.fillRect(x - 3, y - 3, 6, 6); else { c.beginPath(); c.arc(x, y, 3, 0, 7); c.fill(); } }
     if (labels) { c.fillStyle = has ? 'rgba(230,230,230,.85)' : 'rgba(160,160,160,.6)'; c.fillText(n, x + 5, y - 6); }
   }
@@ -403,10 +422,10 @@ function drawMap() {
   if (hv) {
     const p = P[hv] ? P[hv].pos : null, q = PROP[hv];
     const at = posOf(hv);
-    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : ' · no pictures (another state of a place)') + (at ? (LAY.source === 'map' ? ' · placed by the age map, no height' : ` · ${(at[1] - SEA).toFixed(2)} over ${LAY.sea !== undefined ? 'sea' : 'node 4084'}`) : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
+    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : (CLOSE[hv] ? ` · close-up from ${num(CLOSE[hv].from)}` : ' · no pictures (another state of a place)')) + (at ? (LAY.source === 'map' ? ' · placed by the age map, no height' : ` · ${(at[1] - SEA).toFixed(2)} over ${LAY.sea !== undefined ? 'sea' : 'node 4084'}`) : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
     c.fillText(t, 6, h - 22);
   }
-  c.fillStyle = 'rgba(200,200,200,.7)'; c.fillText('N↑  ● model  ■ placed  ◯ proposed  - - ' + (useProp ? 'model' : 'proposed'), 6, h - 8);
+  c.fillStyle = 'rgba(200,200,200,.7)'; c.fillText('N↑  ● model  ■ placed  ◆ close-up  ◯ proposed  - - ' + (useProp ? 'model' : 'proposed'), 6, h - 8);
 }
 
 renderer.setAnimationLoop(() => {
@@ -418,7 +437,7 @@ renderer.setAnimationLoop(() => {
   }
   render(); drawMap();
 });
-window.nodeWalk = { go, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; },
+window.nodeWalk = { go, openClose, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; },
   set fisheye(b) { forceFish = b; }, set faces(b) { if (!!seams !== b) toggleSeams(); }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
 const h0 = decodeURIComponent(location.hash.slice(1));
 go(NODES[h0] ? h0 : byNum[+h0] || (NODES['MAIS-0006'] ? 'MAIS-0006' : Object.keys(NODES).sort()[0]));
