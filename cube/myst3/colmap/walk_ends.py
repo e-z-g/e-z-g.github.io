@@ -416,6 +416,9 @@ def main():
     ap.add_argument('--via', nargs='+', default=[], metavar='NODE',
                     help='nodes passed on the way from A to B, drawn with the same orientation as via1.png ...; '
                          'route.json gives each one\'s share of the route\'s length')
+    ap.add_argument('--turn', action='store_true',
+                    help='with --via: each node faces its own way, level, halfway between the step in and the step out '
+                         '(A along its first step, B along its last), so the view turns with the walk; route.json gives each look')
     ap.add_argument('--size', default='832x480'); ap.add_argument('--fov', type=float, default=90.0)
     ap.add_argument('--yaw', type=float, default=0.0); ap.add_argument('--pitch', type=float, default=0.0)
     ap.add_argument('--equirect', action='store_true',
@@ -480,48 +483,67 @@ def main():
     Rcam = np.stack([right, down, fwd])                     # world -> camera rows: x right, y down, z forward
     f = W / 2 / np.tan(np.radians(a.fov) / 2)
     os.makedirs(a.out, exist_ok=True)
-    if a.polar is not None:
-        render = lambda F: draw_polar_equirect(F, Rcam, W, H, a.polar)
-    elif a.equirect:
-        render = lambda F: draw_equirect(F, Rcam, W, H)
-    elif a.single_fisheye:
-        proj = 'equal-area' if a.equal_area else a.projection
-        aims = [(a.eye_yaw, a.eye_pitch), tuple(a.last_eye) if a.last_eye else (a.eye_yaw, a.eye_pitch)]
-        if a.auto_aim:
-            for i, F in enumerate((FA, FB)):
-                wk, lo, med = weak_spot(F, Rcam)
-                aims[i] = aim_of(wk)
-                print(f"{'first' if i == 0 else 'last'}: weakest spot {np.round(wk, 3)} (detail {lo:.1f}, median {med:.1f}); "
-                      f"aimed yaw {aims[i][0]:.1f} pitch {aims[i][1]:.1f}")
-        E0 = fisheye_eyes(Rcam, *aims[0])[0]
-        E1 = turned_eye(E0, fisheye_eyes(Rcam, *aims[1])[0][2])
-        ends = {id(FA): E0, id(FB): E1}
-        render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, projection=proj, axes=ends[id(F)])
-    elif a.dual_fisheye:
-        render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw, a.squash, a.fill_square)
-    elif a.net:
-        render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap, a.fill, a.false_line)
-    elif a.cross_hub:
-        render = lambda F: draw_cross_hub(F, Rcam, W, H, a.cross_hub)
-    elif a.cross_floor:
-        render = lambda F: draw_cross_floor(F, Rcam, W, H)
-    elif a.cross:
-        render = lambda F: draw_cross(F, Rcam, W, H)
-    elif a.grid:
-        render = lambda F: draw_grid(F, W, H)
-    else:
-        render = lambda F: draw(F, Rcam, W, H, f)
+    def renderer(Rcam):
+        if a.polar is not None:
+            render = lambda F: draw_polar_equirect(F, Rcam, W, H, a.polar)
+        elif a.equirect:
+            render = lambda F: draw_equirect(F, Rcam, W, H)
+        elif a.single_fisheye:
+            proj = 'equal-area' if a.equal_area else a.projection
+            aims = [(a.eye_yaw, a.eye_pitch), tuple(a.last_eye) if a.last_eye else (a.eye_yaw, a.eye_pitch)]
+            if a.auto_aim:
+                for i, F in enumerate((FA, FB)):
+                    wk, lo, med = weak_spot(F, Rcam)
+                    aims[i] = aim_of(wk)
+                    print(f"{'first' if i == 0 else 'last'}: weakest spot {np.round(wk, 3)} (detail {lo:.1f}, median {med:.1f}); "
+                          f"aimed yaw {aims[i][0]:.1f} pitch {aims[i][1]:.1f}")
+            E0 = fisheye_eyes(Rcam, *aims[0])[0]
+            E1 = turned_eye(E0, fisheye_eyes(Rcam, *aims[1])[0][2])
+            ends = {id(FA): E0, id(FB): E1}
+            render = lambda F: draw_single_fisheye(F, Rcam, W, H, a.single_fisheye, projection=proj, axes=ends[id(F)])
+        elif a.dual_fisheye:
+            render = lambda F: draw_dual_fisheye(F, Rcam, W, H, a.dual_fisheye, a.eye_yaw, a.squash, a.fill_square)
+        elif a.net:
+            render = lambda F: draw_net(F, Rcam, W, H, a.net, a.gap, a.fill, a.false_line)
+        elif a.cross_hub:
+            render = lambda F: draw_cross_hub(F, Rcam, W, H, a.cross_hub)
+        elif a.cross_floor:
+            render = lambda F: draw_cross_floor(F, Rcam, W, H)
+        elif a.cross:
+            render = lambda F: draw_cross(F, Rcam, W, H)
+        elif a.grid:
+            render = lambda F: draw_grid(F, W, H)
+        else:
+            render = lambda F: draw(F, Rcam, W, H, f)
+        return render
+    render = renderer(Rcam)
     Image.fromarray(render(FA)).save(os.path.join(a.out, 'first.png'))
     Image.fromarray(render(FB)).save(os.path.join(a.out, 'last.png'))
     if a.via:
-        cs = [CA]
-        for k, n in enumerate(a.via):
-            Cn, Fn = faces_of(a.images, imgs, n); cs.append(Cn)
-            Image.fromarray(render(Fn)).save(os.path.join(a.out, f'via{k + 1}.png'))
+        cs, Fs = [CA], []
+        for n in a.via:
+            Cn, Fn = faces_of(a.images, imgs, n); cs.append(Cn); Fs.append(Fn)
         cs.append(CB)
+        looks = None
+        if a.turn:
+            st = [q - p for p, q in zip(cs, cs[1:])]
+            st = [(d - up * (d @ up)) / np.linalg.norm(d - up * (d @ up)) for d in st]
+            looks = [st[0]] + [(si + so) / np.linalg.norm(si + so) if np.linalg.norm(si + so) > 1e-3 else so
+                               for si, so in zip(st, st[1:])] + [st[-1]]
+            def frame(fw):
+                r = np.cross(fw, up); r /= np.linalg.norm(r); return np.stack([r, np.cross(fw, r), fw])
+            Image.fromarray(renderer(frame(looks[0]))(FA)).save(os.path.join(a.out, 'first.png'))
+            Image.fromarray(renderer(frame(looks[-1]))(FB)).save(os.path.join(a.out, 'last.png'))
+            for k, (fw, si, so) in enumerate(zip(looks, [None] + st, st + [None])):
+                print(f'node {([a.a] + a.via + [a.b])[k]}: looks ' + ' '.join(
+                    f'{lab} {np.degrees(np.arccos(np.clip(fw @ d, -1, 1))):.1f}' for lab, d in (('off in', si), ('off out', so)) if d is not None))
+        for k, Fn in enumerate(Fs):
+            R = Rcam if looks is None else frame(looks[k + 1])
+            Image.fromarray(renderer(R)(Fn)).save(os.path.join(a.out, f'via{k + 1}.png'))
         seg = [float(np.linalg.norm(q - p)) for p, q in zip(cs, cs[1:])]
         cum = np.cumsum(seg) / sum(seg)
-        json.dump({'nodes': [a.a] + a.via + [a.b], 'lengths': seg, 'share': [0.0] + [float(c) for c in cum]},
+        json.dump({'nodes': [a.a] + a.via + [a.b], 'lengths': seg, 'share': [0.0] + [float(c) for c in cum],
+                   'looks_model': None if looks is None else [[float(x) for x in fw] for fw in looks]},
                   open(os.path.join(a.out, 'route.json'), 'w'), indent=1)
         print('route ' + ' '.join([a.a] + a.via + [a.b]) + ': lengths ' + ' '.join(f'{x:.3f}' for x in seg))
     # the direction in the nodes' own frame (node_depth.py's: face 1 looking along -z, y up), for the viewer

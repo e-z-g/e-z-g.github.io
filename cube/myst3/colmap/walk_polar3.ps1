@@ -7,16 +7,17 @@
 # H3 steps run inside comfy_job.ps1; the rest after. Example (LEIS 62 to 78):
 #   walk_polar3.ps1 -Age Jnanin -Model joined2_floor_map -Prefix LE -A 1062 -B 1078 -Tag leis_1062_1078
 # -Via "1081 1063 1062": one walk through these nodes on the way, each held at its share of the route's length
-# (MiniMaxH3AddGuide), every node drawn with the orientation from A to B.
+# (MiniMaxH3AddGuide), every node drawn with the orientation from A to B; with -Turn each node faces halfway
+# between its step in and its step out (walk_ends.py --turn), so the view turns with the walk.
 param([string]$Age, [string]$Model, [string]$Prefix, [string]$A, [string]$B, [string]$Tag, [int]$Frames = 39, [int]$Seed = 2,
-      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "")
+      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn)
 $env:PATH = "C:\Users\lloyd\AppData\Local\Microsoft\WinGet\Links;" + $env:PATH
 $C = 'C:\myst3_out\colmap'; $F = 'C:\myst3_out\film'; $W = "C:\myst3_colmap\$Age"; $M = "$W\runs\$Model\sparse_txt\ba"; if ($Sparse) { $M = $Sparse }
-$D = "$F\walk3_$($Tag)_s$Seed"; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
+$D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
 $L = @('--dual', '180', '--fill-square', '--squash', '0.35')
 $turbo = 'h3\minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors'
 New-Item -ItemType Directory -Force $D | Out-Null
-$V = @(); if ($Via) { $V = @('--via') + $Via.Split(' ') }
+$V = @(); if ($Via) { $V = @('--via') + $Via.Split(' ') }; if ($Turn) { $V += '--turn' }
 function Guides($E) {
   if (-not $Via) { return @() }
   $r = Get-Content -Raw "$E\route.json" | ConvertFrom-Json; $g = @()
@@ -24,7 +25,7 @@ function Guides($E) {
   return $g
 }
 if ($Step -eq 'ends') {
-  & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $Size --polar 20 --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 2
+  & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $Size --polar 20 --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 8
   "guides: " + ((Guides $EP) -join ' ')
 }
 if ($Step -in 'all', 'h3') {
