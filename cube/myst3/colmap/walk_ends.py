@@ -413,6 +413,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('images'); ap.add_argument('sparse'); ap.add_argument('out'); ap.add_argument('a'); ap.add_argument('b')
     ap.add_argument('--prefix', default='MA', help="the faces' file prefix: MA (Amateria), LE (J'nanin)")
+    ap.add_argument('--via', nargs='+', default=[], metavar='NODE',
+                    help='nodes passed on the way from A to B, drawn with the same orientation as via1.png ...; '
+                         'route.json gives each one\'s share of the route\'s length')
     ap.add_argument('--size', default='832x480'); ap.add_argument('--fov', type=float, default=90.0)
     ap.add_argument('--yaw', type=float, default=0.0); ap.add_argument('--pitch', type=float, default=0.0)
     ap.add_argument('--equirect', action='store_true',
@@ -510,6 +513,17 @@ def main():
         render = lambda F: draw(F, Rcam, W, H, f)
     Image.fromarray(render(FA)).save(os.path.join(a.out, 'first.png'))
     Image.fromarray(render(FB)).save(os.path.join(a.out, 'last.png'))
+    if a.via:
+        cs = [CA]
+        for k, n in enumerate(a.via):
+            Cn, Fn = faces_of(a.images, imgs, n); cs.append(Cn)
+            Image.fromarray(render(Fn)).save(os.path.join(a.out, f'via{k + 1}.png'))
+        cs.append(CB)
+        seg = [float(np.linalg.norm(q - p)) for p, q in zip(cs, cs[1:])]
+        cum = np.cumsum(seg) / sum(seg)
+        json.dump({'nodes': [a.a] + a.via + [a.b], 'lengths': seg, 'share': [0.0] + [float(c) for c in cum]},
+                  open(os.path.join(a.out, 'route.json'), 'w'), indent=1)
+        print('route ' + ' '.join([a.a] + a.via + [a.b]) + ': lengths ' + ' '.join(f'{x:.3f}' for x in seg))
     # the direction in the nodes' own frame (node_depth.py's: face 1 looking along -z, y up), for the viewer
     M = FA[0][0].T @ np.diag([1.0, -1.0, -1.0])             # node frame -> model frame (walk_scene.py's)
     look = M.T @ fwd

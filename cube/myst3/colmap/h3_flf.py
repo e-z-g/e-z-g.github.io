@@ -51,6 +51,8 @@ def main():
     ap.add_argument('--init', help='a video to start from (a rendered walk), sampled at --denoise: the low-denoise pass '
                     '(needs the MiniMaxH3VideoInitLatent node, pc_scripts/comfy_nodes/minimax_h3_init.py, in custom_nodes)')
     ap.add_argument('--denoise', type=float, default=1.0)
+    ap.add_argument('--guide', nargs=2, action='append', default=[], metavar=('PNG', 'FRAME'),
+                    help='a picture the walk passes through at FRAME (MiniMaxH3AddGuide); repeat for more')
     ap.add_argument('--control-patch', default='minimax_h3_fun_controlnet_union_pruned_int8_convrot.safetensors')
     ap.add_argument('--prompt', default='A smooth, steady first-person camera walking slowly forward along the pier, the same place '
                     'throughout, the scene getting nearer, no cuts, static lighting. Audio: soft footsteps on wood, gentle waves.')
@@ -74,6 +76,8 @@ def main():
         shutil.copy(a.init, os.path.join(a.comfy_input, 'h3_init.mp4'))
     for f, n in ((a.first, 'h3_first.png'), (a.last, 'h3_last.png')):
         shutil.copy(f, os.path.join(a.comfy_input, n)); names.append(n)
+    for k, (f, _) in enumerate(a.guide):
+        shutil.copy(f, os.path.join(a.comfy_input, f'h3_guide{k}.png'))
     seeds = a.seeds or [a.seed]
     queued = []
     for seed in seeds:
@@ -100,6 +104,13 @@ def main():
           # every decoded frame as a PNG too: the lossless master (the MP4 is H.264, for a quick look and the sound)
           '18': {'class_type': 'SaveImage', 'inputs': {'images': ['14', 0], 'filename_prefix': f'h3_frames/{uuid.uuid4().hex[:8]}_s{seed}'}},
       }
+      cond = ['8', 0]
+      for k, (_, fr) in enumerate(a.guide):
+          g[str(80 + 2 * k)] = {'class_type': 'LoadImage', 'inputs': {'image': f'h3_guide{k}.png'}}
+          g[str(81 + 2 * k)] = {'class_type': 'MiniMaxH3AddGuide', 'inputs': {'positive': cond, 'vae': ['4', 0], 'latent': ['8', 1],
+                                                                            'image': [str(80 + 2 * k), 0], 'frame_idx': int(fr)}}
+          cond = [str(81 + 2 * k), 0]
+      g['9']['inputs']['conditioning'] = cond
       if a.control:
           # the turbo-LoRA'd model through the ControlNet patch, guided by the control video's frames
           g['30'] = {'class_type': 'ModelPatchLoader', 'inputs': {'name': a.control_patch}}

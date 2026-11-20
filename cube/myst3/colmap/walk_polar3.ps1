@@ -6,23 +6,36 @@
 #   then the two-fisheye frames encoded for the viewer, forward and reversed.
 # H3 steps run inside comfy_job.ps1; the rest after. Example (LEIS 62 to 78):
 #   walk_polar3.ps1 -Age Jnanin -Model joined2_floor_map -Prefix LE -A 1062 -B 1078 -Tag leis_1062_1078
+# -Via "1081 1063 1062": one walk through these nodes on the way, each held at its share of the route's length
+# (MiniMaxH3AddGuide), every node drawn with the orientation from A to B.
 param([string]$Age, [string]$Model, [string]$Prefix, [string]$A, [string]$B, [string]$Tag, [int]$Frames = 39, [int]$Seed = 2,
-      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280")
+      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "")
 $env:PATH = "C:\Users\lloyd\AppData\Local\Microsoft\WinGet\Links;" + $env:PATH
 $C = 'C:\myst3_out\colmap'; $F = 'C:\myst3_out\film'; $W = "C:\myst3_colmap\$Age"; $M = "$W\runs\$Model\sparse_txt\ba"
 $D = "$F\walk3_$($Tag)_s$Seed"; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
 $L = @('--dual', '180', '--fill-square', '--squash', '0.35')
 $turbo = 'h3\minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors'
 New-Item -ItemType Directory -Force $D | Out-Null
+$V = @(); if ($Via) { $V = @('--via') + $Via.Split(' ') }
+function Guides($E) {
+  if (-not $Via) { return @() }
+  $r = Get-Content -Raw "$E\route.json" | ConvertFrom-Json; $g = @()
+  for ($k = 1; $k -lt $r.share.Count - 1; $k++) { $g += @('--guide', "$E\via$k.png", [string][math]::Round($r.share[$k] * ($Frames - 1))) }
+  return $g
+}
+if ($Step -eq 'ends') {
+  & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $Size --polar 20 --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 2
+  "guides: " + ((Guides $EP) -join ' ')
+}
 if ($Step -in 'all', 'h3') {
-  & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $Size --polar 20 --along-motion --prefix $Prefix 2>&1 | Select-Object -Last 1
-  & py -3 $C\walk_ends.py "$W\images" $M $ED $A $B --size $Size --dual-fisheye 180 --along-motion --fill-square --squash 0.35 --prefix $Prefix 2>&1 | Select-Object -Last 1
+  & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $Size --polar 20 --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 1
+  & py -3 $C\walk_ends.py "$W\images" $M $ED $A $B --size $Size --dual-fisheye 180 --along-motion --fill-square --squash 0.35 --prefix $Prefix @V 2>&1 | Select-Object -Last 1
   $P = (Get-Content -Raw -Encoding UTF8 "C:\myst3_out\prompts\$($Tag)_polar.txt").Trim()
-  & py -3 $C\h3_flf.py "$EP\first.png" "$EP\last.png" "$D\p1" --size $Size --frames $Frames --steps 4 --turbo $turbo --seeds $Seed --timeout 5000 --prompt $P 2>&1 | Select-Object -Last 3
+  & py -3 $C\h3_flf.py "$EP\first.png" "$EP\last.png" "$D\p1" --size $Size --frames $Frames --steps 4 --turbo $turbo --seeds $Seed --timeout 5000 @(Guides $EP) --prompt $P 2>&1 | Select-Object -Last 3
   & py -3 $C\polar_to_dual.py "$D\p1\frames_s$Seed" "$D\p1dual" --pad 20 --size $Size @L
   & ffmpeg -loglevel error -y -framerate 24 -i "$D\p1dual\%04d.png" -c:v libx264 -crf 6 -pix_fmt yuv444p "$D\p1dual.mp4"
   $P = (Get-Content -Raw -Encoding UTF8 "C:\myst3_out\prompts\$($Tag)_dual180.txt").Trim()
-  & py -3 $C\h3_flf.py "$ED\first.png" "$ED\last.png" "$D\p3" --size $Size --frames $Frames --steps 4 --turbo $turbo --seeds $Seed --init "$D\p1dual.mp4" --denoise $Denoise --timeout 5000 --prompt $P 2>&1 | Select-Object -Last 3
+  & py -3 $C\h3_flf.py "$ED\first.png" "$ED\last.png" "$D\p3" --size $Size --frames $Frames --steps 4 --turbo $turbo --seeds $Seed --init "$D\p1dual.mp4" --denoise $Denoise --timeout 5000 @(Guides $ED) --prompt $P 2>&1 | Select-Object -Last 3
   "== done h3 " + (Get-Date -Format s)
 }
 if ($Step -in 'all', 'post') {
