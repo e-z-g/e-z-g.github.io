@@ -87,6 +87,8 @@ def main():
     ap.add_argument('--height-from', nargs='*', default=[])
     ap.add_argument('--sea', nargs='*', default=[]); ap.add_argument('--eye', type=float, default=0.226)
     ap.add_argument('--age-map')
+    ap.add_argument('--frames', help="a folder of flat close-up frames (<ROOM>-<node>.jpg, m3a_list.py's type 6): a move to a "
+                                     "node with no faces but a frame gets 'frame', which the page shows over the scene")
     ap.add_argument('--all-faces', action='store_true',
                     help='also every node with faces that no script names (no moves; TOHO 104 and 105); with --age-map, '
                          'one with no place of its own is put at the place of its node in the first state (n %% 100)')
@@ -126,13 +128,19 @@ def main():
                     to = f'{room}-{args[0]:04d}'
                 elif kind in ('walk-room', 'zip-room') and len(args) >= 2 and args[0] > 100 and args[0] % 100 in rooms:
                     to = f'{rooms[args[0] % 100]}-{args[1]:04d}'
+                frame = None
                 if to is not None and to not in has:
-                    counts['no faces'] += 1; to = None
+                    counts['no faces'] += 1
+                    if a.frames and os.path.exists(os.path.join(a.frames, to + '.jpg')):
+                        frame = to + '.jpg'
+                    to = None
                 elif to is not None:
                     counts['walks'] += 1
                 else:
                     counts['other'] += 1
                 keep.append({'kind': kind, 'op': op, 'args': args, 'to': to, 'cond': s['cond'], 'rects': s['rects']})
+                if frame:
+                    keep[-1]['frame'] = frame
             out[name] = keep
     os.makedirs(a.out, exist_ok=True)
     json.dump({'rooms': a.rooms, 'nodes': out}, open(os.path.join(a.out, 'walk.json'), 'w'), separators=(',', ':'))

@@ -54,7 +54,7 @@ const num = n => (W.rooms.indexOf(n.slice(0, 4)) + 1) * 1000 + +n.slice(5);
 const label = n => `${num(n)} · ${n.slice(0, 4)} ${+n.slice(5)}`;
 const byNum = Object.fromEntries(Object.keys(NODES).map(n => [num(n), n]));
 const names = Object.keys(NODES).sort((a, b) => num(a) - num(b));
-const what = s => s.to ? `${s.kind} to ${num(s.to)}` : `${s.kind} (${s.args.join(' ')})`;
+const what = s => s.to ? `${s.kind} to ${num(s.to)}` : s.frame ? `close-up ${s.frame.slice(0, -4)}` : `${s.kind} (${s.args.join(' ')})`;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -115,7 +115,15 @@ function spotAt(n, ray) {
 // the heading and pitch), 3 both
 let spotMode = 0, outlines = null;
 const MODES = ['off', 'areas', 'centres', 'both'];
-const colOf = s => s.to ? (s.kind.startsWith('zip') ? 0x40c0ff : 0x40ff60) : 0xff8040;
+const colOf = s => s.to ? (s.kind.startsWith('zip') ? 0x40c0ff : 0x40ff60) : s.frame ? 0xffe040 : 0xff8040;
+// a close-up the game draws as one flat frame (a node with no cube faces): shown over the scene; a tap, click or Escape closes it
+const FR = document.createElement('div');
+FR.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:20;cursor:pointer';
+FR.innerHTML = '<img style="max-width:96vw;max-height:90vh;box-shadow:0 0 24px #000;border:1px solid #666"><div style="position:absolute;bottom:10px;color:#ddd;font:13px system-ui">close-up · tap to go back</div>';
+document.body.appendChild(FR);
+FR.onclick = () => { FR.style.display = 'none'; };
+function showFrame(f) { FR.querySelector('img').src = `frames/${f}`; FR.style.display = 'flex'; }
+addEventListener('keydown', e => { if (e.key === 'Escape' && FR.style.display !== 'none') FR.style.display = 'none'; });
 function labelSprite(text, col, w = 0.7) {
   const cv = document.createElement('canvas'), cx = cv.getContext('2d'); cx.font = 'bold 40px system-ui, sans-serif';
   cv.width = Math.ceil(cx.measureText(text).width + 24); cv.height = 56;
@@ -279,7 +287,7 @@ el.addEventListener('pointermove', e => {
 });
 const up = e => {
   ptr.delete(e.pointerId); if (ptr.size < 2) pinch = null;
-  if (down && !down.moved && ptr.size === 0 && here) { const s = spotAt(here, rayAt(e.clientX, e.clientY)); if (s && s.to) go(s.to); }
+  if (down && !down.moved && ptr.size === 0 && here) { const s = spotAt(here, rayAt(e.clientX, e.clientY)); if (s && s.to) go(s.to); else if (s && s.frame) showFrame(s.frame); }
   if (ptr.size === 0) down = null;
 };
 el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
@@ -300,7 +308,6 @@ document.getElementById('laybtn').onclick = toggleLayout;
 function toggleMap() { mapOn = !mapOn; MC.style.display = mapOn ? 'block' : 'none'; }
 MC.style.display = mapOn ? 'block' : 'none';
 document.getElementById('mapbtn').onclick = toggleMap;
-MC.addEventListener('dblclick', () => MC.classList.toggle('big'));
 MC.addEventListener('wheel', e => { mapScale = Math.min(400, Math.max(4, mapScale * Math.exp(-e.deltaY * 0.0015))); e.preventDefault(); }, { passive: false });
 let mapCentre = [0, 0, 0];
 const toMap = (p, w, h) => [w / 2 - (p[0] - mapCentre[0]) * mapScale, h / 2 - (p[2] - mapCentre[2]) * mapScale];
@@ -311,16 +318,44 @@ function nodeAtMap(x, y) {
   }
   return best;
 }
-MC.addEventListener('pointermove', e => { mapHover = nodeAtMap(e.offsetX, e.offsetY); });
+// touch and mouse: one finger drags the map, two pinch to zoom, a tap goes to the node under it;
+// the map follows the current node again after a move; a double tap enlarges or shrinks it and centres it again
+let mapPan = [0, 0], mapMoved = false, lastTap = 0;
+const mptr = new Map();
+const mxy = e => { const r = MC.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+MC.addEventListener('pointerdown', e => { MC.setPointerCapture(e.pointerId); mptr.set(e.pointerId, mxy(e)); if (mptr.size === 1) mapMoved = false; e.preventDefault(); });
+MC.addEventListener('pointermove', e => {
+  const q = mxy(e);
+  if (!mptr.has(e.pointerId)) { mapHover = nodeAtMap(...q); return; }
+  const prev = [...mptr.values()], before = mptr.get(e.pointerId); mptr.set(e.pointerId, q);
+  if (mptr.size === 1) {
+    const dx = q[0] - before[0], dy = q[1] - before[1];
+    if (Math.abs(dx) + Math.abs(dy) > 0) { if (Math.hypot(dx, dy) > 2 || mapMoved) mapMoved = true; mapPan[0] += dx / mapScale; mapPan[1] += dy / mapScale; }
+  } else if (mptr.size === 2) {
+    const now = [...mptr.values()], d0 = Math.hypot(prev[0][0] - prev[1][0], prev[0][1] - prev[1][1]), d1 = Math.hypot(now[0][0] - now[1][0], now[0][1] - now[1][1]);
+    if (d0 > 0) mapScale = Math.min(400, Math.max(4, mapScale * d1 / d0));
+    mapMoved = true;
+  }
+});
+const mup = e => {
+  if (!mptr.has(e.pointerId)) return;
+  const q = mxy(e); mptr.delete(e.pointerId);
+  if (mptr.size === 0 && !mapMoved) {
+    const t = performance.now();
+    if (t - lastTap < 300) { mapPan = [0, 0]; MC.classList.toggle('big'); lastTap = 0; return; }
+    lastTap = t;
+    const n = nodeAtMap(...q); if (n && byNum[+n]) { mapPan = [0, 0]; go(byNum[+n]); }
+  }
+};
+MC.addEventListener('pointerup', mup); MC.addEventListener('pointercancel', e => mptr.delete(e.pointerId));
 MC.addEventListener('pointerleave', () => { mapHover = null; });
-MC.addEventListener('click', e => { const n = nodeAtMap(e.offsetX, e.offsetY); if (n && byNum[+n]) go(byNum[+n]); });
 function drawMap() {
   if (!mapOn) return;
   const dpr = Math.min(devicePixelRatio, 2), w = MC.clientWidth, h = MC.clientHeight;
   if (MC.width !== Math.round(w * dpr) || MC.height !== Math.round(h * dpr)) { MC.width = Math.round(w * dpr); MC.height = Math.round(h * dpr); }
   const c = mcx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
   const cur = here ? String(num(here)) : null;
-  if (cur && posOf(cur)) mapCentre = posOf(cur);
+  if (cur && posOf(cur)) { const p = posOf(cur); mapCentre = [p[0] + mapPan[0], p[1], p[2] + mapPan[1]]; }
   // the moves
   for (const [n, spots] of Object.entries(NODES)) {
     const a = posOf(String(num(n))); if (!a) continue;
@@ -345,9 +380,11 @@ function drawMap() {
   c.font = '10px system-ui, sans-serif'; c.textBaseline = 'middle';
   for (const [n, v] of Object.entries(P)) {
     const [x, y] = toMap(posOf(n), w, h); if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
-    c.fillStyle = ROOMCOL[+n[0] - 1] || '#ccc';
-    if (v.kind === 'placed') c.fillRect(x - 3, y - 3, 6, 6); else { c.beginPath(); c.arc(x, y, 3, 0, 7); c.fill(); }
-    if (labels) { c.fillStyle = 'rgba(230,230,230,.85)'; c.fillText(n, x + 5, y - 6); }
+    // a node with no pictures (another state of a place, shown in the game by a movie or a flat frame) is drawn hollow
+    const has = !!byNum[+n], col = ROOMCOL[+n[0] - 1] || '#ccc';
+    if (!has) { c.strokeStyle = col; c.globalAlpha = .5; c.beginPath(); c.arc(x, y, 3, 0, 7); c.stroke(); c.globalAlpha = 1; }
+    else { c.fillStyle = col; if (v.kind === 'placed') c.fillRect(x - 3, y - 3, 6, 6); else { c.beginPath(); c.arc(x, y, 3, 0, 7); c.fill(); } }
+    if (labels) { c.fillStyle = has ? 'rgba(230,230,230,.85)' : 'rgba(160,160,160,.6)'; c.fillText(n, x + 5, y - 6); }
   }
   if (labels) for (const n of Object.keys(PROP)) if (!P[n] && posOf(n)) { const [x, y] = toMap(posOf(n), w, h); c.fillStyle = '#ff9ae8'; c.fillText(n, x + 6, y - 6); }
   // where the eye is and the way it looks
@@ -365,7 +402,7 @@ function drawMap() {
   if (hv) {
     const p = P[hv] ? P[hv].pos : null, q = PROP[hv];
     const at = posOf(hv);
-    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : '') + (at ? (LAY.source === 'map' ? ' · placed by the age map, no height' : ` · ${(at[1] - SEA).toFixed(2)} over ${LAY.sea !== undefined ? 'sea' : 'node 4084'}`) : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
+    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : ' · no pictures (another state of a place)') + (at ? (LAY.source === 'map' ? ' · placed by the age map, no height' : ` · ${(at[1] - SEA).toFixed(2)} over ${LAY.sea !== undefined ? 'sea' : 'node 4084'}`) : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
     c.fillText(t, 6, h - 22);
   }
   c.fillStyle = 'rgba(200,200,200,.7)'; c.fillText('N↑  ● model  ■ placed  ◯ proposed  - - ' + (useProp ? 'model' : 'proposed'), 6, h - 8);
