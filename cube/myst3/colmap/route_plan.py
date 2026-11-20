@@ -39,6 +39,40 @@ def node_pose(sparse, name):
     raise SystemExit(f'{name} not in the model')
 
 
+def face_pose(sparse, names):
+    out = {}
+    with open(os.path.join(sparse, 'images.txt')) as fh:
+        head = True
+        for line in fh:
+            if line.startswith('#'):
+                continue
+            if head:
+                p = line.split()
+                if p[9] in names:
+                    out[p[9]] = (qvec2rot(np.array(p[1:5], float)), np.array(p[5:8], float))
+            head = not head
+    return out
+
+
+def depth_points(sparse, prefix, ddir, step=4, f=320.0, c=320.0):
+    """node_depth.py's six maps of one node as points in the model: distance along each ray from the grey level
+    (0 is sky or past r_far, 255 is r_near), every step-th pixel."""
+    rep = json.load(open(os.path.join(ddir, 'node_depth.json')))
+    node, r_far, ratio = rep['node'], rep['r_far'], rep['ratio']
+    poses = face_pose(sparse, {f'f{k}/{prefix}-{node}.jpg' for k in range(1, 7)})
+    P = []
+    for k in range(1, 7):
+        g = np.asarray(Image.open(os.path.join(ddir, f'face{k}_measured-depth.png')), float)[::step, ::step] / 255
+        v, u = np.mgrid[0:g.shape[0], 0:g.shape[1]] * step + step / 2
+        ok = g > 0.02
+        r = r_far / (1 + g[ok] * (ratio - 1))
+        d = np.stack([(u[ok] - c) / f, (v[ok] - c) / f, np.ones(ok.sum())], -1)
+        d /= np.linalg.norm(d, axis=1)[:, None]
+        R, t = poses[f'f{k}/{prefix}-{node}.jpg']
+        P.append(-R.T @ t + (d * r[:, None]) @ R)
+    return np.vstack(P)
+
+
 def points(sparse, max_err, min_track):
     P = []
     with open(os.path.join(sparse, 'points3D.txt')) as fh:
@@ -59,6 +93,8 @@ def main():
     ap.add_argument('--climb', type=float, default=2.0, help='cost of going up or down, against going level')
     ap.add_argument('--margin', type=float, default=0.6, help='the grid reaches this share of the line beyond the nodes')
     ap.add_argument('--max-err', type=float, default=2.0); ap.add_argument('--min-track', type=int, default=3)
+    ap.add_argument('--depth', nargs='+', default=[], metavar='DIR', help="node_depth.py's maps of nodes, as more obstacles")
+    ap.add_argument('--no-sparse', action='store_true', help="leave the sparse model's points out")
     ap.add_argument('--out', default='.')
     a = ap.parse_args()
     A, up = node_pose(a.sparse, f'f1/{a.prefix}-{a.a}.jpg'); B, _ = node_pose(a.sparse, f'f1/{a.prefix}-{a.b}.jpg')
@@ -71,7 +107,9 @@ def main():
     to = lambda X: (np.asarray(X) - A) @ F.T; back = lambda Y: A + np.asarray(Y) @ F
     pa, pb = to(A), to(B)
     lo = np.minimum(pa, pb) - a.margin * L; hi = np.maximum(pa, pb) + a.margin * L
-    P = to(points(a.sparse, a.max_err, a.min_track))
+    src = [] if a.no_sparse else [points(a.sparse, a.max_err, a.min_track)]
+    src += [depth_points(a.sparse, a.prefix, dd) for dd in a.depth]
+    P = to(np.vstack(src))
     P = P[np.all((P >= lo - clear) & (P <= hi + clear), 1)]
     n = np.ceil((hi - lo) / cell).astype(int) + 1
     occ = np.zeros(n, bool)
