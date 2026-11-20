@@ -87,6 +87,9 @@ def main():
     ap.add_argument('--height-from', nargs='*', default=[])
     ap.add_argument('--sea', nargs='*', default=[]); ap.add_argument('--eye', type=float, default=0.226)
     ap.add_argument('--age-map')
+    ap.add_argument('--all-faces', action='store_true',
+                    help='also every node with faces that no script names (no moves; TOHO 104 and 105); with --age-map, '
+                         'one with no place of its own is put at the place of its node in the first state (n %% 100)')
     a = ap.parse_args()
     scripts = load_dat(a.dat)
     rooms = {1 + i: r for i, r in enumerate(a.rooms)}         # a room's number's last two digits: its place in --rooms
@@ -98,6 +101,10 @@ def main():
     out, counts = {}, {'walks': 0, 'no faces': 0, 'other': 0}
     for room in a.rooms:
         hs = room_hotspots(scripts[room])
+        if a.all_faces:
+            for f in has:
+                if f.startswith(room + '-'):
+                    hs.setdefault(int(f[5:]), [])
         for n, spots in sorted(hs.items()):
             name = f'{room}-{n:04d}'
             if name not in has:
@@ -134,6 +141,11 @@ def main():
         pos = json.load(open(a.age_map))['positions']
         lay = {str(num[k.split(':')[0]] + int(k.split(':')[1])): {'pos': [round(-x, 4), 0.0, round(y, 4)], 'kind': 'map'}
                for k, (x, y) in pos.items() if k.split(':')[0] in num}
+        if a.all_faces:
+            for name in out:
+                room, n = name[:4], int(name[5:]); k = str(num[room] + n); b = str(num[room] + n % 100)
+                if k not in lay and b in lay:
+                    lay[k] = {'pos': lay[b]['pos'], 'kind': 'map'}
         json.dump({'nodes': lay, 'proposed': {}, 'source': 'map'}, open(os.path.join(a.out, 'layout.json'), 'w'), indent=0)
         print(f'layout: {len(lay)} nodes from the age map')
     if a.views:
