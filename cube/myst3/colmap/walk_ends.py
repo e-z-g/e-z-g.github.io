@@ -471,6 +471,8 @@ def main():
     CB, FB = faces_of(a.images, imgs, a.b)
     up = -FA[0][0][1]                                        # minus the y axis of face 1's camera
     fwd = CB - CA
+    if np.linalg.norm(fwd) < 1e-6 and a.via:                 # a loop (A is B): face the first step
+        fwd = faces_of(a.images, imgs, a.via[0])[0] - CA
     if not a.along_motion:
         fwd -= up * (fwd @ up)
     fwd /= np.linalg.norm(fwd)
