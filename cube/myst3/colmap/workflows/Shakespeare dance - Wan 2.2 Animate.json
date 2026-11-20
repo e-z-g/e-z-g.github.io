@@ -1,0 +1,781 @@
+{
+ "1": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 480
+  },
+  "_meta": {
+   "title": "Width (multiple of 16; match the dance video's shape)"
+  }
+ },
+ "2": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 832
+  },
+  "_meta": {
+   "title": "Height (multiple of 16)"
+  }
+ },
+ "3": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 81
+  },
+  "_meta": {
+   "title": "Frames (4n+1: 81, 121, 161 ...)"
+  }
+ },
+ "4": {
+  "class_type": "PrimitiveBoolean",
+  "inputs": {
+   "value": true
+  },
+  "_meta": {
+   "title": "Replace the dancer, keep the stage (true) / dance in a scene from the prompt (false)"
+  }
+ },
+ "5": {
+  "class_type": "PrimitiveInt",
+  "inputs": {
+   "value": 2
+  },
+  "_meta": {
+   "title": "Seed"
+  }
+ },
+ "10": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "bard_2.png"
+  },
+  "_meta": {
+   "title": "The person (full body, face clear)"
+  }
+ },
+ "11": {
+  "class_type": "LoadVideo",
+  "inputs": {
+   "file": "dance.mp4"
+  },
+  "_meta": {
+   "title": "The dance video"
+  }
+ },
+ "12": {
+  "class_type": "GetVideoComponents",
+  "inputs": {
+   "video": [
+    "11",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Dance frames"
+  }
+ },
+ "13": {
+  "class_type": "ImageFromBatch",
+  "inputs": {
+   "image": [
+    "12",
+    0
+   ],
+   "batch_index": 0,
+   "length": [
+    "3",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "First frames of the dance"
+  }
+ },
+ "14": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "13",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": [
+    "1",
+    0
+   ],
+   "height": [
+    "2",
+    0
+   ],
+   "crop": "center"
+  },
+  "_meta": {
+   "title": "Dance scaled and centre-cropped"
+  }
+ },
+ "15": {
+  "class_type": "ImageScale",
+  "inputs": {
+   "image": [
+    "10",
+    0
+   ],
+   "upscale_method": "lanczos",
+   "width": [
+    "1",
+    0
+   ],
+   "height": [
+    "2",
+    0
+   ],
+   "crop": "center"
+  },
+  "_meta": {
+   "title": "Person scaled and centre-cropped"
+  }
+ },
+ "20": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sdpose_wholebody_fp16.safetensors"
+  },
+  "_meta": {
+   "title": "SDPose"
+  }
+ },
+ "21": {
+  "class_type": "SDPoseKeypointExtractor",
+  "inputs": {
+   "model": [
+    "20",
+    0
+   ],
+   "vae": [
+    "20",
+    2
+   ],
+   "image": [
+    "14",
+    0
+   ],
+   "batch_size": 16
+  },
+  "_meta": {
+   "title": "Dancer's pose"
+  }
+ },
+ "22": {
+  "class_type": "SDPoseDrawKeypoints",
+  "inputs": {
+   "keypoints": [
+    "21",
+    0
+   ],
+   "draw_body": true,
+   "draw_hands": true,
+   "draw_face": false,
+   "draw_feet": true,
+   "stick_width": 4,
+   "face_point_size": 3,
+   "score_threshold": 0.3,
+   "draw_head": true
+  },
+  "_meta": {
+   "title": "Pose video"
+  }
+ },
+ "23": {
+  "class_type": "SDPoseFaceBBoxes",
+  "inputs": {
+   "keypoints": [
+    "21",
+    0
+   ],
+   "scale": 1.5,
+   "force_square": true
+  },
+  "_meta": {
+   "title": "Dancer's face"
+  }
+ },
+ "24": {
+  "class_type": "CropByBBoxes",
+  "inputs": {
+   "image": [
+    "14",
+    0
+   ],
+   "bboxes": [
+    "23",
+    0
+   ],
+   "output_width": 512,
+   "output_height": 512,
+   "padding": 0,
+   "keep_aspect": "stretch"
+  },
+  "_meta": {
+   "title": "Face video"
+  }
+ },
+ "30": {
+  "class_type": "CheckpointLoaderSimple",
+  "inputs": {
+   "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+  },
+  "_meta": {
+   "title": "SAM 3.1"
+  }
+ },
+ "31": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "30",
+    1
+   ],
+   "text": "person"
+  },
+  "_meta": {
+   "title": "What to mask"
+  }
+ },
+ "32": {
+  "class_type": "SAM3_Detect",
+  "inputs": {
+   "model": [
+    "30",
+    0
+   ],
+   "image": [
+    "14",
+    0
+   ],
+   "conditioning": [
+    "31",
+    0
+   ],
+   "threshold": 0.5,
+   "refine_iterations": 2,
+   "individual_masks": false
+  },
+  "_meta": {
+   "title": "Dancer's mask"
+  }
+ },
+ "33": {
+  "class_type": "GrowMask",
+  "inputs": {
+   "mask": [
+    "32",
+    0
+   ],
+   "expand": 16,
+   "tapered_corners": true
+  },
+  "_meta": {
+   "title": "Mask grown (raise expand if hair or clothes are cut off)"
+  }
+ },
+ "34": {
+  "class_type": "EmptyImage",
+  "inputs": {
+   "width": [
+    "1",
+    0
+   ],
+   "height": [
+    "2",
+    0
+   ],
+   "batch_size": 1,
+   "color": 0
+  },
+  "_meta": {
+   "title": "Black"
+  }
+ },
+ "35": {
+  "class_type": "ImageCompositeMasked",
+  "inputs": {
+   "destination": [
+    "14",
+    0
+   ],
+   "source": [
+    "34",
+    0
+   ],
+   "x": 0,
+   "y": 0,
+   "resize_source": false,
+   "mask": [
+    "33",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Stage with the dancer blacked out"
+  }
+ },
+ "36": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "switch": [
+    "4",
+    0
+   ],
+   "on_true": [
+    "35",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "background_video (only when replacing)"
+  }
+ },
+ "37": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "switch": [
+    "4",
+    0
+   ],
+   "on_true": [
+    "33",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "character_mask (only when replacing)"
+  }
+ },
+ "40": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "wan2.2_animate_14B_int8_convrot.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "Wan 2.2 Animate 14B"
+  }
+ },
+ "41": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "40",
+    0
+   ],
+   "lora_name": "lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors",
+   "strength_model": 1.0
+  },
+  "_meta": {
+   "title": "Speed LoRA (6 steps at cfg 1)"
+  }
+ },
+ "42": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "41",
+    0
+   ],
+   "lora_name": "wan2.2_animate_14B_relight_lora_bf16.safetensors",
+   "strength_model": 1.0
+  },
+  "_meta": {
+   "title": "Relight LoRA (lighting matched to the stage)"
+  }
+ },
+ "43": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "42",
+    0
+   ],
+   "lora_name": "wan2.2_animate_14B_relight_lora_bf16.safetensors",
+   "strength_model": 0.0
+  },
+  "_meta": {
+   "title": "LoRA 1 (pick a file, then raise the strength from 0)"
+  }
+ },
+ "44": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "43",
+    0
+   ],
+   "lora_name": "wan2.2_animate_14B_relight_lora_bf16.safetensors",
+   "strength_model": 0.0
+  },
+  "_meta": {
+   "title": "LoRA 2 (pick a file, then raise the strength from 0)"
+  }
+ },
+ "45": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "44",
+    0
+   ],
+   "lora_name": "wan2.2_animate_14B_relight_lora_bf16.safetensors",
+   "strength_model": 0.0
+  },
+  "_meta": {
+   "title": "LoRA 3 (pick a file, then raise the strength from 0)"
+  }
+ },
+ "46": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "45",
+    0
+   ],
+   "lora_name": "wan2.2_animate_14B_relight_lora_bf16.safetensors",
+   "strength_model": 0.0
+  },
+  "_meta": {
+   "title": "LoRA 4 (pick a file, then raise the strength from 0)"
+  }
+ },
+ "47": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "model": [
+    "46",
+    0
+   ],
+   "lora_name": "wan2.2_animate_14B_relight_lora_bf16.safetensors",
+   "strength_model": 0.0
+  },
+  "_meta": {
+   "title": "LoRA 5 (pick a file, then raise the strength from 0)"
+  }
+ },
+ "48": {
+  "class_type": "ModelSamplingSD3",
+  "inputs": {
+   "model": [
+    "47",
+    0
+   ],
+   "shift": 8.0
+  },
+  "_meta": {
+   "title": "Shift"
+  }
+ },
+ "50": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "type": "wan",
+   "device": "default"
+  },
+  "_meta": {
+   "title": "Text encoder"
+  }
+ },
+ "51": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "50",
+    0
+   ],
+   "text": "A man in his late thirties with a high receding hairline, shoulder-length dark brown hair, a short neat beard and moustache and a small gold hoop earring, wearing a black Elizabethan doublet with a plain white falling collar and white cuffs, dancing with a microphone stand on a small stage."
+  },
+  "_meta": {
+   "title": "Prompt: who, and what they do"
+  }
+ },
+ "52": {
+  "class_type": "CLIPTextEncode",
+  "inputs": {
+   "clip": [
+    "50",
+    0
+   ],
+   "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+  },
+  "_meta": {
+   "title": "Negative prompt"
+  }
+ },
+ "53": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "wan_2.1_vae.safetensors"
+  },
+  "_meta": {
+   "title": "VAE"
+  }
+ },
+ "54": {
+  "class_type": "CLIPVisionLoader",
+  "inputs": {
+   "clip_name": "clip_vision_h.safetensors"
+  },
+  "_meta": {
+   "title": "CLIP vision"
+  }
+ },
+ "55": {
+  "class_type": "CLIPVisionEncode",
+  "inputs": {
+   "clip_vision": [
+    "54",
+    0
+   ],
+   "image": [
+    "15",
+    0
+   ],
+   "crop": "none"
+  },
+  "_meta": {
+   "title": "The person, seen"
+  }
+ },
+ "60": {
+  "class_type": "WanAnimateToVideo",
+  "inputs": {
+   "positive": [
+    "51",
+    0
+   ],
+   "negative": [
+    "52",
+    0
+   ],
+   "vae": [
+    "53",
+    0
+   ],
+   "width": [
+    "1",
+    0
+   ],
+   "height": [
+    "2",
+    0
+   ],
+   "length": [
+    "3",
+    0
+   ],
+   "batch_size": 1,
+   "clip_vision_output": [
+    "55",
+    0
+   ],
+   "reference_image": [
+    "15",
+    0
+   ],
+   "face_video": [
+    "24",
+    0
+   ],
+   "pose_video": [
+    "22",
+    0
+   ],
+   "continue_motion_max_frames": 5,
+   "background_video": [
+    "36",
+    0
+   ],
+   "character_mask": [
+    "37",
+    0
+   ],
+   "video_frame_offset": 0
+  },
+  "_meta": {
+   "title": "Wan 2.2 Animate"
+  }
+ },
+ "61": {
+  "class_type": "KSampler",
+  "inputs": {
+   "model": [
+    "48",
+    0
+   ],
+   "seed": [
+    "5",
+    0
+   ],
+   "steps": 6,
+   "cfg": 1.0,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "positive": [
+    "60",
+    0
+   ],
+   "negative": [
+    "60",
+    1
+   ],
+   "latent_image": [
+    "60",
+    2
+   ],
+   "denoise": 1.0
+  },
+  "_meta": {
+   "title": "Sampler (6 steps, cfg 1 with the speed LoRA)"
+  }
+ },
+ "62": {
+  "class_type": "TrimVideoLatent",
+  "inputs": {
+   "samples": [
+    "61",
+    0
+   ],
+   "trim_amount": [
+    "60",
+    3
+   ]
+  },
+  "_meta": {
+   "title": "Trim"
+  }
+ },
+ "63": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "62",
+    0
+   ],
+   "vae": [
+    "53",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Decode"
+  }
+ },
+ "64": {
+  "class_type": "ImageFromBatch",
+  "inputs": {
+   "image": [
+    "63",
+    0
+   ],
+   "batch_index": [
+    "60",
+    4
+   ],
+   "length": 4096
+  },
+  "_meta": {
+   "title": "Trim frames"
+  }
+ },
+ "65": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "images": [
+    "64",
+    0
+   ],
+   "fps": [
+    "12",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Video at the dance's frame rate"
+  }
+ },
+ "66": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "video": [
+    "65",
+    0
+   ],
+   "filename_prefix": "video/shakespeare_dance",
+   "format": "auto",
+   "codec": "auto"
+  },
+  "_meta": {
+   "title": "Save"
+  }
+ },
+ "70": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "images": [
+    "22",
+    0
+   ],
+   "fps": [
+    "12",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Check: pose"
+  }
+ },
+ "71": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "video": [
+    "70",
+    0
+   ],
+   "filename_prefix": "video/shakespeare_pose",
+   "format": "auto",
+   "codec": "auto"
+  },
+  "_meta": {
+   "title": "Save the pose check"
+  }
+ },
+ "72": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "images": [
+    "35",
+    0
+   ],
+   "fps": [
+    "12",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Check: stage without the dancer"
+  }
+ },
+ "73": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "video": [
+    "72",
+    0
+   ],
+   "filename_prefix": "video/shakespeare_mask",
+   "format": "auto",
+   "codec": "auto"
+  },
+  "_meta": {
+   "title": "Save the mask check"
+  }
+ }
+}
