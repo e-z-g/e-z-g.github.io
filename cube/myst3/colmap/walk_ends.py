@@ -416,6 +416,8 @@ def main():
     ap.add_argument('--via', nargs='+', default=[], metavar='NODE',
                     help='nodes passed on the way from A to B, drawn with the same orientation as via1.png ...; '
                          'route.json gives each one\'s share of the route\'s length')
+    ap.add_argument('--plan', metavar='JSON',
+                    help="route_plan.py's route_plan.json: A drawn facing the path's direction of departure, B its direction of arrival")
     ap.add_argument('--turn', action='store_true',
                     help='with --via: each node faces its own way, level, halfway between the step in and the step out '
                          '(A along its first step, B along its last), so the view turns with the walk; route.json gives each look')
@@ -521,6 +523,14 @@ def main():
     render = renderer(Rcam)
     Image.fromarray(render(FA)).save(os.path.join(a.out, 'first.png'))
     Image.fromarray(render(FB)).save(os.path.join(a.out, 'last.png'))
+    if a.plan:
+        pl = json.load(open(a.plan))
+        def pframe(fw):
+            fw = np.array(fw) / np.linalg.norm(fw); r = np.cross(fw, up); r /= np.linalg.norm(r)
+            return np.stack([r, np.cross(fw, r), fw])
+        Image.fromarray(renderer(pframe(pl['departure_model']))(FA)).save(os.path.join(a.out, 'first.png'))
+        Image.fromarray(renderer(pframe(pl['arrival_model']))(FB)).save(os.path.join(a.out, 'last.png'))
+        print(f"planned: departure {pl['departure_off_deg']:.1f} deg, arrival {pl['arrival_off_deg']:.1f} deg off the straight line")
     if a.via:
         cs, Fs = [CA], []
         for n in a.via:
