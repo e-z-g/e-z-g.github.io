@@ -121,8 +121,9 @@ const FR = document.createElement('div');
 FR.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:20;cursor:pointer';
 FR.innerHTML = '<img style="max-width:96vw;max-height:90vh;box-shadow:0 0 24px #000;border:1px solid #666"><div style="position:absolute;bottom:10px;color:#ddd;font:13px system-ui">close-up · tap to go back</div>';
 document.body.appendChild(FR);
-FR.onclick = () => { FR.style.display = 'none'; };
-function showFrame(f) { FR.querySelector('img').src = `frames/${f}`; FR.style.display = 'flex'; }
+let frOpened = 0;   // the tap that opens a close-up ends in a click that lands on it: ignored for a moment
+FR.onclick = () => { if (performance.now() - frOpened > 450) FR.style.display = 'none'; };
+function showFrame(f) { FR.querySelector('img').src = `frames/${f}`; FR.style.display = 'flex'; frOpened = performance.now(); }
 addEventListener('keydown', e => { if (e.key === 'Escape' && FR.style.display !== 'none') FR.style.display = 'none'; });
 function labelSprite(text, col, w = 0.7) {
   const cv = document.createElement('canvas'), cx = cv.getContext('2d'); cx.font = 'bold 40px system-ui, sans-serif';
