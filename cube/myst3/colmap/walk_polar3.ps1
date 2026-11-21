@@ -10,14 +10,16 @@
 # (MiniMaxH3AddGuide), every node drawn with the orientation from A to B; with -Turn each node faces halfway
 # between its step in and its step out (walk_ends.py --turn), so the view turns with the walk.
 param([string]$Age, [string]$Model, [string]$Prefix, [string]$A, [string]$B, [string]$Tag, [int]$Frames = 39, [int]$Seed = 2,
-      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn, [switch]$Eight, [string]$Plan = "")
+      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn, [switch]$Eight, [switch]$NoLora, [string]$Plan = "")
 $env:PATH = "C:\Users\lloyd\AppData\Local\Microsoft\WinGet\Links;" + $env:PATH
 $C = 'C:\myst3_out\colmap'; $F = 'C:\myst3_out\film'; $W = "C:\myst3_colmap\$Age"; $M = "$W\runs\$Model\sparse_txt\ba"; if ($Sparse) { $M = $Sparse }
-$D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; if ($Plan) { $D += "_plan" }; if ($Eight) { $D += "_8step" }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
+$D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; if ($Plan) { $D += "_plan" }; if ($Eight) { $D += "_8step" }; if ($NoLora) { $D += "_nolora" }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
 $L = @('--dual', '180', '--fill-square', '--squash', '0.35')
-$turbo = 'h3\minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors'; $NS = 4
+$turbo = 'h3\minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors'; $NS = 4; $TS = '1'
 # -Eight: both H3 passes with the 8-step turbo LoRA at 8 steps
 if ($Eight) { $turbo = 'h3\minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors'; $NS = 8 }
+# -NoLora: the model alone, as h3_flf.py gives it (LoRA strength 0, 20 steps, no CFG)
+if ($NoLora) { $TS = '0'; $NS = 20 }
 New-Item -ItemType Directory -Force $D | Out-Null
 $V = @(); if ($Via) { $V = @('--via') + $Via.Split(' ') }; if ($Turn) { $V += '--turn' }; if ($Plan) { $V += @('--plan', $Plan) }
 function Guides($E) {
@@ -34,11 +36,11 @@ if ($Step -in 'all', 'h3') {
   & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $Size --polar 20 --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 1
   & py -3 $C\walk_ends.py "$W\images" $M $ED $A $B --size $Size --dual-fisheye 180 --along-motion --fill-square --squash 0.35 --prefix $Prefix @V 2>&1 | Select-Object -Last 1
   $P = (Get-Content -Raw -Encoding UTF8 "C:\myst3_out\prompts\$($Tag)_polar.txt").Trim()
-  & py -3 $C\h3_flf.py "$EP\first.png" "$EP\last.png" "$D\p1" --size $Size --frames $Frames --steps $NS --turbo $turbo --seeds $Seed --timeout 5000 @(Guides $EP) --prompt $P 2>&1 | Select-Object -Last 3
+  & py -3 $C\h3_flf.py "$EP\first.png" "$EP\last.png" "$D\p1" --size $Size --frames $Frames --steps $NS --turbo $turbo --turbo-strength $TS --seeds $Seed --timeout 5000 @(Guides $EP) --prompt $P 2>&1 | Select-Object -Last 3
   & py -3 $C\polar_to_dual.py "$D\p1\frames_s$Seed" "$D\p1dual" --pad 20 --size $Size @L
   & ffmpeg -loglevel error -y -framerate 24 -i "$D\p1dual\%04d.png" -c:v libx264 -crf 6 -pix_fmt yuv444p "$D\p1dual.mp4"
   $P = (Get-Content -Raw -Encoding UTF8 "C:\myst3_out\prompts\$($Tag)_dual180.txt").Trim()
-  & py -3 $C\h3_flf.py "$ED\first.png" "$ED\last.png" "$D\p3" --size $Size --frames $Frames --steps $NS --turbo $turbo --seeds $Seed --init "$D\p1dual.mp4" --denoise $Denoise --timeout 5000 @(Guides $ED) --prompt $P 2>&1 | Select-Object -Last 3
+  & py -3 $C\h3_flf.py "$ED\first.png" "$ED\last.png" "$D\p3" --size $Size --frames $Frames --steps $NS --turbo $turbo --turbo-strength $TS --seeds $Seed --init "$D\p1dual.mp4" --denoise $Denoise --timeout 5000 @(Guides $ED) --prompt $P 2>&1 | Select-Object -Last 3
   "== done h3 " + (Get-Date -Format s)
 }
 if ($Step -in 'all', 'post') {
