@@ -9,11 +9,13 @@
 # -Via "1081 1063 1062": one walk through these nodes on the way, each held at its share of the route's length
 # (MiniMaxH3AddGuide), every node drawn with the orientation from A to B; with -Turn each node faces halfway
 # between its step in and its step out (walk_ends.py --turn), so the view turns with the walk.
+# -Mid 0.5 [-MidDepth "DIR_A DIR_B", default C:\myst3_out\route_depth\<Prefix><A> and <B>]: a picture from halfway, drawn from both nodes moved by their depth (walk_ends.py
+# --mid), held at that frame in the first H3 pass only; the third pass is left free to clean up the drawing's faults.
 param([string]$Age, [string]$Model, [string]$Prefix, [string]$A, [string]$B, [string]$Tag, [int]$Frames = 39, [int]$Seed = 2,
-      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn, [switch]$Eight, [switch]$NoLora, [string]$Plan = "")
+      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn, [switch]$Eight, [switch]$NoLora, [string]$Mid = "", [string]$MidDepth = "", [string]$Plan = "")
 $env:PATH = "C:\Users\lloyd\AppData\Local\Microsoft\WinGet\Links;" + $env:PATH
 $C = 'C:\myst3_out\colmap'; $F = 'C:\myst3_out\film'; $W = "C:\myst3_colmap\$Age"; $M = "$W\runs\$Model\sparse_txt\ba"; if ($Sparse) { $M = $Sparse }
-$D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; if ($Plan) { $D += "_plan" }; if ($Eight) { $D += "_8step" }; if ($NoLora) { $D += "_nolora" }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
+$D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; if ($Plan) { $D += "_plan" }; if ($Eight) { $D += "_8step" }; if ($NoLora) { $D += "_nolora" }; if ($Mid) { $D += "_mid" }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
 $L = @('--dual', '180', '--fill-square', '--squash', '0.35')
 $turbo = 'h3\minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors'; $NS = 4; $TS = '1'
 # -Eight: both H3 passes with the 8-step turbo LoRA at 8 steps
@@ -21,9 +23,9 @@ if ($Eight) { $turbo = 'h3\minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safeten
 # -NoLora: the model alone, as h3_flf.py gives it (LoRA strength 0, 20 steps, no CFG)
 if ($NoLora) { $TS = '0'; $NS = 20 }
 New-Item -ItemType Directory -Force $D | Out-Null
-$V = @(); if ($Via) { $V = @('--via') + $Via.Split(' ') }; if ($Turn) { $V += '--turn' }; if ($Plan) { $V += @('--plan', $Plan) }
+$V = @(); if ($Via) { $V = @('--via') + $Via.Split(' ') }; if ($Turn) { $V += '--turn' }; if ($Plan) { $V += @('--plan', $Plan) }; if ($Mid) { if (-not $MidDepth) { $MidDepth = "C:\myst3_out\route_depth\$Prefix$A C:\myst3_out\route_depth\$Prefix$B" }; $V += @('--mid', $Mid, '--mid-depth') + $MidDepth.Split(' ') }
 function Guides($E) {
-  if (-not $Via) { return @() }
+  if (-not $Via -and -not $Mid) { return @() }
   $r = Get-Content -Raw "$E\route.json" | ConvertFrom-Json; $g = @()
   for ($k = 1; $k -lt $r.share.Count - 1; $k++) { $g += @('--guide', "$E\via$k.png", [string][math]::Round($r.share[$k] * ($Frames - 1))) }
   return $g
@@ -40,7 +42,7 @@ if ($Step -in 'all', 'h3') {
   & py -3 $C\polar_to_dual.py "$D\p1\frames_s$Seed" "$D\p1dual" --pad 20 --size $Size @L
   & ffmpeg -loglevel error -y -framerate 24 -i "$D\p1dual\%04d.png" -c:v libx264 -crf 6 -pix_fmt yuv444p "$D\p1dual.mp4"
   $P = (Get-Content -Raw -Encoding UTF8 "C:\myst3_out\prompts\$($Tag)_dual180.txt").Trim()
-  & py -3 $C\h3_flf.py "$ED\first.png" "$ED\last.png" "$D\p3" --size $Size --frames $Frames --steps $NS --turbo $turbo --turbo-strength $TS --seeds $Seed --init "$D\p1dual.mp4" --denoise $Denoise --timeout 5000 @(Guides $ED) --prompt $P 2>&1 | Select-Object -Last 3
+  & py -3 $C\h3_flf.py "$ED\first.png" "$ED\last.png" "$D\p3" --size $Size --frames $Frames --steps $NS --turbo $turbo --turbo-strength $TS --seeds $Seed --init "$D\p1dual.mp4" --denoise $Denoise --timeout 5000 @(if ($Mid) { @() } else { Guides $ED }) --prompt $P 2>&1 | Select-Object -Last 3
   "== done h3 " + (Get-Date -Format s)
 }
 if ($Step -in 'all', 'post') {

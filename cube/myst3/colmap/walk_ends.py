@@ -24,7 +24,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from view_check import read_model  # noqa: E402
+from view_check import read_model, splat  # noqa: E402
 
 
 PREFIX = 'MA'                    # the faces' file prefix (--prefix): MA Amateria, LE J'nanin
@@ -409,6 +409,45 @@ def sample_dirs(faces, dirs):
     return np.clip(np.rint(out), 0, 255).astype(np.uint8)
 
 
+def depth_cloud(ddir, faces):
+    """node_depth.py's six maps of a node (DDIR/face<k>_measured-depth.png, node_depth.json) as coloured points in
+    the model: grey 0 is sky (left out), 255 is r_near; distance along the ray r = r_far / (1 + g (ratio - 1))."""
+    rep = json.load(open(os.path.join(ddir, 'node_depth.json')))
+    P, cols = [], []
+    for k, (R, t, img) in enumerate(faces, 1):
+        N = img.shape[0]
+        g = np.asarray(Image.open(os.path.join(ddir, f'face{k}_measured-depth.png')).convert('L').resize((N, N), Image.NEAREST), float) / 255
+        v, u = np.mgrid[0:N, 0:N] + 0.5
+        ok = g > 0.02
+        r = rep['r_far'] / (1 + g[ok] * (rep['ratio'] - 1))
+        d = np.stack([(u[ok] - N / 2) / (N / 2), (v[ok] - N / 2) / (N / 2), np.ones(ok.sum())], -1)
+        d /= np.linalg.norm(d, axis=1)[:, None]
+        P.append(-R.T @ t + (d * r[:, None]) @ R); cols.append(img[ok].astype(np.float32))
+    return np.vstack(P), np.vstack(cols)
+
+
+def mid_faces(FA, FB, CA, CB, T, dirs):
+    """Six faces seen from the point T of the way from A to B, in A's faces' orientations: both nodes' pictures
+    moved there by their depth (view_check.splat, nearest point wins). Each pixel takes the nearer node's point
+    (B's at T = 0.5), the other node's where only it has one, and where neither has (sky, and what neither saw)
+    the node pictures at infinity, (1 - T) A + T B. No two pictures are mixed where either has a point, so
+    nothing is drawn twice."""
+    M = CA + T * (CB - CA)
+    (PA, cA), (PB, cB) = depth_cloud(dirs[0], FA), depth_cloud(dirs[1], FB)
+    first, second = ((PA, cA), (PB, cB)) if T < 0.5 else ((PB, cB), (PA, cA))
+    out, cover = [], []
+    for R, _, img in FA:
+        N = img.shape[0]; tt = -R @ M; cam = (N, N, N / 2, N / 2, N / 2, N / 2)
+        i1, v1 = splat(*first, R, tt, cam, N / 2, grow=2.5); i2, v2 = splat(*second, R, tt, cam, N / 2, grow=2.5)
+        inf = (1 - T) * draw(FA, R, N, N, N / 2).astype(np.float32) + T * draw(FB, R, N, N, N / 2).astype(np.float32)
+        f = np.where(v1[..., None], i1, np.where(v2[..., None], i2, inf))
+        out.append((R, tt, np.clip(np.rint(f), 0, 255).astype(np.uint8)))
+        cover.append((v1.mean(), (v2 & ~v1).mean()))
+    print('mid view at %.2f: from the nearer node %s; from the other %s' % (
+        T, ' '.join(f'{c[0]:.2f}' for c in cover), ' '.join(f'{c[1]:.2f}' for c in cover)))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('images'); ap.add_argument('sparse'); ap.add_argument('out'); ap.add_argument('a'); ap.add_argument('b')
@@ -416,6 +455,11 @@ def main():
     ap.add_argument('--via', nargs='+', default=[], metavar='NODE',
                     help='nodes passed on the way from A to B, drawn with the same orientation as via1.png ...; '
                          'route.json gives each one\'s share of the route\'s length')
+    ap.add_argument('--mid', type=float, metavar='T',
+                    help='with --mid-depth: a picture from the point T (0.5) of the way from NODE_A to NODE_B, drawn '
+                         'from both nodes moved by their depth, written as via1.png with route.json, to hold the walk '
+                         'there (walk_polar3.ps1 -Mid)')
+    ap.add_argument('--mid-depth', nargs=2, metavar=('DIR_A', 'DIR_B'), help="node_depth.py's maps for NODE_A and NODE_B")
     ap.add_argument('--plan', metavar='JSON',
                     help="route_plan.py's route_plan.json: A drawn facing the path's direction of departure, B its direction of arrival")
     ap.add_argument('--turn', action='store_true',
@@ -531,6 +575,11 @@ def main():
         Image.fromarray(renderer(pframe(pl['departure_model']))(FA)).save(os.path.join(a.out, 'first.png'))
         Image.fromarray(renderer(pframe(pl['arrival_model']))(FB)).save(os.path.join(a.out, 'last.png'))
         print(f"planned: departure {pl['departure_off_deg']:.1f} deg, arrival {pl['arrival_off_deg']:.1f} deg off the straight line")
+    if a.mid is not None:
+        Image.fromarray(render(mid_faces(FA, FB, CA, CB, a.mid, a.mid_depth))).save(os.path.join(a.out, 'via1.png'))
+        L = float(np.linalg.norm(CB - CA))
+        json.dump({'nodes': [a.a, 'mid', a.b], 'lengths': [a.mid * L, (1 - a.mid) * L], 'share': [0.0, a.mid, 1.0],
+                   'looks_model': None}, open(os.path.join(a.out, 'route.json'), 'w'), indent=1)
     if a.via:
         cs, Fs = [CA], []
         for n in a.via:
