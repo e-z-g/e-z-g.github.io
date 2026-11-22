@@ -2431,6 +2431,7 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 | seed 3 with no LoRA, 20 steps (`-NoLora`) | 1.65 / 2.14 |
 | seed 4 with a halfway guide (`-Mid 0.5`) | 1.74 / 2.32 (detail 2.41 / 3.18) |
 | seed 4 with `route_plan.py`'s plan (`-Plan`) | 1.75 / 2.07 (detail 2.25 / 2.73) |
+| seed 4 with the plan, pass 1 at 73 frames (`-P1Frames 73 -P1Size 1792x896 -Plan`) | 1.45 / 2.08 (detail 2.20 / 3.01) |
 
 - **Middle nodes.** `reference/myst3/via_compare/*.jpg` sets each middle node's picture
   beside the walk frame at its share of the route. Along 1060 to 1067 (4.381 apart) the
@@ -2448,7 +2449,10 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 - **A longer first pass (`-P1Frames 73 -P1Size 1792x896`).** Pass 1 at 73 frames, its
   frames thinned to 22 for pass 3 at 2560x1280. Seed 4 was stopped in pass 3 (pass 1 is
   kept in `walk3_leis_1060_1067_22_s4_p73` on the PC): its pass 1 is the recipe of the
-  73-frame walk without the plan, which Sam found warped and ghosting.
+  73-frame walk without the plan, which Sam found warped and ghosting. Sam found the plan
+  alone at 22 frames didn't really help (22 November 2026), so seed 4 was run again with
+  both, `-P1Frames 73 -P1Size 1792x896 -Plan` (`walk3_leis_1060_1067_22_s4_plan_p73`), and
+  put in the viewer as "Seed 4, plan, 73-frame first pass".
 - **The tower and the bridge.** Sam sees the tower (the building that looks like a
   lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
   where they should move. More steps did not help (Sam). In seed 4 the tower is already
