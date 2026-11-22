@@ -2432,6 +2432,7 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 | seed 4 with a halfway guide (`-Mid 0.5`) | 1.74 / 2.32 (detail 2.41 / 3.18) |
 | seed 4 with `route_plan.py`'s plan (`-Plan`) | 1.75 / 2.07 (detail 2.25 / 2.73) |
 | seed 4 with the plan, pass 1 at 73 frames (`-P1Frames 73 -P1Size 1792x896 -Plan`) | 1.45 / 2.08 (detail 2.20 / 3.01) |
+| seed 4 with the plan, both passes at 39 frames, 2432x1216 (`-Frames 39 -Size 2432x1216 -Plan`) | 1.58 / 2.68 (detail 2.25 / 4.05) |
 
 - **Middle nodes.** `reference/myst3/via_compare/*.jpg` sets each middle node's picture
   beside the walk frame at its share of the route. Along 1060 to 1067 (4.381 apart) the
@@ -2462,6 +2463,12 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 - **Frames drawn between.** Three frames drawn between each pair from DIS optical flow (a
   script since removed) made 22 frames into 85 with even steps. Sam: "Smeary mess", as
   with interpolation tried before (`film_stretch.py`, FILM). Taken out of the viewer.
+- **39 frames in both passes (`-Frames 39 -Size 2432x1216 -Plan`).** Sam: the jerk is only
+  in the 73-frame walks; walks at 22 frames in both passes have been smooth. 39 frames fit
+  the 16 GB card at 2432x1216 (pass 1 12 minutes, pass 3 14). Prompts
+  `leis_1060_1067_39_*.txt`, the last picture at 1.58 seconds. Every fourth step is 1.3 to
+  1.65 times the others (about 2 at 73 frames); steps vary by 19% of the mean against 31%
+  for plain seed 4 at 22 frames. `-Step p3` resumes a walk from pass 3 with pass 1 kept.
 - **The tower and the bridge.** Sam sees the tower (the building that looks like a
   lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
   where they should move. More steps did not help (Sam). In seed 4 the tower is already
