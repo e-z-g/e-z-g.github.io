@@ -2469,6 +2469,11 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
   `leis_1060_1067_39_*.txt`, the last picture at 1.58 seconds. Every fourth step is 1.3 to
   1.65 times the others (about 2 at 73 frames); steps vary by 19% of the mean against 31%
   for plain seed 4 at 22 frames. `-Step p3` resumes a walk from pass 3 with pass 1 kept.
+- **Back to 22 frames.** Sam, 22 November 2026: the 39-frame walk, the 22-frame walk thinned
+  from 73 and the 73-frame walk are all jerky, while plain 22 (both passes at 22, no plan) is
+  not; the step measure above does not predict that (plain 22 varies more). The walks stay
+  at 22 frames in both passes, and the viewer lists seeds 3, 4, 5 and the halfway guide
+  again (the other versions' files are still served).
 - **The tower and the bridge.** Sam sees the tower (the building that looks like a
   lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
   where they should move. More steps did not help (Sam). In seed 4 the tower is already
