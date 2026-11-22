@@ -2453,6 +2453,17 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
   alone at 22 frames didn't really help (22 November 2026), so seed 4 was run again with
   both, `-P1Frames 73 -P1Size 1792x896 -Plan` (`walk3_leis_1060_1067_22_s4_plan_p73`), and
   put in the viewer as "Seed 4, plan, 73-frame first pass".
+  Sam: the tower and bridge fade less, but still a bit, and the motion is jerky. Measured
+  with optical flow (median motion per step, 512 px across), the walk is the evenest of the
+  three: steps vary by 21% of the mean, against 39% for the 22-frame plan walk and 42% for
+  the 73-frame plan walk (whose every fourth step is twice the others, one jump per H3
+  latent of 4 frames). It plays 22 frames in 0.9 seconds, though, and slows from about 6.5
+  to 2.3 per step towards 1067.
+- **Frames drawn between (`colmap/walk_inbetween.py`).** DIS optical flow both ways
+  between each pair, both frames warped part of the way and mixed: three frames between
+  each pair turn 22 into 85 (3.5 seconds), steps varying by 7%. Things H3 reshapes from
+  frame to frame (the near rock at bottom right, frames 12 to 13) are mixed between the
+  two shapes. In the viewer as "As above, 3 frames drawn between each pair".
 - **The tower and the bridge.** Sam sees the tower (the building that looks like a
   lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
   where they should move. More steps did not help (Sam). In seed 4 the tower is already
