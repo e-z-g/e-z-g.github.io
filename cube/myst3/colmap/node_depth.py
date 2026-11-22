@@ -361,6 +361,9 @@ def main():
     ap.add_argument('--ratio', type=float, default=20.0)
     ap.add_argument('--seam-weight', type=float, default=1.0)
     ap.add_argument('--sky-weight', type=float, default=1.0)
+    ap.add_argument('--alone', help='faces (1-6, comma separated) fitted alone to their own measurements and sky, '
+                    'their measurements and seams left out of the joint fit of the rest (LE-1060\'s face 6: its points, '
+                    'once not taken as sky, pulled every other face off)')
     ap.add_argument('--sky-grow', type=float, default=99.0,
                     help='sky widened to every pixel the network puts as far as this percentile of SegFormer\'s sky '
                          '(99); lower keeps far things overhead, such as a bridge against the sky, out of it')
@@ -475,7 +478,18 @@ def main():
     # check: fit on half the measurements (and all seams), judged on the other half
     halves = {k: rng.random(len(m[0])) < 0.5 for k, m in meas.items()}
     far = {k: f['far'] for k, f in faces.items() if len(f['far'][0])}
-    fit = joint_fit({k: tuple(c[halves[k]] for c in m) for k, m in meas.items()}, seams, a.seam_weight, far, a.sky_weight)
+    alone = {int(x) for x in a.alone.split(',')} if a.alone else set()
+    def fit_faces(ms):
+        # the faces in --alone each fitted to its own measurements and sky only; the rest jointly, without them
+        keep = ~np.isin(seams[0], list(alone)) & ~np.isin(seams[3], list(alone))
+        fit = joint_fit({k: m for k, m in ms.items() if k not in alone}, tuple(c[keep] for c in seams), a.seam_weight,
+                        {k: v for k, v in far.items() if k not in alone}, a.sky_weight)
+        none = tuple(np.zeros(0, int if i in (0, 3) else float) for i in range(6))
+        for k in alone:
+            fit[k] = joint_fit({k: ms[k]} if k in ms and len(ms[k][0]) else {}, none, 0.0,
+                               {k: far[k]} if k in far else {}, a.sky_weight)[k]
+        return fit
+    fit = fit_faces({k: tuple(c[halves[k]] for c in m) for k, m in meas.items()})
     for k, m in meas.items():
         p, n, y = (c[~halves[k]] for c in m)
         if len(p):
@@ -484,7 +498,7 @@ def main():
             err = np.abs(r_fit - r_meas) / r_meas
             report[f'face{k}'].update(check_median=round(float(np.median(err)), 4),
                                       check_p90=round(float(np.percentile(err, 90)), 4), check_n=int(len(p)))
-    fit = joint_fit(meas, seams, a.seam_weight, far, a.sky_weight)
+    fit = fit_faces(meas)
     for k, f in faces.items():
         aa, bb = fit[k]
         report[f'face{k}']['fit'] = [float(aa), float(bb)]
