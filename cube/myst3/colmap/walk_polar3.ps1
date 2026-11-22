@@ -38,11 +38,13 @@ if ($Step -eq 'ends') {
   & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $S1 --polar 20 --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 8
   "guides: " + ((Guides $EP $F1) -join ' ')
 }
-if ($Step -in 'all', 'h3') {
-  & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $S1 --polar 20 --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 1
+if ($Step -in 'all', 'h3', 'p3') {                          # p3: pass 1 already in $D\p1, from pass 3 on
+  if ($Step -ne 'p3') { & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $S1 --polar 20 --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 1 }
   & py -3 $C\walk_ends.py "$W\images" $M $ED $A $B --size $Size --dual-fisheye 180 --along-motion --fill-square --squash 0.35 --prefix $Prefix @V 2>&1 | Select-Object -Last 1
-  $P = (Get-Content -Raw -Encoding UTF8 "C:\myst3_out\prompts\$($P1Tag)_polar.txt").Trim()
-  & py -3 $C\h3_flf.py "$EP\first.png" "$EP\last.png" "$D\p1" --size $S1 --frames $F1 --steps $NS --turbo $turbo --turbo-strength $TS --seeds $Seed --timeout 5000 @(Guides $EP $F1) --prompt $P 2>&1 | Select-Object -Last 3
+  if ($Step -ne 'p3') {
+    $P = (Get-Content -Raw -Encoding UTF8 "C:\myst3_out\prompts\$($P1Tag)_polar.txt").Trim()
+    & py -3 $C\h3_flf.py "$EP\first.png" "$EP\last.png" "$D\p1" --size $S1 --frames $F1 --steps $NS --turbo $turbo --turbo-strength $TS --seeds $Seed --timeout 5000 @(Guides $EP $F1) --prompt $P 2>&1 | Select-Object -Last 3
+  }
   $P1 = "$D\p1\frames_s$Seed"
   if ($F1 -ne $Frames) {                                     # thinned evenly to -Frames, the ends kept
     $all = @(Get-ChildItem "$P1\*.png" | Sort-Object Name); $P1 = "$D\p1thin"; New-Item -ItemType Directory -Force $P1 | Out-Null
@@ -55,7 +57,7 @@ if ($Step -in 'all', 'h3') {
   & py -3 $C\h3_flf.py "$ED\first.png" "$ED\last.png" "$D\p3" --size $Size --frames $Frames --steps $NS --turbo $turbo --turbo-strength $TS --seeds $Seed --init "$D\p1dual.mp4" --denoise $Denoise --timeout 5000 @(if ($Mid) { @() } else { Guides $ED }) --prompt $P 2>&1 | Select-Object -Last 3
   "== done h3 " + (Get-Date -Format s)
 }
-if ($Step -in 'all', 'post') {
+if ($Step -in 'all', 'post', 'p3') {
   & py -3 $C\pole_blend.py "$D\p1dual" "$D\p3\frames_s$Seed" "$D\final" --fade 55 75 @L
   & py -3 $C\seam_score.py "$D\final" @L | Select-Object -Last 1
   & ffmpeg -loglevel error -y -framerate 24 -i "$D\final\%04d.png" -c:v libx264 -preset slow -crf 17 -pix_fmt yuv420p "$D\w_fwd.mp4"
