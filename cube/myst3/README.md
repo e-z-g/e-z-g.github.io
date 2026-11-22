@@ -2430,6 +2430,7 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 | seed 3 with the 8-step turbo LoRA at 8 steps (`-Eight`) | 1.64 / 3.37 |
 | seed 3 with no LoRA, 20 steps (`-NoLora`) | 1.65 / 2.14 |
 | seed 4 with a halfway guide (`-Mid 0.5`) | 1.74 / 2.32 (detail 2.41 / 3.18) |
+| seed 4 with `route_plan.py`'s plan (`-Plan`) | 1.75 / 2.07 (detail 2.25 / 2.73) |
 
 - **Middle nodes.** `reference/myst3/via_compare/*.jpg` sets each middle node's picture
   beside the walk frame at its share of the route. Along 1060 to 1067 (4.381 apart) the
@@ -2439,6 +2440,15 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 - **The viewer.** At Sam's request the viewer holds only the 22-frame 1060 to 1067 walks:
   seeds 3, 4 and 5, and seed 4 with the halfway guide. A staggered fade over frames 8
   to 16 and the 8-step and no-LoRA runs were removed.
+  On 21 November seed 4 with the plan was added, and the two 73-frame seed 2 walks of
+  20 November (with and without the plan; files `cliff1060_1067`, `cliffp1060_1067`).
+  Only the version on show keeps its video elements: on Android's WebView (the Claude app)
+  the earlier viewer, which kept every loaded version's videos, went still. A video that
+  stops advancing is started again.
+- **A longer first pass (`-P1Frames 73 -P1Size 1792x896`).** Pass 1 at 73 frames, its
+  frames thinned to 22 for pass 3 at 2560x1280. Seed 4 was stopped in pass 3 (pass 1 is
+  kept in `walk3_leis_1060_1067_22_s4_p73` on the PC): its pass 1 is the recipe of the
+  73-frame walk without the plan, which Sam found warped and ghosting.
 - **The tower and the bridge.** Sam sees the tower (the building that looks like a
   lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
   where they should move. More steps did not help (Sam). In seed 4 the tower is already
