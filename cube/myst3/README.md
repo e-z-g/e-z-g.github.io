@@ -2478,6 +2478,26 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
   tower, where 1067 sees open sky, and leave the bridge nearly where it was at 1060
   (`mid_test/h6_sheet.jpg`, `h6a_sheet.jpg`). The depth for the overhead view is not good
   enough for guides, and no walk was made from these.
+- **The two ends as a stereo pair (21 November 2026).** Both polar ends face along the
+  line from A to B, so a thing that stays still keeps its column and only slides down it.
+  SIFT on seed 4's two ends (77 matches) shows this: points that moved more than 5 degrees
+  stayed within 0.4 degrees of their column (90th percentile). `colmap/polar_stereo.py`
+  turns the two ends a quarter turn and matches along the rows with StereoSGBM, checked
+  both ways. Where it finds a match it agrees with SIFT (median 0.04 degrees off, on moves
+  of 31 degrees median), but it finds one for only 35% of the pixels, and 10% after the
+  check. Rows spaced by cot(theta) in place of theta, so a wall parallel to the line slides
+  without stretching, raise this to 45% at A and 22% at B. The spire and the cliffs are
+  found; the sky has no texture, and the rocks beside the camera show their shaded side at
+  1060 and their sunlit top at 1067, so they cannot be matched at all. Files in
+  `reference/myst3/polar_seam_check` in the disassembly repo (`cot_vis.jpg`).
+- **Where the tower and the bridge are.** The joined model's points drawn into the two
+  ends (`polar_seam_check/sparse_sheet.jpg`) cover the tower densely. Its body, 3 to 8 from
+  the line and about 9 ahead of 1060, moves from 37 degrees from straight ahead at 1060
+  (24 to 54) to 56 at 1067 (33 to 84). At 1060 it stands behind the dark rock overhead,
+  so the walk has to bring it out from behind that rock and lower it about 20 degrees. The
+  bridge has only 7 points, all within 3 of the line and about 2.9 along it (two thirds of
+  the climb). It goes from 30 degrees at 1060 to 132 at 1067, passing beside the camera,
+  about 5 degrees a frame at 22 frames. The rocks beside the camera have few points.
 
 ### Files moved off the Mac (12 November 2026)
 
