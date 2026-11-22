@@ -2486,7 +2486,7 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
   both ways. Where it finds a match it agrees with SIFT (median 0.04 degrees off, on moves
   of 31 degrees median), but it finds one for only 35% of the pixels, and 10% after the
   check. Rows spaced by cot(theta) in place of theta, so a wall parallel to the line slides
-  without stretching, raise this to 45% at A and 22% at B. The spire and the cliffs are
+  without stretching, raise this to 45% at A and 22% at B (`colmap/polar_stereo_cot.py 2 384 5`). The spire and the cliffs are
   found; the sky has no texture, and the rocks beside the camera show their shaded side at
   1060 and their sunlit top at 1067, so they cannot be matched at all. Files in
   `reference/myst3/polar_seam_check` in the disassembly repo (`cot_vis.jpg`).
