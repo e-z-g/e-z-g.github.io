@@ -58,7 +58,8 @@ side and faded out over --band pixels (48) inward, so both sides meet at their
 mean. The report gives the steps before and after.
 
 Sky: SegFormer's ADE20K sky class, and on a face where that finds sky, every pixel
-the network puts as far as the farthest 1% of that sky (a dark sky with stars was
+the network puts as far as the farthest 1% of that sky (--sky-grow 99; on LE-1060's
+upward face that took the sky from 30% to 92%, the bridge and rock overhead with it) (a dark sky with stars was
 missed by SegFormer). Sky is infinitely far, takes no part in the seams, and its
 measurements (points matched on clouds) are not used.
 
@@ -360,6 +361,9 @@ def main():
     ap.add_argument('--ratio', type=float, default=20.0)
     ap.add_argument('--seam-weight', type=float, default=1.0)
     ap.add_argument('--sky-weight', type=float, default=1.0)
+    ap.add_argument('--sky-grow', type=float, default=99.0,
+                    help='sky widened to every pixel the network puts as far as this percentile of SegFormer\'s sky '
+                         '(99); lower keeps far things overhead, such as a bridge against the sky, out of it')
     ap.add_argument('--band', type=int, default=48)
     ap.add_argument('--model', default='depth-anything/Depth-Anything-V2-Base-hf')
     ap.add_argument('--sky-model', default='nvidia/segformer-b2-finetuned-ade-512-512')
@@ -422,7 +426,7 @@ def main():
         if len(sv) > 2000:
             pick = rng.choice(len(sv), 2000, replace=False); sv, su = sv[pick], su[pick]
         if sky.mean() > 0.02:
-            sky |= pred <= np.percentile(pred[sky], 99)
+            sky |= pred <= np.percentile(pred[sky], a.sky_grow)
         s_, t_ = np.meshgrid((np.arange(W) + 0.5) / W, (np.arange(H) + 0.5) / H)
         norm = np.sqrt(1 + (2 * s_ - 1) ** 2 + (2 * t_ - 1) ** 2)    # radial distance / depth
         # measured: sparse points seen by this face, then stereo depths
@@ -568,7 +572,7 @@ def main():
             continue                                   # the same picture
         sky2, pred2 = look(img2)
         if sky2.mean() > 0.02:
-            sky2 |= pred2 <= np.percentile(pred2[sky2], 99)
+            sky2 |= pred2 <= np.percentile(pred2[sky2], a.sky_grow)
         use = ~changed & ~sky2 & np.isfinite(f['r'])
         x = pred2[use]; y = f['norm'][use] / f['r'][use]   # 1 / depth
         aa, bb = fit_inverse(x, y, rng)
