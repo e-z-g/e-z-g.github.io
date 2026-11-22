@@ -2396,6 +2396,89 @@ scores 5.5 for color and 2.2 for detail. That is what resampling alone costs.
   back is the same frames reversed). Amateria's scripts have 302 walks between its 148
   nodes, 156 pairs: about 143 hours, six days of the PC, or 83 hours with no seam pass.
 
+### J'nanin's cliff walk, LEIS 60 to 67 (20 and 21 November 2026)
+
+Every walk here is made by `colmap/walk_polar3.ps1` (its header gives the four steps:
+H3 in the polar layout, `polar_to_dual.py`, a third H3 pass in the two-fisheye layout
+at denoise 0.5, then `pole_blend.py` with `--fade 55 75`). It runs on the PC inside
+`comfy_job.ps1`, started through the disassembly repo's `tools/pc/pc_run.sh`. Example:
+`walk_polar3.ps1 -Age Jnanin -Model joined2_floor_map -Prefix LE -A 1060 -B 1067
+-Tag leis_1060_1067_22 -Frames 22 -Seed 4`. Frame counts are 17k+5: 22 frames fit at
+2560x1280, 73 frames only at 1792x896. The prompt places the midpoint with "aligns with
+the X-second mark" (0.88 for 22 frames, 3.00 for 73). Prompts are in
+`reference/myst3/warp_test/prompts` in the disassembly repo and on the PC. The viewer
+turns each frame with `colmap/viewer_orient.py SPARSE LE A B FRAMES OUT.json [--plan
+route_plan.json]`, and an orient file serves every walk with the same nodes and frame
+count. The walks are in the VR viewer artifact (`reference/myst3/vr_artifact/index.html`
+in the disassembly repo, slug a29cb985-4ed8-4ea4-a61d-1d4c256c0f76, 256 MiB limit).
+
+Seam score (`seam_score.py`, color, median and worst frame) of each walk:
+
+| Walk | Seam color |
+|---|---|
+| 1061 to 1048 | 1.49 / 2.53 |
+| 1048 to 1061 | 1.80 / 2.44 |
+| 1061 to 1083 | 1.60 / 2.53 |
+| 1083 to 1061 | 1.52 / 2.07 |
+| 1061 to 1083, with `route_plan.py`'s plan (roll fixed) | 2.10 / 3.84 |
+| 1083 to 1061, with the plan | 2.31 / 3.82 |
+| 1061 to 1083 through four nodes, 73 frames (`cliffq`) | 1.89 / 3.27 |
+| 1083 to 1061, 73 frames | 1.80 / 2.81 |
+| 1060 to 1067, 22 frames, seed 3 | 1.70 / 2.30 |
+| the same, seed 4 | 1.61 / 2.25 |
+| the same, seed 5 | 1.62 / 2.37 |
+| seed 3 with the 8-step turbo LoRA at 8 steps (`-Eight`) | 1.64 / 3.37 |
+| seed 3 with no LoRA, 20 steps (`-NoLora`) | 1.65 / 2.14 |
+| seed 4 with a halfway guide (`-Mid 0.5`) | 1.74 / 2.32 (detail 2.41 / 3.18) |
+
+- **Middle nodes.** `reference/myst3/via_compare/*.jpg` sets each middle node's picture
+  beside the walk frame at its share of the route. Along 1060 to 1067 (4.381 apart) the
+  nodes nearest the line are 1082 (fraction 0.03, 1.88 off the line), 1048 (0.61, 3.39
+  off), 1083 (0.96, 2.37 off) and 1047 (1.06, 1.26 off). None stands near the middle of
+  the walk.
+- **The viewer.** At Sam's request the viewer holds only the 22-frame 1060 to 1067 walks:
+  seeds 3, 4 and 5, and seed 4 with the halfway guide. A staggered fade over frames 8
+  to 16 and the 8-step and no-LoRA runs were removed.
+- **The tower and the bridge.** Sam sees the tower (the building that looks like a
+  lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
+  where they should move. More steps did not help (Sam). In seed 4 the tower is already
+  half see-through in the first H3 pass, so the fade comes from H3 and not from
+  `pole_blend.py`. The blend does draw the big rock twice in the 55 to 75 degree band at
+  frame 10 (`reference/myst3/blend_check/s4_sheet.jpg`).
+- **The halfway guide.** `walk_ends.py --mid T --mid-depth DIR_A DIR_B` draws the view
+  from the point T of the way from A to B. It moves both nodes' pictures by
+  `node_depth.py`'s maps, each pixel from the nearer node and the other node where only
+  that one has a point. Where neither has a point it mixes the two pictures, (1 - T) A
+  + T B. `walk_polar3.ps1 -Mid 0.5` holds that picture at its frame in the first H3
+  pass only. On seed 4 the tower came out solid at frame 10 (`blend_check/s4mid_sheet.jpg`),
+  and the pale rock near the camera took a stretched shape with an orange smudge from
+  depth errors. Sam found it helped little: the tower still fades, and the bridge does too.
+- **Why the guide fades too.** LEIS 1060's upward face (face 6) is 92% sky in its depth
+  map, where SegFormer found 30%. `node_depth.py` widens the sky to every pixel the
+  network puts as far as the farthest 1% of SegFormer's sky, and on that face the bridge
+  and the rock overhead are as far as that. With no points there, the guide mixes the
+  two pictures, and the bridge shows see-through in the sky of the guides at frames 10 and
+  16 (`reference/myst3/mid_test/guides3_sheet.jpg`). LEIS 1067's face 6 has no depth on
+  the top of the tower's dome.
+- **Depth for the overhead view.** `node_depth.py --sky-grow 50` (and 5, the same
+  result) keeps the sky at SegFormer's 30% on 1060's face 6, and 238 COLMAP points there
+  then enter the fit. Every face's check on held-out points became worse (median error):
+
+| LEIS 1060 | face 1 | face 2 | face 3 | face 4 | face 5 | face 6 |
+|---|---|---|---|---|---|---|
+| as before | 30% | 16% | 6% | 16% | 76% | no points |
+| `--sky-grow 50` | 83% | 50% | 11% | 37% | 92% | 65% |
+| `--sky-grow 50 --alone 6` | 90% | 32% | 6% | 19% | 80% | 24% |
+
+  `--alone 6` fits face 6 to its own points and sky only, out of the joint fit. Face 1
+  stays bad because 73 points that the wider sky had dropped now enter its fit. Guides
+  drawn from the earlier faces 1 to 5 with the new face 6 (re-encoded to the same
+  `r_far`, `reference/myst3/route_depth/LE1060_h6` and `LE1060_h6a`) show the bridge
+  solid. They also put the overhead rock as a dotted cone or smear in the sky beside the
+  tower, where 1067 sees open sky, and leave the bridge nearly where it was at 1060
+  (`mid_test/h6_sheet.jpg`, `h6a_sheet.jpg`). The depth for the overhead view is not good
+  enough for guides, and no walk was made from these.
+
 ### Files moved off the Mac (12 November 2026)
 
 At Sam's request, the Mac's working copies under `reference/myst3` that the
