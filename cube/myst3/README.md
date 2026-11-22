@@ -2459,11 +2459,9 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
   the 73-frame plan walk (whose every fourth step is twice the others, one jump per H3
   latent of 4 frames). It plays 22 frames in 0.9 seconds, though, and slows from about 6.5
   to 2.3 per step towards 1067.
-- **Frames drawn between (`colmap/walk_inbetween.py`).** DIS optical flow both ways
-  between each pair, both frames warped part of the way and mixed: three frames between
-  each pair turn 22 into 85 (3.5 seconds), steps varying by 7%. Things H3 reshapes from
-  frame to frame (the near rock at bottom right, frames 12 to 13) are mixed between the
-  two shapes. In the viewer as "As above, 3 frames drawn between each pair".
+- **Frames drawn between.** Three frames drawn between each pair from DIS optical flow (a
+  script since removed) made 22 frames into 85 with even steps. Sam: "Smeary mess", as
+  with interpolation tried before (`film_stretch.py`, FILM). Taken out of the viewer.
 - **The tower and the bridge.** Sam sees the tower (the building that looks like a
   lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
   where they should move. More steps did not help (Sam). In seed 4 the tower is already
