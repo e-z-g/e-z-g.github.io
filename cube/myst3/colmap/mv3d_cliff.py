@@ -10,7 +10,7 @@ matches the node's own says the depth is right; the last column is the end's own
 SPARSE_TXT is a COLMAP text model with the flyover in (video_jfly2's); ENDS holds ends_polar_first.png and
 ends_polar_last.png. OUT gets sheet.jpg, points.npz (points within 40 of the walk) and log lines on stdout.
 """
-import argparse, os, time
+import argparse, json, os, time
 import numpy as np, cv2
 
 A, B = 1060, 1067
@@ -132,6 +132,32 @@ def run_da3(a, imgs, K, w2c):
     return np.array(P, np.float32), conf, p.processed_images, np.array(cam)
 
 
+def write_depth(a, names, P, cam, fit, r_near=0.4, r_far=40.0, N=640):
+    """The two ends' faces' depth in node_depth.py's form (DIR/LE<n>/face<k>_measured-depth.png, node_depth.json), for
+    walk_ends.py --mid-depth: grey g codes the distance along the ray, r = r_far / (1 + g (ratio - 1)); 0 is sky or
+    nothing (beyond r_far, or masked)."""
+    ratio = r_far / r_near
+    for n in (A, B):
+        d = os.path.join(a.depth_out, f'LE{n}'); os.makedirs(d, exist_ok=True); rep = {}
+        for k in range(1, 7):
+            nm = f'f{k}/LE-{n}.jpg'
+            if nm not in names: continue
+            i = names.index(nm); Pi, ci = P[i].astype(np.float64), cam[i].astype(np.float64)
+            if fit:
+                sc, R, tr = fit; Pi = Pi @ R.T * sc + tr; ci = ci @ R.T * sc + tr
+            r = np.linalg.norm(Pi - ci, axis=-1)
+            with np.errstate(all='ignore'):
+                g = (r_far / r - 1) / (ratio - 1)
+            sky = ~np.isfinite(g) | (r > r_far)
+            g = np.where(sky, 0, np.clip(g, 0.03, 1))
+            img = cv2.resize((g * 255).round().astype(np.uint8), (N, N), interpolation=cv2.INTER_NEAREST)
+            cv2.imwrite(os.path.join(d, f'face{k}_measured-depth.png'), img)
+            rep[f'face{k}'] = {'image': nm, 'sky': float(sky.mean()), 'median_r': float(np.nanmedian(np.where(sky, np.nan, r)))}
+        rep.update(node=str(n), r_near=r_near, r_far=r_far, ratio=ratio, source=f'mv3d_cliff.py --model {a.model}')
+        json.dump(rep, open(os.path.join(d, 'node_depth.json'), 'w'), indent=1)
+        print(f'depth for {n}: ' + ' '.join(f"f{k[-1]} sky {v['sky']:.2f}" for k, v in rep.items() if k.startswith('face')))
+
+
 def splat(P, Col, CA, Rc, apart, T, W, H):
     q = (P - CA) @ Rc.T
     along, out = q[:, 2] - T * apart, np.hypot(q[:, 0], q[:, 1])
@@ -165,6 +191,7 @@ def main():
     ap.add_argument('--gpu-frac', type=float, default=0, help='cap on the share of GPU memory (beside another GPU job)')
     ap.add_argument('--minibatch', type=int, default=1, help="MapAnything's minibatch_size (1: least GPU memory)")
     ap.add_argument('--faces', type=int, nargs='*', default=[1, 2, 3, 4, 5, 6], help='which faces: 1 front, 2 bottom, 3 back, 4 right, 5 left, 6 top')
+    ap.add_argument('--depth-out', help="write the two ends' depth here in node_depth.py's form (walk_ends.py --mid-depth)")
     ap.add_argument('--dry', action='store_true')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -181,12 +208,15 @@ def main():
     sc, R, tr = umeyama(cam, C_in)
     print(f'cameras against the model: before a fit median {np.median(np.linalg.norm(cam - C_in, axis=1)):.3f}; '
           f'fit scale {sc:.3f}, after median {np.median(np.linalg.norm(cam @ R.T * sc + tr - C_in, axis=1)):.3f}')
+    fit = a.no_poses or np.median(np.linalg.norm(cam - C_in, axis=1)) > 0.05
+    if a.depth_out:
+        write_depth(a, names, P, cam, (sc, R, tr) if fit else None)
     P = P[:, ::a.stride, ::a.stride]; Cf = Cf[:, ::a.stride, ::a.stride]; Col = Col[:, ::a.stride, ::a.stride]
     view = np.broadcast_to(np.arange(len(names))[:, None, None], P.shape[:3])
     P, Cf, Col, view = P.reshape(-1, 3), Cf.reshape(-1), Col.reshape(-1, 3), view.reshape(-1)
     ok = np.isfinite(P).all(1) & (Cf >= np.nanpercentile(Cf, 20))
     P, Cf, Col, view = P[ok], Cf[ok], Col[ok], view[ok]
-    if a.no_poses or np.median(np.linalg.norm(cam - C_in, axis=1)) > 0.05: P = P @ R.T * sc + tr
+    if fit: P = P @ R.T * sc + tr
     RA = w2c[names.index(f'f1/LE-{A}.jpg')][:3, :3]
     apart = np.linalg.norm(CB - CA); fwd = (CB - CA) / apart; up = -RA[1]
     right = np.cross(fwd, up); right /= np.linalg.norm(right); down = np.cross(fwd, right); Rc = np.stack([right, down, fwd])
