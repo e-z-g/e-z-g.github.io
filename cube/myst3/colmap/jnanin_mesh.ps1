@@ -47,7 +47,7 @@ if ($From) {
   "== materials " + (Get-Date -Format s)
   & py -3 "$C\materials.py" $W "$S\maps" --prefix LE --nodes @nodes 2>&1 | Select-String -NotMatch 'Warning|warn|RemoteException|^\s*$|\[A' | Select-Object -Last 3
   "== moge " + (Get-Date -Format s)
-  & powershell -ExecutionPolicy Bypass -File C:\myst3_out\splat\comfy_job.ps1 -Cmd "py -3 $C\scene_mesh.py $W $SP $S --prefix LE --nodes 1001 --near 200 --stage moge 2>&1 | Select-String -NotMatch 'Warning|warn' | Select-Object -Last 3"
+  & powershell -ExecutionPolicy Bypass -File C:\myst3_out\film\comfy_job.ps1 -Cmd "py -3 $C\scene_mesh.py $W $SP $S --prefix LE --nodes 1001 --near 200 --stage moge 2>&1 | Select-String -NotMatch 'Warning|warn' | Select-Object -Last 3"
 }
 "== fuse " + (Get-Date -Format s)
 & py -3 "$C\scene_mesh.py" $W $SP $S --prefix LE --nodes 1001 --near 200 --stage fuse --far 10 --confirm-beyond 3 --dense "$DenseOut\fused.ply" --tile 12 --triangles 6000000 2>&1 | Select-String -NotMatch 'Warning|warn' | Select-String 'nodes:|anchored|triangles after|left out|unit'

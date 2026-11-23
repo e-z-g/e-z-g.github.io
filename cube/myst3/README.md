@@ -2430,6 +2430,7 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 | seed 3 with the 8-step turbo LoRA at 8 steps (`-Eight`) | 1.64 / 3.37 |
 | seed 3 with no LoRA, 20 steps (`-NoLora`) | 1.65 / 2.14 |
 | seed 4 with a halfway guide (`-Mid 0.5`) | 1.74 / 2.32 (detail 2.41 / 3.18) |
+| seed 4, the halfway guide from MapAnything's depth (`-Mid 0.5 -MidDepth "...\route_depth\ma\LE1060 ...\LE1067"`, from `mv3d_cliff.py --depth-out`) | 1.61 / 2.11 (detail 2.22 / 2.64) |
 | seed 4 with `route_plan.py`'s plan (`-Plan`) | 1.75 / 2.07 (detail 2.25 / 2.73) |
 | seed 4 with the plan, pass 1 at 73 frames (`-P1Frames 73 -P1Size 1792x896 -Plan`) | 1.45 / 2.08 (detail 2.20 / 3.01) |
 | seed 4 with the plan, both passes at 39 frames, 2432x1216 (`-Frames 39 -Size 2432x1216 -Plan`) | 1.58 / 2.68 (detail 2.25 / 4.05) |
