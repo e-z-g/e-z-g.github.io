@@ -11,14 +11,16 @@
 # between its step in and its step out (walk_ends.py --turn), so the view turns with the walk.
 # -Mid 0.5 [-MidDepth "DIR_A DIR_B", default C:\myst3_out\route_depth\<Prefix><A> and <B>]: a picture from halfway, drawn from both nodes moved by their depth (walk_ends.py
 # --mid), held at that frame in the first H3 pass only; the third pass is left free to clean up the drawing's faults.
+# -Suffix _d03: appended to the walk's folder, so a pass 3 rerun (-Step p3, with p1 copied in) keeps the earlier one.
 # -P1Frames 73 -P1Size 1792x896: pass 1 longer and smaller (prompt <Tag>_p<P1Frames>_polar.txt), its frames thinned to
 # -Frames (evenly, ends kept) before polar_to_dual.py draws them at -Size for pass 3; more frames for the motion, pass 3 for the size.
 param([string]$Age, [string]$Model, [string]$Prefix, [string]$A, [string]$B, [string]$Tag, [int]$Frames = 39, [int]$Seed = 2,
       [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn, [switch]$Eight, [switch]$NoLora, [string]$Mid = "", [string]$MidDepth = "", [string]$Plan = "",
-      [int]$P1Frames = 0, [string]$P1Size = "")
+      [int]$P1Frames = 0, [string]$P1Size = "", [string]$Suffix = "")
 $env:PATH = "C:\Users\lloyd\AppData\Local\Microsoft\WinGet\Links;" + $env:PATH
 $C = 'C:\myst3_out\colmap'; $F = 'C:\myst3_out\film'; $W = "C:\myst3_colmap\$Age"; $M = "$W\runs\$Model\sparse_txt\ba"; if ($Sparse) { $M = $Sparse }
 $D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; if ($Plan) { $D += "_plan" }; if ($Eight) { $D += "_8step" }; if ($NoLora) { $D += "_nolora" }; if ($Mid) { $D += "_mid" }; if ($P1Frames) { $D += "_p$P1Frames" }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
+if ($Suffix) { $D += $Suffix }
 $L = @('--dual', '180', '--fill-square', '--squash', '0.35')
 $turbo = 'h3\minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors'; $NS = 4; $TS = '1'
 # -Eight: both H3 passes with the 8-step turbo LoRA at 8 steps
