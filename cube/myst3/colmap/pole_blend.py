@@ -5,8 +5,12 @@ centres (straight ahead and straight behind, within FROM degrees), BASE beyond T
 For a walk drawn as walk_ends.py --polar, whose poles (the circles' centres) are smeared, with the centres taken
 from a two-circle walk.
 
-    python pole_blend.py BASE_DIR OTHER_DIR OUT_DIR --fade 35 55 [--flow | --agree 2 6] [--dual 180] [--fill-square]
-        [--squash 0.35]
+    python pole_blend.py BASE_DIR OTHER_DIR OUT_DIR --fade 35 55 [--fade-back 35 55] [--flow | --agree 2 6] [--dual 180]
+        [--fill-square] [--squash 0.35]
+
+--fade-back: a different FROM and TO round straight behind (the right circle). On J'nanin's cliff walk (LEIS 1060 to
+1067) the way ahead is nearly straight up and behind nearly straight down: ahead, OTHER must stop short of the
+tower's top (--fade 10 20), and behind it is needed out to 35 degrees, where BASE smears the ground (--fade-back 20 35).
 
 --flow: in the fade OTHER is first moved onto BASE along the optical flow between them, fully where BASE takes over
 and not at all where OTHER is whole, so a thing the two drew in slightly different places is not doubled. (On
@@ -67,6 +71,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('base'); ap.add_argument('other'); ap.add_argument('out')
     ap.add_argument('--fade', type=float, nargs=2, default=[35.0, 55.0], metavar=('FROM', 'TO'))
+    ap.add_argument('--fade-back', type=float, nargs=2, default=None, metavar=('FROM', 'TO'))
     ap.add_argument('--dual', type=float, default=180.0); ap.add_argument('--fill-square', action='store_true')
     ap.add_argument('--squash', type=float, default=0.0)
     ap.add_argument('--flow', action='store_true')
@@ -78,9 +83,9 @@ def main():
     if len(pb) != len(po):
         raise SystemExit(f'{len(pb)} frames against {len(po)}')
     H, W = cv2.imread(pb[0]).shape[:2]; S = W // 2
-    lo, hi = np.radians(a.fade)
     w = []
     for s in (0, 1):
+        lo, hi = np.radians(a.fade_back if s and a.fade_back else a.fade)
         _, E = pixel_dirs(S, a.dual, a.fill_square, a.squash, s)
         ax = np.pi / 2 - np.abs(np.nan_to_num(E, nan=0.0))          # angle from straight ahead or straight behind
         t = np.clip((hi - ax) / (hi - lo), 0, 1)
