@@ -2400,7 +2400,7 @@ scores 5.5 for color and 2.2 for detail. That is what resampling alone costs.
 
 Every walk here is made by `colmap/walk_polar3.ps1` (its header gives the four steps:
 H3 in the polar layout, `polar_to_dual.py`, a third H3 pass in the two-fisheye layout
-at denoise 0.5, then `pole_blend.py` with `--fade 55 75`). It runs on the PC inside
+at denoise 0.3 (0.5 before 23 November 2026), then `pole_blend.py` with `--fade 55 75`). It runs on the PC inside
 `comfy_job.ps1`, started through the disassembly repo's `tools/pc/pc_run.sh`. Example:
 `walk_polar3.ps1 -Age Jnanin -Model joined2_floor_map -Prefix LE -A 1060 -B 1067
 -Tag leis_1060_1067_22 -Frames 22 -Seed 4`. Frame counts are 17k+5: 22 frames fit at
@@ -2434,6 +2434,8 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 | seed 4 with `route_plan.py`'s plan (`-Plan`) | 1.75 / 2.07 (detail 2.25 / 2.73) |
 | seed 4 with the plan, pass 1 at 73 frames (`-P1Frames 73 -P1Size 1792x896 -Plan`) | 1.45 / 2.08 (detail 2.20 / 3.01) |
 | seed 4 with the plan, both passes at 39 frames, 2432x1216 (`-Frames 39 -Size 2432x1216 -Plan`) | 1.58 / 2.68 (detail 2.25 / 4.05) |
+| seed 4, pass 3 at denoise 0.3 (`-Denoise 0.3`, now the default) | 1.61 / 2.25 (detail 2.24 / 3.65) |
+| seed 4, pass 3 at denoise 0.2 | 1.61 / 2.25 (detail 2.24 / 3.65) |
 
 - **Middle nodes.** `reference/myst3/via_compare/*.jpg` sets each middle node's picture
   beside the walk frame at its share of the route. Along 1060 to 1067 (4.381 apart) the
@@ -2475,6 +2477,13 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
   not; the step measure above does not predict that (plain 22 varies more). The walks stay
   at 22 frames in both passes, and the viewer lists seeds 3, 4, 5 and the halfway guide
   again (the other versions' files are still served).
+- **The double image and pass 3's denoise (23 November 2026).** Sam saw the tower drawn twice while the camera
+  crests the rock, joining into one at the end. It was `pole_blend.py` mixing pass 1 and pass 3, which at denoise
+  0.5 drew things a median 12 px apart in the 55 to 75 degree band (60 to 120 px for the worst tenth mid-walk): gone
+  with either pass alone, still there with `--flow`, `--agree` and narrower or per-end fades (`--fade-back`), which
+  only moved it (onto the ground below, on this walk). Pass 3 at denoise 0.3 (5 px apart) or 0.2 (2.6 px), with the
+  usual `--fade 55 75`: Sam found both clean, no doubling and no smear, 0.3 perhaps slightly better on the near part
+  of the bridge. 0.3 is the default since. The near part of the bridge and the ladder are still the weakest parts.
 - **The tower and the bridge.** Sam sees the tower (the building that looks like a
   lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
   where they should move. More steps did not help (Sam). In seed 4 the tower is already

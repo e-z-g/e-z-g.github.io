@@ -1,7 +1,8 @@
 # One walk by the method settled on MACA 1 to 2 (19 November 2026), from the node pictures:
 #   1. H3 in the polar layout (walk_ends.py --polar 20: equirectangular, poles ahead and behind), -Frames at -Size (2560x1280; 1792x896 for 73 frames on a 16 GB card);
 #   2. polar_to_dual.py to two 180-degree fisheyes (fill-square, squash 0.35);
-#   3. H3 again in the two-fisheye layout from that walk at -Denoise (0.5), between the clean two-fisheye node pictures;
+#   3. H3 again in the two-fisheye layout from that walk at -Denoise (0.3; 0.5 until 23 November 2026, which drew
+#      things up to 60-120 px from pass 1, and the blend showed them twice), between the clean two-fisheye node pictures;
 #   4. pole_blend.py: the third pass kept whole within 55 degrees of straight ahead and behind, faded out by 75;
 #   then the two-fisheye frames encoded for the viewer, forward and reversed.
 # H3 steps run inside comfy_job.ps1; the rest after. Example (LEIS 62 to 78):
@@ -15,7 +16,7 @@
 # -P1Frames 73 -P1Size 1792x896: pass 1 longer and smaller (prompt <Tag>_p<P1Frames>_polar.txt), its frames thinned to
 # -Frames (evenly, ends kept) before polar_to_dual.py draws them at -Size for pass 3; more frames for the motion, pass 3 for the size.
 param([string]$Age, [string]$Model, [string]$Prefix, [string]$A, [string]$B, [string]$Tag, [int]$Frames = 39, [int]$Seed = 2,
-      [string]$Denoise = "0.5", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn, [switch]$Eight, [switch]$NoLora, [string]$Mid = "", [string]$MidDepth = "", [string]$Plan = "",
+      [string]$Denoise = "0.3", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn, [switch]$Eight, [switch]$NoLora, [string]$Mid = "", [string]$MidDepth = "", [string]$Plan = "",
       [int]$P1Frames = 0, [string]$P1Size = "", [string]$Suffix = "")
 $env:PATH = "C:\Users\lloyd\AppData\Local\Microsoft\WinGet\Links;" + $env:PATH
 $C = 'C:\myst3_out\colmap'; $F = 'C:\myst3_out\film'; $W = "C:\myst3_colmap\$Age"; $M = "$W\runs\$Model\sparse_txt\ba"; if ($Sparse) { $M = $Sparse }
