@@ -19,8 +19,7 @@ param([string]$Age, [string]$Model, [string]$Prefix, [string]$A, [string]$B, [st
       [int]$P1Frames = 0, [string]$P1Size = "", [string]$Suffix = "")
 $env:PATH = "C:\Users\lloyd\AppData\Local\Microsoft\WinGet\Links;" + $env:PATH
 $C = 'C:\myst3_out\colmap'; $F = 'C:\myst3_out\film'; $W = "C:\myst3_colmap\$Age"; $M = "$W\runs\$Model\sparse_txt\ba"; if ($Sparse) { $M = $Sparse }
-$D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; if ($Plan) { $D += "_plan" }; if ($Eight) { $D += "_8step" }; if ($NoLora) { $D += "_nolora" }; if ($Mid) { $D += "_mid" }; if ($P1Frames) { $D += "_p$P1Frames" }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
-if ($Suffix) { $D += $Suffix }
+$D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; if ($Plan) { $D += "_plan" }; if ($Eight) { $D += "_8step" }; if ($NoLora) { $D += "_nolora" }; if ($Mid) { $D += "_mid" }; if ($P1Frames) { $D += "_p$P1Frames" }; if ($Suffix) { $D += $Suffix }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
 $L = @('--dual', '180', '--fill-square', '--squash', '0.35')
 $turbo = 'h3\minimax_h3_fl2v_turbo_4step_v1.0_768p_comfyui_bf16.safetensors'; $NS = 4; $TS = '1'
 # -Eight: both H3 passes with the 8-step turbo LoRA at 8 steps
