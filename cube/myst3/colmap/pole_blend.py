@@ -5,10 +5,18 @@ centres (straight ahead and straight behind, within FROM degrees), BASE beyond T
 For a walk drawn as walk_ends.py --polar, whose poles (the circles' centres) are smeared, with the centres taken
 from a two-circle walk.
 
-    python pole_blend.py BASE_DIR OTHER_DIR OUT_DIR --fade 35 55 [--flow] [--dual 180] [--fill-square] [--squash 0.35]
+    python pole_blend.py BASE_DIR OTHER_DIR OUT_DIR --fade 35 55 [--flow | --agree 2 6] [--dual 180] [--fill-square]
+        [--squash 0.35]
 
 --flow: in the fade OTHER is first moved onto BASE along the optical flow between them, fully where BASE takes over
-and not at all where OTHER is whole, so a thing the two drew in slightly different places is not doubled.
+and not at all where OTHER is whole, so a thing the two drew in slightly different places is not doubled. (On
+J'nanin's cliff walk it still doubled the tower: Sam, 23 November 2026.)
+
+--agree LO HI: BASE alone wherever the two disagree, at any angle, and the two mixed only where they agree. The
+disagreement is the optical flow (DIS) between them, in pixels of the full frame: none below LO, all above HI;
+grown by --grow pixels, softened by --soften, and held over the frames either side, so the change from OTHER to
+BASE falls where the two draw the same thing. Mixing two passes that drew a thing in different places draws it twice
+(the tower on J'nanin's cliff walk, LEIS 1060 to 1067), and switching between them at a line would tear it.
 
 Writes OUT_DIR/0000.png ... Needs numpy, opencv-python.
 """
@@ -38,6 +46,23 @@ def aligned(B, O, wt, S):
     return out
 
 
+def disagreement(B, O, S, a):
+    # 0 where the two agree, 1 where they do not, per pixel of the frame, from the flow between them in each circle
+    dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+    g = lambda x: cv2.resize(cv2.cvtColor(x, cv2.COLOR_BGR2GRAY), None, fx=.5, fy=.5, interpolation=cv2.INTER_AREA)
+    out = np.zeros(B.shape[:2], np.float32)
+    for c in range(2):
+        sl = np.s_[:, c * S:(c + 1) * S]
+        f = dis.calc(g(B[sl]), g(O[sl]), None)
+        m = cv2.resize(np.hypot(f[..., 0], f[..., 1]) * 2, (S, B.shape[0]), interpolation=cv2.INTER_LINEAR)
+        out[sl] = np.clip((m - a.agree[0]) / (a.agree[1] - a.agree[0]), 0, 1)
+    if a.grow:
+        out = cv2.dilate(out, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * a.grow + 1, 2 * a.grow + 1)))
+    if a.soften:
+        out = cv2.GaussianBlur(out, (0, 0), a.soften)
+    return np.clip(out, 0, 1)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('base'); ap.add_argument('other'); ap.add_argument('out')
@@ -45,6 +70,8 @@ def main():
     ap.add_argument('--dual', type=float, default=180.0); ap.add_argument('--fill-square', action='store_true')
     ap.add_argument('--squash', type=float, default=0.0)
     ap.add_argument('--flow', action='store_true')
+    ap.add_argument('--agree', type=float, nargs=2, metavar=('LO', 'HI'))
+    ap.add_argument('--grow', type=int, default=48); ap.add_argument('--soften', type=float, default=24)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     pb = sorted(glob.glob(os.path.join(a.base, '*.png'))); po = sorted(glob.glob(os.path.join(a.other, '*.png')))
@@ -59,11 +86,18 @@ def main():
         t = np.clip((hi - ax) / (hi - lo), 0, 1)
         w.append((t * t * (3 - 2 * t)).astype(np.float32)[..., None])
     wt = np.concatenate(w, 1)
-    for b, o in zip(pb, po):
+    D = [disagreement(cv2.imread(b), cv2.imread(o), S, a) for b, o in zip(pb, po)] if a.agree else None
+    for i, (b, o) in enumerate(zip(pb, po)):
         B = cv2.imread(b).astype(np.float32); O = cv2.imread(o).astype(np.float32)
         if a.flow:
             O = aligned(cv2.imread(b), cv2.imread(o), wt[..., 0], S).astype(np.float32)
-        cv2.imwrite(os.path.join(a.out, os.path.basename(b)), np.clip(np.rint(B + wt * (O - B)), 0, 255).astype(np.uint8))
+        k = wt
+        if D is not None:
+            d = np.maximum.reduce(D[max(0, i - 1):i + 2])            # held over the frames either side
+            k = wt * (1 - d)[..., None]
+            band = (wt[..., 0] > 0.02)
+            print(f'frame {i:2d}: BASE alone over {(d > 0.5)[band].mean() * 100:4.1f}% of where OTHER counts')
+        cv2.imwrite(os.path.join(a.out, os.path.basename(b)), np.clip(np.rint(B + k * (O - B)), 0, 255).astype(np.uint8))
     print(f'{len(pb)} frames -> {a.out}')
 
 
