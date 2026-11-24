@@ -32,7 +32,7 @@
   <button id="facebtn" title="The cube's faces and seams (F)">Faces</button>
   <button id="mapbtn" title="Map of the node layout (M); double-click it to enlarge">Map</button>
   <button id="laybtn" title="The map's layout: the proposed places where there are any, or the model's (L)">Layout: proposed</button>
-  <button id="womanbtn" title="The woman on the bench at TOHO 2: drawn into its picture and the walk from 1, frozen (a test)">Woman: off</button>
+  <button id="womanbtn" title="The woman seated on the bench: the game's own frames drawn into TOHO 1 and 2, and the walk between them">Woman: off</button>
   <button id="fpsbtn" title="Draw the view at the walks' 24 frames a second, or as fast as the screen goes (R)">24 fps</button>
   <span id="load" style="background:rgba(0,0,0,.6);padding:4px 8px;border-radius:4px;font-size:12px">loading…</span>
   <button id="sndbtn" title="The game's sounds: the door opening and closing (S)">Sound: on</button>
@@ -70,7 +70,7 @@ const V = { 401: 0, 399: 1 };                           // the game's variables 
 const holds = c => { if (c === 1 || c === -1) return c === 1; const a = Math.abs(c), v = a & 2047, val = (a >> 11) - 1;
   const t = val === -1 ? (V[v] || 0) !== 0 : (V[v] || 0) === val; return c < 0 ? !t : t; };   // GameState::evaluate
 let woman = false;                                       // the scene movie at TOHO 2 (10002, frame 160) drawn into its faces and its walk (a test)
-const shown = n => (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401] ? 'TOHO-0' + (100 + +n.slice(5)) : n === 'TOHO-0002' && woman ? 'TOHO-0002m' : n;   // the door open
+const shown = n => (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401] ? 'TOHO-0' + (100 + +n.slice(5)) : (n === 'TOHO-0002' || n === 'TOHO-0001') && woman ? n + 'm' : n;   // the door open
 // each rendered walk: its video, the game heading it walks along (the mean of the hotspot bearings A to B and back),
 // its ends, and the door's state at its ends where it matters ("open" walks leave the open door: 104 or 105 is one end)
 const WALKVIDS = [
@@ -83,7 +83,7 @@ function walkFor(a, b) {
     if (door !== undefined) {                          // the door matters at 4 (with 2, 3) and 5 (with 6, 7, 8); 4-5 only when open
       if (door !== V[401]) continue;
     }
-    const v = woman && id === 't0102' ? 't0102m' : id;
+    const v = woman && id === 't0102' ? 't0102mm' : id;
     if (x === a && y === b) return [v, h, false];
     if (x === b && y === a) return [v, h, true];
   }
@@ -315,7 +315,7 @@ function demux(ab) {                                     // an mp4's one video t
     ab.fileStart = 0; f.appendBuffer(ab); f.flush();
   });
 }
-const WALKIDS = [...new Set(WALKVIDS.map(v => v[0])), 't0102m'];
+const WALKIDS = [...new Set(WALKVIDS.map(v => v[0])), 't0102mm'];
 const SRC = new Map(), CU = new Map();                   // id -> { config, samples } or { blob }; close-up id -> [ImageBitmap]
 const waiters = new Map();
 const whenLoaded = id => SRC.has(id) || CU.has(id) ? Promise.resolve() : new Promise(r => { if (!waiters.has(id)) waiters.set(id, []); waiters.get(id).push(r); });
@@ -628,7 +628,7 @@ function stepDoor(now) {
   go(o.node, false, false).then(() => { panelDoor.visible = false; if (openCube) { scene.remove(openCube); openCube.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); openCube = null; } drawSpots(here); busy = false; });
 }
 document.getElementById('womanbtn').onclick = async () => { if (busy) return; woman = !woman; document.getElementById('womanbtn').textContent = 'Woman: ' + (woman ? 'on' : 'off');
-  if (here === 'TOHO-0002') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
+  if (here === 'TOHO-0002' || here === 'TOHO-0001') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
 document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = cap ? '24 fps' : 'full rate'; };
 document.getElementById('sndbtn').onclick = () => { soundOn = !soundOn; document.getElementById('sndbtn').textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); };
 document.getElementById('walkbtn').onclick = () => { walksOn = !walksOn; document.getElementById('walkbtn').textContent = 'Walks: ' + (walksOn ? 'on' : 'off'); };
