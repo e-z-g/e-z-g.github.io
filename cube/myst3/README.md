@@ -2410,7 +2410,7 @@ the X-second mark" (0.88 for 22 frames, 3.00 for 73). Prompts are in
 turns each frame with `colmap/viewer_orient.py SPARSE LE A B FRAMES OUT.json [--plan
 route_plan.json]`, and an orient file serves every walk with the same nodes and frame
 count. The walks are in the VR viewer artifact (`reference/myst3/vr_artifact/index.html`
-in the disassembly repo, slug a29cb985-4ed8-4ea4-a61d-1d4c256c0f76, 256 MiB limit).
+in the disassembly repo, slug a29cb985-4ed8-4ea4-a61d-1d4c256c0f76, 256 MiB limit). The viewer plays each walk from two videos with every frame a keyframe, forward and reversed (`ffmpeg ... -g 1`, from the walk's `final` frames), so it can pause, scrub and step frames, and hands over at each end only once the other video shows its first frame.
 
 Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 
