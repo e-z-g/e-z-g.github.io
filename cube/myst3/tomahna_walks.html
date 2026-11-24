@@ -457,15 +457,16 @@ function stepWalk(now, ticks) {                           // ticks: render ticks
   }
 }
 
-// ---- close-ups: the zoom and the turn as one move. The rendered move in (640x360, its first frame the node's view
-// straight at the hotspot, 90 degrees across, exactly) plays from the click on a flat panel set in the room where
-// that view lies, so its first frame sits in the room seamlessly; while it zooms, the eye turns onto the panel by one
-// rotation, the lens lengthens to 90 degrees across the box, the picture closes in to the close-up's 16:9 box and the
-// room round the panel darkens. A rotation in front of a flat picture bends nothing. The last frame is the close-up as
-// the game stores it. A click or Escape plays it all back.
-const D = 4;                                             // the panel's distance (inside the cube, which is 10 out)
+// ---- close-ups: the zoom and the turn as one move, with the room kept true round it. The rendered move in
+// (640x360; its first frame the node's view straight at the hotspot, 90 degrees across, exactly; its last the close-up
+// as the game stores it) plays from the click. Each frame is drawn on a panel in the room where its content lies:
+// closeups/track.json (closeup_track.py) gives each frame's place within the first frame (its zoom, shift and turn),
+// so the panel shrinks onto the object as the video zooms, and the room round it is the room itself, at its own size.
+// The camera follows: it turns onto the panel (one rotation, then a roll as the video's frame rolls), its lens
+// lengthens until the frame fills the close-up's 16:9 box, and the picture closes in to that box. A click or Escape
+// plays it all back.
+const D = 4;                                             // the panels' plane: the first frame's picture plane, 4 units out
 const cuTex = new THREE.Texture(); cuTex.flipY = false; cuTex.colorSpace = THREE.NoColorSpace; cuTex.generateMipmaps = false; cuTex.minFilter = THREE.LinearFilter;
-// the panel's edges fade into the room while it zooms (feather, a fraction of its width), sharp by the end
 const cuMat = new THREE.ShaderMaterial({ transparent: true, depthTest: false, depthWrite: false, uniforms: { map: { value: cuTex }, feather: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `uniform sampler2D map; uniform float feather; varying vec2 vUv;
@@ -474,14 +475,23 @@ const cuMat = new THREE.ShaderMaterial({ transparent: true, depthTest: false, de
     gl_FragColor = vec4(mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)), a);
     #include <colorspace_fragment>
   }` });
-const cuPlane = new THREE.Mesh(new THREE.PlaneGeometry(2 * D, 2 * D * 9 / 16), cuMat);
-cuPlane.renderOrder = 20; cuPlane.visible = false; scene.add(cuPlane);
+const cuPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), cuMat);   // vertices: top left, top right, bottom left, bottom right
+cuPlane.renderOrder = 20; cuPlane.visible = false; cuPlane.frustumCulled = false; scene.add(cuPlane);
+let TRACK = {};
+fetch('closeups/track.json').then(r => r.ok ? r.json() : {}).then(j => { TRACK = j; }).catch(() => {});
 let closing = null, inClose = null, cuRect = null, cuT = null;   // cuT (tests): the move held at that time
 const ease = t => t * t * (3 - 2 * t);
 const box = () => { const W = innerWidth, H = innerHeight; return W / H < 16 / 9 ? [W, W * 9 / 16] : [H * 16 / 9, H]; };
 const qcam = new THREE.PerspectiveCamera();
 function quatOf(y, p) { const d = dirOf(p, y); d.x = -d.x; qcam.position.set(0, 0, 0); qcam.lookAt(d); return qcam.quaternion.clone(); }
-function dim(v) { if (now) now.children.forEach(m => m.material.color.setScalar(v)); }
+// frame k of a close-up within the first frame: its corners (TL, TR, BL, BR) on the panel plane, in tan units of the
+// first frame's camera (x right, y up), its centre, half width and turn
+function frameRect(c, k) {
+  const M = (TRACK[c.id] || [])[k] || [[1, 0, 0], [0, 1, 0]];
+  const P = [[0, 0], [640, 0], [0, 360], [640, 360]].map(([x, y]) => { const u = M[0][0] * x + M[0][1] * y + M[0][2], v = M[1][0] * x + M[1][1] * y + M[1][2]; return [u / 320 - 1, -(v / 180 - 1) * 9 / 16]; });
+  const cx = (P[0][0] + P[3][0]) / 2, cy = (P[0][1] + P[3][1]) / 2, hw = Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]) / 2, roll = Math.atan2(P[1][1] - P[0][1], P[1][0] - P[0][0]);
+  return { P, cx, cy, hw, roll };
+}
 async function closeup(s) {
   const id = CLOSEUPS[s.frame.slice(0, -4)];
   if (!walksOn || !id) return showFrame(s.frame);
@@ -489,19 +499,30 @@ async function closeup(s) {
   if (!CU.has(id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this close-up…'; queue.sort((x, y) => (y.id === id) - (x.id === id)); await whenLoaded(id); busyEl.style.display = 'none'; }
   const fr = CU.get(id); if (!fr) { busy = false; return showFrame(s.frame); }
   const f0 = Math.min(fov, 110), q1 = quatOf(s.rects[0][1], s.rects[0][0]);
-  cuPlane.quaternion.copy(q1); cuPlane.position.set(0, 0, -D).applyQuaternion(q1);
-  closing = { from: { yaw, pitch, fov, q: quatOf(yaw, pitch), f: innerHeight / 2 / Math.tan(f0 * Math.PI / 360) }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 }, fr, t0: performance.now(), dir: 1, s, k: -1 };
+  closing = { id, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 }, fr, t0: performance.now(), dir: 1, s, k: -1 };
   showCu(0); cuPlane.visible = true;
 }
-function showCu(k) { const c = closing || inClose; if (c.k === k) return; c.k = k; cuTex.image = c.fr[k]; cuTex.needsUpdate = true; }
-function closeCamera(t) {                                // the move's state at t (0 the room, 1 the box): camera, box, dimming
-  const c = closing || inClose, e = ease(t), W = innerWidth, H = innerHeight, [bw, bh] = box();
-  const w = W + (bw - W) * e, h = H + (bh - H) * e, f = c.from.f * Math.pow((bw / 2) / c.from.f, e);   // 90 degrees across the box at the end
+const tmpV = new THREE.Vector3(), rollQ = new THREE.Quaternion(), zAxis = new THREE.Vector3(0, 0, 1);
+function showCu(k) {                                     // frame k on the panel, where its content lies
+  const c = closing || inClose; if (c.k === k) return; c.k = k; cuTex.image = c.fr[k]; cuTex.needsUpdate = true;
+  const R = frameRect(c, k), pos = cuPlane.geometry.attributes.position;
+  R.P.forEach(([x, y], i) => { tmpV.set(x * D, y * D, -D).applyQuaternion(c.to.q); pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); });
+  pos.needsUpdate = true; cuPlane.geometry.computeBoundingSphere(); c.R = R;
+}
+function closeCamera(t) {                                // the move at t (0 the room, 1 the box): camera, box, panel edges
+  const c = closing || inClose, e = ease(t), W = innerWidth, H = innerHeight, [bw, bh] = box(), R = c.R;
+  const w = W + (bw - W) * e, h = H + (bh - H) * e;
   cuRect = [(W - w) / 2, (H - h) / 2, w, h];
-  camera.quaternion.copy(c.from.q).slerp(c.to.q, e);
-  camera.aspect = w / h; camera.fov = 2 * Math.atan(h / 2 / f) * 180 / Math.PI; camera.updateProjectionMatrix();
-  dim(1 - 0.8 * ease(Math.min(1, t * 3)));               // the room darkens in the first third, as the panel starts to zoom
-  cuMat.uniforms.feather.value = 0.16 * Math.min(1, t / 0.12) * (1 - ease(t));   // none at the start (the panel is the room there) or the end
+  // aim: from the eye's own way to the panel's way, then rolled with the frame; the frame's centre, seen in the rolled
+  // camera, is reached by shifting the lens (an off-centre frustum), so the panel's edges stay parallel to the box's
+  const roll = R.roll * e;
+  camera.quaternion.copy(c.from.q).slerp(c.to.q, e).multiply(rollQ.setFromAxisAngle(zAxis, roll));
+  const cr = Math.cos(-roll), sr = Math.sin(-roll), ox = (R.cx * cr - R.cy * sr) * e, oy = (R.cx * sr + R.cy * cr) * e;
+  const a = c.from.a * Math.pow(R.hw / c.from.a, e), bh2 = a * h / w, n = camera.near;   // half width, half height, in tan units
+  camera.projectionMatrix.makePerspective((ox - a) * n, (ox + a) * n, (oy + bh2) * n, (oy - bh2) * n, n, camera.far);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  camera.updateMatrixWorld(true);
+  cuMat.uniforms.feather.value = 0.12 * Math.min(1, t / 0.12) * (1 - e);   // none at the start (the panel is the room there) or the end
 }
 function stepClose(now) {
   if (!closing) { if (inClose) closeCamera(1); return; }
@@ -513,7 +534,7 @@ function stepClose(now) {
   } else {
     showCu(n - 1 - k); closeCamera(1 - t);
     if (t >= 1 && cuT === null) {
-      closing = null; cuRect = null; cuPlane.visible = false; dim(1);
+      closing = null; cuRect = null; cuPlane.visible = false;
       yaw = c.from.yaw; pitch = c.from.pitch; fov = c.from.fov; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); busy = false;
     }
   }
@@ -748,7 +769,7 @@ window.nodeWalk = { go, move: to => { const s = (NODES[here] || []).find(s => s.
     let t; if (bms) { t = newTex(); t.image = bms[k]; t.needsUpdate = true; } else { const p = player(src, false); p.feed(k); p.dec.flush(); while (!p.got[k] && !p.err) await new Promise(r => setTimeout(r, 20)); t = p.got[k]; }
     wsphere.rotation.set(0, Math.PI - h * Math.PI / 180, 0); wmat.uniforms.map.value = t; wsphere.visible = true; if (now) now.visible = false; },
   hideWalk: () => { wsphere.visible = false; if (now) now.visible = true; },
-  set cuT(t) { cuT = t; },
+  set cuT(t) { cuT = t; }, spotsHere: () => NODES[here] || [],
   get loaded() { return done; }, get total() { return total; }, get wc() { return wc; }, set cap(b) { cap = b; lastSlot = -1; },
   closeup: f => { const s = (NODES[here] || []).find(s => s.frame === f); if (s) closeup(s); return !!s; }, openDoor, V,
   get closing() { return !!closing; },
