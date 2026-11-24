@@ -610,8 +610,8 @@ async function openDoor(s) {
   [[-t, t * 9 / 16], [t, t * 9 / 16], [-t, -t * 9 / 16], [t, -t * 9 / 16]].forEach(([x, y], i) => { tmpV.set(x * D, y * D, -D).applyQuaternion(q); pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); });
   pos.needsUpdate = true; panelDoor.material.uniforms.feather.value = 0.06;
   panelDoor.userData.tex.image = fr[0]; panelDoor.userData.tex.needsUpdate = true; panelDoor.visible = true;
-  // the movie's frame covers only the lower part of the tall door (80 degrees across, 25 up and down from level): above
-  // and round it, the node's open-door faces fade in over the shut ones as the movie's door opens
+  // the movie's frame (80 degrees across, 25 up and down from level) covers the upper and middle part of the tall door,
+  // not its foot: round it, the node's open-door faces fade in over the shut ones as the movie's door opens
   if (!d.progress) d.progress = doorProgress(fr);
   const open = cube(await loadNode('TOHO-0' + (100 + +here.slice(5)))); open.children.forEach(m => { m.material.opacity = 0; m.renderOrder = 1; });
   scene.add(open); openCube = open;
