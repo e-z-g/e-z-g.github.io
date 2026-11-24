@@ -18,7 +18,8 @@ from node_view import FACES  # noqa: E402
 
 
 def faces(prefix):
-    return [(np.array(FACES[k], float), None, np.asarray(Image.open(f'{prefix}-f{k}.jpg').convert('RGB'))) for k in FACES]
+    pick = lambda k: f'{prefix}-f{k}.jpg' if os.path.exists(f'{prefix}-f{k}.jpg') else f'{prefix}-f{k}.png'   # movie_into_faces.py writes PNG
+    return [(np.array(FACES[k], float), None, np.asarray(Image.open(pick(k)).convert('RGB'))) for k in FACES]
 
 
 def main():
