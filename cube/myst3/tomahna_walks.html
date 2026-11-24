@@ -36,6 +36,7 @@
   <button id="fpsbtn" title="Draw the view at the walks' 24 frames a second, or as fast as the screen goes (R)">24 fps</button>
   <span id="load" style="background:rgba(0,0,0,.6);padding:4px 8px;border-radius:4px;font-size:12px">loading…</span>
   <button id="sndbtn" title="The game's sounds: the door opening and closing (S)">Sound: on</button>
+  <button id="cubtn" title="The five close-ups made again from a nearer start (39 frames), or their first renders (22 frames)">Close-ups: new</button>
   <button id="walkbtn" title="Play the rendered walks and close-ups, or jump as the node traveler does (W)">Walks: on</button>
   <span id="fovtxt"></span>
 </div>
@@ -331,6 +332,7 @@ function playSound(id, vol = 1) {
 let soundOn = true;
 let queue = [...WALKIDS.map(id => ({ id, walk: true })), ...Object.values(CLOSEUPS).map(id => ({ id, walk: false })),
   ...Object.values(DOORS).map(d => ({ id: d.id, walk: false, path: `doors/${d.id}.mp4` })),
+  ...['toho7_307', 'toho7_107', 'toho7_207', 'tohob1_2', 'toho7_607'].map(id => ({ id: 'first:' + id, walk: false, path: `closeups/old22/${id}.mp4` })),
   ...['door11004', 'door10005', 'door_close'].map(id => ({ id: 'snd:' + id, audio: true, path: `doors/${id}.mp3` }))], total = queue.length, done = 0, bytes = 0;
 function prioritise(n) {                                 // the walks out of node n to the front of what is still to load
   if (!n || n.slice(0, 4) !== 'TOHO') return;
@@ -499,8 +501,10 @@ function makePanel(order) {
   m.renderOrder = order; m.visible = false; m.frustumCulled = false; m.userData = { tex, k: -1 }; scene.add(m); return m;
 }
 const panelA = makePanel(20), panelB = makePanel(21);    // frame floor(phi) and, over it, frame floor(phi) + 1 by the fraction
-let TRACK = {}, COL = {};
+let TRACK = {}, COL = {}, TRACK1 = {}, COL1 = {}, cuFirst = false;   // cuFirst: the first renders of the five made again
 fetch('closeups/track.json').then(r => r.ok ? r.json() : {}).then(j => { TRACK = j; }).catch(() => {});
+fetch('closeups/track_first.json').then(r => r.ok ? r.json() : {}).then(j => { TRACK1 = j; }).catch(() => {});
+fetch('closeups/colour_first.json').then(r => r.ok ? r.json() : {}).then(j => { COL1 = j; }).catch(() => {});
 fetch('closeups/colour.json').then(r => r.ok ? r.json() : {}).then(j => { COL = j; }).catch(() => {});
 let closing = null, inClose = null, cuRect = null, cuT = null;   // cuT (tests): the move held at that time
 const ease = t => t * t * (3 - 2 * t), ease5 = t => t * t * t * (t * (t * 6 - 15) + 10);
@@ -509,25 +513,31 @@ const qcam = new THREE.PerspectiveCamera();
 function quatOf(y, p) { const d = dirOf(p, y); d.x = -d.x; qcam.position.set(0, 0, 0); qcam.lookAt(d); return qcam.quaternion.clone(); }
 // frame k of a close-up within the first frame: its corners (TL, TR, BL, BR) on the panel plane in tan units of the
 // first frame's camera (x right, y up), its centre, log half width and turn
-function frameRect(id, k) {
-  const M = (TRACK[id] || [])[k] || [[1, 0, 0], [0, 1, 0]];
-  const P = [[0, 0], [640, 0], [0, 360], [640, 360]].map(([x, y]) => { const u = M[0][0] * x + M[0][1] * y + M[0][2], v = M[1][0] * x + M[1][1] * y + M[1][2]; return [u / 320 - 1, -(v / 180 - 1) * 9 / 16]; });
+// the close-ups rendered again from the view zoomed 1.5 times (closeup_z15.ps1: their first frame 67.38 degrees across, not
+// 90), chosen where their moves swim less than the first renders (cu_motion.py: total swim 207 31.8 to 18.6 px, 607 30.8
+// to 19.3, TOHB 2 27.8 to 18.3, 107 44.8 to 42.9 and worst step 5.1 to 3.1, 307 111.8 to 104.4 and worst 19.4 to 6.9;
+// 707 and 306 swam more and keep their first renders)
+const CU_FOV0 = { toho7_307: 67.38, toho7_107: 67.38, toho7_207: 67.38, tohob1_2: 67.38, toho7_607: 67.38 };
+function frameRect(id, k, first) {
+  const M = ((first ? TRACK1 : TRACK)[id] || [])[k] || [[1, 0, 0], [0, 1, 0]], s0 = Math.tan((first ? 90 : CU_FOV0[id] || 90) * Math.PI / 360);
+  const P = [[0, 0], [640, 0], [0, 360], [640, 360]].map(([x, y]) => { const u = M[0][0] * x + M[0][1] * y + M[0][2], v = M[1][0] * x + M[1][1] * y + M[1][2]; return [(u / 320 - 1) * s0, -(v / 180 - 1) * 9 / 16 * s0]; });
   return { P, cx: (P[0][0] + P[3][0]) / 2, cy: (P[0][1] + P[3][1]) / 2, lw: Math.log(Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]) / 2), roll: Math.atan2(P[1][1] - P[0][1], P[1][0] - P[0][0]) };
 }
 async function closeup(s) {
   const id = CLOSEUPS[s.frame.slice(0, -4)];
   if (!walksOn || !id) return showFrame(s.frame);
+  const first = cuFirst && CU_FOV0[id] !== undefined, key = first ? 'first:' + id : id;
   busy = true;
-  if (!CU.has(id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this close-up…'; queue.sort((x, y) => (y.id === id) - (x.id === id)); await whenLoaded(id); busyEl.style.display = 'none'; }
-  const fr = CU.get(id); if (!fr) { busy = false; return showFrame(s.frame); }
+  if (!CU.has(key)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this close-up…'; queue.sort((x, y) => (y.id === key) - (x.id === key)); await whenLoaded(key); busyEl.style.display = 'none'; }
+  const fr = CU.get(key); if (!fr) { busy = false; return showFrame(s.frame); }
   const f0 = Math.min(fov, 110), q1 = quatOf(s.rects[0][1], s.rects[0][0]), n = fr.length;
-  const R = Array.from({ length: n }, (_, k) => frameRect(id, k));
+  const R = Array.from({ length: n }, (_, k) => frameRect(id, k, first));
   // the frames' places along the move: each frame's zoom from the first (log), never falling, with 15% of the move shared
   // out evenly by frame, so the last frames, where H3 barely zooms (and the last, the game's own close-up, takes over),
   // still get their share of time and are blended in, not passed in an instant
   const Zr = []; R.forEach((r, k) => { Zr.push(Math.max(k ? Zr[k - 1] : 0, R[0].lw - r.lw)); });
   const Z = Zr.map((z, k) => 0.85 * z + 0.15 * Zr[n - 1] * k / (n - 1));
-  closing = { id, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 }, fr, R, Z, gain: COL[id], t0: performance.now(), dir: 1, s };
+  closing = { id, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 }, fr, R, Z, gain: (first ? COL1 : COL)[id], t0: performance.now(), dir: 1, s };
   placeCu(0);
 }
 const tmpV = new THREE.Vector3(), rollQ = new THREE.Quaternion(), zAxis = new THREE.Vector3(0, 0, 1);
@@ -554,7 +564,8 @@ function placeCu(t) {
   const R = { cx: crv('cx'), cy: crv('cy'), lw: crv('lw'), roll: crv('roll') };
   // the room alone while it is sharp enough (H3's frames swim against it and each other); the video fades in as the
   // zoom passes 1.25 to 2 times (or 80% of the whole zoom, for the shorter moves), where its detail is needed
-  const zf = c.R[0].lw - R.lw, z0 = Math.log(1.25), z1 = Math.min(Math.log(2), 0.8 * c.Z[n - 1]);
+  // (zoom against the room's 90-degree view: a video that starts zoomed comes in from where it starts)
+  const zf = -R.lw, z0 = Math.max(Math.log(1.25), -c.R[0].lw), z1 = Math.max(z0 + 0.15, Math.min(Math.log(2), -c.R[0].lw + 0.8 * c.Z[n - 1]));
   const vis = z1 > z0 ? ease(Math.max(0, Math.min(1, (zf - z0) / (z1 - z0)))) : 1;
   panelA.material.uniforms.alpha.value = vis; panelB.material.uniforms.alpha.value = f * vis;
   if (c.gain) { const gA = c.gain[k], gB = c.gain[k + 1]; grade([0, 1, 2].map(i => Math.pow(lerp(gA[i], gB[i]), 2.2))); }   // sRGB ratios as linear gains
@@ -699,6 +710,7 @@ document.getElementById('womanbtn').onclick = async () => { if (busy) return; wo
   if (here === 'TOHO-0002' || here === 'TOHO-0001') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
 document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = cap ? '24 fps' : 'full rate'; };
 document.getElementById('sndbtn').onclick = () => { soundOn = !soundOn; document.getElementById('sndbtn').textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); };
+document.getElementById('cubtn').onclick = () => { cuFirst = !cuFirst; document.getElementById('cubtn').textContent = 'Close-ups: ' + (cuFirst ? 'first' : 'new'); };
 document.getElementById('walkbtn').onclick = () => { walksOn = !walksOn; document.getElementById('walkbtn').textContent = 'Walks: ' + (walksOn ? 'on' : 'off'); };
 
 let here = null, now = null, fading = null;
