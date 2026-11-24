@@ -588,9 +588,13 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cuLeave();
 // the woman's idle loop at TOHO 2 (with "Woman: on"): the game loops scene movie 10002 there, a flat 216x288 picture on
 // a plane facing metadata v1 (0.939693, -0.34202, 0) in ScummVM's directions, its rectangle 224 208 216 288 in a
 // 640-face's units from the centre (movie_into_faces.py, which matched its empty first frame to the still within 4.95
-// levels); played from frame 160, the frame drawn into TOHO 2's faces and the walk's end, round and round, 15 a second
+// levels). Its frames as TOHO 2's scripts play them (myst3.dat; ScummVM's movie start and end frame variables, 27 and 28,
+// counted from 1): frames 2 to 73 round and round until you look her way (heading 66 to 126), then on to 349 and round
+// 289 to 349. Here it starts at frame 160 (the frame drawn into TOHO 2's faces and the walk's end) and plays on into the
+// 289-349 loop, the looked-at state, so nothing jumps on arrival. Not done: the first 2-73 loop, and 11002, which the
+// scripts loop instead once you have been to the study (variable 400). Counted from 0 below.
 const panelWoman = makePanel(19);
-const womanVid = document.createElement('video'); womanVid.src = 'doors/woman10002.mp4'; womanVid.muted = true; womanVid.loop = true; womanVid.playsInline = true; womanVid.preload = 'auto';
+const womanVid = document.createElement('video'); womanVid.src = 'doors/woman10002.mp4'; womanVid.muted = true; womanVid.loop = false; womanVid.playsInline = true; womanVid.preload = 'auto';
 {
   const t = new THREE.VideoTexture(womanVid); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
   panelWoman.material.uniforms.map.value = t; panelWoman.material.uniforms.feather.value = 0.02;
@@ -600,8 +604,8 @@ const womanVid = document.createElement('video'); womanVid.src = 'doors/woman100
   [[L, T], [Rr, T], [L, B], [Rr, B]].forEach(([x, y], i) => { const v = sv(n.clone().add(ua.clone().multiplyScalar(x)).add(va.clone().multiplyScalar(y))).multiplyScalar(D); pos.setXYZ(i, v.x, v.y, v.z); });
   pos.needsUpdate = true;
 }
-// and at TOHO 1: the end of its scene movie 11001, where she sits on the bench bouncing the baby: frames 911 to the end
-// (60.7 s to 68.3 s; frame 911 against the last 1.8 levels, neighbouring frames 1.0, so the loop joins), cut to the part
+// and at TOHO 1: its scene movie 11001 as TOHO 1's scripts loop it once you have been there before (variable 399 set:
+// start frame 909, end 1025, counted from 1): she sits on the bench bouncing the baby; cut to the part
 // round her and the bench (x 0 to 220, y 40 to 288 of the 576x288 movie) with soft edges, on the movie's plane (v1
 // -0.120018, -0.173648, -0.977467; rect 8 248 576 288, so the cut part 8 288 220 248)
 const panelWoman1 = makePanel(19);
@@ -621,9 +625,11 @@ function stepWoman() {
   const want1 = woman === 2 && here === 'TOHO-0001' && !walking && !closing && !inClose;
   if (want1 !== womanShown1) { womanShown1 = want1; panelWoman1.visible = want1; if (want1) { womanVid1.currentTime = 0; womanVid1.play().catch(() => {}); } else womanVid1.pause(); }
   const want = woman === 2 && here === 'TOHO-0002' && !walking && !closing && !inClose;
+  if (womanShown && Math.floor(womanVid.currentTime * 15) >= 348) womanVid.currentTime = (288 + 0.5) / 15;   // the 289-349 loop
+  if (womanShown && womanVid.ended) { womanVid.currentTime = (288 + 0.5) / 15; womanVid.play().catch(() => {}); }
   if (want === womanShown) return;
   womanShown = want; panelWoman.visible = want;
-  if (want) { womanVid.currentTime = 160 / 15; womanVid.play().catch(() => {}); } else womanVid.pause();
+  if (want) { womanVid.currentTime = (160 + 0.5) / 15; womanVid.play().catch(() => {}); } else womanVid.pause();
 }
 // the door: its hotspot plays the game's movie of the door opening, with its sound, on a panel in the room where the
 // movie's view lies (found by matching its first frame to the node's faces: a level camera, 80 degrees across, at
