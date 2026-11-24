@@ -575,7 +575,20 @@ function grade(g) { if (now) now.children.forEach(m => m.material.color.setRGB(g
 function placeCu(t) {
   const c = closing || inClose;
   if (c.sphere) { sphereCamera(c, t); return; }
-  const n = c.fr.length, e = ease(t), Zf = c.Z[n - 1], z = ease5(t) * Zf;
+  // from a fisheye view (over 110 degrees) the fisheye first narrows to 110, where it is a plain view, turning as it goes,
+  // with the room alone; then the move as from a plain view (it jumped to a plain view at the click before)
+  let tz = t, fromA = c.from.a, e, zt;
+  if (c.from.fov > 110) {
+    const W0 = innerWidth, H0 = innerHeight, A = 2 * (c.from.fov - 110) * Math.PI / 180 / Math.sin(110 * Math.PI / 180), Bq = 2 * Math.log(Math.tan(55 * Math.PI / 180) * W0 / H0), ts = A / (A + Bq);
+    if (t < ts) {
+      const u = (t / ts) ** 2; fov = c.from.fov + (110 - c.from.fov) * u; c.fishPhase = true; cuRect = null;
+      panelA.visible = panelB.visible = false; grade([1, 1, 1]);
+      camera.quaternion.copy(c.from.q).slerp(c.to.q, ease(Math.min(1, t / 0.6)));
+      camera.aspect = W0 / H0; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); return;
+    }
+    c.fishPhase = false; fromA = Math.tan(55 * Math.PI / 180) * W0 / H0; tz = (t - ts) / (1 - ts); e = 1 - (1 - tz) ** 2; zt = e;
+  } else { e = ease(t); zt = ease5(t); }
+  const n = c.fr.length, Zf = c.Z[n - 1], z = zt * Zf;
   let k = 0; while (k < n - 2 && c.Z[k + 1] <= z) k++;
   const f = Math.max(0, Math.min(1, (z - c.Z[k]) / (c.Z[k + 1] - c.Z[k])));
   setPanel(panelA, c, k); setPanel(panelB, c, k + 1);
@@ -600,11 +613,11 @@ function placeCu(t) {
   const er = ease(Math.min(1, t / 0.6)), roll = R.roll * e;
   camera.quaternion.copy(c.from.q).slerp(c.to.q, er).multiply(rollQ.setFromAxisAngle(zAxis, roll));
   const cr = Math.cos(-roll), sr = Math.sin(-roll), ox = (R.cx * cr - R.cy * sr) * e, oy = (R.cx * sr + R.cy * cr) * e;
-  const a = Math.exp(Math.log(c.from.a) * (1 - e) + R.lw * e), b2 = a * h / w, nr = camera.near;   // half width and height, tan units
+  const a = Math.exp(Math.log(fromA) * (1 - e) + R.lw * e), b2 = a * h / w, nr = camera.near;   // half width and height, tan units
   camera.projectionMatrix.makePerspective((ox - a) * nr, (ox + a) * nr, (oy + b2) * nr, (oy - b2) * nr, nr, camera.far);
   camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
   camera.updateMatrixWorld(true);
-  const fe = 0.12 * Math.min(1, t / 0.12) * (1 - e);       // the panels' edges soft mid-move: none at the start (the panel is the room there) or the end
+  const fe = 0.12 * Math.min(1, tz / 0.12) * (1 - e);       // the panels' edges soft mid-move: none at the start (the panel is the room there) or the end
   panelA.material.uniforms.feather.value = fe; panelB.material.uniforms.feather.value = fe;
 }
 function sphereCamera(c, t) {                          // the eye onto the hotspot, the lens to 90 degrees across the box, the box closing in
@@ -1007,7 +1020,7 @@ window.nodeWalk = { go, move: to => { const s = (NODES[here] || []).find(s => s.
     let t; if (bms) { t = newTex(); t.image = bms[k]; t.needsUpdate = true; } else { const p = player(src, false); p.feed(k); p.dec.flush(); while (!p.got[k] && !p.err) await new Promise(r => setTimeout(r, 20)); t = p.got[k]; }
     wsphere.rotation.set(0, Math.PI - h * Math.PI / 180, 0); wmat.uniforms.map.value = t; wsphere.visible = true; if (now) now.visible = false; },
   hideWalk: () => { wsphere.visible = false; if (now) now.visible = true; },
-  set cuT(t) { cuT = t; }, spotsHere: () => NODES[here] || [],
+  set cuT(t) { cuT = t; }, debugCam: () => ({ grade: now ? now.children[0].material.color.toArray().map(x => +x.toFixed(3)) : null, fov, fish: fish(), q: camera.quaternion.toArray().map(x => +x.toFixed(4)), camFov: camera.fov, aspect: camera.aspect, fishPhase: !!(closing && closing.fishPhase), cuRect, yaw, pitch }), spotsHere: () => NODES[here] || [],
   get loaded() { return done; }, get total() { return total; }, get wc() { return wc; }, set cap(b) { cap = b; lastSlot = -1; },
   closeup: f => { const s = (NODES[here] || []).find(s => s.frame === f); if (s) closeup(s); return !!s; }, openDoor: () => { const s = (NODES[here] || []).find(s => s.kind === 'movie' && DOORS[s.args[1]] && holds(s.cond)); if (s) openDoor(s); return !!s; }, get opening() { return !!opening; }, soundLengths: () => Object.fromEntries([...SOUNDS].map(([k, v]) => [k, +v.duration.toFixed(2)])), V,
   get closing() { return !!closing; },
