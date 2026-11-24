@@ -472,6 +472,7 @@ function stepWalk(now, ticks) {                           // ticks: render ticks
     return;
   }
   const NN = p.n; let k = ticks === null ? Math.min(NN - 1, Math.floor((now - w.t0) / 1000 * VFPS)) : Math.min(NN - 1, w.k + ticks);
+  if (cuT !== null && closing && closing.sphere === w.vid) k = Math.min(NN - 1, Math.round(cuT / closing.T * (NN - 1)));   // tests: the video held with the camera
   if (k > w.k && !p.got[k]) { while (k > w.k && !p.got[k]) k--; w.stalls++; p.nudge && p.nudge(); if (ticks === null) w.t0 = now - (k + 0.999) * 1000 / VFPS; }
   if (k !== w.k) { w.k = k; wmat.uniforms.map.value = p.got[k]; p.feed(k + RING - 1); w.shownAt = now; const g = SGAIN[w.vid]; wmat.uniforms.gain.value = g ? g[w.back ? NN - 1 - k : k] : 1; }
   if (w.k === NN - 1 && now - w.shownAt >= 1000 / VFPS - 1) {
@@ -609,13 +610,16 @@ function placeCu(t) {
 function sphereCamera(c, t) {                          // the eye onto the hotspot, the lens to 90 degrees across the box, the box closing in
   const er = ease(Math.min(1, t / 0.6)), W = innerWidth, H = innerHeight, [bw, bh] = box();
   camera.quaternion.copy(c.from.q).slerp(c.to.q, er);
-  // from the fisheye (over 110 degrees): the fisheye narrows to 110 in the first 40% (speeding up), where it is a plain
+  // from the fisheye (over 110 degrees): the fisheye narrows to 110 first (speeding up), where it is a plain
   // perspective view (its curve is 1 up to 120), then the lens and the box as from a plain view (slowing down)
   let from = c.from.a, e;
   if (c.from.fov > 110) {
-    const ts = 0.4;
+    // the handover's time chosen so the zoom runs at one speed across it: the fisheye's end rate, 2 (f0 - 110) / ts in
+    // degrees (as the logarithm of the lens's half-width, 1 / sin 110 per radian there), equal to the plain view's start
+    // rate, 2 ln(tan 55 * W / H) / (1 - ts)
+    const A = 2 * (c.from.fov - 110) * Math.PI / 180 / Math.sin(110 * Math.PI / 180), Bq = 2 * Math.log(Math.tan(55 * Math.PI / 180) * W / H), ts = A / (A + Bq);
     if (t < ts) { const u = (t / ts) ** 2; fov = c.from.fov + (110 - c.from.fov) * u; c.fishPhase = true; cuRect = null;
-      camera.aspect = W / H; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); return; }
+      camera.aspect = W / H; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); return; }   // the fisheye reads the camera's world matrix
     c.fishPhase = false; from = Math.tan(55 * Math.PI / 180) * W / H; const t2 = (t - ts) / (1 - ts); e = 1 - (1 - t2) ** 2;
   } else e = ease(t);
   const w = W + (bw - W) * e, h = H + (bh - H) * e;
