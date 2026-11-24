@@ -338,6 +338,7 @@ let soundOn = true;
 let queue = [...WALKIDS.map(id => ({ id, walk: true })), ...Object.values(CLOSEUPS).map(id => ({ id, walk: false })),
   ...Object.values(DOORS).map(d => ({ id: d.id, walk: false, path: `doors/${d.id}.mp4` })),
   ...['0004', '0005'].flatMap(a => ['free', 'guided'].map(v => ({ id: `door_${a}_${v}`, walk: true, path: `doors/door_${a}_${v}.mp4` }))),
+  { id: 'sphere_7_107', walk: true, path: 'doors/sphere_7_107.mp4' },
   ...['toho7_307', 'toho7_107', 'toho7_207', 'tohob1_2', 'toho7_607'].map(id => ({ id: 'first:' + id, walk: false, path: `closeups/old22/${id}.mp4` })),
   ...['door11004', 'door10005', 'door_close'].map(id => ({ id: 'snd:' + id, audio: true, path: `doors/${id}.mp3` }))], total = queue.length, done = 0, bytes = 0;
 function prioritise(n) {                                 // the walks out of node n to the front of what is still to load
@@ -465,7 +466,7 @@ function stepWalk(now, ticks) {                           // ticks: render ticks
   if (w.t0 === null) {                                   // waiting for the first frames: the cube stays on show
     if (!(p.got[0] && (p.got[2] || p.dec === null))) { if (p.nudge) p.nudge(); return; }
     w.t0 = now; w.tFirst = now; w.k = 0;
-    wsphere.rotation.set(0, Math.PI - w.heading * Math.PI / 180, 0);      // the walk's ahead (its -z) along its game heading
+    if (w.quat) wsphere.quaternion.copy(w.quat); else wsphere.rotation.set(0, Math.PI - w.heading * Math.PI / 180, 0);      // the walk's ahead (its -z) along its game heading (or a close-up's hotspot)
     wmat.uniforms.map.value = p.got[0]; wsphere.visible = true; if (cubeNow()) cubeNow().visible = false; dropFade();
     return;
   }
@@ -508,7 +509,11 @@ function makePanel(order) {
   m.renderOrder = order; m.visible = false; m.frustumCulled = false; m.userData = { tex, k: -1 }; scene.add(m); return m;
 }
 const panelA = makePanel(20), panelB = makePanel(21);    // frame floor(phi) and, over it, frame floor(phi) + 1 by the fraction
-let TRACK = {}, COL = {}, TRACK1 = {}, COL1 = {}, cuFirst = false;   // cuFirst: the first renders of the five made again
+let TRACK = {}, COL = {}, TRACK1 = {}, COL1 = {}, cuFirst = false, cuSphere = false;   // cuFirst: the first renders of the five made again
+// cuSphere: the close-ups rendered as a whole 360-degree move (closeup_sphere.ps1; the photograph so far): the room's
+// whole view at the start, the close-up ahead with black all round at the end; played on the sphere as a walk, the eye
+// turned onto it and the picture closed in to its box over the same time
+const SPHERE = { toho7_107: 'sphere_7_107' };
 fetch('closeups/track.json').then(r => r.ok ? r.json() : {}).then(j => { TRACK = j; }).catch(() => {});
 fetch('closeups/track_first.json').then(r => r.ok ? r.json() : {}).then(j => { TRACK1 = j; }).catch(() => {});
 fetch('closeups/colour_first.json').then(r => r.ok ? r.json() : {}).then(j => { COL1 = j; }).catch(() => {});
@@ -534,6 +539,7 @@ async function closeup(s) {
   const id = CLOSEUPS[s.frame.slice(0, -4)];
   if (!walksOn || !id) return showFrame(s.frame);
   const first = cuFirst && CU_FOV0[id] !== undefined, key = first ? 'first:' + id : id;
+  if (cuSphere && SPHERE[id]) return sphereCloseup(s, id);
   busy = true;
   if (!CU.has(key)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this close-up…'; queue.sort((x, y) => (y.id === key) - (x.id === key)); await whenLoaded(key); busyEl.style.display = 'none'; }
   const fr = CU.get(key); if (!fr) { busy = false; return showFrame(s.frame); }
@@ -560,7 +566,9 @@ function setPanel(m, c, k) {                             // frame k on panel m, 
 function grade(g) { if (now) now.children.forEach(m => m.material.color.setRGB(g[0], g[1], g[2])); }   // linear gains on the room
 // the move at t (0 the room, 1 the close-up in its box): which frames, the room's grade, the camera, the box
 function placeCu(t) {
-  const c = closing || inClose, n = c.fr.length, e = ease(t), Zf = c.Z[n - 1], z = ease5(t) * Zf;
+  const c = closing || inClose;
+  if (c.sphere) { sphereCamera(c, t); return; }
+  const n = c.fr.length, e = ease(t), Zf = c.Z[n - 1], z = ease5(t) * Zf;
   let k = 0; while (k < n - 2 && c.Z[k + 1] <= z) k++;
   const f = Math.max(0, Math.min(1, (z - c.Z[k]) / (c.Z[k + 1] - c.Z[k])));
   setPanel(panelA, c, k); setPanel(panelB, c, k + 1);
@@ -592,16 +600,36 @@ function placeCu(t) {
   const fe = 0.12 * Math.min(1, t / 0.12) * (1 - e);       // the panels' edges soft mid-move: none at the start (the panel is the room there) or the end
   panelA.material.uniforms.feather.value = fe; panelB.material.uniforms.feather.value = fe;
 }
+function sphereCamera(c, t) {                          // the eye onto the hotspot, the lens to 90 degrees across the box, the box closing in
+  const e = ease(t), er = ease(Math.min(1, t / 0.6)), W = innerWidth, H = innerHeight, [bw, bh] = box(), w = W + (bw - W) * e, h = H + (bh - H) * e;
+  cuRect = [(W - w) / 2, (H - h) / 2, w, h];
+  camera.quaternion.copy(c.from.q).slerp(c.to.q, er);
+  const a = Math.exp(Math.log(c.from.a) * (1 - e)), b2 = a * h / w, nr = camera.near;
+  camera.projectionMatrix.makePerspective(-a * nr, a * nr, b2 * nr, -b2 * nr, nr, camera.far);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert(); camera.updateMatrixWorld(true);
+}
 function stepClose(now) {
   if (!closing) { if (inClose) placeCu(1); return; }
-  const c = closing, el = cuT !== null ? cuT : (now - c.t0) / 1000, t = Math.min(1, el / CU_T);
+  const c = closing, el = cuT !== null ? cuT : (now - c.t0) / 1000, t = Math.min(1, el / (c.T || CU_T));
   placeCu(c.dir > 0 ? t : 1 - t);
   if (t < 1 || cuT !== null) return;
   if (c.dir > 0) { yaw = c.to.yaw; pitch = c.to.pitch; inClose = c; closing = null; busy = false; return; }
   closing = null; cuRect = null; panelA.visible = panelB.visible = false; grade([1, 1, 1]);
   yaw = c.from.yaw; pitch = c.from.pitch; fov = c.from.fov; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); busy = false;
 }
-function cuLeave() { if (!inClose) return; const c = inClose; inClose = null; busy = true; c.dir = -1; c.t0 = performance.now(); closing = c; }
+async function sphereCloseup(s, id) {
+  const sid = SPHERE[id]; busy = true;
+  if (!SRC.has(sid)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this close-up…'; queue.sort((x, y) => (y.id === sid) - (x.id === sid)); await whenLoaded(sid); busyEl.style.display = 'none'; }
+  const f0 = Math.min(fov, 110), q1 = quatOf(s.rects[0][1], s.rects[0][0]), R = { P: [], cx: 0, cy: 0, lw: 0, roll: 0 };
+  closing = { id, sphere: sid, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 },
+    fr: [0, 0], R: [R, R], Z: [0, 1], gain: null, t0: performance.now(), dir: 1, s, T: 38 / VFPS };
+  walking = { p: player(SRC.get(sid), false, 39), quat: q1, k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: sid, back: false, done: () => {} };
+}
+function cuLeave() {
+  if (!inClose) return; const c = inClose; inClose = null; busy = true; c.dir = -1; c.t0 = performance.now(); closing = c;
+  if (c.sphere) walking = { p: player(SRC.get(c.sphere), true, 39), quat: c.to.q, k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: c.sphere, back: true,
+    done: () => { wsphere.visible = false; if (cubeNow()) cubeNow().visible = true; } };
+}
 addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cuLeave(); });
 // the woman's idle loop at TOHO 2 (with "Woman: on"): the game loops scene movie 10002 there, a flat 216x288 picture on
 // a plane facing metadata v1 (0.939693, -0.34202, 0) in ScummVM's directions, its rectangle 224 208 216 288 in a
@@ -726,7 +754,8 @@ document.getElementById('womanbtn').onclick = async () => { if (busy) return; wo
   if (here === 'TOHO-0002' || here === 'TOHO-0001') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
 document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = cap ? '24 fps' : 'full rate'; };
 document.getElementById('sndbtn').onclick = () => { soundOn = !soundOn; document.getElementById('sndbtn').textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); };
-document.getElementById('cubtn').onclick = () => { cuFirst = !cuFirst; document.getElementById('cubtn').textContent = 'Close-ups: ' + (cuFirst ? 'first' : 'new'); };
+document.getElementById('cubtn').onclick = () => { if (!cuFirst && !cuSphere) cuFirst = true; else if (cuFirst) { cuFirst = false; cuSphere = true; } else cuSphere = false;
+  document.getElementById('cubtn').textContent = 'Close-ups: ' + (cuFirst ? 'first' : cuSphere ? '360 (photograph)' : 'new'); };
 document.getElementById('doorbtn').onclick = () => { doorMode = DOORMODES[(DOORMODES.indexOf(doorMode) + 1) % 3]; document.getElementById('doorbtn').textContent = 'Door: ' + DOORLABEL[doorMode]; };
 document.getElementById('walkbtn').onclick = () => { walksOn = !walksOn; document.getElementById('walkbtn').textContent = 'Walks: ' + (walksOn ? 'on' : 'off'); };
 
