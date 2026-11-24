@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Myst III: Tomahna, walking</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 14px/1.4 system-ui, sans-serif; color: #eee; }
+  canvas { display: block; touch-action: none; }
+  #bar { position: fixed; top: 8px; left: 8px; right: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; pointer-events: none; }
+  #bar > * { pointer-events: auto; }
+  #here { background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; }
+  select, button { font: inherit; background: rgba(0,0,0,.6); color: #eee; border: 1px solid #666; border-radius: 4px; padding: 3px 6px; }
+  #tip { position: fixed; pointer-events: none; background: rgba(0,0,0,.75); padding: 2px 6px; border-radius: 4px; font-size: 13px; display: none; }
+  #moves { position: fixed; bottom: 8px; left: 8px; right: 8px; background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+  #map { position: fixed; right: 8px; bottom: 48px; width: 260px; height: 260px; background: rgba(0,0,0,.72); border: 1px solid #555; border-radius: 6px; touch-action: none; }
+  #map.big { width: min(560px, 90vw); height: min(560px, 70vh); }
+  #fovtxt { background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+  #busy { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,.7); padding: 6px 12px; border-radius: 4px; display: none; pointer-events: none; }
+  .bar { position: fixed; background: #000; z-index: 15; pointer-events: none; }
+  #cu { position: fixed; z-index: 16; display: none; cursor: pointer; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="bar">
+  <span id="here"></span>
+  <select id="sel"></select>
+  <button id="back" title="Back (Backspace)">Back</button>
+  <button id="show" title="Hotspots: off, areas, centres, both (H)">Hotspots: off</button>
+  <button id="facebtn" title="The cube's faces and seams (F)">Faces</button>
+  <button id="mapbtn" title="Map of the node layout (M); double-click it to enlarge">Map</button>
+  <button id="laybtn" title="The map's layout: the proposed places where there are any, or the model's (L)">Layout: proposed</button>
+  <button id="womanbtn" title="The woman on the bench at TOHO 2: drawn into its picture and the walk from 1, frozen (a test)">Woman: off</button>
+  <button id="walkbtn" title="Play the rendered walks and close-ups, or jump as the node traveler does (W)">Walks: on</button>
+  <span id="fovtxt"></span>
+</div>
+<canvas id="map"></canvas>
+<div id="moves"></div>
+<div id="tip"></div>
+<div id="busy"></div>
+<div class="bar" id="barT"></div><div class="bar" id="barB"></div><div class="bar" id="barL"></div><div class="bar" id="barR"></div>
+<canvas id="cu" width="640" height="360"></canvas>
+<script type="module">
+// Tomahna with its walks: the node traveler (node_walk.html) for TOHO and TOHB, where a move plays the walk rendered
+// between the two nodes (MiniMax H3, walk_polar3.ps1: two 180-degree fisheyes side by side, 22 frames, the first and
+// last frames the two nodes' own pictures) on a sphere round the eye, turned so the walk heads along its game heading,
+// while the look stays where it is; and a close-up hotspot turns the view onto the hotspot, brings the bars in to the
+// close-up's 16:9 box and narrows the view to 90 degrees across it, then plays the rendered move in (640x360, its first
+// frame exactly that view); a click plays it back out. The door between the conservatory and the study follows the
+// game's variable 401: shut on arrival at TOHO 4 or 5, opened by its hotspot (shown as node 104 or 105's faces;
+// the game plays a movie, 11004 or 10005, not shown here), shut again by script 10004 on leaving for 2, 3, 6, 7 or 8.
+// The rest as the node traveler:
+// Myst III's nodes as the game shows them: a node's six faces as a cube round the eye, looked round by dragging,
+// and its movement hotspots tested on a click as ScummVM tests them (engines/myst3/hotspot.cpp: each rectangle
+// a quad facing the eye at its centre's pitch and heading, half its width and height w/90 and h/90 of its
+// distance). A walk keeps the way you look, as the game does. Conditions on hotspots (doors open or shut) are
+// not kept: every hotspot is live. Data: node_walk.py's walk.json and layout.json; faces in faces/<ROOM>/.
+// F draws the cube's seams and names its faces. Zoom (wheel, pinch, + and -) runs from 20 to 360 degrees top to bottom: up to 120 an ordinary perspective view,
+// beyond it the scene rendered into a cube map and drawn as a fisheye, r = tan(theta/s) / tan(fov/2s) with
+// s = max(1, fov/120), so that at 360 the whole sphere fills a circle the height of the window.
+import * as THREE from 'three';
+
+const W = await (await fetch('walk.json', { cache: 'no-store' })).json();
+const LAY = await fetch('layout.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : { nodes: {}, proposed: {} }).catch(() => ({ nodes: {}, proposed: {} }));
+const NODES = W.nodes;
+const V = { 401: 0, 399: 1 };                           // the game's variables these hotspots read (399: always set by now)
+const holds = c => { if (c === 1 || c === -1) return c === 1; const a = Math.abs(c), v = a & 2047, val = (a >> 11) - 1;
+  const t = val === -1 ? (V[v] || 0) !== 0 : (V[v] || 0) === val; return c < 0 ? !t : t; };   // GameState::evaluate
+let woman = false;                                       // the scene movie at TOHO 2 (10002, frame 160) drawn into its faces and its walk (a test)
+const shown = n => (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401] ? 'TOHO-0' + (100 + +n.slice(5)) : n === 'TOHO-0002' && woman ? 'TOHO-0002m' : n;   // the door open
+// each rendered walk: its video, the game heading it walks along (the mean of the hotspot bearings A to B and back),
+// its ends, and the door's state at its ends where it matters ("open" walks leave the open door: 104 or 105 is one end)
+const WALKVIDS = [
+  ['t0102', 1, 2, 183], ['t0203', 2, 3, 269.5], ['t0204', 2, 4, 175, 0], ['t02104', 2, 4, 175, 1], ['t0304', 3, 4, 138.5, 0],
+  ['t03104', 3, 4, 138.5, 1], ['t104105', 4, 5, 184.5, 1], ['t0506', 5, 6, 130, 0], ['t10506', 5, 6, 130, 1],
+  ['t0507', 5, 7, 233, 0], ['t10507', 5, 7, 233, 1], ['t0508', 5, 8, 181.5, 0], ['t10508', 5, 8, 181.5, 1], ['t0608', 6, 8, 255]];
+// the walk for a move from node a to b (TOHO numbers) with the door as it is now: [video, heading, played backwards]
+function walkFor(a, b) {
+  for (const [id, x, y, h, door] of WALKVIDS) {
+    if (door !== undefined) {                          // the door matters at 4 (with 2, 3) and 5 (with 6, 7, 8); 4-5 only when open
+      if (door !== V[401]) continue;
+    }
+    const v = woman && id === 't0102' ? 't0102m' : id;
+    if (x === a && y === b) return [v, h, false];
+    if (x === b && y === a) return [v, h, true];
+  }
+  return null;
+}
+// the numbers the mesh work uses: room x 1000 + node (Amateria: MACA 1, MAIS 2, MALL 3, MASS 4, MAWW 5, MATO 6)
+const num = n => (W.rooms.indexOf(n.slice(0, 4)) + 1) * 1000 + +n.slice(5);
+const label = n => `${num(n)} · ${n.slice(0, 4)} ${+n.slice(5)}`;
+const byNum = Object.fromEntries(Object.keys(NODES).map(n => [num(n), n]));
+const names = Object.keys(NODES).filter(n => !/-01\d\d$/.test(n)).sort((a, b) => num(a) - num(b));   // 104 and 105 are 4 and 5 with the door open
+const what = s => s.to ? `${s.kind} to ${num(s.to)}` : s.frame ? `close-up ${s.frame.slice(0, -4)}` : `${s.kind} (${s.args.join(' ')})`;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.01, 100);
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+// the node frame: x right, y up, -z face 1; face k's pixel (s, t) looks along DIRS[k] (moge_depth.py's)
+const DIRS = { 1: (s, t) => [2 * s - 1, 1 - 2 * t, -1], 2: (s, t) => [1 - 2 * s, -1, 1 - 2 * t], 3: (s, t) => [1 - 2 * s, 1 - 2 * t, 1],
+  4: (s, t) => [1, 1 - 2 * t, 2 * s - 1], 5: (s, t) => [-1, 1 - 2 * t, 1 - 2 * s], 6: (s, t) => [1 - 2 * s, 1, 2 * t - 1] };
+const loader = new THREE.TextureLoader(), cache = new Map();
+function tex(url) {
+  if (!cache.has(url)) cache.set(url, new Promise(res => loader.load(url, t => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; res(t); }, undefined, () => res(null))));
+  return cache.get(url);
+}
+const faceUrl = (n, k) => `faces/${n.slice(0, 4)}/${n}-f${k}.jpg`;
+const loadNode = n => Promise.all([1, 2, 3, 4, 5, 6].map(k => tex(faceUrl(n, k))));
+function cube(texs) {
+  const g = new THREE.Group();
+  for (let k = 1; k <= 6; k++) {
+    const P = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([s, t]) => DIRS[k](s, t));
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 1, 1, 1, 0, 0, 1, 0], 2));
+    geo.setIndex([0, 2, 1, 1, 2, 3]);
+    g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: texs[k - 1], side: THREE.DoubleSide, transparent: true, depthWrite: false })));
+  }
+  g.scale.setScalar(10);
+  return g;
+}
+
+// ScummVM's direction (x = cos p sin h, y = sin p, z = cos p cos h) is the node frame's with x turned round
+const sv = v => new THREE.Vector3(-v.x, v.y, v.z);
+const dirOf = (p, h) => { const P = p * Math.PI / 180, H = h * Math.PI / 180; return new THREE.Vector3(Math.cos(P) * Math.sin(H), Math.sin(P), Math.cos(P) * Math.cos(H)); };
+function rectCorners([p, h, w, hh]) {          // in ScummVM's frame, as polarRectTo3dRect
+  const d = dirOf(p, h).multiplyScalar(50), u = new THREE.Vector3(d.z, 0, -d.x).normalize();
+  const v = new THREE.Vector3().crossVectors(d, u).normalize();
+  const U = u.multiplyScalar(w / 90 * 50), V = v.multiplyScalar(hh / 90 * 50);
+  return [d.clone().add(V).sub(U), d.clone().add(V).add(U), d.clone().sub(V).add(U), d.clone().sub(V).sub(U)];   // TL TR BR BL
+}
+function hits(ray, rect) {                       // rayIntersectsRect, the ray from the origin
+  const [tl, tr, br, bl] = rectCorners(rect), top = tr.clone().sub(tl), left = bl.clone().sub(tl);
+  const n = new THREE.Vector3().crossVectors(top, left), nd = n.dot(ray);
+  if (Math.abs(nd) < 1e-6) return false;
+  const t = n.dot(tl) / nd; if (t < 0) return false;
+  const q = ray.clone().multiplyScalar(t).sub(tl), a = q.dot(top), b = q.dot(left);
+  return a >= 0 && a <= top.dot(top) && b >= 0 && b <= left.dot(left);
+}
+function spotAt(n, ray) {
+  if (!ray) return null;
+  const r = sv(ray);
+  for (const s of NODES[n] || []) if (holds(s.cond)) for (const rect of s.rects) if (hits(r, rect)) return s;
+  return null;
+}
+
+// the hotspots drawn: 0 off, 1 their areas (filled, labelled with the move), 2 their centres (marked, labelled with
+// the heading and pitch), 3 both
+let spotMode = 0, outlines = null;
+const MODES = ['off', 'areas', 'centres', 'both'];
+const colOf = s => s.to ? (s.kind.startsWith('zip') ? 0x40c0ff : 0x40ff60) : s.frame ? 0xffe040 : 0xff8040;
+// a close-up the game draws as one flat frame (a node with no cube faces): shown over the scene; a tap, click or Escape closes it
+const FR = document.createElement('div');
+FR.style.cssText = 'position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:20;cursor:pointer';
+FR.innerHTML = '<img style="max-width:96vw;max-height:90vh;box-shadow:0 0 24px #000;border:1px solid #666"><div style="position:absolute;bottom:10px;color:#ddd;font:13px system-ui">close-up · tap to go back</div>';
+document.body.appendChild(FR);
+let frOpened = 0;   // the tap that opens a close-up ends in a click that lands on it: ignored for a moment
+FR.onclick = () => { if (performance.now() - frOpened > 450) FR.style.display = 'none'; };
+function showFrame(f) { FR.querySelector('img').src = `frames/${f}`; FR.style.display = 'flex'; frOpened = performance.now(); }
+addEventListener('keydown', e => { if (e.key === 'Escape' && FR.style.display !== 'none') FR.style.display = 'none'; });
+function labelSprite(text, col, w = 0.7) {
+  const cv = document.createElement('canvas'), cx = cv.getContext('2d'); cx.font = 'bold 40px system-ui, sans-serif';
+  cv.width = Math.ceil(cx.measureText(text).width + 24); cv.height = 56;
+  cx.fillStyle = 'rgba(0,0,0,.7)'; cx.fillRect(0, 0, cv.width, cv.height); cx.fillStyle = '#' + col.toString(16).padStart(6, '0');
+  cx.font = 'bold 40px system-ui, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(text, cv.width / 2, 30);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false }));
+  sp.userData.size = [w * cv.width / 256 * 1.6, w * 0.3]; sp.renderOrder = 12;
+  return sp;
+}
+function drawSpots(n) {
+  if (outlines) { scene.remove(outlines); outlines.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); outlines = null; }
+  document.getElementById('show').textContent = 'Hotspots: ' + MODES[spotMode];
+  if (!spotMode) return;
+  outlines = new THREE.Group();
+  for (const s of NODES[n] || []) if (holds(s.cond)) for (const rect of s.rects) {
+    const col = colOf(s), pts = rectCorners(rect).map(c => sv(c).multiplyScalar(0.1));
+    const target = s.to ? `${s.kind} → ${num(s.to)}` : `${s.kind} ${s.args.join(' ')}`;
+    if (spotMode & 1) {
+      outlines.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: col, depthTest: false })));
+      const fill = new THREE.BufferGeometry().setFromPoints([pts[0], pts[1], pts[2], pts[0], pts[2], pts[3]]);
+      const m = new THREE.Mesh(fill, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.16, depthTest: false, depthWrite: false, side: THREE.DoubleSide }));
+      m.renderOrder = 9; outlines.add(m);
+      const sp = labelSprite(target, col);                     // at the area's top edge, inside it
+      const top = pts[0].clone().add(pts[1]).multiplyScalar(0.5), mid = pts[0].clone().add(pts[2]).multiplyScalar(0.5);
+      sp.position.copy(top.lerp(mid, 0.18)); outlines.add(sp);
+    }
+    if (spotMode & 2) {
+      const c = sv(dirOf(rect[0], rect[1])).multiplyScalar(5);
+      const dot = labelSprite('+', col, 0.4); dot.position.copy(c); outlines.add(dot);
+      const sp = labelSprite(`${s.to ? num(s.to) : s.kind} · ${rect[1]}° ${rect[0] >= 0 ? '+' : '−'}${Math.abs(rect[0])}°`, col, 0.55);
+      sp.position.copy(c).add(new THREE.Vector3(0, -0.2, 0)); sp.userData.below = true; outlines.add(sp);
+    }
+  }
+  outlines.renderOrder = 10; scene.add(outlines);
+}
+function sizeLabels() {                         // the labels' size kept about the same on screen as the view widens
+  const k = Math.max(fov, 20) / 65;
+  for (const g of [outlines, seams]) if (g) g.traverse(o => { if (o.isSprite) { o.scale.set(o.userData.size[0] * k, o.userData.size[1] * k, 1); } });
+}
+// the cube's seams (its twelve edges, straight lines between the corners' directions, so they fall on the seams at
+// any zoom and in the fisheye) and each face's number and side at its centre
+let seams = null;
+const FACE = { 1: 'front', 2: 'bottom', 3: 'back', 4: 'right', 5: 'left', 6: 'top' };
+function toggleSeams() {
+  if (seams) { scene.remove(seams); seams.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); seams = null; }
+  else {
+    seams = new THREE.Group();
+    const mat = new THREE.LineBasicMaterial({ color: 0xffe040, depthTest: false, transparent: true, opacity: 0.85 });
+    for (let k = 1; k <= 6; k++) {
+      const P = [[0, 0], [1, 0], [1, 1], [0, 1]].map(([u, t]) => new THREE.Vector3(...DIRS[k](u, t)).multiplyScalar(4));
+      const l = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(P), mat); l.renderOrder = 8; seams.add(l);
+      const sp = labelSprite(`f${k} ${FACE[k]}`, 0xffe040, 0.6);
+      sp.position.copy(new THREE.Vector3(...DIRS[k](0.5, 0.5)).multiplyScalar(4)); seams.add(sp);
+    }
+    scene.add(seams);
+  }
+  document.getElementById('facebtn').style.borderColor = seams ? '#ffe040' : '#666';
+}
+document.getElementById('facebtn').onclick = toggleSeams;
+
+// looking round: yaw about the node's up, pitch; the game's heading 0 looks along +z (face 3)
+let yaw = 0, pitch = 0, fov = 65, forceFish = false;
+const FOV_MIN = 20, FOV_MAX = 360;
+const fish = () => !(closing || inClose) && (forceFish || fov > 120);   // a close-up's view is always a plain perspective
+const sOf = f => Math.max(1, f / 120);
+function look() {
+  const d = new THREE.Vector3(...dirOf(pitch, yaw).toArray()); d.x = -d.x;
+  camera.lookAt(d); camera.fov = (closing || inClose) ? Math.min(fov, 170) : Math.min(fov, 120); camera.updateProjectionMatrix();
+  document.getElementById('fovtxt').textContent = `${Math.round(fov)}°` + (fish() ? ' fisheye' : '');
+}
+// a window point's direction, as either view draws it (null outside the fisheye's circle)
+function rayAt(x, y) {
+  const X = (x / innerWidth * 2 - 1) * innerWidth / innerHeight, Y = 1 - y / innerHeight * 2, r = Math.hypot(X, Y);
+  const T = fov / 2 * Math.PI / 180, s = sOf(fov), th = s * Math.atan(r * Math.tan(T / s));
+  if (th > Math.PI) return null;
+  const q = r > 0 ? [X / r, Y / r] : [0, 0];
+  return new THREE.Vector3(Math.sin(th) * q[0], Math.sin(th) * q[1], -Math.cos(th)).applyQuaternion(camera.quaternion).normalize();
+}
+// the fisheye: the scene into a cube map, then each pixel's direction looked up in it
+const cubeRT = new THREE.WebGLCubeRenderTarget(Math.min(2048, renderer.capabilities.maxCubemapSize),
+  { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, colorSpace: THREE.SRGBColorSpace });
+const cubeCam = new THREE.CubeCamera(0.01, 100, cubeRT);
+const fishMat = new THREE.ShaderMaterial({
+  uniforms: { env: { value: cubeRT.texture }, rot: { value: new THREE.Matrix3() }, aspect: { value: 1 }, tanT: { value: 1 }, s: { value: 1 }, seams: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: `uniform samplerCube env; uniform mat3 rot; uniform float aspect, tanT, s, seams; varying vec2 vUv;
+    void main() {
+      vec2 p = (vUv * 2.0 - 1.0) * vec2(aspect, 1.0); float r = length(p), th = s * atan(r * tanT);
+      if (th > 3.14159265) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+      vec2 q = r > 0.0 ? p / r : vec2(0.0);
+      vec3 d = rot * vec3(sin(th) * q, -cos(th));
+      gl_FragColor = textureCube(env, d);
+      if (seams > 0.5) {          // a seam: the two largest of the direction's components equal
+        vec3 a = abs(d); float hi = max(a.x, max(a.y, a.z)), lo = min(a.x, min(a.y, a.z)), mid = a.x + a.y + a.z - hi - lo;
+        float e = (hi - mid) / hi, w = fwidth(e) * 1.2;
+        if (e < w) gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0, 0.88, 0.25), 0.9);
+      }
+      #include <colorspace_fragment>
+    }`, depthTest: false, depthWrite: false });
+const fishScene = new THREE.Scene(), fishCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+fishScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fishMat));
+function render() {
+  sizeLabels();
+  if (!fish()) { renderer.render(scene, camera); return; }
+  cubeCam.update(renderer, scene);
+  const s = sOf(fov);
+  fishMat.uniforms.rot.value.setFromMatrix4(camera.matrixWorld); fishMat.uniforms.aspect.value = innerWidth / innerHeight;
+  fishMat.uniforms.tanT.value = Math.tan(fov / 2 * Math.PI / 180 / s); fishMat.uniforms.s.value = s;
+  fishMat.uniforms.seams.value = seams ? 1 : 0;
+  renderer.render(fishScene, fishCam);
+}
+
+
+// ---- the walks: every frame of the walk decoded once to a texture on the graphics card (seeking an all-keyframe video,
+// as the walk viewer does), then shown in turn on a sphere round the eye, 24 a second, forward or backward; the
+// textures are kept for the next walk (slots reused), and the last walk decoded stays ready, so turning back is
+// immediate. The videos out of the node you stand at are fetched while you look round.
+const wmat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false,
+  uniforms: { map: { value: null }, squash: { value: 0.35 } },
+  vertexShader: 'varying vec3 vD; void main(){ vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D map; uniform float squash; varying vec3 vD;
+// two 180-degree fisheyes side by side (walk_ends.py --dual-fisheye 180 --fill-square --squash 0.35): the left looking
+// along the walk (x right, y down), the right straight back (x the walk's left)
+vec3 eye(vec3 q, float side) {
+  float th = acos(clamp(q.z, -1.0, 1.0)), ph = atan(q.y, q.x), r = th / 1.5707963;
+  vec2 d = r * vec2(cos(ph), sin(ph));
+  float s2 = 2.8284271, a = 2.0 + d.x * d.x - d.y * d.y, b = 2.0 - d.x * d.x + d.y * d.y;   // the disc to the square
+  d = 0.5 * vec2(sqrt(max(a + s2 * d.x, 0.0)) - sqrt(max(a - s2 * d.x, 0.0)), sqrt(max(b + s2 * d.y, 0.0)) - sqrt(max(b - s2 * d.y, 0.0)));
+  vec2 f = clamp(0.5 + 0.5 * d, 0.0, 1.0);
+  float y = 2.0 * f.y - 1.0; y += squash * (sin(1.5707963 * y) - y); f.y = 0.5 + 0.5 * y;
+  f.x = (f.x + side) * 0.5;
+  return texture2D(map, vec2(f.x, 1.0 - f.y)).rgb; }
+void main(){ vec3 d = normalize(vD), w = vec3(d.x, -d.y, -d.z);       // the walk's right, down, forward
+  float k = smoothstep(-0.0005, 0.0005, w.z);
+  gl_FragColor = vec4(mix(eye(vec3(-w.x, w.y, -w.z), 1.0), eye(w, 0.0), k), 1.0); }` });
+const wsphere = new THREE.Mesh(new THREE.SphereGeometry(10, 128, 64), wmat); wsphere.visible = false; wsphere.renderOrder = 5; scene.add(wsphere);
+const VFPS = 24, pool = [], blobs = new Map();
+let ready = null;                                        // the walk whose frames are on the card: { id, n }
+let walking = null, busy = false, walksOn = true;
+const busyEl = document.getElementById('busy');
+const blobOf = id => { if (!blobs.has(id)) blobs.set(id, fetch(`walks/${id}_key.mp4`).then(r => { if (!r.ok) throw new Error(id + ': ' + r.status); return r.blob(); })); return blobs.get(id); };
+function prefetchWalks(n) {
+  const a = +n.slice(5); if (n.slice(0, 4) !== 'TOHO') return;
+  for (const s of NODES[n] || []) if (s.to && holds(s.cond)) { const w = walkFor(a, +s.to.slice(5)); if (w) blobOf(w[0]).catch(() => {}); }
+}
+const seekTo = (vid, t) => new Promise((ok, no) => {
+  const h = () => { clearTimeout(to); ok(); }, to = setTimeout(() => { vid.removeEventListener('seeked', h); no(new Error('seek timed out')); }, 3000);
+  vid.addEventListener('seeked', h, { once: true }); vid.currentTime = t; });
+async function frameBitmaps(url, n, each, opts) {        // frames 0..n-1 of a video (n from its length when null), one at a time
+  const vid = document.createElement('video'); vid.muted = true; vid.playsInline = true; vid.preload = 'auto'; vid.src = url;
+  try {
+    await new Promise((ok, no) => { vid.addEventListener('loadeddata', ok, { once: true }); vid.addEventListener('error', () => no(new Error('the video would not load')), { once: true }); vid.load(); });
+    if (n === null) n = Math.max(1, Math.round(vid.duration * VFPS));
+    for (let k = 0; k < n; k++) {
+      try { await seekTo(vid, (k + 0.5) / VFPS); } catch (e) { await seekTo(vid, (k + 0.5) / VFPS + 0.003); }
+      await each(k, await createImageBitmap(vid, opts), n);
+    }
+    return n;
+  } finally { vid.removeAttribute('src'); vid.load(); }
+}
+async function decodeWalk(id) {
+  if (ready && ready.id === id) return ready;
+  ready = null;
+  const url = URL.createObjectURL(await blobOf(id));
+  try {
+    const n = await frameBitmaps(url, 22, (k, bm, n) => {
+      let t = pool[k];
+      if (t && (t.userData.w !== bm.width || t.userData.h !== bm.height)) { t.dispose(); t = null; }
+      if (!t) { t = pool[k] = new THREE.Texture(); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false;
+        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.userData = { w: bm.width, h: bm.height }; }
+      t.image = bm; t.needsUpdate = true; renderer.initTexture(t); bm.close();
+      busyEl.textContent = `walk ${k + 1} of ${n}`;
+    }, { imageOrientation: 'flipY' });
+    ready = { id, n };
+    return ready;
+  } finally { URL.revokeObjectURL(url); }
+}
+// a move: the walk from here to there played, then there's own picture; with no walk (or walks off), the node
+// traveler's fade
+async function move(s) {
+  const a = here, b = s.to, A = +a.slice(5), B = +b.slice(5);
+  const leaveShuts = a === 'TOHO-0004' && (B === 2 || B === 3) || a === 'TOHO-0005' && B >= 6 && B <= 8;   // script 10004
+  const w = walksOn && a.slice(0, 4) === 'TOHO' ? walkFor(A, B) : null;
+  if (!w) { if (leaveShuts) V[401] = 0; return go(b); }
+  busy = true; busyEl.style.display = 'block'; busyEl.textContent = 'walk…';
+  try {
+    const r = await decodeWalk(w[0]);
+    loadNode(shown(b));
+    walking = { r, back: w[2], t0: performance.now(), to: b, leaveShuts };
+    wsphere.rotation.set(0, Math.PI - w[1] * Math.PI / 180, 0);      // the walk's ahead (its -z) along game heading w[1]
+    showWalkFrame(w[2] ? r.n - 1 : 0);
+    wsphere.visible = true; if (now) now.visible = false;
+    if (fading) { scene.remove(fading.old); fading = null; }
+  } catch (e) { busyEl.textContent = 'walk failed: ' + e.message; setTimeout(() => { busyEl.style.display = 'none'; }, 2500); busy = false; if (leaveShuts) V[401] = 0; return go(b); }
+  busyEl.style.display = 'none';
+}
+function showWalkFrame(k) { wmat.uniforms.map.value = pool[k]; }
+async function stepWalk() {
+  if (!walking) return;
+  const w = walking, n = w.r.n, k = Math.min(n - 1, Math.floor((performance.now() - w.t0) / 1000 * VFPS));
+  showWalkFrame(w.back ? n - 1 - k : k);
+  if (k < n - 1) return;
+  walking = null;
+  if (w.leaveShuts) V[401] = 0;
+  await go(w.to, true, false);
+  wsphere.visible = false; busy = false;
+}
+
+// ---- close-ups: the view turned onto the hotspot's centre, the bars brought in to the close-up's 16:9 box and the
+// view narrowed to 90 degrees across the box (the game's close-up frame), then the rendered move in (its first
+// frame that view exactly, its last the close-up as the game stores it); a click plays it back and undoes the turn.
+const CLOSEUPS = { 'TOHO-0107': 'toho7_107', 'TOHO-0207': 'toho7_207', 'TOHO-0307': 'toho7_307', 'TOHO-0607': 'toho7_607',
+  'TOHO-0707': 'toho7_707', 'TOHO-0807': 'toho7_807', 'TOHO-0106': 'toho6_106', 'TOHO-0206': 'toho6_206', 'TOHO-0306': 'toho6_306',
+  'TOHO-0108': 'toho8_108', 'TOHB-0002': 'tohob1_2' };
+const cu = document.getElementById('cu'), cux = cu.getContext('2d');
+const bars = ['T', 'B', 'L', 'R'].map(k => document.getElementById('bar' + k));
+let closing = null, inClose = null, cuHold = false;   // cuHold (tests): stop at the end of the turn, before the video                     // the animation running; the close-up shown
+const ease = t => t * t * (3 - 2 * t);
+const box = () => { const W = innerWidth, H = innerHeight; return W / H < 16 / 9 ? [W, W * 9 / 16] : [H * 16 / 9, H]; };
+function setBars(t) {                                   // t 0: none, 1: the box
+  const [bw, bh] = box(), W = innerWidth, H = innerHeight, cw = W + (bw - W) * t, ch = H + (bh - H) * t, x = (W - cw) / 2, y = (H - ch) / 2;
+  const set = (e, l, tp, w, h) => { e.style.left = l + 'px'; e.style.top = tp + 'px'; e.style.width = Math.max(0, w) + 'px'; e.style.height = Math.max(0, h) + 'px'; };
+  set(bars[0], 0, 0, W, y); set(bars[1], 0, y + ch, W, H - y - ch); set(bars[2], 0, 0, x, H); set(bars[3], x + cw, 0, W - x - cw, H);
+  bars.forEach(e => e.style.display = t > 0 ? 'block' : 'none');
+}
+function placeCu() { const [bw, bh] = box(); Object.assign(cu.style, { left: (innerWidth - bw) / 2 + 'px', top: (innerHeight - bh) / 2 + 'px', width: bw + 'px', height: bh + 'px' }); }
+addEventListener('resize', () => { if (inClose || closing) { placeCu(); setBars(1); } });
+const cuCache = new Map();
+async function cuFrames(id) {
+  if (!cuCache.has(id)) cuCache.set(id, (async () => {
+    const url = URL.createObjectURL(await (await fetch(`closeups/${id}.mp4`)).blob()), out = [];
+    try { await frameBitmaps(url, null, (k, bm) => { out.push(bm); }); } finally { URL.revokeObjectURL(url); }
+    return out;
+  })());
+  return cuCache.get(id);
+}
+const unwrap = (a, b) => a + ((b - a + 540) % 360) - 180;
+async function closeup(s) {
+  const id = CLOSEUPS[s.frame.slice(0, -4)];
+  if (!walksOn || !id) return showFrame(s.frame);
+  busy = true; busyEl.style.display = 'block'; busyEl.textContent = 'close-up…';
+  let fr; try { fr = await cuFrames(id); } catch (e) { busy = false; busyEl.style.display = 'none'; return showFrame(s.frame); }
+  busyEl.style.display = 'none';
+  const [bw] = box(), f1 = 2 * Math.atan(innerHeight / bw) * 180 / Math.PI;   // the camera's height angle with 90 across the box
+  const from = { yaw, pitch, fov }, to = { yaw: unwrap(yaw, s.rects[0][1]), pitch: s.rects[0][0], fov: f1 };
+  closing = { from, to, fr, t0: performance.now(), dir: 1, s }; placeCu();
+}
+function stepClose() {
+  if (!closing) return;
+  const c = closing, T = 0.75, el = (performance.now() - c.t0) / 1000, n = c.fr.length;
+  // dir 1: the turn (T s) then the frames; dir -1: the frames backward then the turn back
+  const live = t => { const e = ease(t); yaw = c.from.yaw + (c.to.yaw - c.from.yaw) * e; pitch = c.from.pitch + (c.to.pitch - c.from.pitch) * e;
+    fov = Math.atan(Math.tan(c.from.fov * Math.PI / 360) * Math.pow(Math.tan(c.to.fov * Math.PI / 360) / Math.tan(c.from.fov * Math.PI / 360), e)) * 360 / Math.PI; setBars(e); };   // the focal length eased in proportion
+  const draw = k => { cu.style.display = 'block'; cux.drawImage(c.fr[k], 0, 0, 640, 360); };
+  if (c.dir > 0) {
+    if (el < T) { live(el / T); cu.style.display = 'none'; return; }
+    live(1); if (cuHold) { if (cuHold !== 'drawn') cu.style.display = 'none'; return; }
+    const k = Math.min(n - 1, Math.floor((el - T) * VFPS)); draw(k);
+    if (k === n - 1) { inClose = c; closing = null; busy = false; }
+  } else {
+    const k = Math.floor(el * VFPS);
+    if (k < n) { draw(n - 1 - k); return; }
+    cu.style.display = 'none'; const t = (el - n / VFPS) / T;
+    if (t < 1) { live(1 - t); return; }
+    live(0); setBars(0); closing = null; busy = false;
+  }
+}
+cu.addEventListener('click', () => { if (!inClose) return; const c = inClose; inClose = null; busy = true; c.dir = -1; c.t0 = performance.now(); closing = c; });
+addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cu.click(); });
+// the door: its hotspot opens it (var 401 set; the game plays a movie here)
+async function openDoor() { V[401] = 1; const n = here; here = null; await go(n, false, true); drawSpots(here); }
+document.getElementById('womanbtn').onclick = async () => { if (busy) return; woman = !woman; document.getElementById('womanbtn').textContent = 'Woman: ' + (woman ? 'on' : 'off');
+  if (here === 'TOHO-0002') { const n = here; here = null; await go(n, false, true); } prefetchWalks(here); };
+document.getElementById('walkbtn').onclick = () => { walksOn = !walksOn; document.getElementById('walkbtn').textContent = 'Walks: ' + (walksOn ? 'on' : 'off'); };
+
+let here = null, now = null, fading = null;
+const hist = [];
+const sel = document.getElementById('sel');
+for (const n of names) sel.add(new Option(label(n), n));
+sel.onchange = () => go(sel.value, true);
+async function go(n, push = true, fade = true) {
+  if (!NODES[n] || n === here) return;
+  const texs = await loadNode(shown(n));
+  if (push && here) hist.push(here);
+  const next = cube(texs); scene.add(next);
+  if (now && fade) { const old = now; fading = { old, next, t0: performance.now() }; next.children.forEach(m => m.material.opacity = 0); }
+  else if (now) { scene.remove(now); now.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); }
+  now = next; here = n; sel.value = n; location.hash = num(n);
+  document.getElementById('here').textContent = label(n);
+  document.getElementById('moves').textContent = (NODES[n] || []).map(s => `${what(s)} at heading ${s.rects[0][1]}°, pitch ${s.rects[0][0]}°`).join(' · ') || 'no moves';
+  drawSpots(n);
+  for (const s of NODES[n] || []) if (s.to) loadNode(shown(s.to));   // the next nodes' faces ready
+  prefetchWalks(n);
+}
+document.getElementById('back').onclick = () => { if (hist.length) go(hist.pop(), false); };
+document.getElementById('show').onclick = () => { spotMode = (spotMode + 1) % 4; drawSpots(here); };
+addEventListener('keydown', e => {
+  if (e.key === 'h' || e.key === 'H') { spotMode = (spotMode + 1) % 4; drawSpots(here); }
+  if (e.key === 'm' || e.key === 'M') toggleMap();
+  if (e.key === 'l' || e.key === 'L') toggleLayout();
+  if (e.key === 'f' || e.key === 'F') toggleSeams();
+  if (e.key === '+' || e.key === '=') fov = Math.max(FOV_MIN, fov / 1.25);
+  if (e.key === '-' || e.key === '_') fov = Math.min(FOV_MAX, fov * 1.25);
+  if (e.key === 'Backspace' && hist.length && !busy) { e.preventDefault(); go(hist.pop(), false); }
+  if (e.key === 'w' || e.key === 'W') document.getElementById('walkbtn').click();
+});
+
+// drag to look, click (or tap) a hotspot to move; the cursor shows a hotspot under it
+const el = renderer.domElement, ptr = new Map();
+let down = null, pinch = null;
+el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); ptr.set(e.pointerId, [e.clientX, e.clientY]); down = { x: e.clientX, y: e.clientY, yaw, pitch, t: performance.now(), moved: false };
+  if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), fov }; } });
+el.addEventListener('pointermove', e => {
+  if (ptr.has(e.pointerId)) ptr.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pinch && ptr.size === 2) { const [a, b] = [...ptr.values()]; fov = Math.min(FOV_MAX, Math.max(FOV_MIN, pinch.fov * pinch.d / Math.hypot(a[0] - b[0], a[1] - b[1]))); down && (down.moved = true); return; }
+  if (down && ptr.size === 1) {
+    const dx = e.clientX - down.x, dy = e.clientY - down.y;
+    if (Math.hypot(dx, dy) > 6) down.moved = true;
+    if (down.moved && !closing && !inClose) { const k = Math.min(fov, 180) / innerHeight; yaw = down.yaw - dx * k; pitch = Math.max(-89, Math.min(89, down.pitch + dy * k)); }
+  } else if (here) {
+    const s = spotAt(here, rayAt(e.clientX, e.clientY)), tip = document.getElementById('tip');
+    el.style.cursor = s ? 'pointer' : 'grab';
+    tip.style.display = s ? 'block' : 'none';
+    if (s) { tip.textContent = what(s); tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 10 + 'px'; }
+  }
+});
+const up = e => {
+  ptr.delete(e.pointerId); if (ptr.size < 2) pinch = null;
+  if (down && !down.moved && ptr.size === 0 && here && !busy && !inClose) {
+    const s = spotAt(here, rayAt(e.clientX, e.clientY));
+    if (s && s.to) move(s); else if (s && s.frame) closeup(s); else if (s && s.kind === 'movie' && (s.args[1] === 11004 || s.args[1] === 10005)) openDoor();
+  }
+  if (ptr.size === 0) down = null;
+};
+el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+el.addEventListener('wheel', e => { if (closing || inClose) return; fov = Math.min(FOV_MAX, Math.max(FOV_MIN, fov * Math.exp(e.deltaY * 0.001))); e.preventDefault(); }, { passive: false });
+
+// the map: every node the layout places, seen from above with heading 0 up (the game's headings run clockwise),
+// the game's moves between them, the eye's node and the way it looks; proposed places (not built) as rings,
+// dashed from where the model has the node. Wheel over it to zoom, click a node to go there, double-click to enlarge.
+const MC = document.getElementById('map'), mcx = MC.getContext('2d');
+const ROOMCOL = ['#e8b04a', '#5ec4e8', '#b58cf0', '#7fd46a', '#f07a7a', '#e8e06a'];
+let mapOn = innerWidth > 600, mapScale = 30, mapHover = null;
+const P = LAY.nodes, PROP = LAY.proposed, SEA = LAY.sea || 0;
+if (!Object.keys(PROP || {}).length) document.getElementById('laybtn').hidden = true;   // nothing to switch to   // heights shown over SEA (node_walk.py --sea)
+// close-ups on the map: each set out from the node it is seen from, along its hotspot's heading, nearer the bigger the
+// hotspot looks (a close-up fills the screen, so a thing seen large is near); pitch shortens the step on the ground
+const CLOSE = {};
+for (const [n, spots] of Object.entries(NODES)) for (const sp of spots) {
+  if (!sp.frame) continue;
+  const fn = sp.frame.slice(0, -4), k = String(num(fn)), base = P[String(num(n))];
+  if (!base || CLOSE[k]) continue;
+  const [pt, hd, w, h] = sp.rects[0], H = hd * Math.PI / 180, T = pt * Math.PI / 180;
+  const d = Math.min(0.6, Math.max(0.12, 0.08 * 90 / Math.max(w, h, 1))) * Math.cos(T);
+  CLOSE[k] = { from: n, spot: sp };
+  P[k] = { pos: [base.pos[0] - Math.sin(H) * d, base.pos[1], base.pos[2] + Math.cos(H) * d], kind: 'closeup' };
+}
+// to a close-up from the map: to its node, turned to the hotspot, with the close-up open
+async function openClose(k) {
+  const c = CLOSE[k]; if (!c) return;
+  if (here !== c.from) await go(c.from);
+  yaw = c.spot.rects[0][1]; pitch = c.spot.rects[0][0]; showFrame(c.spot.frame);
+}
+let useProp = true;                                         // the proposed places where there are any, or the model's
+const posOf = n => (useProp && PROP[n]) || (P[n] && P[n].pos) || null;
+const other = n => useProp ? (PROP[n] && P[n] ? P[n].pos : null) : (PROP[n] || null);   // shown dashed
+function toggleLayout() { useProp = !useProp; document.getElementById('laybtn').textContent = 'Layout: ' + (useProp ? 'proposed' : 'model'); }
+document.getElementById('laybtn').onclick = toggleLayout;
+function toggleMap() { mapOn = !mapOn; MC.style.display = mapOn ? 'block' : 'none'; }
+MC.style.display = mapOn ? 'block' : 'none';
+document.getElementById('mapbtn').onclick = toggleMap;
+MC.addEventListener('wheel', e => { mapScale = Math.min(400, Math.max(4, mapScale * Math.exp(-e.deltaY * 0.0015))); e.preventDefault(); }, { passive: false });
+let mapCentre = [0, 0, 0];
+const toMap = (p, w, h) => [w / 2 - (p[0] - mapCentre[0]) * mapScale, h / 2 - (p[2] - mapCentre[2]) * mapScale];
+function nodeAtMap(x, y) {
+  const w = MC.clientWidth, h = MC.clientHeight; let best = null, bd = matchMedia('(pointer: coarse)').matches ? 18 : 10;
+  for (const n of new Set([...Object.keys(P), ...Object.keys(PROP)])) {
+    const p = posOf(n); if (!p) continue; const [a, b] = toMap(p, w, h), d = Math.hypot(a - x, b - y); if (d < bd) { bd = d; best = n; }
+  }
+  return best;
+}
+// touch and mouse: one finger drags the map, two pinch to zoom, a tap goes to the node under it;
+// the map follows the current node again after a move; a double tap enlarges or shrinks it and centres it again
+let mapPan = [0, 0], mapMoved = false, lastTap = 0;
+const mptr = new Map();
+const mxy = e => { const r = MC.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+MC.addEventListener('pointerdown', e => { MC.setPointerCapture(e.pointerId); mptr.set(e.pointerId, mxy(e)); if (mptr.size === 1) mapMoved = false; e.preventDefault(); });
+MC.addEventListener('pointermove', e => {
+  const q = mxy(e);
+  if (!mptr.has(e.pointerId)) { mapHover = nodeAtMap(...q); return; }
+  const prev = [...mptr.values()], before = mptr.get(e.pointerId); mptr.set(e.pointerId, q);
+  if (mptr.size === 1) {
+    const dx = q[0] - before[0], dy = q[1] - before[1];
+    if (Math.abs(dx) + Math.abs(dy) > 0) { if (Math.hypot(dx, dy) > 2 || mapMoved) mapMoved = true; mapPan[0] += dx / mapScale; mapPan[1] += dy / mapScale; }
+  } else if (mptr.size === 2) {
+    const now = [...mptr.values()], d0 = Math.hypot(prev[0][0] - prev[1][0], prev[0][1] - prev[1][1]), d1 = Math.hypot(now[0][0] - now[1][0], now[0][1] - now[1][1]);
+    if (d0 > 0) mapScale = Math.min(400, Math.max(4, mapScale * d1 / d0));
+    mapMoved = true;
+  }
+});
+const mup = e => {
+  if (!mptr.has(e.pointerId)) return;
+  const q = mxy(e); mptr.delete(e.pointerId);
+  if (mptr.size === 0 && !mapMoved) {
+    const t = performance.now();
+    if (t - lastTap < 300) { mapPan = [0, 0]; MC.classList.toggle('big'); lastTap = 0; return; }
+    lastTap = t;
+    const n = nodeAtMap(...q); if (n && CLOSE[n]) { mapPan = [0, 0]; openClose(n); } else if (n && byNum[+n]) { mapPan = [0, 0]; go(byNum[+n]); }
+  }
+};
+MC.addEventListener('pointerup', mup); MC.addEventListener('pointercancel', e => mptr.delete(e.pointerId));
+MC.addEventListener('pointerleave', () => { mapHover = null; });
+function drawMap() {
+  if (!mapOn) return;
+  const dpr = Math.min(devicePixelRatio, 2), w = MC.clientWidth, h = MC.clientHeight;
+  if (MC.width !== Math.round(w * dpr) || MC.height !== Math.round(h * dpr)) { MC.width = Math.round(w * dpr); MC.height = Math.round(h * dpr); }
+  const c = mcx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+  const cur = here ? String(num(here)) : null;
+  if (cur && posOf(cur)) { const p = posOf(cur); mapCentre = [p[0] + mapPan[0], p[1], p[2] + mapPan[1]]; }
+  // the moves
+  for (const [n, spots] of Object.entries(NODES)) {
+    const a = posOf(String(num(n))); if (!a) continue;
+    for (const s of spots) {
+      if (!s.to) continue; const b = posOf(String(num(s.to))); if (!b) continue;
+      const [x1, y1] = toMap(a, w, h), [x2, y2] = toMap(b, w, h);
+      c.strokeStyle = s.kind.startsWith('zip') ? 'rgba(64,192,255,.55)' : 'rgba(200,200,200,.45)';
+      c.setLineDash(s.kind.startsWith('zip') ? [4, 3] : []); c.lineWidth = 1;
+      c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+    }
+  }
+  c.setLineDash([]);
+  // the proposed places, dashed from the model's
+  for (const n of Object.keys(PROP)) {
+    const q = other(n), [x, y] = toMap(posOf(n), w, h);
+    if (q) { const [x0, y0] = toMap(q, w, h); c.strokeStyle = 'rgba(255,90,220,.7)'; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(x0, y0); c.lineTo(x, y); c.stroke(); c.setLineDash([]);
+      c.strokeStyle = 'rgba(255,90,220,.6)'; c.lineWidth = 1; c.beginPath(); c.arc(x0, y0, 3.5, 0, 7); c.stroke(); }
+    c.strokeStyle = '#ff5adc'; c.lineWidth = 1.5; c.beginPath(); c.arc(x, y, 5, 0, 7); c.stroke();
+  }
+  // the nodes
+  const labels = mapScale >= 18;
+  c.font = '10px system-ui, sans-serif'; c.textBaseline = 'middle';
+  for (const [n, v] of Object.entries(P)) {
+    const [x, y] = toMap(posOf(n), w, h); if (x < -20 || y < -20 || x > w + 20 || y > h + 20) continue;
+    // a node with no pictures (another state of a place, shown in the game by a movie or a flat frame) is drawn hollow
+    const has = !!byNum[+n] || !!CLOSE[n], col = ROOMCOL[+n[0] - 1] || '#ccc';
+    if (CLOSE[n]) { c.fillStyle = '#ffe040'; c.beginPath(); c.moveTo(x, y - 4); c.lineTo(x + 4, y); c.lineTo(x, y + 4); c.lineTo(x - 4, y); c.closePath(); c.fill(); }
+    else if (!has) { c.strokeStyle = col; c.globalAlpha = .5; c.beginPath(); c.arc(x, y, 3, 0, 7); c.stroke(); c.globalAlpha = 1; }
+    else { c.fillStyle = col; if (v.kind === 'placed') c.fillRect(x - 3, y - 3, 6, 6); else { c.beginPath(); c.arc(x, y, 3, 0, 7); c.fill(); } }
+    if (labels) { c.fillStyle = has ? 'rgba(230,230,230,.85)' : 'rgba(160,160,160,.6)'; c.fillText(n, x + 5, y - 6); }
+  }
+  if (labels) for (const n of Object.keys(PROP)) if (!P[n] && posOf(n)) { const [x, y] = toMap(posOf(n), w, h); c.fillStyle = '#ff9ae8'; c.fillText(n, x + 6, y - 6); }
+  // where the eye is and the way it looks
+  if (cur && posOf(cur)) { const p = posOf(cur);
+    const [x, y] = toMap(p, w, h), H = yaw * Math.PI / 180;
+    const half = Math.min(Math.PI, (fish() ? fov : 2 * Math.atan(Math.tan(fov * Math.PI / 360) * innerWidth / innerHeight) * 180 / Math.PI) / 2 * Math.PI / 180);
+    const ang = a => Math.atan2(-Math.cos(a), Math.sin(a));        // a heading's angle on the canvas
+    c.fillStyle = 'rgba(255,255,255,.18)'; c.beginPath(); c.moveTo(x, y); c.arc(x, y, 42, ang(H - half), ang(H + half)); c.closePath(); c.fill();
+    c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 22 * Math.sin(H), y - 22 * Math.cos(H)); c.stroke();
+    c.beginPath(); c.arc(x, y, 7, 0, 7); c.stroke();
+  }
+  // the legend and the node under the pointer
+  c.fillStyle = 'rgba(230,230,230,.9)'; c.font = '11px system-ui, sans-serif';
+  const hv = mapHover || cur;
+  if (hv) {
+    const p = P[hv] ? P[hv].pos : null, q = PROP[hv];
+    const at = posOf(hv);
+    const t = `${hv}` + (byNum[+hv] ? ` · ${byNum[+hv].slice(0, 4)} ${+hv % 1000}` : (CLOSE[hv] ? ` · close-up from ${num(CLOSE[hv].from)}` : ' · no pictures (another state of a place)')) + (at ? (LAY.source === 'map' ? ' · placed by the age map, no height' : ` · ${(at[1] - SEA).toFixed(2)} over ${LAY.sea !== undefined ? 'sea' : 'node 4084'}`) : ' · not in the layout') + (p && P[hv].kind === 'placed' ? ' · placed' : '') + (q ? (p ? ' · moved in the proposal' : ' · proposed only') : '');
+    c.fillText(t, 6, h - 22);
+  }
+  c.fillStyle = 'rgba(200,200,200,.7)'; c.fillText('N↑  ● model  ■ placed  ◆ close-up  ◯ proposed  - - ' + (useProp ? 'model' : 'proposed'), 6, h - 8);
+}
+
+renderer.setAnimationLoop(() => {
+  stepClose(); stepWalk();
+  look();
+  if (fading) {
+    const f = Math.min(1, (performance.now() - fading.t0) / 350);
+    fading.next.children.forEach(m => m.material.opacity = f);
+    if (f >= 1) { scene.remove(fading.old); fading.old.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); fading = null; }
+  }
+  render(); drawMap();
+});
+window.nodeWalk = { go, move: to => { const s = (NODES[here] || []).find(s => s.to === to && holds(s.cond)); if (s) move(s); return !!s; },
+  previewWalk: async (id, h, k) => { await decodeWalk(id); wsphere.rotation.set(0, Math.PI - h * Math.PI / 180, 0); showWalkFrame(k); wsphere.visible = true; if (now) now.visible = false; },
+  hideWalk: () => { wsphere.visible = false; if (now) now.visible = true; },
+  closeup: f => { const s = (NODES[here] || []).find(s => s.frame === f); if (s) closeup(s); return !!s; }, openDoor, V,
+  set cuHold(b) { cuHold = b; if (!b && closing) closing.t0 = performance.now() - 750; }, cuDraw: k => { if (closing) { cuHold = 'drawn'; cu.style.display = 'block'; cux.drawImage(closing.fr[k], 0, 0, 640, 360); } }, get closing() { return !!closing; },
+  get busy() { return busy; }, get walking() { return !!walking; }, get inClose() { return !!inClose; }, leaveClose: () => cu.click(), openClose, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; },
+  set fisheye(b) { forceFish = b; }, set faces(b) { if (!!seams !== b) toggleSeams(); }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
+const h0 = decodeURIComponent(location.hash.slice(1));
+go(NODES[h0] ? h0 : byNum[+h0] || 'TOHO-0001');
+addEventListener('hashchange', () => { const h = decodeURIComponent(location.hash.slice(1)), n = NODES[h] ? h : byNum[+h]; if (n && n !== here) go(n); });
+</script>
+</body>
+</html>
