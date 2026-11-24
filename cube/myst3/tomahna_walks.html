@@ -231,7 +231,7 @@ document.getElementById('facebtn').onclick = toggleSeams;
 // looking round: yaw about the node's up, pitch; the game's heading 0 looks along +z (face 3)
 let yaw = 0, pitch = 0, fov = 65, forceFish = false;
 const FOV_MIN = 20, FOV_MAX = 360;
-const fish = () => !(closing || inClose) && (forceFish || fov > 120);   // a close-up's view is always a plain perspective
+const fish = () => !(inClose || (closing && !closing.fishPhase)) && (forceFish || fov > 120);   // a close-up's box is a plain perspective; the 360 close-up starts in the fisheye
 const sOf = f => Math.max(1, f / 120);
 function look() {
   camera.aspect = innerWidth / innerHeight;
@@ -396,9 +396,9 @@ async function seekFrames(blob, n, opts) {
 
 // ---- the walk on a sphere round the eye
 const wmat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false,
-  uniforms: { map: { value: null }, squash: { value: 0.35 } },
+  uniforms: { map: { value: null }, squash: { value: 0.35 }, gain: { value: 1 } },
   vertexShader: 'varying vec3 vD; void main(){ vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D map; uniform float squash; varying vec3 vD;
+  fragmentShader: `uniform sampler2D map; uniform float squash, gain; varying vec3 vD;
 // two 180-degree fisheyes side by side (walk_ends.py --dual-fisheye 180 --fill-square --squash 0.35): the left looking
 // along the walk (x right, y down), the right straight back (x the walk's left)
 vec3 eye(vec3 q, float side) {
@@ -415,7 +415,7 @@ void main(){ vec3 d = normalize(vD), w = vec3(d.x, -d.y, -d.z);       // the wal
   vec3 c = mix(eye(vec3(-w.x, w.y, -w.z), 1.0), eye(w, 0.0), k);
   // the frames hold sRGB values: made linear, then encoded for wherever this draws (the screen, or the fisheye's cube
   // map, which keeps linear values; drawn raw into it they were encoded twice and came out light)
-  gl_FragColor = vec4(mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)), 1.0);
+  gl_FragColor = vec4(gain * mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)), 1.0);
   #include <colorspace_fragment>
 }` });
 const wsphere = new THREE.Mesh(new THREE.SphereGeometry(10, 128, 64), wmat); wsphere.visible = false; wsphere.renderOrder = 5; scene.add(wsphere);
@@ -467,12 +467,13 @@ function stepWalk(now, ticks) {                           // ticks: render ticks
     if (!(p.got[0] && (p.got[2] || p.dec === null))) { if (p.nudge) p.nudge(); return; }
     w.t0 = now; w.tFirst = now; w.k = 0;
     if (w.quat) wsphere.quaternion.copy(w.quat); else wsphere.rotation.set(0, Math.PI - w.heading * Math.PI / 180, 0);      // the walk's ahead (its -z) along its game heading (or a close-up's hotspot)
+    { const g = SGAIN[w.vid]; wmat.uniforms.gain.value = g ? g[w.back ? p.n - 1 : 0] : 1; }
     wmat.uniforms.map.value = p.got[0]; wsphere.visible = true; if (cubeNow()) cubeNow().visible = false; dropFade();
     return;
   }
   const NN = p.n; let k = ticks === null ? Math.min(NN - 1, Math.floor((now - w.t0) / 1000 * VFPS)) : Math.min(NN - 1, w.k + ticks);
   if (k > w.k && !p.got[k]) { while (k > w.k && !p.got[k]) k--; w.stalls++; p.nudge && p.nudge(); if (ticks === null) w.t0 = now - (k + 0.999) * 1000 / VFPS; }
-  if (k !== w.k) { w.k = k; wmat.uniforms.map.value = p.got[k]; p.feed(k + RING - 1); w.shownAt = now; }
+  if (k !== w.k) { w.k = k; wmat.uniforms.map.value = p.got[k]; p.feed(k + RING - 1); w.shownAt = now; const g = SGAIN[w.vid]; wmat.uniforms.gain.value = g ? g[w.back ? NN - 1 - k : k] : 1; }
   if (w.k === NN - 1 && now - w.shownAt >= 1000 / VFPS - 1) {
     if (w.done) { walking = null; p.close(); w.done(); return; }
     walking = null; p.close(); if (w.stalls) console.log('walk held', w.stalls, 'times');
@@ -514,6 +515,11 @@ let TRACK = {}, COL = {}, TRACK1 = {}, COL1 = {}, cuFirst = false, cuSphere = fa
 // whole view at the start, the close-up ahead with black all round at the end; played on the sphere as a walk, the eye
 // turned onto it and the picture closed in to its box over the same time
 const SPHERE = { toho7_107: 'sphere_7_107' };
+// H3 brightens the picture to the close-up's own exposure (about 6 times, in linear light) mostly in its last five frames;
+// doors/sphere_gain.json evens that out: each frame's exposure against the one before (median brightness ratio at the
+// same points, motion followed by DIS flow, inside the close-up's final area), and a gain per frame that makes the rise
+// equal steps all the way, the first and last frames untouched
+let SGAIN = {}; fetch('doors/sphere_gain.json').then(r => r.ok ? r.json() : {}).then(j => { SGAIN = j; }).catch(() => {});
 fetch('closeups/track.json').then(r => r.ok ? r.json() : {}).then(j => { TRACK = j; }).catch(() => {});
 fetch('closeups/track_first.json').then(r => r.ok ? r.json() : {}).then(j => { TRACK1 = j; }).catch(() => {});
 fetch('closeups/colour_first.json').then(r => r.ok ? r.json() : {}).then(j => { COL1 = j; }).catch(() => {});
@@ -601,10 +607,20 @@ function placeCu(t) {
   panelA.material.uniforms.feather.value = fe; panelB.material.uniforms.feather.value = fe;
 }
 function sphereCamera(c, t) {                          // the eye onto the hotspot, the lens to 90 degrees across the box, the box closing in
-  const e = ease(t), er = ease(Math.min(1, t / 0.6)), W = innerWidth, H = innerHeight, [bw, bh] = box(), w = W + (bw - W) * e, h = H + (bh - H) * e;
-  cuRect = [(W - w) / 2, (H - h) / 2, w, h];
+  const er = ease(Math.min(1, t / 0.6)), W = innerWidth, H = innerHeight, [bw, bh] = box();
   camera.quaternion.copy(c.from.q).slerp(c.to.q, er);
-  const a = Math.exp(Math.log(c.from.a) * (1 - e)), b2 = a * h / w, nr = camera.near;
+  // from the fisheye (over 110 degrees): the fisheye narrows to 110 in the first 40% (speeding up), where it is a plain
+  // perspective view (its curve is 1 up to 120), then the lens and the box as from a plain view (slowing down)
+  let from = c.from.a, e;
+  if (c.from.fov > 110) {
+    const ts = 0.4;
+    if (t < ts) { const u = (t / ts) ** 2; fov = c.from.fov + (110 - c.from.fov) * u; c.fishPhase = true; cuRect = null;
+      camera.aspect = W / H; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); return; }
+    c.fishPhase = false; from = Math.tan(55 * Math.PI / 180) * W / H; const t2 = (t - ts) / (1 - ts); e = 1 - (1 - t2) ** 2;
+  } else e = ease(t);
+  const w = W + (bw - W) * e, h = H + (bh - H) * e;
+  cuRect = [(W - w) / 2, (H - h) / 2, w, h];
+  const a = Math.exp(Math.log(from) * (1 - e)), b2 = a * h / w, nr = camera.near;
   camera.projectionMatrix.makePerspective(-a * nr, a * nr, b2 * nr, -b2 * nr, nr, camera.far);
   camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert(); camera.updateMatrixWorld(true);
 }
@@ -621,6 +637,7 @@ async function sphereCloseup(s, id) {
   const sid = SPHERE[id]; busy = true;
   if (!SRC.has(sid)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this close-up…'; queue.sort((x, y) => (y.id === sid) - (x.id === sid)); await whenLoaded(sid); busyEl.style.display = 'none'; }
   const f0 = Math.min(fov, 110), q1 = quatOf(s.rects[0][1], s.rects[0][0]), R = { P: [], cx: 0, cy: 0, lw: 0, roll: 0 };
+  if (fov > 120) fov = Math.min(fov, 300);
   closing = { id, sphere: sid, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 },
     fr: [0, 0], R: [R, R], Z: [0, 1], gain: null, t0: performance.now(), dir: 1, s, T: 38 / VFPS };
   walking = { p: player(SRC.get(sid), false, 39), quat: q1, k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: sid, back: false, done: () => {} };
