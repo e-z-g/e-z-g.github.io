@@ -69,8 +69,8 @@ const NODES = W.nodes;
 const V = { 401: 0, 399: 1 };                           // the game's variables these hotspots read (399: always set by now)
 const holds = c => { if (c === 1 || c === -1) return c === 1; const a = Math.abs(c), v = a & 2047, val = (a >> 11) - 1;
   const t = val === -1 ? (V[v] || 0) !== 0 : (V[v] || 0) === val; return c < 0 ? !t : t; };   // GameState::evaluate
-let woman = false;                                       // the scene movie at TOHO 2 (10002, frame 160) drawn into its faces and its walk (a test)
-const shown = n => (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401] ? 'TOHO-0' + (100 + +n.slice(5)) : (n === 'TOHO-0002' || n === 'TOHO-0001') && woman ? n + 'm' : n;   // the door open
+let woman = 0;                                           // 0 off; 1 live (her movie cut out and stood in the room); 2 rendered (drawn into the faces and H3's walk)
+const shown = n => (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401] ? 'TOHO-0' + (100 + +n.slice(5)) : (n === 'TOHO-0002' || n === 'TOHO-0001') && woman === 2 ? n + 'm' : n;   // the door open
 // each rendered walk: its video, the game heading it walks along (the mean of the hotspot bearings A to B and back),
 // its ends, and the door's state at its ends where it matters ("open" walks leave the open door: 104 or 105 is one end)
 const WALKVIDS = [
@@ -83,9 +83,9 @@ function walkFor(a, b) {
     if (door !== undefined) {                          // the door matters at 4 (with 2, 3) and 5 (with 6, 7, 8); 4-5 only when open
       if (door !== V[401]) continue;
     }
-    const v = woman && id === 't0102' ? 't0102mm' : id;
-    if (x === a && y === b) return [v, h, false];
-    if (x === b && y === a) return [v, h, true];
+    const v = woman === 2 && id === 't0102' ? 't0102mm' : id;
+    if (x === a && y === b) return [v, h, false, x, y];
+    if (x === b && y === a) return [v, h, true, x, y];
   }
   return null;
 }
@@ -448,7 +448,7 @@ async function move(s) {
   if (!SRC.has(w[0])) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this walk…'; queue.sort((x, y) => (y.id === w[0]) - (x.id === w[0])); await whenLoaded(w[0]); busyEl.style.display = 'none'; }
   loadNode(shown(b));
   const p = player(SRC.get(w[0]), w[2]);
-  walking = { p, to: b, leaveShuts, heading: w[1], k: -1, t0: null, stalls: 0, tClick: performance.now() };
+  walking = { p, to: b, leaveShuts, heading: w[1], k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: w[0], back: w[2], wx: w[3], wy: w[4] };
 }
 function stepWalk(now, ticks) {                           // ticks: render ticks since the last (24 fps mode), else null
   const w = walking; if (!w) return;
@@ -600,9 +600,56 @@ const womanVid = document.createElement('video'); womanVid.src = 'doors/woman100
   [[L, T], [Rr, T], [L, B], [Rr, B]].forEach(([x, y], i) => { const v = sv(n.clone().add(ua.clone().multiplyScalar(x)).add(va.clone().multiplyScalar(y))).multiplyScalar(D); pos.setXYZ(i, v.x, v.y, v.z); });
   pos.needsUpdate = true;
 }
+// "live": her movie cut out (woman10002_mask.png: the pixels that differ from its empty first frame in at least 30% of
+// its frames, so her, the baby and the bench) and stood in the room where she sits, a flat card on the game's plane for
+// the movie, its foot on the floor (the mask's lowest row, one eye height down: 1.10 eye heights from TOHO 2), playing
+// her loop; seen from every conservatory node and through the walks between them, the camera at its place in the room
+// (node places from colmap/floor_shift.py, relative to TOHO 2; through a walk, its share of the walk's length at each
+// frame, walks/travel.json from walk_gait.py). From TOHO 1 she lands at heading 155.5, where the game's own TOHO 1
+// movie ends with her seated (about 150). Anything that should pass in front of her is drawn behind her.
+const NPOS = {}; { const S = (h, d) => sv(dirOf(0, h)).multiplyScalar(d);
+  NPOS[2] = new THREE.Vector3(); NPOS[1] = S(188.9, 1.82).negate(); NPOS[3] = S(275.1, 1.04); NPOS[4] = S(162.9, 1.57); }
+let TRAVEL = {}; fetch('walks/travel.json').then(r => r.ok ? r.json() : {}).then(j => { TRAVEL = j; }).catch(() => {});
+const maskTex = new THREE.TextureLoader().load('doors/woman10002_mask.png'); maskTex.flipY = false;
+const cardMat = new THREE.ShaderMaterial({ transparent: true, depthTest: false, depthWrite: false, uniforms: { map: { value: panelWoman.material.uniforms.map.value }, mask: { value: maskTex } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D map, mask; varying vec2 vUv;
+  void main(){ vec2 q = vec2(vUv.x, 1.0 - vUv.y); vec3 c = texture2D(map, q).rgb;
+    gl_FragColor = vec4(mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)), texture2D(mask, q).r);
+    #include <colorspace_fragment>
+  }` });
+const cardFoot = new THREE.Vector3();
+const card = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), cardMat); card.renderOrder = 18; card.visible = false; card.frustumCulled = false; scene.add(card);
+{
+  const n = new THREE.Vector3(0.939693, -0.34202, 0).normalize(), ua = new THREE.Vector3(n.z, 0, -n.x).normalize(), va = new THREE.Vector3().crossVectors(n, ua).normalize();
+  const L = (224 - 320) / 320, Rr = (440 - 320) / 320, T = (320 - 208) / 320, B = (320 - 496) / 320, tb = T + (B - T) * 273.5 / 288, sc = -1 / (n.y + tb * va.y);
+  const pos = card.geometry.attributes.position, P = [[L, T], [Rr, T], [L, B], [Rr, B]].map(([x, y]) => sv(n.clone().add(ua.clone().multiplyScalar(x)).add(va.clone().multiplyScalar(y))).multiplyScalar(sc));
+  cardFoot.copy(P[2]).add(P[3]).multiplyScalar(0.5);    // turned about the middle of its foot
+  P.forEach((v, i) => { v.sub(cardFoot); pos.setXYZ(i, v.x, v.y, v.z); });
+  pos.needsUpdate = true;
+}
+const camAt = new THREE.Vector3();
+function stepCard() {
+  const node = here && here.slice(0, 4) === 'TOHO' ? (+here.slice(5)) % 100 : 0, w = walking;
+  let ok = woman === 1 && !closing && !inClose && (NPOS[node] !== undefined);
+  if (ok && w && w.k >= 0) {
+    const tr = TRAVEL[w.vid];
+    if (!tr || NPOS[w.wx] === undefined || NPOS[w.wy] === undefined) ok = false;
+    else { const kv = w.back ? N - 1 - w.k : w.k, f = tr[Math.min(tr.length - 1, kv)]; camAt.copy(NPOS[w.wx]).lerp(NPOS[w.wy], f); }
+  } else if (ok) camAt.copy(NPOS[node]);
+  if (ok !== card.visible) { card.visible = ok; if (ok && womanVid.paused) { if (!womanShown) womanVid.currentTime = 160 / 15; womanVid.play().catch(() => {}); } }
+  if (ok) {
+    // turned about the upright through its foot to face the eye: from TOHO 2 as the game places it, from elsewhere
+    // square on (the movie is her seen from TOHO 2; flat to the side she was a sliver)
+    card.position.copy(cardFoot).sub(camAt);
+    const az = v => Math.atan2(v.x, v.z), toEye = camAt.clone().sub(cardFoot), to2 = cardFoot.clone().negate();
+    card.rotation.set(0, az(toEye) - az(to2), 0);
+  }
+  else if (!womanShown && !womanVid.paused) womanVid.pause();
+}
 let womanShown = false;
 function stepWoman() {
-  const want = woman && here === 'TOHO-0002' && !walking && !closing && !inClose;
+  const want = woman === 2 && here === 'TOHO-0002' && !walking && !closing && !inClose;
   if (want === womanShown) return;
   womanShown = want; panelWoman.visible = want;
   if (want) { womanVid.currentTime = 160 / 15; womanVid.play().catch(() => {}); } else womanVid.pause();
@@ -649,7 +696,7 @@ function stepDoor(now) {
   opening = null; V[401] = 1; here = null;
   go(o.node, false, false).then(() => { panelDoor.visible = false; if (openCube) { scene.remove(openCube); openCube.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); openCube = null; } drawSpots(here); busy = false; });
 }
-document.getElementById('womanbtn').onclick = async () => { if (busy) return; woman = !woman; document.getElementById('womanbtn').textContent = 'Woman: ' + (woman ? 'on' : 'off');
+document.getElementById('womanbtn').onclick = async () => { if (busy) return; woman = (woman + 1) % 3; document.getElementById('womanbtn').textContent = 'Woman: ' + ['off', 'live', 'rendered'][woman];
   if (here === 'TOHO-0002' || here === 'TOHO-0001') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
 document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = cap ? '24 fps' : 'full rate'; };
 document.getElementById('sndbtn').onclick = () => { soundOn = !soundOn; document.getElementById('sndbtn').textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); };
@@ -863,7 +910,7 @@ renderer.setAnimationLoop(() => {
   const t = performance.now();
   let ticks = null;
   if (cap) { const slot = Math.floor(t * VFPS / 1000); if (slot === lastSlot) return; ticks = lastSlot < 0 ? 1 : Math.min(3, slot - lastSlot); lastSlot = slot; }
-  stepClose(t); stepWalk(t, ticks); stepDoor(t); stepWoman();
+  stepClose(t); stepWalk(t, ticks); stepDoor(t); stepWoman(); stepCard();
   if (!closing && !inClose) look();
   if (fading) {
     const f = Math.min(1, (performance.now() - fading.t0) / 350);
