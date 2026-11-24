@@ -459,38 +459,45 @@ function stepWalk(now, ticks) {                           // ticks: render ticks
 
 // ---- close-ups: the zoom and the turn as one move, with the room kept true round it. The rendered move in
 // (640x360; its first frame the node's view straight at the hotspot, 90 degrees across, exactly; its last the close-up
-// as the game stores it) plays from the click. Each frame is drawn on a panel in the room where its content lies:
-// closeups/track.json (closeup_track.py) gives each frame's place within the first frame (its zoom, shift and turn),
-// so the panel shrinks onto the object as the video zooms, and the room round it is the room itself, at its own size.
-// The camera follows: it turns onto the panel (one rotation, then a roll as the video's frame rolls), its lens
-// lengthens until the frame fills the close-up's 16:9 box, and the picture closes in to that box. A click or Escape
+// as the game stores it) starts at the click. closeups/track.json (closeup_track.py) gives each frame's place within
+// the first frame (zoom, shift, turn), so each frame is drawn on a panel in the room where its content lies, and the
+// room round it is the room itself. The camera moves on its own clock: it turns onto the panel (one rotation, then a
+// roll as the video's frame rolls), its lens lengthens at an even pace in steps of zoom (H3's own zoom runs unevenly,
+// up to three times faster from one frame to the next), and the picture closes in to the close-up's 16:9 box. The
+// frame on show is the one whose zoom the camera has reached, blended with the next, so the video's frames refresh the
+// detail while the motion stays smooth. The game's close-up pictures are graded unlike the room (closeups/colour.json:
+// up to three times brighter, or half as bright), and H3 drifts between the two; the room's grade follows the frame
+// on show, so the panel and the room agree, and the last frame is the stored close-up untouched. A click or Escape
 // plays it all back.
-const D = 4;                                             // the panels' plane: the first frame's picture plane, 4 units out
-const cuTex = new THREE.Texture(); cuTex.flipY = false; cuTex.colorSpace = THREE.NoColorSpace; cuTex.generateMipmaps = false; cuTex.minFilter = THREE.LinearFilter;
-const cuMat = new THREE.ShaderMaterial({ transparent: true, depthTest: false, depthWrite: false, uniforms: { map: { value: cuTex }, feather: { value: 0 } },
-  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D map; uniform float feather; varying vec2 vUv;
-  void main(){ vec3 c = texture2D(map, vec2(vUv.x, 1.0 - vUv.y)).rgb;             // the bitmaps are top row first
-    float a = feather > 0.0 ? smoothstep(0.0, feather, min(vUv.x, 1.0 - vUv.x)) * smoothstep(0.0, feather * 16.0 / 9.0, min(vUv.y, 1.0 - vUv.y)) : 1.0;
-    gl_FragColor = vec4(mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)), a);
-    #include <colorspace_fragment>
-  }` });
-const cuPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), cuMat);   // vertices: top left, top right, bottom left, bottom right
-cuPlane.renderOrder = 20; cuPlane.visible = false; cuPlane.frustumCulled = false; scene.add(cuPlane);
-let TRACK = {};
+const D = 4, CU_T = 1.0;                                 // the panels' plane (the first frame's picture plane); the move's length, s
+function makePanel(order) {
+  const tex = new THREE.Texture(); tex.flipY = false; tex.colorSpace = THREE.NoColorSpace; tex.generateMipmaps = false; tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.ShaderMaterial({ transparent: true, depthTest: false, depthWrite: false, uniforms: { map: { value: tex }, feather: { value: 0 }, alpha: { value: 1 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D map; uniform float feather, alpha; varying vec2 vUv;
+    void main(){ vec3 c = texture2D(map, vec2(vUv.x, 1.0 - vUv.y)).rgb;           // the bitmaps are top row first
+      float a = feather > 0.0 ? smoothstep(0.0, feather, min(vUv.x, 1.0 - vUv.x)) * smoothstep(0.0, feather * 16.0 / 9.0, min(vUv.y, 1.0 - vUv.y)) : 1.0;
+      gl_FragColor = vec4(mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)), a * alpha);
+      #include <colorspace_fragment>
+    }` });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);   // vertices: top left, top right, bottom left, bottom right
+  m.renderOrder = order; m.visible = false; m.frustumCulled = false; m.userData = { tex, k: -1 }; scene.add(m); return m;
+}
+const panelA = makePanel(20), panelB = makePanel(21);    // frame floor(phi) and, over it, frame floor(phi) + 1 by the fraction
+let TRACK = {}, COL = {};
 fetch('closeups/track.json').then(r => r.ok ? r.json() : {}).then(j => { TRACK = j; }).catch(() => {});
+fetch('closeups/colour.json').then(r => r.ok ? r.json() : {}).then(j => { COL = j; }).catch(() => {});
 let closing = null, inClose = null, cuRect = null, cuT = null;   // cuT (tests): the move held at that time
-const ease = t => t * t * (3 - 2 * t);
+const ease = t => t * t * (3 - 2 * t), ease5 = t => t * t * t * (t * (t * 6 - 15) + 10);
 const box = () => { const W = innerWidth, H = innerHeight; return W / H < 16 / 9 ? [W, W * 9 / 16] : [H * 16 / 9, H]; };
 const qcam = new THREE.PerspectiveCamera();
 function quatOf(y, p) { const d = dirOf(p, y); d.x = -d.x; qcam.position.set(0, 0, 0); qcam.lookAt(d); return qcam.quaternion.clone(); }
-// frame k of a close-up within the first frame: its corners (TL, TR, BL, BR) on the panel plane, in tan units of the
-// first frame's camera (x right, y up), its centre, half width and turn
-function frameRect(c, k) {
-  const M = (TRACK[c.id] || [])[k] || [[1, 0, 0], [0, 1, 0]];
+// frame k of a close-up within the first frame: its corners (TL, TR, BL, BR) on the panel plane in tan units of the
+// first frame's camera (x right, y up), its centre, log half width and turn
+function frameRect(id, k) {
+  const M = (TRACK[id] || [])[k] || [[1, 0, 0], [0, 1, 0]];
   const P = [[0, 0], [640, 0], [0, 360], [640, 360]].map(([x, y]) => { const u = M[0][0] * x + M[0][1] * y + M[0][2], v = M[1][0] * x + M[1][1] * y + M[1][2]; return [u / 320 - 1, -(v / 180 - 1) * 9 / 16]; });
-  const cx = (P[0][0] + P[3][0]) / 2, cy = (P[0][1] + P[3][1]) / 2, hw = Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]) / 2, roll = Math.atan2(P[1][1] - P[0][1], P[1][0] - P[0][0]);
-  return { P, cx, cy, hw, roll };
+  return { P, cx: (P[0][0] + P[3][0]) / 2, cy: (P[0][1] + P[3][1]) / 2, lw: Math.log(Math.hypot(P[1][0] - P[0][0], P[1][1] - P[0][1]) / 2), roll: Math.atan2(P[1][1] - P[0][1], P[1][0] - P[0][0]) };
 }
 async function closeup(s) {
   const id = CLOSEUPS[s.frame.slice(0, -4)];
@@ -498,46 +505,55 @@ async function closeup(s) {
   busy = true;
   if (!CU.has(id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this close-up…'; queue.sort((x, y) => (y.id === id) - (x.id === id)); await whenLoaded(id); busyEl.style.display = 'none'; }
   const fr = CU.get(id); if (!fr) { busy = false; return showFrame(s.frame); }
-  const f0 = Math.min(fov, 110), q1 = quatOf(s.rects[0][1], s.rects[0][0]);
-  closing = { id, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 }, fr, t0: performance.now(), dir: 1, s, k: -1 };
-  showCu(0); cuPlane.visible = true;
+  const f0 = Math.min(fov, 110), q1 = quatOf(s.rects[0][1], s.rects[0][0]), n = fr.length;
+  const R = Array.from({ length: n }, (_, k) => frameRect(id, k));
+  // each frame's zoom from the first (log), made strictly rising so the frames where H3 settles still come in turn
+  const Z = []; R.forEach((r, k) => { Z.push(Math.max(k ? Z[k - 1] + 1e-3 : 0, R[0].lw - r.lw)); });
+  closing = { id, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 }, fr, R, Z, gain: COL[id], t0: performance.now(), dir: 1, s };
+  placeCu(0);
 }
 const tmpV = new THREE.Vector3(), rollQ = new THREE.Quaternion(), zAxis = new THREE.Vector3(0, 0, 1);
-function showCu(k) {                                     // frame k on the panel, where its content lies
-  const c = closing || inClose; if (c.k === k) return; c.k = k; cuTex.image = c.fr[k]; cuTex.needsUpdate = true;
-  const R = frameRect(c, k), pos = cuPlane.geometry.attributes.position;
-  R.P.forEach(([x, y], i) => { tmpV.set(x * D, y * D, -D).applyQuaternion(c.to.q); pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); });
-  pos.needsUpdate = true; cuPlane.geometry.computeBoundingSphere(); c.R = R;
+function setPanel(m, c, k) {                             // frame k on panel m, where its content lies
+  if (m.userData.k !== k || m.userData.c !== c) {
+    m.userData.k = k; m.userData.c = c; m.userData.tex.image = c.fr[k]; m.userData.tex.needsUpdate = true;
+    const pos = m.geometry.attributes.position;
+    c.R[k].P.forEach(([x, y], i) => { tmpV.set(x * D, y * D, -D).applyQuaternion(c.to.q); pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); });
+    pos.needsUpdate = true;
+  }
+  m.visible = true;
 }
-function closeCamera(t) {                                // the move at t (0 the room, 1 the box): camera, box, panel edges
-  const c = closing || inClose, e = ease(t), W = innerWidth, H = innerHeight, [bw, bh] = box(), R = c.R;
-  const w = W + (bw - W) * e, h = H + (bh - H) * e;
+function grade(g) { if (now) now.children.forEach(m => m.material.color.setRGB(g[0], g[1], g[2])); }   // linear gains on the room
+// the move at t (0 the room, 1 the close-up in its box): which frames, the room's grade, the camera, the box
+function placeCu(t) {
+  const c = closing || inClose, n = c.fr.length, e = ease(t), Zf = c.Z[n - 1], z = ease5(t) * Zf;
+  let k = 0; while (k < n - 2 && c.Z[k + 1] <= z) k++;
+  const f = Math.max(0, Math.min(1, (z - c.Z[k]) / (c.Z[k + 1] - c.Z[k])));
+  setPanel(panelA, c, k); setPanel(panelB, c, k + 1); panelB.material.uniforms.alpha.value = f;
+  const A = c.R[k], B = c.R[k + 1], lerp = (x, y) => x + (y - x) * f;
+  const R = { cx: lerp(A.cx, B.cx), cy: lerp(A.cy, B.cy), lw: lerp(A.lw, B.lw), roll: lerp(A.roll, B.roll) };
+  if (c.gain) { const gA = c.gain[k], gB = c.gain[k + 1]; grade([0, 1, 2].map(i => Math.pow(lerp(gA[i], gB[i]), 2.2))); }   // sRGB ratios as linear gains
+  const W = innerWidth, H = innerHeight, [bw, bh] = box(), w = W + (bw - W) * e, h = H + (bh - H) * e;
   cuRect = [(W - w) / 2, (H - h) / 2, w, h];
   // aim: from the eye's own way to the panel's way, then rolled with the frame; the frame's centre, seen in the rolled
-  // camera, is reached by shifting the lens (an off-centre frustum), so the panel's edges stay parallel to the box's
+  // camera, is reached by shifting the lens (an off-centre frustum), so the frame's edges stay parallel to the box's
   const roll = R.roll * e;
   camera.quaternion.copy(c.from.q).slerp(c.to.q, e).multiply(rollQ.setFromAxisAngle(zAxis, roll));
   const cr = Math.cos(-roll), sr = Math.sin(-roll), ox = (R.cx * cr - R.cy * sr) * e, oy = (R.cx * sr + R.cy * cr) * e;
-  const a = c.from.a * Math.pow(R.hw / c.from.a, e), bh2 = a * h / w, n = camera.near;   // half width, half height, in tan units
-  camera.projectionMatrix.makePerspective((ox - a) * n, (ox + a) * n, (oy + bh2) * n, (oy - bh2) * n, n, camera.far);
+  const a = Math.exp(Math.log(c.from.a) * (1 - e) + R.lw * e), b2 = a * h / w, nr = camera.near;   // half width and height, tan units
+  camera.projectionMatrix.makePerspective((ox - a) * nr, (ox + a) * nr, (oy + b2) * nr, (oy - b2) * nr, nr, camera.far);
   camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
   camera.updateMatrixWorld(true);
-  cuMat.uniforms.feather.value = 0.12 * Math.min(1, t / 0.12) * (1 - e);   // none at the start (the panel is the room there) or the end
+  const fe = 0.12 * Math.min(1, t / 0.12) * (1 - e);       // the panels' edges soft mid-move: none at the start (the panel is the room there) or the end
+  panelA.material.uniforms.feather.value = fe; panelB.material.uniforms.feather.value = fe;
 }
 function stepClose(now) {
-  if (!closing) { if (inClose) closeCamera(1); return; }
-  const c = closing, n = c.fr.length, Tv = (n - 1) / VFPS, el = cuT !== null ? cuT : (now - c.t0) / 1000;
-  const t = Math.min(1, el / Tv), k = Math.min(n - 1, Math.floor(el * VFPS + 1e-6));
-  if (c.dir > 0) {
-    showCu(k); closeCamera(t);
-    if (t >= 1 && cuT === null) { yaw = c.to.yaw; pitch = c.to.pitch; inClose = c; closing = null; busy = false; }
-  } else {
-    showCu(n - 1 - k); closeCamera(1 - t);
-    if (t >= 1 && cuT === null) {
-      closing = null; cuRect = null; cuPlane.visible = false;
-      yaw = c.from.yaw; pitch = c.from.pitch; fov = c.from.fov; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); busy = false;
-    }
-  }
+  if (!closing) { if (inClose) placeCu(1); return; }
+  const c = closing, el = cuT !== null ? cuT : (now - c.t0) / 1000, t = Math.min(1, el / CU_T);
+  placeCu(c.dir > 0 ? t : 1 - t);
+  if (t < 1 || cuT !== null) return;
+  if (c.dir > 0) { yaw = c.to.yaw; pitch = c.to.pitch; inClose = c; closing = null; busy = false; return; }
+  closing = null; cuRect = null; panelA.visible = panelB.visible = false; grade([1, 1, 1]);
+  yaw = c.from.yaw; pitch = c.from.pitch; fov = c.from.fov; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); busy = false;
 }
 function cuLeave() { if (!inClose) return; const c = inClose; inClose = null; busy = true; c.dir = -1; c.t0 = performance.now(); closing = c; }
 addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cuLeave(); });
