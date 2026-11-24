@@ -37,6 +37,7 @@
   <span id="load" style="background:rgba(0,0,0,.6);padding:4px 8px;border-radius:4px;font-size:12px">loading…</span>
   <button id="sndbtn" title="The game's sounds: the door opening and closing (S)">Sound: on</button>
   <button id="cubtn" title="The five close-ups made again from a nearer start (39 frames), or their first renders (22 frames)">Close-ups: new</button>
+  <button id="doorbtn" title="The door opening: the game's movie (the rest of the door fading open round it), or H3's whole-door renders">Door: game movie</button>
   <button id="walkbtn" title="Play the rendered walks and close-ups, or jump as the node traveler does (W)">Walks: on</button>
   <span id="fovtxt"></span>
 </div>
@@ -322,7 +323,11 @@ const waiters = new Map();
 const whenLoaded = id => SRC.has(id) || CU.has(id) ? Promise.resolve() : new Promise(r => { if (!waiters.has(id)) waiters.set(id, []); waiters.get(id).push(r); });
 // the door movies (the game plays 11004 from the conservatory side, 10005 from the study side: flat 640x360 views, 2 s at
 // 15 a second, with their sound) and the door's closing sound (707, TOHOsfx_DoorCloseInside, played by script 10004)
-const DOORS = { 11004: { id: 'door11004', h: 187.75, p: 0, fov: 80 }, 10005: { id: 'door10005', h: 360, p: 0, fov: 80 } };
+const DOORS = { 11004: { id: 'door11004', h: 187.75, p: 0, fov: 80, node: '0004' }, 10005: { id: 'door10005', h: 360, p: 0, fov: 80, node: '0005' } };
+// or the door's opening rendered by H3 as a still 360-degree view (door_toho.ps1: 39 frames from the shut picture to the
+// open one, facing the door at the movie's heading; "guided": two of the game's movie frames given as guides, door_guided2.ps1)
+let doorMode = 'movie';
+const DOORMODES = ['movie', 'free', 'guided'], DOORLABEL = { movie: 'game movie', free: 'H3', guided: 'H3 guided' };
 const SOUNDS = new Map(); let actx = null;
 const audioCtx = () => { if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (C) actx = new C(); } return actx; };
 function playSound(id, vol = 1) {
@@ -332,6 +337,7 @@ function playSound(id, vol = 1) {
 let soundOn = true;
 let queue = [...WALKIDS.map(id => ({ id, walk: true })), ...Object.values(CLOSEUPS).map(id => ({ id, walk: false })),
   ...Object.values(DOORS).map(d => ({ id: d.id, walk: false, path: `doors/${d.id}.mp4` })),
+  ...['0004', '0005'].flatMap(a => ['free', 'guided'].map(v => ({ id: `door_${a}_${v}`, walk: true, path: `doors/door_${a}_${v}.mp4` }))),
   ...['toho7_307', 'toho7_107', 'toho7_207', 'tohob1_2', 'toho7_607'].map(id => ({ id: 'first:' + id, walk: false, path: `closeups/old22/${id}.mp4` })),
   ...['door11004', 'door10005', 'door_close'].map(id => ({ id: 'snd:' + id, audio: true, path: `doors/${id}.mp3` }))], total = queue.length, done = 0, bytes = 0;
 function prioritise(n) {                                 // the walks out of node n to the front of what is still to load
@@ -416,11 +422,11 @@ const newTex = () => { const t = new THREE.Texture(); t.flipY = false; t.colorSp
 const ring = Array.from({ length: RING }, newTex), allTex = [];
 // a walk's frames in play order: decoded up to RING - 1 ahead of the one on show into a ring of textures (WebCodecs), or all
 // of them first (the old way)
-function player(src, back) {
-  const order = [...Array(N).keys()]; if (back) order.reverse();
-  const p = { got: [], fed: 0, out: 0, err: null, flushed: false, dec: null, lastOut: performance.now(), close() {} };
+function player(src, back, n = N) {
+  const order = [...Array(n).keys()]; if (back) order.reverse();
+  const p = { n, got: [], fed: 0, out: 0, err: null, flushed: false, dec: null, lastOut: performance.now(), close() {} };
   if (src.blob) {                                        // the old way: every frame first
-    p.ready = seekFrames(src.blob, N, { imageOrientation: 'flipY' }).then(bms => { order.forEach((k, i) => { const t = allTex[i] || (allTex[i] = newTex()); if (t.image && t.image.close) t.image.close(); t.image = bms[k]; t.needsUpdate = true; p.got[i] = t; }); }, e => { p.err = e; });
+    p.ready = seekFrames(src.blob, n, { imageOrientation: 'flipY' }).then(bms => { order.forEach((k, i) => { const t = allTex[i] || (allTex[i] = newTex()); if (t.image && t.image.close) t.image.close(); t.image = bms[k]; t.needsUpdate = true; p.got[i] = t; }); }, e => { p.err = e; });
     p.feed = () => {}; return p;
   }
   p.dec = new VideoDecoder({ output: f => { const i = p.out++; p.lastOut = performance.now();
@@ -428,8 +434,8 @@ function player(src, back) {
     error: e => { p.err = e; } });
   p.dec.configure(src.config);
   p.feed = upto => {
-    while (p.fed < N && p.fed <= upto) { p.dec.decode(new EncodedVideoChunk({ type: 'key', timestamp: Math.round(p.fed * 1e6 / VFPS), data: src.samples[order[p.fed]].data })); p.fed++; }
-    if (p.fed === N && !p.flushed) { p.flushed = true; p.dec.flush().catch(() => {}); }
+    while (p.fed < n && p.fed <= upto) { p.dec.decode(new EncodedVideoChunk({ type: 'key', timestamp: Math.round(p.fed * 1e6 / VFPS), data: src.samples[order[p.fed]].data })); p.fed++; }
+    if (p.fed === n && !p.flushed) { p.flushed = true; p.dec.flush().catch(() => {}); }
   };
   p.nudge = () => {                                      // a decoder holding frames back is made to give them up (every frame is a keyframe, so a flush costs nothing)
     if (p.dec && p.fed > p.out && p.dec.decodeQueueSize === 0 && performance.now() - p.lastOut > 60 && !p.nudging) { p.nudging = true; p.dec.flush().catch(() => {}).finally(() => { p.nudging = false; p.lastOut = performance.now(); }); }
@@ -463,10 +469,11 @@ function stepWalk(now, ticks) {                           // ticks: render ticks
     wmat.uniforms.map.value = p.got[0]; wsphere.visible = true; if (cubeNow()) cubeNow().visible = false; dropFade();
     return;
   }
-  let k = ticks === null ? Math.min(N - 1, Math.floor((now - w.t0) / 1000 * VFPS)) : Math.min(N - 1, w.k + ticks);
+  const NN = p.n; let k = ticks === null ? Math.min(NN - 1, Math.floor((now - w.t0) / 1000 * VFPS)) : Math.min(NN - 1, w.k + ticks);
   if (k > w.k && !p.got[k]) { while (k > w.k && !p.got[k]) k--; w.stalls++; p.nudge && p.nudge(); if (ticks === null) w.t0 = now - (k + 0.999) * 1000 / VFPS; }
   if (k !== w.k) { w.k = k; wmat.uniforms.map.value = p.got[k]; p.feed(k + RING - 1); w.shownAt = now; }
-  if (w.k === N - 1 && now - w.shownAt >= 1000 / VFPS - 1) {
+  if (w.k === NN - 1 && now - w.shownAt >= 1000 / VFPS - 1) {
+    if (w.done) { walking = null; p.close(); w.done(); return; }
     walking = null; p.close(); if (w.stalls) console.log('walk held', w.stalls, 'times');
     if (done >= total) loadEl.textContent = `last walk: ${((now - w.tFirst) / 1000).toFixed(2)} s for 22 frames (0.92 at 24 fps), started ${Math.round(w.tFirst - w.tClick)} ms after the click, held ${w.stalls} times` + (wc ? '' : ' (decoded first: no WebCodecs)');
     if (w.leaveShuts) V[401] = 0;
@@ -684,6 +691,15 @@ async function openDoor(s) {
   const d = DOORS[s.args[1]];
   if (!walksOn || !d) { V[401] = 1; const n = here; here = null; await go(n, false, true); drawSpots(here); return; }
   busy = true;
+  if (doorMode !== 'movie') {                          // H3's whole-door opening on the sphere, then the open-door faces
+    const id = `door_${d.node}_${doorMode}`, node = here;
+    if (!SRC.has(id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading the door…'; queue.sort((x, y) => (y.id === id) - (x.id === id)); await whenLoaded(id); busyEl.style.display = 'none'; }
+    loadNode('TOHO-0' + (100 + +node.slice(5)));
+    playSound(d.id);
+    walking = { p: player(SRC.get(id), false, 39), heading: d.h, k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: id, back: false,
+      done: () => { V[401] = 1; here = null; go(node, false, false).then(() => { wsphere.visible = false; drawSpots(here); busy = false; }); } };
+    return;
+  }
   if (!CU.has(d.id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading the door…'; queue.sort((x, y) => (y.id === d.id) - (x.id === d.id)); await whenLoaded(d.id); busyEl.style.display = 'none'; }
   const fr = CU.get(d.id), q = quatOf(d.h, d.p), t = Math.tan(d.fov * Math.PI / 360), pos = panelDoor.geometry.attributes.position;
   [[-t, t * 9 / 16], [t, t * 9 / 16], [-t, -t * 9 / 16], [t, -t * 9 / 16]].forEach(([x, y], i) => { tmpV.set(x * D, y * D, -D).applyQuaternion(q); pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); });
@@ -711,6 +727,7 @@ document.getElementById('womanbtn').onclick = async () => { if (busy) return; wo
 document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = cap ? '24 fps' : 'full rate'; };
 document.getElementById('sndbtn').onclick = () => { soundOn = !soundOn; document.getElementById('sndbtn').textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); };
 document.getElementById('cubtn').onclick = () => { cuFirst = !cuFirst; document.getElementById('cubtn').textContent = 'Close-ups: ' + (cuFirst ? 'first' : 'new'); };
+document.getElementById('doorbtn').onclick = () => { doorMode = DOORMODES[(DOORMODES.indexOf(doorMode) + 1) % 3]; document.getElementById('doorbtn').textContent = 'Door: ' + DOORLABEL[doorMode]; };
 document.getElementById('walkbtn').onclick = () => { walksOn = !walksOn; document.getElementById('walkbtn').textContent = 'Walks: ' + (walksOn ? 'on' : 'off'); };
 
 let here = null, now = null, fading = null;
