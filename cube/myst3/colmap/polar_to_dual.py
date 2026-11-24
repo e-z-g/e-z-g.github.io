@@ -3,10 +3,10 @@ r"""
 A walk drawn as walk_ends.py --polar (equirectangular, poles straight ahead and behind) redrawn as the two-fisheye
 layout the viewer and seam tools take (draw_dual_fisheye: front left, back right).
 
-    python polar_to_dual.py POLAR_DIR OUT_DIR [--pad 20] [--size 2560x1280] [--dual 180] [--fill-square] [--squash 0.35]
+    python polar_to_dual.py POLAR_DIR OUT_DIR [--pad 20] [--join down|up] [--size 2560x1280] [--dual 180] [--fill-square] [--squash 0.35]
 
 The PAD repeated at the picture's sides is mixed with the other copy of the same directions, fading across it, so
-the join straight down shows no line. Writes OUT_DIR/0000.png ... Needs numpy, opencv-python.
+the join shows no line. --join up: the walk was drawn with walk_ends.py --polar-join up (ground in the middle). Writes OUT_DIR/0000.png ... Needs numpy, opencv-python.
 """
 import argparse
 import glob
@@ -25,7 +25,7 @@ def main():
     ap.add_argument('polar'); ap.add_argument('out')
     ap.add_argument('--pad', type=float, default=20.0); ap.add_argument('--size', default='2560x1280')
     ap.add_argument('--dual', type=float, default=180.0); ap.add_argument('--fill-square', action='store_true')
-    ap.add_argument('--squash', type=float, default=0.0)
+    ap.add_argument('--squash', type=float, default=0.0); ap.add_argument('--join', choices=['down', 'up'], default='down')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     paths = sorted(glob.glob(os.path.join(a.polar, '*.png')))
@@ -37,7 +37,8 @@ def main():
         A, E = pixel_dirs(S, a.dual, a.fill_square, a.squash, s)
         A = np.nan_to_num(A); E = np.nan_to_num(E, nan=0.0)
         q = np.stack([np.cos(E) * np.cos(A), np.cos(E) * np.sin(A), np.sin(E)], -1)   # camera: x right, y down, z ahead
-        th = np.arccos(np.clip(q[..., 2], -1, 1)); ph = np.arctan2(q[..., 0], -q[..., 1])
+        g = 1.0 if a.join == 'down' else -1.0
+        th = np.arccos(np.clip(q[..., 2], -1, 1)); ph = np.arctan2(g * q[..., 0], -g * q[..., 1])
         y = (th / np.pi * H - .5).astype(np.float32)
         x1 = ((ph / half + 1) / 2 * W - .5).astype(np.float32)                         # the copy within 180 degrees
         ph2 = ph - np.sign(ph) * 2 * np.pi                                              # the other copy, if in the pad

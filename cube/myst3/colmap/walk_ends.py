@@ -67,15 +67,18 @@ def draw_equirect(faces, Rcam, W, H):
     return sample_dirs(faces, cam @ Rcam)
 
 
-def draw_polar_equirect(faces, Rcam, W, H, pad=20.0):
+def draw_polar_equirect(faces, Rcam, W, H, pad=20.0, join='down'):
     """The whole view, equirectangular with its poles straight ahead (top edge) and straight behind (bottom edge):
     down the picture the angle from straight ahead (0 to 180 degrees), across it the turn round the line of travel
     (straight up in the middle, right of it to the right), 360 degrees and --polar's PAD more at each side repeated,
-    so the join, straight down, is drawn twice. Moving forward, everything slides down the picture."""
+    so the join, straight down, is drawn twice. Moving forward, everything slides down the picture.
+    join='up' turns that half a turn round the line of travel: the ground in the middle (left of it to the right),
+    the join straight up, so the floor underfoot is drawn in one piece and the join falls in the sky or ceiling."""
     v, u = np.mgrid[0:H, 0:W].astype(np.float64)
     th = (v + .5) / H * np.pi
     ph = ((u + .5) / W * 2 - 1) * (np.pi + np.radians(pad))
-    cam = np.stack([np.sin(th) * np.sin(ph), -np.sin(th) * np.cos(ph), np.cos(th)], -1)
+    g = 1.0 if join == 'down' else -1.0
+    cam = np.stack([g * np.sin(th) * np.sin(ph), -g * np.sin(th) * np.cos(ph), np.cos(th)], -1)
     return sample_dirs(faces, cam @ Rcam)
 
 
@@ -469,6 +472,8 @@ def main():
     ap.add_argument('--yaw', type=float, default=0.0); ap.add_argument('--pitch', type=float, default=0.0)
     ap.add_argument('--equirect', action='store_true',
                     help='the whole view instead, equirectangular (--size 2:1), the walk straight ahead in the middle')
+    ap.add_argument('--polar-join', choices=['down', 'up'], default='down',
+                    help="--polar's join straight down (sky in the middle) or straight up (ground in the middle)")
     ap.add_argument('--polar', type=float, nargs='?', const=20.0, metavar='PAD',
                     help='the whole view, equirectangular with poles straight ahead (top) and behind (bottom), '
                          'PAD degrees (20) repeated at each side (draw_polar_equirect)')
@@ -533,7 +538,7 @@ def main():
     os.makedirs(a.out, exist_ok=True)
     def renderer(Rcam):
         if a.polar is not None:
-            render = lambda F: draw_polar_equirect(F, Rcam, W, H, a.polar)
+            render = lambda F: draw_polar_equirect(F, Rcam, W, H, a.polar, a.polar_join)
         elif a.equirect:
             render = lambda F: draw_equirect(F, Rcam, W, H)
         elif a.single_fisheye:
