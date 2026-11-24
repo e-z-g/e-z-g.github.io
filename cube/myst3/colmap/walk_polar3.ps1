@@ -15,13 +15,18 @@
 # -Suffix _d03: appended to the walk's folder, so a pass 3 rerun (-Step p3, with p1 copied in) keeps the earlier one.
 # -P1Frames 73 -P1Size 1792x896: pass 1 longer and smaller (prompt <Tag>_p<P1Frames>_polar.txt), its frames thinned to
 # -Frames (evenly, ends kept) before polar_to_dual.py draws them at -Size for pass 3; more frames for the motion, pass 3 for the size.
-# -JoinUp: the first pass's polar layout turned half a turn round the line of travel (walk_ends.py --polar-join up), the
-# ground in the middle and the join straight up, so the floor underfoot is drawn in one piece (prompt <tag>_polar_jup.txt).
+# Join: the first pass's polar layout has the ground in the middle and its join straight up (walk_ends.py --polar-join
+# up, folder suffix _jup, prompt <tag>_polar_jup.txt), the default since 24 November 2026; -JoinDown for the old layout
+# (sky in the middle, join straight down), which every walk made before then used (reruns with -Step p3 of those need it).
+# -Heading H -FacesA PATH -FacesB PATH: no model; the ends drawn from the two nodes' faces (C:\myst3_out\faces\<ROOM>\
+# <ROOM>-<node>) facing game heading H (walk_ends_heading.py), for rooms whose nodes are not placed.
 param([string]$Age, [string]$Model, [string]$Prefix, [string]$A, [string]$B, [string]$Tag, [int]$Frames = 39, [int]$Seed = 2,
       [string]$Denoise = "0.3", [string]$Step = 'all', [string]$Size = "2560x1280", [string]$Via = "", [string]$Sparse = "", [switch]$Turn, [switch]$Eight, [switch]$NoLora, [string]$Mid = "", [string]$MidDepth = "", [string]$Plan = "",
-      [int]$P1Frames = 0, [string]$P1Size = "", [string]$Suffix = "", [switch]$JoinUp)
+      [int]$P1Frames = 0, [string]$P1Size = "", [string]$Suffix = "", [switch]$JoinUp, [switch]$JoinDown,
+      [string]$Heading = "", [string]$FacesA = "", [string]$FacesB = "")
 $env:PATH = "C:\Users\lloyd\AppData\Local\Microsoft\WinGet\Links;" + $env:PATH
 $C = 'C:\myst3_out\colmap'; $F = 'C:\myst3_out\film'; $W = "C:\myst3_colmap\$Age"; $M = "$W\runs\$Model\sparse_txt\ba"; if ($Sparse) { $M = $Sparse }
+$JoinUp = -not $JoinDown                                   # the join straight up is the default since 24 November 2026
 $D = "$F\walk3_$($Tag)_s$Seed"; if ($Turn) { $D += "_turn" }; if ($Plan) { $D += "_plan" }; if ($Eight) { $D += "_8step" }; if ($NoLora) { $D += "_nolora" }; if ($Mid) { $D += "_mid" }; if ($P1Frames) { $D += "_p$P1Frames" }; if ($JoinUp) { $D += "_jup" }; if ($Suffix) { $D += $Suffix }; $EP = "$D\ends_polar"; $ED = "$D\ends_dual"
 $L = @('--dual', '180', '--fill-square', '--squash', '0.35')
 $J = @(); $PJ = @(); $PS = ''; if ($JoinUp) { $J = @('--polar-join', 'up'); $PJ = @('--join', 'up'); $PS = '_jup' }
@@ -44,8 +49,13 @@ if ($Step -eq 'ends') {
   "guides: " + ((Guides $EP $F1) -join ' ')
 }
 if ($Step -in 'all', 'h3', 'p3') {                          # p3: pass 1 already in $D\p1, from pass 3 on
-  if ($Step -ne 'p3') { & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $S1 --polar 20 @J --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 1 }
-  & py -3 $C\walk_ends.py "$W\images" $M $ED $A $B --size $Size --dual-fisheye 180 --along-motion --fill-square --squash 0.35 --prefix $Prefix @V 2>&1 | Select-Object -Last 1
+  if ($Heading) {                                          # no model: the ends face the hotspots' bearing (walk_ends_heading.py)
+    if ($Step -ne 'p3') { & py -3 $C\walk_ends_heading.py $FacesA $FacesB $EP --heading $Heading --size $S1 --polar 20 @J 2>&1 | Select-Object -Last 1 }
+    & py -3 $C\walk_ends_heading.py $FacesA $FacesB $ED --heading $Heading --size $Size --dual-fisheye 180 --fill-square --squash 0.35 2>&1 | Select-Object -Last 1
+  } else {
+    if ($Step -ne 'p3') { & py -3 $C\walk_ends.py "$W\images" $M $EP $A $B --size $S1 --polar 20 @J --along-motion --prefix $Prefix @V 2>&1 | Select-Object -Last 1 }
+    & py -3 $C\walk_ends.py "$W\images" $M $ED $A $B --size $Size --dual-fisheye 180 --along-motion --fill-square --squash 0.35 --prefix $Prefix @V 2>&1 | Select-Object -Last 1
+  }
   if ($Step -ne 'p3') {
     $P = (Get-Content -Raw -Encoding UTF8 "C:\myst3_out\prompts\$($P1Tag)_polar$PS.txt").Trim()
     & py -3 $C\h3_flf.py "$EP\first.png" "$EP\last.png" "$D\p1" --size $S1 --frames $F1 --steps $NS --turbo $turbo --turbo-strength $TS --seeds $Seed --timeout 5000 @(Guides $EP $F1) --prompt $P 2>&1 | Select-Object -Last 3
