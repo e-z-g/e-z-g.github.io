@@ -17,9 +17,9 @@
   #map.big { width: min(560px, 90vw); height: min(560px, 70vh); }
   #fovtxt { background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
   #busy { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,.7); padding: 6px 12px; border-radius: 4px; display: none; pointer-events: none; }
-  .bar { position: fixed; background: #000; z-index: 15; pointer-events: none; }
   #cu { position: fixed; z-index: 16; display: none; cursor: pointer; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
 </script>
@@ -34,6 +34,8 @@
   <button id="mapbtn" title="Map of the node layout (M); double-click it to enlarge">Map</button>
   <button id="laybtn" title="The map's layout: the proposed places where there are any, or the model's (L)">Layout: proposed</button>
   <button id="womanbtn" title="The woman on the bench at TOHO 2: drawn into its picture and the walk from 1, frozen (a test)">Woman: off</button>
+  <button id="fpsbtn" title="Draw the view at the walks' 24 frames a second, or as fast as the screen goes (R)">24 fps</button>
+  <span id="load" style="background:rgba(0,0,0,.6);padding:4px 8px;border-radius:4px;font-size:12px">loading…</span>
   <button id="walkbtn" title="Play the rendered walks and close-ups, or jump as the node traveler does (W)">Walks: on</button>
   <span id="fovtxt"></span>
 </div>
@@ -41,7 +43,6 @@
 <div id="moves"></div>
 <div id="tip"></div>
 <div id="busy"></div>
-<div class="bar" id="barT"></div><div class="bar" id="barB"></div><div class="bar" id="barL"></div><div class="bar" id="barR"></div>
 <canvas id="cu" width="640" height="360"></canvas>
 <script type="module">
 // Tomahna with its walks: the node traveler (node_walk.html) for TOHO and TOHB, where a move plays the walk rendered
@@ -232,6 +233,7 @@ const FOV_MIN = 20, FOV_MAX = 360;
 const fish = () => !(closing || inClose) && (forceFish || fov > 120);   // a close-up's view is always a plain perspective
 const sOf = f => Math.max(1, f / 120);
 function look() {
+  camera.aspect = innerWidth / innerHeight;
   const d = new THREE.Vector3(...dirOf(pitch, yaw).toArray()); d.x = -d.x;
   camera.lookAt(d); camera.fov = (closing || inClose) ? Math.min(fov, 170) : Math.min(fov, 120); camera.updateProjectionMatrix();
   document.getElementById('fovtxt').textContent = `${Math.round(fov)}°` + (fish() ? ' fisheye' : '');
@@ -269,6 +271,13 @@ const fishScene = new THREE.Scene(), fishCam = new THREE.OrthographicCamera(-1, 
 fishScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), fishMat));
 function render() {
   sizeLabels();
+  if (cuRect) {                                          // a close-up: the view drawn into its box, black round it
+    const [x, y, w, h] = cuRect, H = innerHeight;
+    renderer.setScissorTest(false); renderer.setViewport(0, 0, innerWidth, H); renderer.setClearColor(0x000000, 1); renderer.clear();
+    renderer.setViewport(x, H - y - h, w, h); renderer.setScissor(x, H - y - h, w, h); renderer.setScissorTest(true);
+    renderer.render(scene, camera);
+    renderer.setScissorTest(false); renderer.setViewport(0, 0, innerWidth, H); return;
+  }
   if (!fish()) { renderer.render(scene, camera); return; }
   cubeCam.update(renderer, scene);
   const s = sOf(fov);
@@ -279,10 +288,92 @@ function render() {
 }
 
 
-// ---- the walks: every frame of the walk decoded once to a texture on the graphics card (seeking an all-keyframe video,
-// as the walk viewer does), then shown in turn on a sphere round the eye, 24 a second, forward or backward; the
-// textures are kept for the next walk (slots reused), and the last walk decoded stays ready, so turning back is
-// immediate. The videos out of the node you stand at are fetched while you look round.
+// ---- loading: every walk and close-up is fetched when the page opens (the walks out of the node you stand at
+// first), and split into its frames' compressed pictures (mp4box.js). Every frame of these videos is a keyframe, so
+// a walk is decoded as it plays (WebCodecs), forward or backward, a few frames ahead: nothing waits on a click,
+// and only a handful of frames sit on the graphics card. Close-ups (640x360) are decoded whole as they load.
+// Where WebCodecs is missing, each walk's frames are decoded by seeking a video element, as the walk viewer does.
+const VFPS = 24, N = 22, RING = 10;                     // RING: frames decoded and on the card at once (the one on show, those ahead)
+const CLOSEUPS = { 'TOHO-0107': 'toho7_107', 'TOHO-0207': 'toho7_207', 'TOHO-0307': 'toho7_307', 'TOHO-0607': 'toho7_607',
+  'TOHO-0707': 'toho7_707', 'TOHO-0807': 'toho7_807', 'TOHO-0106': 'toho6_106', 'TOHO-0206': 'toho6_206', 'TOHO-0306': 'toho6_306',
+  'TOHO-0108': 'toho8_108', 'TOHB-0002': 'tohob1_2' };
+let wc = 'VideoDecoder' in window && typeof MP4Box !== 'undefined';
+const loadEl = document.getElementById('load'), busyEl = document.getElementById('busy');
+let walking = null, busy = false, walksOn = true;
+function demux(ab) {                                     // an mp4's one video track: decoder config and each frame's bytes
+  return new Promise((ok, no) => {
+    const f = MP4Box.createFile();
+    f.onError = e => no(new Error(String(e)));
+    f.onReady = info => {
+      const tr = info.videoTracks[0]; if (!tr) { no(new Error('no video track')); return; }
+      let description;
+      for (const e of f.getTrackById(tr.id).mdia.minf.stbl.stsd.entries) {
+        const b = e.avcC || e.hvcC; if (b) { const s = new DataStream(undefined, 0, DataStream.BIG_ENDIAN); b.write(s); description = new Uint8Array(s.buffer, 8); } }
+      const out = [];
+      f.onSamples = (id, u, ss) => { for (const s of ss) out.push({ data: s.data, key: s.is_sync }); if (out.length >= tr.nb_samples) ok({ config: { codec: tr.codec, codedWidth: tr.video.width, codedHeight: tr.video.height, description }, samples: out }); };
+      f.setExtractionOptions(tr.id, null, { nbSamples: tr.nb_samples }); f.start();
+    };
+    ab.fileStart = 0; f.appendBuffer(ab); f.flush();
+  });
+}
+const WALKIDS = [...new Set(WALKVIDS.map(v => v[0])), 't0102m'];
+const SRC = new Map(), CU = new Map();                   // id -> { config, samples } or { blob }; close-up id -> [ImageBitmap]
+const waiters = new Map();
+const whenLoaded = id => SRC.has(id) || CU.has(id) ? Promise.resolve() : new Promise(r => { if (!waiters.has(id)) waiters.set(id, []); waiters.get(id).push(r); });
+let queue = [...WALKIDS.map(id => ({ id, walk: true })), ...Object.values(CLOSEUPS).map(id => ({ id, walk: false }))], total = queue.length, done = 0, bytes = 0;
+function prioritise(n) {                                 // the walks out of node n to the front of what is still to load
+  if (!n || n.slice(0, 4) !== 'TOHO') return;
+  const a = +n.slice(5), want = new Set();
+  for (const s of NODES[n] || []) if (s.to && holds(s.cond)) { const w = walkFor(a, +s.to.slice(5)); if (w) want.add(w[0]); }
+  for (const s of NODES[n] || []) if (s.frame && CLOSEUPS[s.frame.slice(0, -4)]) want.add(CLOSEUPS[s.frame.slice(0, -4)]);
+  queue.sort((x, y) => want.has(y.id) - want.has(x.id));
+}
+async function decodeAll(src) {                          // every frame of a short video to ImageBitmaps (the close-ups)
+  const frames = [];
+  await new Promise((ok, no) => {
+    const dec = new VideoDecoder({ output: f => { const i = frames.length; frames.push(null); createImageBitmap(f).then(b => { frames[i] = b; f.close(); }); }, error: no });
+    dec.configure(src.config);
+    src.samples.forEach((s, k) => dec.decode(new EncodedVideoChunk({ type: s.key ? 'key' : 'delta', timestamp: Math.round(k * 1e6 / VFPS), data: s.data })));
+    dec.flush().then(() => { dec.close(); ok(); }, no);
+  });
+  while (frames.some(b => !b)) await new Promise(r => setTimeout(r, 5));
+  return frames;
+}
+async function loadOne(item) {
+  const r = await fetch(item.walk ? `walks/${item.id}_key.mp4` : `closeups/${item.id}.mp4`);
+  if (!r.ok) throw new Error(item.id + ': ' + r.status);
+  const ab = await r.arrayBuffer(); bytes += ab.byteLength;
+  let src = null;
+  if (wc) {
+    try { src = await demux(ab); if (!(await VideoDecoder.isConfigSupported(src.config)).supported) throw new Error('codec ' + src.config.codec + ' not supported'); }
+    catch (e) { console.warn('WebCodecs not used:', e.message); wc = false; src = null; }
+  }
+  if (!src) src = { blob: new Blob([ab], { type: 'video/mp4' }) };
+  if (item.walk) SRC.set(item.id, src);
+  else CU.set(item.id, src.blob ? await seekFrames(src.blob, null, null) : await decodeAll(src));
+  for (const r of waiters.get(item.id) || []) r(); waiters.delete(item.id);
+}
+async function loadAll() {                               // three at a time
+  const worker = async () => { while (queue.length) { const it = queue.shift(); try { await loadOne(it); } catch (e) { console.error(e); } done++;
+    loadEl.textContent = done < total ? `loading ${done} of ${total} (${Math.round(bytes / 1048576)} MB)` : `all ${total} loaded (${Math.round(bytes / 1048576)} MB)`; } };
+  await Promise.all([worker(), worker(), worker()]);
+}
+// the old way, where WebCodecs is missing: a video element sought to each frame in turn
+const seekTo = (vid, t) => new Promise((ok, no) => {
+  const h = () => { clearTimeout(to); ok(); }, to = setTimeout(() => { vid.removeEventListener('seeked', h); no(new Error('seek timed out')); }, 3000);
+  vid.addEventListener('seeked', h, { once: true }); vid.currentTime = t; });
+async function seekFrames(blob, n, opts) {
+  const url = URL.createObjectURL(blob), vid = document.createElement('video'); vid.muted = true; vid.playsInline = true; vid.preload = 'auto'; vid.src = url;
+  const out = [];
+  try {
+    await new Promise((ok, no) => { vid.addEventListener('loadeddata', ok, { once: true }); vid.addEventListener('error', () => no(new Error('the video would not load')), { once: true }); vid.load(); });
+    if (n === null) n = Math.max(1, Math.round(vid.duration * VFPS));
+    for (let k = 0; k < n; k++) { try { await seekTo(vid, (k + 0.5) / VFPS); } catch (e) { await seekTo(vid, (k + 0.5) / VFPS + 0.003); } out.push(await createImageBitmap(vid, opts || undefined)); }
+    return out;
+  } finally { vid.removeAttribute('src'); vid.load(); URL.revokeObjectURL(url); }
+}
+
+// ---- the walk on a sphere round the eye
 const wmat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false,
   uniforms: { map: { value: null }, squash: { value: 0.35 } },
   vertexShader: 'varying vec3 vD; void main(){ vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -302,46 +393,31 @@ void main(){ vec3 d = normalize(vD), w = vec3(d.x, -d.y, -d.z);       // the wal
   float k = smoothstep(-0.0005, 0.0005, w.z);
   gl_FragColor = vec4(mix(eye(vec3(-w.x, w.y, -w.z), 1.0), eye(w, 0.0), k), 1.0); }` });
 const wsphere = new THREE.Mesh(new THREE.SphereGeometry(10, 128, 64), wmat); wsphere.visible = false; wsphere.renderOrder = 5; scene.add(wsphere);
-const VFPS = 24, pool = [], blobs = new Map();
-let ready = null;                                        // the walk whose frames are on the card: { id, n }
-let walking = null, busy = false, walksOn = true;
-const busyEl = document.getElementById('busy');
-const blobOf = id => { if (!blobs.has(id)) blobs.set(id, fetch(`walks/${id}_key.mp4`).then(r => { if (!r.ok) throw new Error(id + ': ' + r.status); return r.blob(); })); return blobs.get(id); };
-function prefetchWalks(n) {
-  const a = +n.slice(5); if (n.slice(0, 4) !== 'TOHO') return;
-  for (const s of NODES[n] || []) if (s.to && holds(s.cond)) { const w = walkFor(a, +s.to.slice(5)); if (w) blobOf(w[0]).catch(() => {}); }
-}
-const seekTo = (vid, t) => new Promise((ok, no) => {
-  const h = () => { clearTimeout(to); ok(); }, to = setTimeout(() => { vid.removeEventListener('seeked', h); no(new Error('seek timed out')); }, 3000);
-  vid.addEventListener('seeked', h, { once: true }); vid.currentTime = t; });
-async function frameBitmaps(url, n, each, opts) {        // frames 0..n-1 of a video (n from its length when null), one at a time
-  const vid = document.createElement('video'); vid.muted = true; vid.playsInline = true; vid.preload = 'auto'; vid.src = url;
-  try {
-    await new Promise((ok, no) => { vid.addEventListener('loadeddata', ok, { once: true }); vid.addEventListener('error', () => no(new Error('the video would not load')), { once: true }); vid.load(); });
-    if (n === null) n = Math.max(1, Math.round(vid.duration * VFPS));
-    for (let k = 0; k < n; k++) {
-      try { await seekTo(vid, (k + 0.5) / VFPS); } catch (e) { await seekTo(vid, (k + 0.5) / VFPS + 0.003); }
-      await each(k, await createImageBitmap(vid, opts), n);
-    }
-    return n;
-  } finally { vid.removeAttribute('src'); vid.load(); }
-}
-async function decodeWalk(id) {
-  if (ready && ready.id === id) return ready;
-  ready = null;
-  const url = URL.createObjectURL(await blobOf(id));
-  try {
-    const n = await frameBitmaps(url, 22, (k, bm, n) => {
-      let t = pool[k];
-      if (t && (t.userData.w !== bm.width || t.userData.h !== bm.height)) { t.dispose(); t = null; }
-      if (!t) { t = pool[k] = new THREE.Texture(); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false;
-        t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.userData = { w: bm.width, h: bm.height }; }
-      t.image = bm; t.needsUpdate = true; renderer.initTexture(t); bm.close();
-      busyEl.textContent = `walk ${k + 1} of ${n}`;
-    }, { imageOrientation: 'flipY' });
-    ready = { id, n };
-    return ready;
-  } finally { URL.revokeObjectURL(url); }
+const newTex = () => { const t = new THREE.Texture(); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; return t; };
+const ring = Array.from({ length: RING }, newTex), allTex = [];
+// a walk's frames in play order: decoded up to RING - 1 ahead of the one on show into a ring of textures (WebCodecs), or all
+// of them first (the old way)
+function player(src, back) {
+  const order = [...Array(N).keys()]; if (back) order.reverse();
+  const p = { got: [], fed: 0, out: 0, err: null, flushed: false, dec: null, lastOut: performance.now(), close() {} };
+  if (src.blob) {                                        // the old way: every frame first
+    p.ready = seekFrames(src.blob, N, { imageOrientation: 'flipY' }).then(bms => { order.forEach((k, i) => { const t = allTex[i] || (allTex[i] = newTex()); if (t.image && t.image.close) t.image.close(); t.image = bms[k]; t.needsUpdate = true; p.got[i] = t; }); }, e => { p.err = e; });
+    p.feed = () => {}; return p;
+  }
+  p.dec = new VideoDecoder({ output: f => { const i = p.out++; p.lastOut = performance.now();
+      createImageBitmap(f, { imageOrientation: 'flipY' }).then(b => { f.close(); const t = ring[i % RING]; if (t.image && t.image.close) t.image.close(); t.image = b; t.needsUpdate = true; p.got[i] = t; }, e => { f.close(); p.err = e; }); },
+    error: e => { p.err = e; } });
+  p.dec.configure(src.config);
+  p.feed = upto => {
+    while (p.fed < N && p.fed <= upto) { p.dec.decode(new EncodedVideoChunk({ type: 'key', timestamp: Math.round(p.fed * 1e6 / VFPS), data: src.samples[order[p.fed]].data })); p.fed++; }
+    if (p.fed === N && !p.flushed) { p.flushed = true; p.dec.flush().catch(() => {}); }
+  };
+  p.nudge = () => {                                      // a decoder holding frames back is made to give them up (every frame is a keyframe, so a flush costs nothing)
+    if (p.dec && p.fed > p.out && p.dec.decodeQueueSize === 0 && performance.now() - p.lastOut > 60 && !p.nudging) { p.nudging = true; p.dec.flush().catch(() => {}).finally(() => { p.nudging = false; p.lastOut = performance.now(); }); }
+  };
+  p.close = () => { try { p.dec.close(); } catch (e) {} };
+  p.feed(RING - 1);
+  return p;
 }
 // a move: the walk from here to there played, then there's own picture; with no walk (or walks off), the node
 // traveler's fade
@@ -350,87 +426,80 @@ async function move(s) {
   const leaveShuts = a === 'TOHO-0004' && (B === 2 || B === 3) || a === 'TOHO-0005' && B >= 6 && B <= 8;   // script 10004
   const w = walksOn && a.slice(0, 4) === 'TOHO' ? walkFor(A, B) : null;
   if (!w) { if (leaveShuts) V[401] = 0; return go(b); }
-  busy = true; busyEl.style.display = 'block'; busyEl.textContent = 'walk…';
-  try {
-    const r = await decodeWalk(w[0]);
-    loadNode(shown(b));
-    walking = { r, back: w[2], t0: performance.now(), to: b, leaveShuts };
-    wsphere.rotation.set(0, Math.PI - w[1] * Math.PI / 180, 0);      // the walk's ahead (its -z) along game heading w[1]
-    showWalkFrame(w[2] ? r.n - 1 : 0);
-    wsphere.visible = true; if (now) now.visible = false;
-    if (fading) { scene.remove(fading.old); fading = null; }
-  } catch (e) { busyEl.textContent = 'walk failed: ' + e.message; setTimeout(() => { busyEl.style.display = 'none'; }, 2500); busy = false; if (leaveShuts) V[401] = 0; return go(b); }
-  busyEl.style.display = 'none';
+  busy = true;
+  if (!SRC.has(w[0])) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this walk…'; queue.sort((x, y) => (y.id === w[0]) - (x.id === w[0])); await whenLoaded(w[0]); busyEl.style.display = 'none'; }
+  loadNode(shown(b));
+  const p = player(SRC.get(w[0]), w[2]);
+  walking = { p, to: b, leaveShuts, heading: w[1], k: -1, t0: null, stalls: 0, tClick: performance.now() };
 }
-function showWalkFrame(k) { wmat.uniforms.map.value = pool[k]; }
-async function stepWalk() {
-  if (!walking) return;
-  const w = walking, n = w.r.n, k = Math.min(n - 1, Math.floor((performance.now() - w.t0) / 1000 * VFPS));
-  showWalkFrame(w.back ? n - 1 - k : k);
-  if (k < n - 1) return;
-  walking = null;
-  if (w.leaveShuts) V[401] = 0;
-  await go(w.to, true, false);
-  wsphere.visible = false; busy = false;
+function stepWalk(now, ticks) {                           // ticks: render ticks since the last (24 fps mode), else null
+  const w = walking; if (!w) return;
+  const p = w.p;
+  if (p.err) { console.error('walk failed', p.err); walking = null; p.close(); wsphere.visible = false; busy = false; if (w.leaveShuts) V[401] = 0; go(w.to); return; }
+  if (w.t0 === null) {                                   // waiting for the first frames: the cube stays on show
+    if (!(p.got[0] && (p.got[2] || p.dec === null))) { if (p.nudge) p.nudge(); return; }
+    w.t0 = now; w.tFirst = now; w.k = 0;
+    wsphere.rotation.set(0, Math.PI - w.heading * Math.PI / 180, 0);      // the walk's ahead (its -z) along its game heading
+    wmat.uniforms.map.value = p.got[0]; wsphere.visible = true; if (cubeNow()) cubeNow().visible = false; dropFade();
+    return;
+  }
+  let k = ticks === null ? Math.min(N - 1, Math.floor((now - w.t0) / 1000 * VFPS)) : Math.min(N - 1, w.k + ticks);
+  if (k > w.k && !p.got[k]) { while (k > w.k && !p.got[k]) k--; w.stalls++; p.nudge && p.nudge(); if (ticks === null) w.t0 = now - (k + 0.999) * 1000 / VFPS; }
+  if (k !== w.k) { w.k = k; wmat.uniforms.map.value = p.got[k]; p.feed(k + RING - 1); w.shownAt = now; }
+  if (w.k === N - 1 && now - w.shownAt >= 1000 / VFPS - 1) {
+    walking = null; p.close(); if (w.stalls) console.log('walk held', w.stalls, 'times');
+    if (done >= total) loadEl.textContent = `last walk: ${((now - w.tFirst) / 1000).toFixed(2)} s for 22 frames (0.92 at 24 fps), started ${Math.round(w.tFirst - w.tClick)} ms after the click, held ${w.stalls} times` + (wc ? '' : ' (decoded first: no WebCodecs)');
+    if (w.leaveShuts) V[401] = 0;
+    go(w.to, true, false).then(() => { wsphere.visible = false; busy = false; });
+  }
 }
 
-// ---- close-ups: the view turned onto the hotspot's centre, the bars brought in to the close-up's 16:9 box and the
-// view narrowed to 90 degrees across the box (the game's close-up frame), then the rendered move in (its first
-// frame that view exactly, its last the close-up as the game stores it); a click plays it back and undoes the turn.
-const CLOSEUPS = { 'TOHO-0107': 'toho7_107', 'TOHO-0207': 'toho7_207', 'TOHO-0307': 'toho7_307', 'TOHO-0607': 'toho7_607',
-  'TOHO-0707': 'toho7_707', 'TOHO-0807': 'toho7_807', 'TOHO-0106': 'toho6_106', 'TOHO-0206': 'toho6_206', 'TOHO-0306': 'toho6_306',
-  'TOHO-0108': 'toho8_108', 'TOHB-0002': 'tohob1_2' };
+// ---- close-ups: one camera move. The picture shrinks from the whole window to the close-up's 16:9 box (black
+// round it), while the eye turns (one rotation, the shortest) onto the hotspot's centre and the lens lengthens to
+// 90 degrees across the box; then the rendered move in plays in the box (its first frame that view exactly, its
+// last the close-up as the game stores it). A click or Escape plays it back out and undoes the turn.
 const cu = document.getElementById('cu'), cux = cu.getContext('2d');
-const bars = ['T', 'B', 'L', 'R'].map(k => document.getElementById('bar' + k));
-let closing = null, inClose = null, cuHold = false;   // cuHold (tests): stop at the end of the turn, before the video                     // the animation running; the close-up shown
+let closing = null, inClose = null, cuHold = false, cuRect = null;   // cuHold (tests): stop at the end of the turn
 const ease = t => t * t * (3 - 2 * t);
 const box = () => { const W = innerWidth, H = innerHeight; return W / H < 16 / 9 ? [W, W * 9 / 16] : [H * 16 / 9, H]; };
-function setBars(t) {                                   // t 0: none, 1: the box
-  const [bw, bh] = box(), W = innerWidth, H = innerHeight, cw = W + (bw - W) * t, ch = H + (bh - H) * t, x = (W - cw) / 2, y = (H - ch) / 2;
-  const set = (e, l, tp, w, h) => { e.style.left = l + 'px'; e.style.top = tp + 'px'; e.style.width = Math.max(0, w) + 'px'; e.style.height = Math.max(0, h) + 'px'; };
-  set(bars[0], 0, 0, W, y); set(bars[1], 0, y + ch, W, H - y - ch); set(bars[2], 0, 0, x, H); set(bars[3], x + cw, 0, W - x - cw, H);
-  bars.forEach(e => e.style.display = t > 0 ? 'block' : 'none');
-}
 function placeCu() { const [bw, bh] = box(); Object.assign(cu.style, { left: (innerWidth - bw) / 2 + 'px', top: (innerHeight - bh) / 2 + 'px', width: bw + 'px', height: bh + 'px' }); }
-addEventListener('resize', () => { if (inClose || closing) { placeCu(); setBars(1); } });
-const cuCache = new Map();
-async function cuFrames(id) {
-  if (!cuCache.has(id)) cuCache.set(id, (async () => {
-    const url = URL.createObjectURL(await (await fetch(`closeups/${id}.mp4`)).blob()), out = [];
-    try { await frameBitmaps(url, null, (k, bm) => { out.push(bm); }); } finally { URL.revokeObjectURL(url); }
-    return out;
-  })());
-  return cuCache.get(id);
-}
+addEventListener('resize', () => { if (inClose || closing) placeCu(); });
 const unwrap = (a, b) => a + ((b - a + 540) % 360) - 180;
+const qcam = new THREE.PerspectiveCamera();
+function quatOf(y, p) { const d = dirOf(p, y); d.x = -d.x; qcam.position.set(0, 0, 0); qcam.lookAt(d); return qcam.quaternion.clone(); }
 async function closeup(s) {
   const id = CLOSEUPS[s.frame.slice(0, -4)];
   if (!walksOn || !id) return showFrame(s.frame);
-  busy = true; busyEl.style.display = 'block'; busyEl.textContent = 'close-up…';
-  let fr; try { fr = await cuFrames(id); } catch (e) { busy = false; busyEl.style.display = 'none'; return showFrame(s.frame); }
-  busyEl.style.display = 'none';
-  const [bw] = box(), f1 = 2 * Math.atan(innerHeight / bw) * 180 / Math.PI;   // the camera's height angle with 90 across the box
-  const from = { yaw, pitch, fov }, to = { yaw: unwrap(yaw, s.rects[0][1]), pitch: s.rects[0][0], fov: f1 };
-  closing = { from, to, fr, t0: performance.now(), dir: 1, s }; placeCu();
+  busy = true;
+  if (!CU.has(id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this close-up…'; queue.sort((x, y) => (y.id === id) - (x.id === id)); await whenLoaded(id); busyEl.style.display = 'none'; }
+  const fr = CU.get(id); if (!fr) { busy = false; return showFrame(s.frame); }
+  const f0 = Math.min(fov, 110), from = { yaw, pitch, fov, q: quatOf(yaw, pitch), f: innerHeight / 2 / Math.tan(f0 * Math.PI / 360) };
+  closing = { from, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: quatOf(s.rects[0][1], s.rects[0][0]) }, fr, t0: performance.now(), dir: 1, s };
+  placeCu();
 }
-function stepClose() {
-  if (!closing) return;
-  const c = closing, T = 0.75, el = (performance.now() - c.t0) / 1000, n = c.fr.length;
-  // dir 1: the turn (T s) then the frames; dir -1: the frames backward then the turn back
-  const live = t => { const e = ease(t); yaw = c.from.yaw + (c.to.yaw - c.from.yaw) * e; pitch = c.from.pitch + (c.to.pitch - c.from.pitch) * e;
-    fov = Math.atan(Math.tan(c.from.fov * Math.PI / 360) * Math.pow(Math.tan(c.to.fov * Math.PI / 360) / Math.tan(c.from.fov * Math.PI / 360), e)) * 360 / Math.PI; setBars(e); };   // the focal length eased in proportion
+function closeCamera(t) {                                // the move's state at t (0 the room, 1 the box); sets the camera and cuRect
+  const c = closing || inClose, e = ease(t), W = innerWidth, H = innerHeight, [bw, bh] = box();
+  const w = W + (bw - W) * e, h = H + (bh - H) * e, f = c.from.f * Math.pow((bw / 2) / c.from.f, e);   // 90 degrees across the box at the end
+  cuRect = [(W - w) / 2, (H - h) / 2, w, h];
+  camera.quaternion.copy(c.from.q).slerp(c.to.q, e);
+  camera.aspect = w / h; camera.fov = 2 * Math.atan(h / 2 / f) * 180 / Math.PI; camera.updateProjectionMatrix();
+}
+function stepClose(now) {
+  if (!closing) { if (inClose) closeCamera(1); return; }
+  const c = closing, T = 0.9, el = (now - c.t0) / 1000, n = c.fr.length;
   const draw = k => { cu.style.display = 'block'; cux.drawImage(c.fr[k], 0, 0, 640, 360); };
   if (c.dir > 0) {
-    if (el < T) { live(el / T); cu.style.display = 'none'; return; }
-    live(1); if (cuHold) { if (cuHold !== 'drawn') cu.style.display = 'none'; return; }
+    if (el < T) { closeCamera(el / T); cu.style.display = 'none'; return; }
+    closeCamera(1); if (cuHold) { if (cuHold !== 'drawn') cu.style.display = 'none'; return; }
     const k = Math.min(n - 1, Math.floor((el - T) * VFPS)); draw(k);
-    if (k === n - 1) { inClose = c; closing = null; busy = false; }
+    if (k === n - 1) { yaw = c.to.yaw; pitch = c.to.pitch; inClose = c; closing = null; busy = false; }
   } else {
     const k = Math.floor(el * VFPS);
-    if (k < n) { draw(n - 1 - k); return; }
+    if (k < n) { closeCamera(1); draw(n - 1 - k); return; }
     cu.style.display = 'none'; const t = (el - n / VFPS) / T;
-    if (t < 1) { live(1 - t); return; }
-    live(0); setBars(0); closing = null; busy = false;
+    if (t < 1) { closeCamera(1 - t); return; }
+    closing = null; cuRect = null; yaw = c.from.yaw; pitch = c.from.pitch; fov = c.from.fov;
+    camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); busy = false;
   }
 }
 cu.addEventListener('click', () => { if (!inClose) return; const c = inClose; inClose = null; busy = true; c.dir = -1; c.t0 = performance.now(); closing = c; });
@@ -438,10 +507,13 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cu.click()
 // the door: its hotspot opens it (var 401 set; the game plays a movie here)
 async function openDoor() { V[401] = 1; const n = here; here = null; await go(n, false, true); drawSpots(here); }
 document.getElementById('womanbtn').onclick = async () => { if (busy) return; woman = !woman; document.getElementById('womanbtn').textContent = 'Woman: ' + (woman ? 'on' : 'off');
-  if (here === 'TOHO-0002') { const n = here; here = null; await go(n, false, true); } prefetchWalks(here); };
+  if (here === 'TOHO-0002') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
+document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = cap ? '24 fps' : 'full rate'; };
 document.getElementById('walkbtn').onclick = () => { walksOn = !walksOn; document.getElementById('walkbtn').textContent = 'Walks: ' + (walksOn ? 'on' : 'off'); };
 
 let here = null, now = null, fading = null;
+const cubeNow = () => now;
+const dropFade = () => { if (fading) { scene.remove(fading.old); fading = null; } };
 const hist = [];
 const sel = document.getElementById('sel');
 for (const n of names) sel.add(new Option(label(n), n));
@@ -458,7 +530,7 @@ async function go(n, push = true, fade = true) {
   document.getElementById('moves').textContent = (NODES[n] || []).map(s => `${what(s)} at heading ${s.rects[0][1]}°, pitch ${s.rects[0][0]}°`).join(' · ') || 'no moves';
   drawSpots(n);
   for (const s of NODES[n] || []) if (s.to) loadNode(shown(s.to));   // the next nodes' faces ready
-  prefetchWalks(n);
+  prioritise(n);
 }
 document.getElementById('back').onclick = () => { if (hist.length) go(hist.pop(), false); };
 document.getElementById('show').onclick = () => { spotMode = (spotMode + 1) % 4; drawSpots(here); };
@@ -471,6 +543,7 @@ addEventListener('keydown', e => {
   if (e.key === '-' || e.key === '_') fov = Math.min(FOV_MAX, fov * 1.25);
   if (e.key === 'Backspace' && hist.length && !busy) { e.preventDefault(); go(hist.pop(), false); }
   if (e.key === 'w' || e.key === 'W') document.getElementById('walkbtn').click();
+  if (e.key === 'r' || e.key === 'R') document.getElementById('fpsbtn').click();
 });
 
 // drag to look, click (or tap) a hotspot to move; the cursor shows a hotspot under it
@@ -526,8 +599,9 @@ for (const [n, spots] of Object.entries(NODES)) for (const sp of spots) {
 // to a close-up from the map: to its node, turned to the hotspot, with the close-up open
 async function openClose(k) {
   const c = CLOSE[k]; if (!c) return;
+  if (busy || inClose) return;
   if (here !== c.from) await go(c.from);
-  yaw = c.spot.rects[0][1]; pitch = c.spot.rects[0][0]; showFrame(c.spot.frame);
+  closeup(c.spot);
 }
 let useProp = true;                                         // the proposed places where there are any, or the model's
 const posOf = n => (useProp && PROP[n]) || (P[n] && P[n].pos) || null;
@@ -638,9 +712,13 @@ function drawMap() {
   c.fillStyle = 'rgba(200,200,200,.7)'; c.fillText('N↑  ● model  ■ placed  ◆ close-up  ◯ proposed  - - ' + (useProp ? 'model' : 'proposed'), 6, h - 8);
 }
 
+let cap = true, lastSlot = -1;                          // 24 fps: the view drawn at the walks' rate (an experiment)
 renderer.setAnimationLoop(() => {
-  stepClose(); stepWalk();
-  look();
+  const t = performance.now();
+  let ticks = null;
+  if (cap) { const slot = Math.floor(t * VFPS / 1000); if (slot === lastSlot) return; ticks = lastSlot < 0 ? 1 : Math.min(3, slot - lastSlot); lastSlot = slot; }
+  stepClose(t); stepWalk(t, ticks);
+  if (!closing && !inClose) look();
   if (fading) {
     const f = Math.min(1, (performance.now() - fading.t0) / 350);
     fading.next.children.forEach(m => m.material.opacity = f);
@@ -649,14 +727,17 @@ renderer.setAnimationLoop(() => {
   render(); drawMap();
 });
 window.nodeWalk = { go, move: to => { const s = (NODES[here] || []).find(s => s.to === to && holds(s.cond)); if (s) move(s); return !!s; },
-  previewWalk: async (id, h, k) => { await decodeWalk(id); wsphere.rotation.set(0, Math.PI - h * Math.PI / 180, 0); showWalkFrame(k); wsphere.visible = true; if (now) now.visible = false; },
+  previewWalk: async (id, h, k) => { await whenLoaded(id); const src = SRC.get(id); const bms = src.blob ? await seekFrames(src.blob, N, { imageOrientation: 'flipY' }) : null;
+    let t; if (bms) { t = newTex(); t.image = bms[k]; t.needsUpdate = true; } else { const p = player(src, false); p.feed(k); p.dec.flush(); while (!p.got[k] && !p.err) await new Promise(r => setTimeout(r, 20)); t = p.got[k]; }
+    wsphere.rotation.set(0, Math.PI - h * Math.PI / 180, 0); wmat.uniforms.map.value = t; wsphere.visible = true; if (now) now.visible = false; },
   hideWalk: () => { wsphere.visible = false; if (now) now.visible = true; },
+  get loaded() { return done; }, get total() { return total; }, get wc() { return wc; }, set cap(b) { cap = b; lastSlot = -1; },
   closeup: f => { const s = (NODES[here] || []).find(s => s.frame === f); if (s) closeup(s); return !!s; }, openDoor, V,
-  set cuHold(b) { cuHold = b; if (!b && closing) closing.t0 = performance.now() - 750; }, cuDraw: k => { if (closing) { cuHold = 'drawn'; cu.style.display = 'block'; cux.drawImage(closing.fr[k], 0, 0, 640, 360); } }, get closing() { return !!closing; },
+  set cuHold(b) { cuHold = b; if (!b && closing) closing.t0 = performance.now() - 900; }, cuDraw: k => { if (closing) { cuHold = 'drawn'; cu.style.display = 'block'; cux.drawImage(closing.fr[k], 0, 0, 640, 360); } }, get closing() { return !!closing; },
   get busy() { return busy; }, get walking() { return !!walking; }, get inClose() { return !!inClose; }, leaveClose: () => cu.click(), openClose, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; },
   set fisheye(b) { forceFish = b; }, set faces(b) { if (!!seams !== b) toggleSeams(); }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
 const h0 = decodeURIComponent(location.hash.slice(1));
-go(NODES[h0] ? h0 : byNum[+h0] || 'TOHO-0001');
+go(NODES[h0] ? h0 : byNum[+h0] || 'TOHO-0001').then(() => loadAll());
 addEventListener('hashchange', () => { const h = decodeURIComponent(location.hash.slice(1)), n = NODES[h] ? h : byNum[+h]; if (n && n !== here) go(n); });
 </script>
 </body>
