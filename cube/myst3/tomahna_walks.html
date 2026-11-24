@@ -585,6 +585,28 @@ function stepClose(now) {
 }
 function cuLeave() { if (!inClose) return; const c = inClose; inClose = null; busy = true; c.dir = -1; c.t0 = performance.now(); closing = c; }
 addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cuLeave(); });
+// the woman's idle loop at TOHO 2 (with "Woman: on"): the game loops scene movie 10002 there, a flat 216x288 picture on
+// a plane facing metadata v1 (0.939693, -0.34202, 0) in ScummVM's directions, its rectangle 224 208 216 288 in a
+// 640-face's units from the centre (movie_into_faces.py, which matched its empty first frame to the still within 4.95
+// levels); played from frame 160, the frame drawn into TOHO 2's faces and the walk's end, round and round, 15 a second
+const panelWoman = makePanel(19);
+const womanVid = document.createElement('video'); womanVid.src = 'doors/woman10002.mp4'; womanVid.muted = true; womanVid.loop = true; womanVid.playsInline = true; womanVid.preload = 'auto';
+{
+  const t = new THREE.VideoTexture(womanVid); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  panelWoman.material.uniforms.map.value = t; panelWoman.material.uniforms.feather.value = 0.02;
+  const n = new THREE.Vector3(0.939693, -0.34202, 0).normalize(), ua = new THREE.Vector3(n.z, 0, -n.x).normalize(), va = new THREE.Vector3().crossVectors(n, ua).normalize();
+  const [U, Vv, Wd, Hd] = [224, 208, 216, 288], L = (U - 320) / 320, Rr = (U + Wd - 320) / 320, T = (320 - Vv) / 320, B = (320 - Vv - Hd) / 320;
+  const pos = panelWoman.geometry.attributes.position;
+  [[L, T], [Rr, T], [L, B], [Rr, B]].forEach(([x, y], i) => { const v = sv(n.clone().add(ua.clone().multiplyScalar(x)).add(va.clone().multiplyScalar(y))).multiplyScalar(D); pos.setXYZ(i, v.x, v.y, v.z); });
+  pos.needsUpdate = true;
+}
+let womanShown = false;
+function stepWoman() {
+  const want = woman && here === 'TOHO-0002' && !walking && !closing && !inClose;
+  if (want === womanShown) return;
+  womanShown = want; panelWoman.visible = want;
+  if (want) { womanVid.currentTime = 160 / 15; womanVid.play().catch(() => {}); } else womanVid.pause();
+}
 // the door: its hotspot plays the game's movie of the door opening, with its sound, on a panel in the room where the
 // movie's view lies (found by matching its first frame to the node's faces: a level camera, 80 degrees across, at
 // heading 187.75 from TOHO 4 and 360 from TOHO 5; first frame against the shut door 4.3 and 2.2 levels, last against
@@ -841,7 +863,7 @@ renderer.setAnimationLoop(() => {
   const t = performance.now();
   let ticks = null;
   if (cap) { const slot = Math.floor(t * VFPS / 1000); if (slot === lastSlot) return; ticks = lastSlot < 0 ? 1 : Math.min(3, slot - lastSlot); lastSlot = slot; }
-  stepClose(t); stepWalk(t, ticks); stepDoor(t);
+  stepClose(t); stepWalk(t, ticks); stepDoor(t); stepWoman();
   if (!closing && !inClose) look();
   if (fading) {
     const f = Math.min(1, (performance.now() - fading.t0) / 350);
