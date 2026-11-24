@@ -591,8 +591,9 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cuLeave();
 // levels). Its frames as TOHO 2's scripts play them (myst3.dat; ScummVM's movie start and end frame variables, 27 and 28,
 // counted from 1): frames 2 to 73 round and round until you look her way (heading 66 to 126), then on to 349 and round
 // 289 to 349. Here it starts at frame 160 (the frame drawn into TOHO 2's faces and the walk's end) and plays on into the
-// 289-349 loop, the looked-at state, so nothing jumps on arrival. Not done: the first 2-73 loop, and 11002, which the
-// scripts loop instead once you have been to the study (variable 400). Counted from 0 below.
+// 289-349 loop. Here only the baby-bouncing loop plays, 289 to 349 (the maintainer: skip the part where she turns to talk,
+// frames 74 to 288, where the speech is), starting at frame 300, the bounce frame nearest the walk's end (frame 160; 9.6
+// levels apart, a neighbouring step 3.1), until the faces and walk are made with frame 300. Counted from 0 below.
 const panelWoman = makePanel(19);
 const womanVid = document.createElement('video'); womanVid.src = 'doors/woman10002.mp4'; womanVid.muted = true; womanVid.loop = false; womanVid.playsInline = true; womanVid.preload = 'auto';
 {
@@ -619,6 +620,27 @@ const womanVid1 = document.createElement('video'); womanVid1.src = 'doors/woman1
   [[L, T], [Rr, T], [L, B], [Rr, B]].forEach(([x, y], i) => { const v = sv(n.clone().add(ua.clone().multiplyScalar(x)).add(va.clone().multiplyScalar(y))).multiplyScalar(D); pos.setXYZ(i, v.x, v.y, v.z); });
   pos.needsUpdate = true;
 }
+// and from TOHO 3 and TOHO 4: their scripts loop movies 10003 (always) and 10004 (variable 27, which TOHO 4's entry sets)
+// from frame 2 (variable 142), small views of her bouncing the baby from those places (v1 and rectangles from the
+// archive, m3_movie_place.py; frame 1 is the spot without her; last frame against frame 2: 1.5 and 1.4 levels, a
+// neighbouring step 1.7 and 2.5). TOHO 3's dialog movie 11003 is left out, as her talking is at TOHO 2.
+function loopPanel(src, v1, rect) {
+  const m = makePanel(19), vid = document.createElement('video'); vid.src = src; vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'auto';
+  const t = new THREE.VideoTexture(vid); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  m.material.uniforms.map.value = t; m.material.uniforms.feather.value = 0.03;
+  const n = new THREE.Vector3(...v1).normalize(), ua = new THREE.Vector3(n.z, 0, -n.x).normalize(), va = new THREE.Vector3().crossVectors(n, ua).normalize();
+  const [U, Vv, Wd, Hd] = rect, L = (U - 320) / 320, Rr = (U + Wd - 320) / 320, T = (320 - Vv) / 320, B = (320 - Vv - Hd) / 320, pos = m.geometry.attributes.position;
+  [[L, T], [Rr, T], [L, B], [Rr, B]].forEach(([x, y], i) => { const v = sv(n.clone().add(ua.clone().multiplyScalar(x)).add(va.clone().multiplyScalar(y))).multiplyScalar(D); pos.setXYZ(i, v.x, v.y, v.z); });
+  pos.needsUpdate = true; return { m, vid, shown: false };
+}
+const LOOPS = { 'TOHO-0003': loopPanel('doors/woman10003.mp4', [1, 0, 0], [272, 328, 120, 168]), 'TOHO-0004': loopPanel('doors/woman10004.mp4', [0, -0.139173, 0.990268], [400, 288, 184, 248]) };
+function stepLoops() {
+  for (const [node, l] of Object.entries(LOOPS)) {
+    const want = woman === 2 && here === node && !walking && !closing && !inClose;
+    if (want === l.shown) continue;
+    l.shown = want; l.m.visible = want; if (want) { l.vid.currentTime = 0; l.vid.play().catch(() => {}); } else l.vid.pause();
+  }
+}
 let womanShown1 = false;
 let womanShown = false;
 function stepWoman() {
@@ -629,7 +651,7 @@ function stepWoman() {
   if (womanShown && womanVid.ended) { womanVid.currentTime = (288 + 0.5) / 15; womanVid.play().catch(() => {}); }
   if (want === womanShown) return;
   womanShown = want; panelWoman.visible = want;
-  if (want) { womanVid.currentTime = (160 + 0.5) / 15; womanVid.play().catch(() => {}); } else womanVid.pause();
+  if (want) { womanVid.currentTime = (299 + 0.5) / 15; womanVid.play().catch(() => {}); } else womanVid.pause();
 }
 // the door: its hotspot plays the game's movie of the door opening, with its sound, on a panel in the room where the
 // movie's view lies (found by matching its first frame to the node's faces: a level camera, 80 degrees across, at
@@ -773,6 +795,10 @@ async function openClose(k) {
   if (here !== c.from) await go(c.from);
   closeup(c.spot);
 }
+for (const k of Object.keys(P)) {                     // other states of one place (104, 105: 4 and 5 with the door open) drawn once
+  const b = P[String(+k - 100)];
+  if (!CLOSE[k] && +k % 1000 >= 100 && b && P[k].pos.every((x, i) => Math.abs(x - b.pos[i]) < 1e-6)) delete P[k];
+}
 let useProp = true;                                         // the proposed places where there are any, or the model's
 const posOf = n => (useProp && PROP[n]) || (P[n] && P[n].pos) || null;
 const other = n => useProp ? (PROP[n] && P[n] ? P[n].pos : null) : (PROP[n] || null);   // shown dashed
@@ -887,7 +913,7 @@ renderer.setAnimationLoop(() => {
   const t = performance.now();
   let ticks = null;
   if (cap) { const slot = Math.floor(t * VFPS / 1000); if (slot === lastSlot) return; ticks = lastSlot < 0 ? 1 : Math.min(3, slot - lastSlot); lastSlot = slot; }
-  stepClose(t); stepWalk(t, ticks); stepDoor(t); stepWoman();
+  stepClose(t); stepWalk(t, ticks); stepDoor(t); stepWoman(); stepLoops();
   if (!closing && !inClose) look();
   if (fading) {
     const f = Math.min(1, (performance.now() - fading.t0) / 350);
