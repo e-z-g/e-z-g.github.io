@@ -522,8 +522,11 @@ async function closeup(s) {
   const fr = CU.get(id); if (!fr) { busy = false; return showFrame(s.frame); }
   const f0 = Math.min(fov, 110), q1 = quatOf(s.rects[0][1], s.rects[0][0]), n = fr.length;
   const R = Array.from({ length: n }, (_, k) => frameRect(id, k));
-  // each frame's zoom from the first (log), made strictly rising so the frames where H3 settles still come in turn
-  const Z = []; R.forEach((r, k) => { Z.push(Math.max(k ? Z[k - 1] + 1e-3 : 0, R[0].lw - r.lw)); });
+  // the frames' places along the move: each frame's zoom from the first (log), never falling, with 15% of the move shared
+  // out evenly by frame, so the last frames, where H3 barely zooms (and the last, the game's own close-up, takes over),
+  // still get their share of time and are blended in, not passed in an instant
+  const Zr = []; R.forEach((r, k) => { Zr.push(Math.max(k ? Zr[k - 1] : 0, R[0].lw - r.lw)); });
+  const Z = Zr.map((z, k) => 0.85 * z + 0.15 * Zr[n - 1] * k / (n - 1));
   closing = { id, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 }, fr, R, Z, gain: COL[id], t0: performance.now(), dir: 1, s };
   placeCu(0);
 }
@@ -543,16 +546,26 @@ function placeCu(t) {
   const c = closing || inClose, n = c.fr.length, e = ease(t), Zf = c.Z[n - 1], z = ease5(t) * Zf;
   let k = 0; while (k < n - 2 && c.Z[k + 1] <= z) k++;
   const f = Math.max(0, Math.min(1, (z - c.Z[k]) / (c.Z[k + 1] - c.Z[k])));
-  setPanel(panelA, c, k); setPanel(panelB, c, k + 1); panelB.material.uniforms.alpha.value = f;
-  const A = c.R[k], B = c.R[k + 1], lerp = (x, y) => x + (y - x) * f;
-  const R = { cx: lerp(A.cx, B.cx), cy: lerp(A.cy, B.cy), lw: lerp(A.lw, B.lw), roll: lerp(A.roll, B.roll) };
+  setPanel(panelA, c, k); setPanel(panelB, c, k + 1);
+  const lerp = (x, y) => x + (y - x) * f;
+  // the camera's target through the frames' places on a smooth curve (Catmull-Rom), not straight from one to the next
+  const Q = i => c.R[Math.max(0, Math.min(n - 1, i))], crv = key => { const p0 = Q(k - 1)[key], p1 = Q(k)[key], p2 = Q(k + 1)[key], p3 = Q(k + 2)[key];
+    return 0.5 * (2 * p1 + (p2 - p0) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f + (3 * p1 - p0 - 3 * p2 + p3) * f * f * f); };
+  const R = { cx: crv('cx'), cy: crv('cy'), lw: crv('lw'), roll: crv('roll') };
+  // the room alone while it is sharp enough (H3's frames swim against it and each other); the video fades in as the
+  // zoom passes 1.25 to 2 times (or 80% of the whole zoom, for the shorter moves), where its detail is needed
+  const zf = c.R[0].lw - R.lw, z0 = Math.log(1.25), z1 = Math.min(Math.log(2), 0.8 * c.Z[n - 1]);
+  const vis = z1 > z0 ? ease(Math.max(0, Math.min(1, (zf - z0) / (z1 - z0)))) : 1;
+  panelA.material.uniforms.alpha.value = vis; panelB.material.uniforms.alpha.value = f * vis;
   if (c.gain) { const gA = c.gain[k], gB = c.gain[k + 1]; grade([0, 1, 2].map(i => Math.pow(lerp(gA[i], gB[i]), 2.2))); }   // sRGB ratios as linear gains
   const W = innerWidth, H = innerHeight, [bw, bh] = box(), w = W + (bw - W) * e, h = H + (bh - H) * e;
   cuRect = [(W - w) / 2, (H - h) / 2, w, h];
   // aim: from the eye's own way to the panel's way, then rolled with the frame; the frame's centre, seen in the rolled
   // camera, is reached by shifting the lens (an off-centre frustum), so the frame's edges stay parallel to the box's
-  const roll = R.roll * e;
-  camera.quaternion.copy(c.from.q).slerp(c.to.q, e).multiply(rollQ.setFromAxisAngle(zAxis, roll));
+  // the turn ends early (by 60% of the move), while the lens is still wide: the same turn late in the zoom swept the
+  // picture far faster, and the move ended in a rush
+  const er = ease(Math.min(1, t / 0.6)), roll = R.roll * e;
+  camera.quaternion.copy(c.from.q).slerp(c.to.q, er).multiply(rollQ.setFromAxisAngle(zAxis, roll));
   const cr = Math.cos(-roll), sr = Math.sin(-roll), ox = (R.cx * cr - R.cy * sr) * e, oy = (R.cx * sr + R.cy * cr) * e;
   const a = Math.exp(Math.log(c.from.a) * (1 - e) + R.lw * e), b2 = a * h / w, nr = camera.near;   // half width and height, tan units
   camera.projectionMatrix.makePerspective((ox - a) * nr, (ox + a) * nr, (oy + b2) * nr, (oy - b2) * nr, nr, camera.far);
@@ -577,7 +590,17 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cuLeave();
 // heading 187.75 from TOHO 4 and 360 from TOHO 5; first frame against the shut door 4.3 and 2.2 levels, last against
 // the open door, node 104 and 105's faces, 4.5 and 2.9), then the node's faces with the door open take over
 const panelDoor = makePanel(22);
-let opening = null;
+let opening = null, openCube = null;
+// how far the door has opened at each of the movie's frames: the frame's mean difference from the first, as a share of the
+// last frame's (measured once per movie, on small copies)
+function doorProgress(fr) {
+  const cv = document.createElement('canvas'); cv.width = 64; cv.height = 36; const x = cv.getContext('2d', { willReadFrequently: true });
+  const px = b => { x.drawImage(b, 0, 0, 64, 36); return x.getImageData(0, 0, 64, 36).data; };
+  const f0 = px(fr[0]), fn = px(fr[fr.length - 1]), d = a => { let s = 0; for (let i = 0; i < a.length; i += 4) s += Math.abs(a[i] - f0[i]) + Math.abs(a[i + 1] - f0[i + 1]) + Math.abs(a[i + 2] - f0[i + 2]); return s; };
+  const total = d(fn) || 1, out = fr.map(b => Math.min(1, d(px(b)) / total));
+  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1]);   // never closing again
+  out[out.length - 1] = 1; return out;
+}
 async function openDoor(s) {
   const d = DOORS[s.args[1]];
   if (!walksOn || !d) { V[401] = 1; const n = here; here = null; await go(n, false, true); drawSpots(here); return; }
@@ -585,18 +608,24 @@ async function openDoor(s) {
   if (!CU.has(d.id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading the door…'; queue.sort((x, y) => (y.id === d.id) - (x.id === d.id)); await whenLoaded(d.id); busyEl.style.display = 'none'; }
   const fr = CU.get(d.id), q = quatOf(d.h, d.p), t = Math.tan(d.fov * Math.PI / 360), pos = panelDoor.geometry.attributes.position;
   [[-t, t * 9 / 16], [t, t * 9 / 16], [-t, -t * 9 / 16], [t, -t * 9 / 16]].forEach(([x, y], i) => { tmpV.set(x * D, y * D, -D).applyQuaternion(q); pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); });
-  pos.needsUpdate = true; panelDoor.material.uniforms.feather.value = 0.03;
+  pos.needsUpdate = true; panelDoor.material.uniforms.feather.value = 0.06;
   panelDoor.userData.tex.image = fr[0]; panelDoor.userData.tex.needsUpdate = true; panelDoor.visible = true;
+  // the movie's frame covers only the lower part of the tall door (80 degrees across, 25 up and down from level): above
+  // and round it, the node's open-door faces fade in over the shut ones as the movie's door opens
+  if (!d.progress) d.progress = doorProgress(fr);
+  const open = cube(await loadNode('TOHO-0' + (100 + +here.slice(5)))); open.children.forEach(m => { m.material.opacity = 0; m.renderOrder = 1; });
+  scene.add(open); openCube = open;
   playSound(d.id);
-  opening = { fr, t0: performance.now(), k: 0, node: here };
+  opening = { fr, t0: performance.now(), k: 0, node: here, progress: d.progress };
 }
 function stepDoor(now) {
   const o = opening; if (!o) return;
   const k = Math.min(o.fr.length - 1, Math.floor((now - o.t0) / 1000 * 15));
   if (k !== o.k) { o.k = k; panelDoor.userData.tex.image = o.fr[k]; panelDoor.userData.tex.needsUpdate = true; }
+  if (openCube) openCube.children.forEach(m => { m.material.opacity = o.progress[k]; });
   if (k < o.fr.length - 1 || now - o.t0 < o.fr.length / 15 * 1000) return;
   opening = null; V[401] = 1; here = null;
-  go(o.node, false, false).then(() => { panelDoor.visible = false; drawSpots(here); busy = false; });
+  go(o.node, false, false).then(() => { panelDoor.visible = false; if (openCube) { scene.remove(openCube); openCube.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); openCube = null; } drawSpots(here); busy = false; });
 }
 document.getElementById('womanbtn').onclick = async () => { if (busy) return; woman = !woman; document.getElementById('womanbtn').textContent = 'Woman: ' + (woman ? 'on' : 'off');
   if (here === 'TOHO-0002') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
