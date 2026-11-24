@@ -2007,7 +2007,7 @@ standing at it. Shipped in `scene_age` (12 November 2026). The node walk's map
 No picture sees both an interior and the outside, so the model cannot tie an
 interior's place or scale to the rest. An interior fused into the mesh puts
 its room in the wrong place, and its pictures projected onto the mesh paint
-the outside with the inside. Sam sorted the nodes, on 12 November 2026:
+the outside with the inside. The maintainer sorted the nodes, on 12 November 2026:
 
 | nodes | what | in the mesh |
 |---|---|---|
@@ -2020,7 +2020,7 @@ the outside with the inside. Sam sorted the nodes, on 12 November 2026:
 | MASS 57 | MASS 90 with its platform raised to MATO 7's height (MATO 7: the middle of the top of the central structure, where the marble ride starts) | not in the model; pictures only |
 | MACA 3–13 | mostly tunnels with little outside; they place well | kept |
 
-Sam also put the step from MACA 1 to MAIS 1 at a normal walk; the model has
+The maintainer also put the step from MACA 1 to MAIS 1 at a normal walk; the model has
 4.5 spacings (MACA 1 is a placed node). Pitches of that pair's hotspots: −10
 from MACA 1, +1 from MAIS 1, so MACA 1 stands about 0.1 above MAIS 1 at a
 step of 1. Proposed on the node walk's map at that place
@@ -2042,7 +2042,7 @@ a movie). MATO 10, 11 and 12 wait for a place.
 
 ### MACA's upper caves (12 November 2026)
 
-Sam: MACA 1 to MAIS 1, MACA 1 to 2 and MACA 3 to 4 are normal steps; MACA 2 to
+The maintainer: MACA 1 to MAIS 1, MACA 1 to 2 and MACA 3 to 4 are normal steps; MACA 2 to
 3 goes down a steep staircase of several nodes (MACA 28, 29, 30, 31); MACA 4 to
 7 looked squished. The model had MACA 1 4.5 spacings from MAIS 1, and MACA 5
 and 6 (placed nodes) 0.33 and 0.12 apart, with MACA 7 0.89 from MACA 4 though
@@ -2053,7 +2053,7 @@ caves sit about three spacings too far from MAIS 1 and too near MACA 7.
 stairs 2.4–3.0, MACA 3 and 4 1.9–2.0, MACA 5 1.3. Every walk comes out at
 0.97–1.28 spacings and every hotspot heading within 15° but two: MACA 4 to 7
 (the zip at 76°, fitted 50°) and MACA 28–29 (22°); MACA 4 to 7 is 2.84. On the
-node walk's map as the proposal (`proposed_caves.json`). Sam agreed (12
+node walk's map as the proposal (`proposed_caves.json`). The maintainer agreed (12
 November 2026): the stairs' hotspots do not point straight at the next node,
 and the zip's hotspot stands in for a view it cannot see past.
 
@@ -2111,7 +2111,7 @@ MATO 12, 11, 10 in a line along heading 270, MATO 10 the far end, where the
 marble track runs on out to sea; looking back along heading 90 it sees the
 central structure across the water with the ride's cart in front.
 
-Sam found MATO 10's platform in MAIS 30's face 4 (heading 270); MAIS 6's face 4,
+The maintainer found MATO 10's platform in MAIS 30's face 4 (heading 270); MAIS 6's face 4,
 1.79 spacings straight below, shows it too, so the two give its distance by
 parallax. The platform's red post (its top and its foot read off both 640 px
 faces) is 7.1 and 6.9 spacings ahead along heading 270; the two views put it
@@ -2161,7 +2161,7 @@ hotspots to 18.
 
 ### MAWW 1–3 and MALL 17 (13 November 2026)
 
-Sam: MAWW 3 is past the door seen from MAIS 19, about one pace towards MAIS 19's
+The maintainer: MAWW 3 is past the door seen from MAIS 19, about one pace towards MAIS 19's
 face 1; MAWW 2 one pace further; MAWW 1 is MAWW 2 with the platform raised, as
 MALL 17 is MALL 8 raised. The scripts agree. MAIS 19's hotspot at heading 180
 and MAWW 3's at 359 each set variable 190 to the other room (1005, 1002; op 53)
@@ -2174,7 +2174,7 @@ table (`DOORS`), as its room files do not keep the op.
 
 MAWW 3 and 2 are pictures-only nodes 1 and 2 spacings from MAIS 19 along face 1,
 level with it. MAWW 1 is above MAWW 2, and MALL 17 is moved above MALL 8 and made
-pictures-only. Both rise 3 spacings, Sam's estimate from the raised views (13
+pictures-only. Both rise 3 spacings, the maintainer's estimate from the raised views (13
 November 2026), the same as the MACA lift's measured 3.0. MALL 17's old place, 3.7 spacings off, came from its neighbours'
 hotspots, not from pictures. Its depth is still fused into the mesh there;
 `age_v9.ps1` fuses again without it. In MAWW the hotspots agree with the places:
@@ -2238,7 +2238,7 @@ taken further yet.
 
 ### Shards on the glides (17 November 2026)
 
-Sam: walks between nodes show shards everywhere once a place is complicated, in
+The maintainer: walks between nodes show shards everywhere once a place is complicated, in
 J'nanin and Amateria (LEIS 76 to 33 is good). The walk test's hole count missed
 them (it counts surface no node sees; shards are seen surface in the wrong
 shape). Its largest step-to-step change of the view does show them: LEIS 76–33
@@ -2267,7 +2267,7 @@ DIR jnanin/scene_age --repo-type dataset`.
 
 ### Walks rendered, then cleaned by H3 at low denoise (18 November 2026)
 
-Sam's idea, after the warped views and the fused mesh both left shards: render the
+The maintainer's idea, after the warped views and the fused mesh both left shards: render the
 glide from the geometry (its layout and motion right, its surfaces broken), then let
 a video model clean it at low denoise, the game's own first and last frames held.
 
@@ -2299,7 +2299,7 @@ a video model clean it at low denoise, the game's own first and last frames held
    versions there and back, switching at the same moment. `pc_scripts/lowdenoise_walk.ps1`
    makes one walk (about 35 minutes on the PC).
 
-Sam, 18 November 2026: plain H3 (no render) reads far better than any low-denoise
+The maintainer, 18 November 2026: plain H3 (no render) reads far better than any low-denoise
 version, so the render pass was dropped.
 
 ### H3 walks as two fisheyes, plus the game's detail (18 November 2026)
@@ -2312,7 +2312,7 @@ angle from the horizon). Only the end frames have a true picture to compare with
 
 - **Layout.** Two 190-degree equidistant fisheyes side by side, one straight along the
   walk and one straight back (`walk_ends.py --dual-fisheye 190 --along-motion`; the
-  5 degrees of overlap are crossfaded in the viewer and the seam does not show). Sam:
+  5 degrees of overlap are crossfaded in the viewer and the seam does not show). The maintainer:
   smooth, no distortion. The single looking-down fisheye pinched (equal-area worse);
   ends aimed at each node's dullest spot (`--auto-aim`) made H3 jump to a clone of the
   place instead of walking.
@@ -2332,7 +2332,7 @@ angle from the horizon). Only the end frames have a true picture to compare with
   nodes' own drawings onto each frame along chained RAFT flow, mixed by how far along
   the walk the frame is, only where the flow checks out there and back (all of the end
   frames, about a third mid-walk). Carried across a whole walk from one end it scores
-  worse than H3 alone (SSIM 0.711 against 0.733 on LEIS 78); in motion Sam slightly
+  worse than H3 alone (SSIM 0.711 against 0.733 on LEIS 78); in motion the maintainer slightly
   prefers it to plain 3328, and it is the first choice for now. Untried on other
   scenes: thin things, water, reflections and quick parallax are where flow fails.
 
@@ -2355,7 +2355,7 @@ scores 5.5 for color and 2.2 for detail. That is what resampling alone costs.
 | the same with a 240-degree fisheye | 7.6 | 12.7 | 2.1 |
 | the same at denoise 0.2 | 7.4 | 12.8 | 2.0 |
 
-- **The seam.** Sam found it plain on MACA, where it never showed on LEIS. The first
+- **The seam.** The maintainer found it plain on MACA, where it never showed on LEIS. The first
   and last frames match. Mid-walk H3 draws different things in the two circles' overlap
   (a red beam in one only, rock edges at other angles), so the seed changes little. A
   wider overlap (200 degrees) spreads the mismatch without making it smaller. The
@@ -2369,7 +2369,7 @@ scores 5.5 for color and 2.2 for detail. That is what resampling alone costs.
   `seam_pass.py back` copies the band within 12 degrees of the seam into both circles and
   fades it in. The score falls to 7.3 even with no H3 pass, because both circles then
   show the same pixels, so the pictures are the evidence that the pass joins the scene.
-  Sam judged the seam much less obvious, and denoise 0.3 clearly better than 0.2. Sam
+  The maintainer judged the seam much less obvious, and denoise 0.3 clearly better than 0.2. The maintainer
   saw no difference between a 360-degree and a 240-degree fisheye (`--single-fov 240`,
   1.5 times the pixels at the seam), and 240 is the base. The seam pass runs before
   `detail_transfer.py` (`colmap/seam_pass.ps1`, then `colmap/seam_pass_post.ps1`), so
@@ -2442,7 +2442,7 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
   nodes nearest the line are 1082 (fraction 0.03, 1.88 off the line), 1048 (0.61, 3.39
   off), 1083 (0.96, 2.37 off) and 1047 (1.06, 1.26 off). None stands near the middle of
   the walk.
-- **The viewer.** At Sam's request the viewer holds only the 22-frame 1060 to 1067 walks:
+- **The viewer.** At the maintainer's request the viewer holds only the 22-frame 1060 to 1067 walks:
   seeds 3, 4 and 5, and seed 4 with the halfway guide. A staggered fade over frames 8
   to 16 and the 8-step and no-LoRA runs were removed.
   On 21 November seed 4 with the plan was added, and the two 73-frame seed 2 walks of
@@ -2453,40 +2453,40 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 - **A longer first pass (`-P1Frames 73 -P1Size 1792x896`).** Pass 1 at 73 frames, its
   frames thinned to 22 for pass 3 at 2560x1280. Seed 4 was stopped in pass 3 (pass 1 is
   kept in `walk3_leis_1060_1067_22_s4_p73` on the PC): its pass 1 is the recipe of the
-  73-frame walk without the plan, which Sam found warped and ghosting. Sam found the plan
+  73-frame walk without the plan, which the maintainer found warped and ghosting. The maintainer found the plan
   alone at 22 frames didn't really help (22 November 2026), so seed 4 was run again with
   both, `-P1Frames 73 -P1Size 1792x896 -Plan` (`walk3_leis_1060_1067_22_s4_plan_p73`), and
   put in the viewer as "Seed 4, plan, 73-frame first pass".
-  Sam: the tower and bridge fade less, but still a bit, and the motion is jerky. Measured
+  The maintainer: the tower and bridge fade less, but still a bit, and the motion is jerky. Measured
   with optical flow (median motion per step, 512 px across), the walk is the evenest of the
   three: steps vary by 21% of the mean, against 39% for the 22-frame plan walk and 42% for
   the 73-frame plan walk (whose every fourth step is twice the others, one jump per H3
   latent of 4 frames). It plays 22 frames in 0.9 seconds, though, and slows from about 6.5
   to 2.3 per step towards 1067.
 - **Frames drawn between.** Three frames drawn between each pair from DIS optical flow (a
-  script since removed) made 22 frames into 85 with even steps. Sam: "Smeary mess", as
+  script since removed) made 22 frames into 85 with even steps. The maintainer: "Smeary mess", as
   with interpolation tried before (`film_stretch.py`, FILM). Taken out of the viewer.
-- **39 frames in both passes (`-Frames 39 -Size 2432x1216 -Plan`).** Sam: the jerk is only
+- **39 frames in both passes (`-Frames 39 -Size 2432x1216 -Plan`).** The maintainer: the jerk is only
   in the 73-frame walks; walks at 22 frames in both passes have been smooth. 39 frames fit
   the 16 GB card at 2432x1216 (pass 1 12 minutes, pass 3 14). Prompts
   `leis_1060_1067_39_*.txt`, the last picture at 1.58 seconds. Every fourth step is 1.3 to
   1.65 times the others (about 2 at 73 frames); steps vary by 19% of the mean against 31%
   for plain seed 4 at 22 frames. `-Step p3` resumes a walk from pass 3 with pass 1 kept.
-- **Back to 22 frames.** Sam, 22 November 2026: the 39-frame walk, the 22-frame walk thinned
+- **Back to 22 frames.** The maintainer, 22 November 2026: the 39-frame walk, the 22-frame walk thinned
   from 73 and the 73-frame walk are all jerky, while plain 22 (both passes at 22, no plan) is
   not; the step measure above does not predict that (plain 22 varies more). The walks stay
   at 22 frames in both passes, and the viewer lists seeds 3, 4, 5 and the halfway guide
   again (the other versions' files are still served).
-- **The double image and pass 3's denoise (23 November 2026).** Sam saw the tower drawn twice while the camera
+- **The double image and pass 3's denoise (23 November 2026).** The maintainer saw the tower drawn twice while the camera
   crests the rock, joining into one at the end. It was `pole_blend.py` mixing pass 1 and pass 3, which at denoise
   0.5 drew things a median 12 px apart in the 55 to 75 degree band (60 to 120 px for the worst tenth mid-walk): gone
   with either pass alone, still there with `--flow`, `--agree` and narrower or per-end fades (`--fade-back`), which
   only moved it (onto the ground below, on this walk). Pass 3 at denoise 0.3 (5 px apart) or 0.2 (2.6 px), with the
-  usual `--fade 55 75`: Sam found both clean, no doubling and no smear, 0.3 perhaps slightly better on the near part
+  usual `--fade 55 75`: the maintainer found both clean, no doubling and no smear, 0.3 perhaps slightly better on the near part
   of the bridge. 0.3 is the default since. The near part of the bridge and the ladder are still the weakest parts.
-- **The tower and the bridge.** Sam sees the tower (the building that looks like a
+- **The tower and the bridge.** The maintainer sees the tower (the building that looks like a
   lighthouse, with gold bands and a dome) and the bridge fade in and out in every seed,
-  where they should move. More steps did not help (Sam). In seed 4 the tower is already
+  where they should move. More steps did not help (the maintainer). In seed 4 the tower is already
   half see-through in the first H3 pass, so the fade comes from H3 and not from
   `pole_blend.py`. The blend does draw the big rock twice in the 55 to 75 degree band at
   frame 10 (`reference/myst3/blend_check/s4_sheet.jpg`).
@@ -2497,7 +2497,7 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
   + T B. `walk_polar3.ps1 -Mid 0.5` holds that picture at its frame in the first H3
   pass only. On seed 4 the tower came out solid at frame 10 (`blend_check/s4mid_sheet.jpg`),
   and the pale rock near the camera took a stretched shape with an orange smudge from
-  depth errors. Sam found it helped little: the tower still fades, and the bridge does too.
+  depth errors. The maintainer found it helped little: the tower still fades, and the bridge does too.
 - **Why the guide fades too.** LEIS 1060's upward face (face 6) is 92% sky in its depth
   map, where SegFormer found 30%. `node_depth.py` widens the sky to every pixel the
   network puts as far as the farthest 1% of SegFormer's sky, and on that face the bridge
@@ -2546,7 +2546,7 @@ Seam score (`seam_score.py`, color, median and worst frame) of each walk:
 
 ### Files moved off the Mac (12 November 2026)
 
-At Sam's request, the Mac's working copies under `reference/myst3` that the
+At the maintainer's request, the Mac's working copies under `reference/myst3` that the
 work has moved past went to the PC, `C:\myst3_out\mac_archive\<the same
 path>`: `scene_mesh/` `age_full`, `age_orig`, `carved`, `carved_v1`, `v2`,
 `v4`, `v6`, `v6_test`, `carved_sky`, `crop_6m`, `crop_refined`, `crop_full`,
