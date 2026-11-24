@@ -11,6 +11,10 @@ outward; back is the column opposite. For each step (frame k to k+1), in pixels 
   rise   the median vertical flow along the whole horizon band (the camera moving up or down; a pitch turn cancels);
   nod    half the difference of the vertical flow ahead and behind (the camera pitching);
   yaw    the mean sideways flow ahead and behind (the camera turning).
+  travel the step's length in eye heights, from the floor beside the camera (60-120 degrees either side of forward,
+         45-65 degrees below the horizon, taken as level ground): a floor point at bearing L and depression D moves
+         round by dL = t sin L tan D for a step t (in eye heights), less the yaw. A second band, 30-45 degrees down,
+         is printed beside it as a check (it agrees where the ground there is floor, not plants or a wall).
 Printed per walk: speed's mean and its variation (standard deviation over mean, steps 2 to n-2, the ends left out as
 they meet the stills), and the RMS of rise, nod and yaw about their means. A glide has low speed variation and near-zero
 rise, nod and yaw; a walking gait shows up as rise and nod swinging, and speed pulsing, at the step rate.
@@ -58,13 +62,23 @@ def main():
     a = ap.parse_args(); W = a.width; H = W // 2
     dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
     band = slice(H // 2 - H // 9, H // 2 + H // 9)              # the horizon, +-20 degrees
-    print(f'{"walk":28s} {"speed":>6s} {"var":>5s} {"rise":>5s} {"nod":>5s} {"yaw":>5s}')
+    print(f'{"walk":28s} {"speed":>6s} {"var":>5s} {"rise":>5s} {"nod":>5s} {"yaw":>5s} {"length":>6s} {"check":>6s} {"tvar":>5s}')
+    lam = ((np.arange(W) + .5) / W * 2 - 1) * np.pi; dep = ((np.arange(H) + .5) / H - 0.5) * np.pi   # bearing; depression
+
+    def travel(fx, fw, yaw_px, d0, d1):
+        rows = slice(int((d0 / 180 + .5) * H), int((d1 / 180 + .5) * H))
+        L = np.roll(lam, W // 2 - fw)                                  # bearings from the way ahead
+        side = (np.abs(np.abs(L) - np.pi / 2) < np.pi / 6)
+        dl = (fx[rows][:, side] - yaw_px) * 2 * np.pi / W
+        t = dl / (np.sin(L[side])[None] * np.tan(dep[rows])[:, None])
+        return float(np.median(t))
     for v in a.videos:
-        flows = []; prev = None
+        flows = []; fulls = []; prev = None
         for g in frames(v, a.frames, W, a.squash):
             if prev is not None:
-                f = dis.calc(prev, g, None)[band]
+                full = dis.calc(prev, g, None); f = full[band]
                 flows.append((np.median(f[..., 0], axis=0), np.median(f[..., 1], axis=0)))   # per column
+                fulls.append(full[..., 0].copy())
             prev = g
         dx = np.array([x for x, _ in flows]); dy = np.array([y for _, y in flows])         # steps x columns
         k = np.exp(-0.5 * (np.arange(-W // 16, W // 16 + 1) / (W / 64)) ** 2); s0 = dx.sum(0)
@@ -78,14 +92,16 @@ def main():
         rise = np.median(dy, 1)
         nod = (np.median(dy[:, cols(fw, 15)], 1) - np.median(dy[:, cols(bk, 15)], 1)) / 2
         yaw = (np.median(dx[:, cols(fw, 15)], 1) + np.median(dx[:, cols(bk, 15)], 1)) / 2
+        tr = np.array([travel(fx, fw, yaw[k], 45, 65) for k, fx in enumerate(fulls)])
+        tr2 = np.array([travel(fx, fw, yaw[k], 30, 45) for k, fx in enumerate(fulls)])
         mid = slice(1, len(speed) - 1)
         var = speed[mid].std() / abs(speed[mid].mean())
         rms = lambda s: np.sqrt(((s[mid] - s[mid].mean()) ** 2).mean())
-        print(f'{os.path.basename(v)[:28]:28s} {speed[mid].mean():6.2f} {var:5.2f} {rms(rise):5.2f} {rms(nod):5.2f} {rms(yaw):5.2f}'
+        print(f'{os.path.basename(v)[:28]:28s} {speed[mid].mean():6.2f} {var:5.2f} {rms(rise):5.2f} {rms(nod):5.2f} {rms(yaw):5.2f} {tr.sum():6.2f} {tr2.sum():6.2f} {tr[mid].std() / tr[mid].mean():5.2f}'
               f'   (forward at {fw * 360 / W:.0f} deg)')
         if a.steps:
             for k in range(len(speed)):
-                print(f'   {k:2d}->{k + 1:2d}  speed {speed[k]:6.2f}  rise {rise[k]:6.2f}  nod {nod[k]:6.2f}  yaw {yaw[k]:6.2f}')
+                print(f'   {k:2d}->{k + 1:2d}  speed {speed[k]:6.2f}  rise {rise[k]:6.2f}  nod {nod[k]:6.2f}  yaw {yaw[k]:6.2f}  travel {tr[k]:6.3f} ({tr2[k]:6.3f})')
 
 
 if __name__ == '__main__':
