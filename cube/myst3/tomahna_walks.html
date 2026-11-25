@@ -38,6 +38,7 @@
   <button id="sndbtn" title="The game's sounds: the door opening and closing (S)">Sound: on</button>
   <button id="doorbtn" title="The door opening: the game's movie (the rest of the door fading open round it), or H3's whole-door renders">Door: game movie</button>
   <button id="walkbtn" title="Play the rendered walks and close-ups, or jump as the node traveler does (W)">Walks: on</button>
+  <button id="lensbtn" title="Plain: a flat view up to 120 degrees, stretched toward the edges as it widens. Stereographic: from 60 degrees the view eases into a stereographic lens (full at 120), which keeps shapes near true out to the edges; past 120 the fisheye as before">Lens: plain</button>
   <span id="fovtxt"></span>
 </div>
 <canvas id="map"></canvas>
@@ -230,13 +231,18 @@ document.getElementById('facebtn').onclick = toggleSeams;
 // looking round: yaw about the node's up, pitch; the game's heading 0 looks along +z (face 3)
 let yaw = 0, pitch = 0, fov = 65, forceFish = false;
 const FOV_MIN = 20, FOV_MAX = 360;
-const fish = () => !(inClose || (closing && !closing.fishPhase)) && (forceFish || fov > 120);   // a close-up's box is a plain perspective; the 360 close-up starts in the fisheye
-const sOf = f => Math.max(1, f / 120);
+const fish = () => !(inClose || (closing && !closing.fishPhase)) && (forceFish || fov > lensFrom());   // a close-up's box is a plain perspective; the 360 close-up starts in the fisheye
+// the lens: theta = s atan(r tan(fov / 2s)), s = 1 a plain view, s = 2 stereographic. Plain: s = 1 up to 120 degrees,
+// then fov / 120. Stereographic (the maintainer: less distortion at about 120): s eases from 1 at 60 to 2 at 120, then
+// max(2, fov / 120), so it meets the plain view at 60 and the fisheye's own s at 240, with no jump anywhere
+let lens = 'plain';
+const sOf = f => lens === 'stereo' ? (f <= 120 ? 1 + (t => t * t * (3 - 2 * t))(Math.min(1, Math.max(0, (f - 60) / 60))) : Math.max(2, f / 120)) : Math.max(1, f / 120);
+const lensFrom = () => lens === 'stereo' ? 60 : 120;      // the width above which the view is drawn through the lens
 function look() {
   camera.aspect = innerWidth / innerHeight;
   const d = new THREE.Vector3(...dirOf(pitch, yaw).toArray()); d.x = -d.x;
   camera.lookAt(d); camera.fov = (closing || inClose) ? Math.min(fov, 170) : Math.min(fov, 120); camera.updateProjectionMatrix();
-  document.getElementById('fovtxt').textContent = `${Math.round(fov)}°` + (fish() ? ' fisheye' : '');
+  document.getElementById('fovtxt').textContent = `${Math.round(fov)}°` + (fish() ? (fov > 120 ? ' fisheye' : ' stereographic') : '');
 }
 // a window point's direction, as either view draws it (null outside the fisheye's circle)
 function rayAt(x, y) {
@@ -634,7 +640,7 @@ function placeCu(t) {
 function fishPlan(c) {
   if (c.plan) return c.plan;
   const W = innerWidth, H = innerHeight, [bw, bh] = box(), e5 = ease(0.5), wb = W + (bw - W) * e5, hb = H + (bh - H) * e5;
-  const fh = H > W ? 120 : 110, A = 2 * (c.from.fov - fh) * Math.PI / 180 / Math.sin(fh * Math.PI / 180);
+  const fh = lens === 'stereo' ? 60 : H > W ? 120 : 110, A = 2 * (c.from.fov - fh) * Math.PI / 180 / Math.sin(fh * Math.PI / 180);
   const B = 2 * Math.abs(Math.log(Math.tan(fh * Math.PI / 360) * wb / hb)) + 1e-3;
   return (c.plan = { fh, ts: Math.max(0.3, Math.min(0.7, A / (A + B))) });
 }
@@ -807,6 +813,7 @@ document.getElementById('womanbtn').onclick = async () => { if (busy) return; wo
 document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = cap ? '24 fps' : 'full rate'; };
 document.getElementById('sndbtn').onclick = () => { soundOn = !soundOn; document.getElementById('sndbtn').textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); };
 document.getElementById('doorbtn').onclick = () => { doorMode = DOORMODES[(DOORMODES.indexOf(doorMode) + 1) % 3]; document.getElementById('doorbtn').textContent = 'Door: ' + DOORLABEL[doorMode]; };
+document.getElementById('lensbtn').onclick = () => { lens = lens === 'stereo' ? 'plain' : 'stereo'; document.getElementById('lensbtn').textContent = 'Lens: ' + (lens === 'stereo' ? 'stereographic' : 'plain'); look(); };
 document.getElementById('walkbtn').onclick = () => { walksOn = !walksOn; document.getElementById('walkbtn').textContent = 'Walks: ' + (walksOn ? 'on' : 'off'); };
 
 let here = null, now = null, fading = null;
@@ -1040,7 +1047,7 @@ window.nodeWalk = { go, move: to => { const s = (NODES[here] || []).find(s => s.
   closeup: f => { const s = (NODES[here] || []).find(s => s.frame === f); if (s) closeup(s); return !!s; }, openDoor: () => { const s = (NODES[here] || []).find(s => s.kind === 'movie' && DOORS[s.args[1]] && holds(s.cond)); if (s) openDoor(s); return !!s; }, get opening() { return !!opening; }, soundLengths: () => Object.fromEntries([...SOUNDS].map(([k, v]) => [k, +v.duration.toFixed(2)])), V,
   get closing() { return !!closing; },
   get busy() { return busy; }, get walking() { return !!walking; }, get inClose() { return !!inClose; }, leaveClose: () => cuLeave(), openClose, spotAt: (n, x, y) => spotAt(n, rayAt(x, y)), get here() { return here; }, set view([y, p]) { yaw = y; pitch = p; }, set fov(f) { fov = f; },
-  set fisheye(b) { forceFish = b; }, set faces(b) { if (!!seams !== b) toggleSeams(); }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
+  set fisheye(b) { forceFish = b; }, set lens(m) { lens = m; look(); }, set faces(b) { if (!!seams !== b) toggleSeams(); }, set spots(m) { spotMode = m; drawSpots(here); }, set map(b) { if (b !== mapOn) toggleMap(); }, set mapScale(k) { mapScale = k; } };
 const h0 = decodeURIComponent(location.hash.slice(1));
 go(NODES[h0] ? h0 : byNum[+h0] || 'TOHO-0001').then(() => loadAll());
 addEventListener('hashchange', () => { const h = decodeURIComponent(location.hash.slice(1)), n = NODES[h] ? h : byNum[+h]; if (n && n !== here) go(n); });
