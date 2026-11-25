@@ -396,9 +396,9 @@ async function seekFrames(blob, n, opts) {
 
 // ---- the walk on a sphere round the eye
 const wmat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false,
-  uniforms: { map: { value: null }, squash: { value: 0.35 }, gain: { value: 1 } },
+  uniforms: { map: { value: null }, squash: { value: 0.35 }, gain: { value: 1 }, backBlack: { value: 0 } },
   vertexShader: 'varying vec3 vD; void main(){ vD = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D map; uniform float squash, gain; varying vec3 vD;
+  fragmentShader: `uniform sampler2D map; uniform float squash, gain, backBlack; varying vec3 vD;
 // two 180-degree fisheyes side by side (walk_ends.py --dual-fisheye 180 --fill-square --squash 0.35): the left looking
 // along the walk (x right, y down), the right straight back (x the walk's left)
 vec3 eye(vec3 q, float side) {
@@ -412,7 +412,7 @@ vec3 eye(vec3 q, float side) {
   return texture2D(map, vec2(f.x, 1.0 - f.y)).rgb; }
 void main(){ vec3 d = normalize(vD), w = vec3(d.x, -d.y, -d.z);       // the walk's right, down, forward
   float k = smoothstep(-0.0005, 0.0005, w.z);
-  vec3 c = mix(eye(vec3(-w.x, w.y, -w.z), 1.0), eye(w, 0.0), k);
+  vec3 c = mix(eye(vec3(-w.x, w.y, -w.z), 1.0) * (1.0 - backBlack), eye(w, 0.0), k);   // backBlack: during a 360 close-up the half behind the join is black
   // the frames hold sRGB values: made linear, then encoded for wherever this draws (the screen, or the fisheye's cube
   // map, which keeps linear values; drawn raw into it they were encoded twice and came out light)
   gl_FragColor = vec4(gain * mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)), 1.0);
@@ -644,12 +644,13 @@ async function sphereCloseup(s, id) {
   if (fov > 120) fov = Math.min(fov, 300);
   closing = { id, sphere: sid, from: { yaw, pitch, fov, q: quatOf(yaw, pitch), a: Math.tan(f0 * Math.PI / 360) * innerWidth / innerHeight }, to: { yaw: s.rects[0][1], pitch: s.rects[0][0], q: q1 },
     fr: [0, 0], R: [R, R], Z: [0, 1], gain: null, t0: performance.now(), dir: 1, s, T: 38 / VFPS };
+  wmat.uniforms.backBlack.value = 1;                   // the maintainer: black past the fisheye join while a close-up is on
   walking = { p: player(SRC.get(sid), false, 39), quat: q1, k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: sid, back: false, done: () => {} };
 }
 function cuLeave() {
   if (!inClose) return; const c = inClose; inClose = null; busy = true; c.dir = -1; c.t0 = performance.now(); closing = c;
   if (c.sphere) walking = { p: player(SRC.get(c.sphere), true, 39), quat: c.to.q, k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: c.sphere, back: true,
-    done: () => { wsphere.visible = false; if (cubeNow()) cubeNow().visible = true; } };
+    done: () => { wsphere.visible = false; wmat.uniforms.backBlack.value = 0; if (cubeNow()) cubeNow().visible = true; } };
 }
 addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cuLeave(); });
 // the woman's idle loop at TOHO 2 (with "Woman: on"): the game loops scene movie 10002 there, a flat 216x288 picture on
