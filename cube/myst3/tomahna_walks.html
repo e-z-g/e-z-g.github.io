@@ -298,7 +298,10 @@ function render() {
 // a walk is decoded as it plays (WebCodecs), forward or backward, a few frames ahead: nothing waits on a click,
 // and only a handful of frames sit on the graphics card. Close-ups (640x360) are decoded whole as they load.
 // Where WebCodecs is missing, each walk's frames are decoded by seeking a video element, as the walk viewer does.
-const VFPS = 24, N = 22, RING = 10;                     // RING: frames decoded and on the card at once (the one on show, those ahead)
+const VFPS = 24, N = 22, RING = 10;
+// each walk's frame count, by its length (22 or 39; walks/frames.json, from toho_finish.py); 22 where not listed
+let WN = {}; fetch('walks/frames.json').then(r => r.ok ? r.json() : {}).then(j => { WN = j; }).catch(() => {});
+const wn = id => (WN[id] && WN[id].n) || N;                     // RING: frames decoded and on the card at once (the one on show, those ahead)
 const CLOSEUPS = { 'TOHO-0107': 'toho7_107', 'TOHO-0207': 'toho7_207', 'TOHO-0307': 'toho7_307', 'TOHO-0607': 'toho7_607',
   'TOHO-0707': 'toho7_707', 'TOHO-0807': 'toho7_807', 'TOHO-0106': 'toho6_106', 'TOHO-0206': 'toho6_206', 'TOHO-0306': 'toho6_306',
   'TOHO-0108': 'toho8_108', 'TOHB-0002': 'tohob1_2' };
@@ -459,7 +462,7 @@ async function move(s) {
   busy = true;
   if (!SRC.has(w[0])) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this walk…'; queue.sort((x, y) => (y.id === w[0]) - (x.id === w[0])); await whenLoaded(w[0]); busyEl.style.display = 'none'; }
   loadNode(shown(b));
-  const p = player(SRC.get(w[0]), w[2]);
+  const p = player(SRC.get(w[0]), w[2], wn(w[0]));
   walking = { p, to: b, leaveShuts, heading: w[1], k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: w[0], back: w[2], wx: w[3], wy: w[4] };
 }
 function stepWalk(now, ticks) {                           // ticks: render ticks since the last (24 fps mode), else null
@@ -481,7 +484,7 @@ function stepWalk(now, ticks) {                           // ticks: render ticks
   if (w.k === NN - 1 && now - w.shownAt >= 1000 / VFPS - 1) {
     if (w.done) { walking = null; p.close(); w.done(); return; }
     walking = null; p.close(); if (w.stalls) console.log('walk held', w.stalls, 'times');
-    if (done >= total) loadEl.textContent = `last walk: ${((now - w.tFirst) / 1000).toFixed(2)} s for 22 frames (0.92 at 24 fps), started ${Math.round(w.tFirst - w.tClick)} ms after the click, held ${w.stalls} times` + (wc ? '' : ' (decoded first: no WebCodecs)');
+    if (done >= total) loadEl.textContent = `last walk: ${((now - w.tFirst) / 1000).toFixed(2)} s for ${wn(w.vid)} frames (${((wn(w.vid) - 1) / 24).toFixed(2)} at 24 fps), started ${Math.round(w.tFirst - w.tClick)} ms after the click, held ${w.stalls} times` + (wc ? '' : ' (decoded first: no WebCodecs)');
     if (w.leaveShuts) V[401] = 0;
     go(w.to, true, false).then(() => { wsphere.visible = false; busy = false; });
   }
@@ -1027,8 +1030,8 @@ renderer.setAnimationLoop(() => {
   render(); drawMap();
 });
 window.nodeWalk = { go, move: to => { const s = (NODES[here] || []).find(s => s.to === to && holds(s.cond)); if (s) move(s); return !!s; },
-  previewWalk: async (id, h, k) => { await whenLoaded(id); const src = SRC.get(id); const bms = src.blob ? await seekFrames(src.blob, N, { imageOrientation: 'flipY' }) : null;
-    let t; if (bms) { t = newTex(); t.image = bms[k]; t.needsUpdate = true; } else { const p = player(src, false); p.feed(k); p.dec.flush(); while (!p.got[k] && !p.err) await new Promise(r => setTimeout(r, 20)); t = p.got[k]; }
+  previewWalk: async (id, h, k) => { await whenLoaded(id); const src = SRC.get(id); const bms = src.blob ? await seekFrames(src.blob, wn(id), { imageOrientation: 'flipY' }) : null;
+    let t; if (bms) { t = newTex(); t.image = bms[k]; t.needsUpdate = true; } else { const p = player(src, false, wn(id)); p.feed(k); p.dec.flush(); while (!p.got[k] && !p.err) await new Promise(r => setTimeout(r, 20)); t = p.got[k]; }
     wsphere.rotation.set(0, Math.PI - h * Math.PI / 180, 0); wmat.uniforms.map.value = t; wsphere.visible = true; if (now) now.visible = false; },
   hideWalk: () => { wsphere.visible = false; if (now) now.visible = true; },
   set cuT(t) { cuT = t; }, debugCam: () => ({ grade: now ? now.children[0].material.color.toArray().map(x => +x.toFixed(3)) : null, fov, fish: fish(), q: camera.quaternion.toArray().map(x => +x.toFixed(4)), camFov: camera.fov, aspect: camera.aspect, fishPhase: !!(closing && closing.fishPhase), cuRect, yaw, pitch }), spotsHere: () => NODES[here] || [],
