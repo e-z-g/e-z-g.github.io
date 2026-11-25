@@ -329,7 +329,7 @@ function render() {
 // Where WebCodecs is missing, each walk's frames are decoded by seeking a video element, as the walk viewer does.
 const VFPS = 24, N = 22, RING = 10;
 // each walk's frame count, by its length (22 or 39; walks/frames.json, from toho_finish.py); 22 where not listed
-let WN = {}; fetch('walks/frames.json').then(r => r.ok ? r.json() : {}).then(j => { WN = j; }).catch(() => {});
+let WN = {}; const WNready = fetch('walks/frames.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : {}).then(j => { WN = j; }).catch(() => {});
 const wn = id => (WN[id] && WN[id].n) || N;                     // RING: frames decoded and on the card at once (the one on show, those ahead)
 const CLOSEUPS = { 'TOHO-0107': 'toho7_107', 'TOHO-0207': 'toho7_207', 'TOHO-0307': 'toho7_307', 'TOHO-0607': 'toho7_607',
   'TOHO-0707': 'toho7_707', 'TOHO-0807': 'toho7_807', 'TOHO-0106': 'toho6_106', 'TOHO-0206': 'toho6_206', 'TOHO-0306': 'toho6_306',
@@ -412,7 +412,10 @@ async function decodeAll(src) {                          // every frame of a sho
 }
 async function loadOne(item) {
   const path = item.path || (item.walk ? `walks/${item.id}_key.mp4` : `closeups/${item.id}.mp4`);
-  const r = await fetch((/\.mp4$/.test(path) ? MEDIA : '') + path);
+  // a walk's address carries its frame count, so a walk made again (22 frames to 39) is never taken from a browser's
+  // day-long copy of the old one under the same name
+  await WNready;
+  const r = await fetch((/\.mp4$/.test(path) ? MEDIA : '') + path + (item.walk && !item.path ? `?n=${wn(item.id)}` : ''));
   if (!r.ok) throw new Error(item.id + ': ' + r.status);
   const ab = await r.arrayBuffer(); bytes += ab.byteLength;
   if (item.audio) { const c = audioCtx(); if (c) SOUNDS.set(item.id.slice(4), await c.decodeAudioData(ab)); return; }
