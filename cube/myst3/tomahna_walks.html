@@ -672,6 +672,16 @@ function sphereCamera(c, t) {                          // the eye onto the hotsp
   camera.quaternion.copy(c.from.q).slerp(c.to.q, er);
   // from the fisheye (over 110 degrees): the fisheye narrows to 110 first (speeding up), where it is a plain
   // perspective view (its curve is 1 up to 120), then the lens and the box as from a plain view (slowing down)
+  // with Panini or stereographic: the lens narrows over the whole move, eased in and out, to the box's own height for
+  // 90 degrees across (under 60, where both lenses are the plain view), so it ends on the flat close-up with no
+  // handover (the maintainer: a "bounce" on 108; the fisheye's handover at 60 sped the zoom up to 15% a step, then
+  // dropped it to 4% in one step, as nothing was left for the plain view to zoom)
+  if (lens !== 'plain' && c.from.fov > 60) {
+    const eb = ease(t), wb = W + (bw - W) * eb, hb = H + (bh - H) * eb, fEnd = 2 * Math.atan(bh / bw) * 180 / Math.PI;
+    cuRect = [(W - wb) / 2, (H - hb) / 2, wb, hb];
+    fov = c.from.fov + (fEnd - c.from.fov) * ease(t); c.fishPhase = t < 1;
+    camera.aspect = wb / hb; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); return;
+  }
   let from = c.from.a, e;
   if (c.from.fov > fishPlan(c).fh) {
     const { fh, ts } = fishPlan(c);
