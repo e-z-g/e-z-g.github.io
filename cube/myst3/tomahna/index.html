@@ -413,9 +413,9 @@ async function decodeAll(src) {                          // every frame of a sho
 async function loadOne(item) {
   const path = item.path || (item.walk ? `walks/${item.id}_key.mp4` : `closeups/${item.id}.mp4`);
   // a walk's address carries its frame count, so a walk made again (22 frames to 39) is never taken from a browser's
-  // day-long copy of the old one under the same name
+  // day-long copy of the old one under the same name (and its measured length, for one made again at the same count)
   await WNready;
-  const r = await fetch((/\.mp4$/.test(path) ? MEDIA : '') + path + (item.walk && !item.path ? `?n=${wn(item.id)}` : ''));
+  const r = await fetch((/\.mp4$/.test(path) ? MEDIA : '') + path + (item.walk && !item.path ? `?n=${wn(item.id)}&l=${(WN[item.id] && WN[item.id].length) || 0}` : ''));
   if (!r.ok) throw new Error(item.id + ': ' + r.status);
   const ab = await r.arrayBuffer(); bytes += ab.byteLength;
   if (item.audio) { const c = audioCtx(); if (c) SOUNDS.set(item.id.slice(4), await c.decodeAudioData(ab)); return; }
