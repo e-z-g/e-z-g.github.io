@@ -274,8 +274,13 @@ function render() {
   if (cuRect) {                                          // a close-up: the view drawn into its box, black round it
     const [x, y, w, h] = cuRect, H = innerHeight;
     renderer.setScissorTest(false); renderer.setViewport(0, 0, innerWidth, H); renderer.setClearColor(0x000000, 1); renderer.clear();
+    if (fish()) cubeCam.update(renderer, scene);         // (a fisheye start: the fisheye drawn in the box while the box closes in)
     renderer.setViewport(x, H - y - h, w, h); renderer.setScissor(x, H - y - h, w, h); renderer.setScissorTest(true);
-    renderer.render(scene, camera);
+    if (fish()) {
+      const s = sOf(fov); fishMat.uniforms.rot.value.setFromMatrix4(camera.matrixWorld); fishMat.uniforms.aspect.value = w / h;
+      fishMat.uniforms.tanT.value = Math.tan(fov / 2 * Math.PI / 180 / s); fishMat.uniforms.s.value = s; fishMat.uniforms.seams.value = 0;
+      renderer.render(fishScene, fishCam);
+    } else renderer.render(scene, camera);
     renderer.setScissorTest(false); renderer.setViewport(0, 0, innerWidth, H); return;
   }
   if (!fish()) { renderer.render(scene, camera); return; }
@@ -576,13 +581,14 @@ function placeCu(t) {
   let tz = t, fromA = c.from.a, e, zt;
   if (c.from.fov > 110) {
     const W0 = innerWidth, H0 = innerHeight, A = 2 * (c.from.fov - 110) * Math.PI / 180 / Math.sin(110 * Math.PI / 180), Bq = 2 * Math.log(Math.tan(55 * Math.PI / 180) * W0 / H0), ts = A / (A + Bq);
+    const eb = ease(t), wb = W0 + (box()[0] - W0) * eb, hb = H0 + (box()[1] - H0) * eb;   // the box over the whole move
     if (t < ts) {
-      const u = (t / ts) ** 2; fov = c.from.fov + (110 - c.from.fov) * u; c.fishPhase = true; cuRect = null;
+      const u = (t / ts) ** 2; fov = c.from.fov + (110 - c.from.fov) * u; c.fishPhase = true; cuRect = [(W0 - wb) / 2, (H0 - hb) / 2, wb, hb];
       panelA.visible = panelB.visible = false; grade([1, 1, 1]);
       camera.quaternion.copy(c.from.q).slerp(c.to.q, ease(Math.min(1, t / 0.6)));
-      camera.aspect = W0 / H0; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); return;
+      camera.aspect = wb / hb; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); return;
     }
-    c.fishPhase = false; fromA = Math.tan(55 * Math.PI / 180) * W0 / H0; tz = (t - ts) / (1 - ts); e = 1 - (1 - tz) ** 2; zt = e;
+    c.fishPhase = false; fromA = Math.tan(55 * Math.PI / 180) * wb / hb; tz = (t - ts) / (1 - ts); e = 1 - (1 - tz) ** 2; zt = e;
   } else { e = ease(t); zt = ease5(t); }
   const n = c.fr.length, Zf = c.Z[n - 1], z = zt * Zf;
   let k = 0; while (k < n - 2 && c.Z[k + 1] <= z) k++;
@@ -600,7 +606,7 @@ function placeCu(t) {
   const vis = z1 > z0 ? ease(Math.max(0, Math.min(1, (zf - z0) / (z1 - z0)))) : 1;
   panelA.material.uniforms.alpha.value = vis; panelB.material.uniforms.alpha.value = f * vis;
   if (c.gain) { const gA = c.gain[k], gB = c.gain[k + 1]; grade([0, 1, 2].map(i => Math.pow(lerp(gA[i], gB[i]), 2.2))); }   // sRGB ratios as linear gains
-  const W = innerWidth, H = innerHeight, [bw, bh] = box(), w = W + (bw - W) * e, h = H + (bh - H) * e;
+  const W = innerWidth, H = innerHeight, [bw, bh] = box(), eb = c.from.fov > 110 ? ease(t) : e, w = W + (bw - W) * eb, h = H + (bh - H) * eb;
   cuRect = [(W - w) / 2, (H - h) / 2, w, h];
   // aim: from the eye's own way to the panel's way, then rolled with the frame; the frame's centre, seen in the rolled
   // camera, is reached by shifting the lens (an off-centre frustum), so the frame's edges stay parallel to the box's
@@ -627,11 +633,13 @@ function sphereCamera(c, t) {                          // the eye onto the hotsp
     // degrees (as the logarithm of the lens's half-width, 1 / sin 110 per radian there), equal to the plain view's start
     // rate, 2 ln(tan 55 * W / H) / (1 - ts)
     const A = 2 * (c.from.fov - 110) * Math.PI / 180 / Math.sin(110 * Math.PI / 180), Bq = 2 * Math.log(Math.tan(55 * Math.PI / 180) * W / H), ts = A / (A + Bq);
-    if (t < ts) { const u = (t / ts) ** 2; fov = c.from.fov + (110 - c.from.fov) * u; c.fishPhase = true; cuRect = null;
-      camera.aspect = W / H; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); return; }   // the fisheye reads the camera's world matrix
-    c.fishPhase = false; from = Math.tan(55 * Math.PI / 180) * W / H; const t2 = (t - ts) / (1 - ts); e = 1 - (1 - t2) ** 2;
+    // the box closes in over the whole move, as from a plain view (the fisheye drawn in it while it narrows)
+    const eb = ease(t), wb = W + (bw - W) * eb, hb = H + (bh - H) * eb; cuRect = [(W - wb) / 2, (H - hb) / 2, wb, hb];
+    if (t < ts) { const u = (t / ts) ** 2; fov = c.from.fov + (110 - c.from.fov) * u; c.fishPhase = true;
+      camera.aspect = wb / hb; camera.fov = Math.min(fov, 120); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true); return; }   // the fisheye reads the camera's world matrix
+    c.fishPhase = false; from = Math.tan(55 * Math.PI / 180) * wb / hb; const t2 = (t - ts) / (1 - ts); e = 1 - (1 - t2) ** 2;
   } else e = ease(t);
-  const w = W + (bw - W) * e, h = H + (bh - H) * e;
+  const eb = c.from.fov > 110 ? ease(t) : e, w = W + (bw - W) * eb, h = H + (bh - H) * eb;
   cuRect = [(W - w) / 2, (H - h) / 2, w, h];
   const a = Math.exp(Math.log(from) * (1 - e)), b2 = a * h / w, nr = camera.near;
   camera.projectionMatrix.makePerspective(-a * nr, a * nr, b2 * nr, -b2 * nr, nr, camera.far);
