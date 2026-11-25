@@ -487,7 +487,13 @@ async function move(s) {
   const a = here, b = s.to, A = +a.slice(5), B = +b.slice(5);
   const leaveShuts = a === 'TOHO-0004' && (B === 2 || B === 3) || a === 'TOHO-0005' && B >= 6 && B <= 8;   // script 10004
   const w = walksOn && a.slice(0, 4) === 'TOHO' ? walkFor(A, B) : null;
-  if (leaveShuts && V[401]) playSound('door_close', 0.5);   // script 10004: the door's closing sound, at half volume
+  if (leaveShuts && V[401]) {                           // script 10004: the door shuts, its closing sound at half volume
+    // the maintainer: play the opening backwards for the closing; done first when the door is in view (walking away it
+    // is mostly behind, where it would only be a wait), then the walk with the door shut
+    const d = Object.values(DOORS).find(x => 'TOHO-' + x.node === a);
+    if (walksOn && d && doorInView(d)) { busy = true; await closeDoor(d); return move(s); }
+    playSound('door_close', 0.5);
+  }
   if (!w) { if (leaveShuts) V[401] = 0; return go(b); }
   busy = true;
   if (!SRC.has(w[0])) { busyEl.style.display = 'block'; busyEl.textContent = 'loading this walk…'; queue.sort((x, y) => (y.id === w[0]) - (x.id === w[0])); await whenLoaded(w[0]); busyEl.style.display = 'none'; }
@@ -806,6 +812,35 @@ function doorProgress(fr) {
   for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1]);   // never closing again
   out[out.length - 1] = 1; return out;
 }
+function doorPanel(d, img) {                           // the door movie's flat frame where the game shows it
+  const q = quatOf(d.h, d.p), t = Math.tan(d.fov * Math.PI / 360), pos = panelDoor.geometry.attributes.position;
+  [[-t, t * 9 / 16], [t, t * 9 / 16], [-t, -t * 9 / 16], [t, -t * 9 / 16]].forEach(([x, y], i) => { tmpV.set(x * D, y * D, -D).applyQuaternion(q); pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); });
+  pos.needsUpdate = true; panelDoor.material.uniforms.feather.value = 0.06;
+  panelDoor.userData.tex.image = img; panelDoor.userData.tex.needsUpdate = true; panelDoor.visible = true;
+}
+function doorInView(d) {                               // the door (80 degrees wide) within the view's width
+  const dh = Math.abs(((yaw - d.h) % 360 + 540) % 360 - 180);
+  const half = fish() ? fov / 2 * innerWidth / innerHeight : Math.atan(Math.tan(fov * Math.PI / 360) * innerWidth / innerHeight) * 180 / Math.PI;
+  return dh < half + 40;
+}
+// the door shutting: the opening played backwards (H3's render on the sphere, or the game's movie with the shut faces
+// fading back in), with the game's closing sound; resolves with the door shut and the shut faces on show
+async function closeDoor(d) {
+  const node = here; playSound('door_close', 0.5);
+  if (doorMode !== 'movie') {
+    const id = `door_${d.node}_${doorMode}`;
+    if (!SRC.has(id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading the door…'; queue.sort((x, y) => (y.id === id) - (x.id === id)); await whenLoaded(id); busyEl.style.display = 'none'; }
+    await loadNode(node);
+    return new Promise(res => { walking = { p: player(SRC.get(id), true, 39), heading: d.h, k: -1, t0: null, stalls: 0, tClick: performance.now(), vid: id, back: true,
+      done: () => { V[401] = 0; here = null; go(node, false, false).then(() => { wsphere.visible = false; drawSpots(here); res(); }); } }; });
+  }
+  if (!CU.has(d.id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading the door…'; queue.sort((x, y) => (y.id === d.id) - (x.id === d.id)); await whenLoaded(d.id); busyEl.style.display = 'none'; }
+  const fr = CU.get(d.id); doorPanel(d, fr[fr.length - 1]);
+  if (!d.progress) d.progress = doorProgress(fr);
+  const shut = cube(await loadNode(node)); shut.children.forEach(m => { m.material.opacity = 0; m.renderOrder = 1; });
+  scene.add(shut); openCube = shut;
+  return new Promise(res => { opening = { fr, t0: performance.now(), k: -1, node, progress: d.progress, back: true, res }; });
+}
 async function openDoor(s) {
   const d = DOORS[s.args[1]];
   if (!walksOn || !d) { V[401] = 1; const n = here; here = null; await go(n, false, true); drawSpots(here); return; }
@@ -820,10 +855,7 @@ async function openDoor(s) {
     return;
   }
   if (!CU.has(d.id)) { busyEl.style.display = 'block'; busyEl.textContent = 'loading the door…'; queue.sort((x, y) => (y.id === d.id) - (x.id === d.id)); await whenLoaded(d.id); busyEl.style.display = 'none'; }
-  const fr = CU.get(d.id), q = quatOf(d.h, d.p), t = Math.tan(d.fov * Math.PI / 360), pos = panelDoor.geometry.attributes.position;
-  [[-t, t * 9 / 16], [t, t * 9 / 16], [-t, -t * 9 / 16], [t, -t * 9 / 16]].forEach(([x, y], i) => { tmpV.set(x * D, y * D, -D).applyQuaternion(q); pos.setXYZ(i, tmpV.x, tmpV.y, tmpV.z); });
-  pos.needsUpdate = true; panelDoor.material.uniforms.feather.value = 0.06;
-  panelDoor.userData.tex.image = fr[0]; panelDoor.userData.tex.needsUpdate = true; panelDoor.visible = true;
+  const fr = CU.get(d.id); doorPanel(d, fr[0]);
   // the movie's frame (80 degrees across, 25 up and down from level) covers the upper and middle part of the tall door,
   // not its foot: round it, the node's open-door faces fade in over the shut ones as the movie's door opens
   if (!d.progress) d.progress = doorProgress(fr);
@@ -834,12 +866,12 @@ async function openDoor(s) {
 }
 function stepDoor(now) {
   const o = opening; if (!o) return;
-  const k = Math.min(o.fr.length - 1, Math.floor((now - o.t0) / 1000 * 15));
-  if (k !== o.k) { o.k = k; panelDoor.userData.tex.image = o.fr[k]; panelDoor.userData.tex.needsUpdate = true; }
-  if (openCube) openCube.children.forEach(m => { m.material.opacity = o.progress[k]; });
+  const k = Math.min(o.fr.length - 1, Math.floor((now - o.t0) / 1000 * 15)), i = o.back ? o.fr.length - 1 - k : k;   // back: the closing
+  if (k !== o.k) { o.k = k; panelDoor.userData.tex.image = o.fr[i]; panelDoor.userData.tex.needsUpdate = true; }
+  if (openCube) openCube.children.forEach(m => { m.material.opacity = o.back ? 1 - o.progress[i] : o.progress[i]; });
   if (k < o.fr.length - 1 || now - o.t0 < o.fr.length / 15 * 1000) return;
-  opening = null; V[401] = 1; here = null;
-  go(o.node, false, false).then(() => { panelDoor.visible = false; if (openCube) { scene.remove(openCube); openCube.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); openCube = null; } drawSpots(here); busy = false; });
+  opening = null; V[401] = o.back ? 0 : 1; here = null;
+  go(o.node, false, false).then(() => { panelDoor.visible = false; if (openCube) { scene.remove(openCube); openCube.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); openCube = null; } drawSpots(here); if (o.res) o.res(); else busy = false; });
 }
 document.getElementById('womanbtn').onclick = async () => { if (busy) return; woman = woman ? 0 : 2; document.getElementById('womanbtn').textContent = 'Woman: ' + (woman ? 'on' : 'off');
   if (here === 'TOHO-0002' || here === 'TOHO-0001') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
