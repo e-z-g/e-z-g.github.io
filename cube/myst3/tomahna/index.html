@@ -37,7 +37,7 @@
 <button id="menubtn" title="Settings">&#8943;</button>
 <div id="menu">
   <h4>View</h4>
-  <button id="lensbtn" title="Plain: a flat view up to 120 degrees, stretched toward the edges as it widens. Panini: from 60 degrees verticals and lines through the middle stay straight while the sides stop stretching (full at 120). Stereographic: from 60 degrees the view eases into a stereographic lens (full at 120), which keeps shapes near true out to the edges; past 120 the fisheye as before">Lens: plain</button>
+  <button id="lensbtn" title="Plain: a flat view up to 120 degrees, stretched toward the edges as it widens. Panini: from 60 degrees verticals and lines through the middle stay straight while the sides stop stretching (full at 120). Stereographic: from 60 degrees the view eases into a stereographic lens (full at 120), which keeps shapes near true out to the edges; past 120 the fisheye as before">Lens: Panini</button>
   <button id="mapbtn" title="Map of the node layout; double-click it to enlarge">Map: off</button>
   <button id="show" title="Hotspots: off, areas, centres, both">Hotspots: off</button>
   <h4>Play</h4>
@@ -243,7 +243,7 @@ function toggleSeams() {
 document.getElementById('facebtn').onclick = toggleSeams;
 
 // looking round: yaw about the node's up, pitch; the game's heading 0 looks along +z (face 3)
-let yaw = 0, pitch = 0, fov = 65, forceFish = false;
+let yaw = 0, pitch = 0, fov = 120, forceFish = false;   // the view starts Panini at 120 degrees (the maintainer, 25 November 2026)
 const FOV_MIN = 20;
 // the widest zoom: the fisheye's whole circle (theta = 180 degrees, the view straight behind) inside the screen's
 // shorter side with a small border (the maintainer: zoom fully out to the whole circle, phone and desktop). Past 240
@@ -254,7 +254,7 @@ const fish = () => !(inClose || (closing && !closing.fishPhase)) && (forceFish |
 // the lens: theta = s atan(r tan(fov / 2s)), s = 1 a plain view, s = 2 stereographic. Plain: s = 1 up to 120 degrees,
 // then fov / 120. Stereographic (the maintainer: less distortion at about 120): s eases from 1 at 60 to 2 at 120, then
 // max(2, fov / 120), so it meets the plain view at 60 and the fisheye's own s at 240, with no jump anywhere
-let lens = 'plain';
+let lens = 'panini';
 // Panini (the maintainer: straight lines curve too much in stereographic): verticals and lines through the middle stay
 // straight; d eases from 0 (a plain view exactly) at 60 to 1 at 120 and stays 1; the vertical as the plain lens (s = 1 up
 // to 120, then fov / 120), so it widens past 120 with no switch
