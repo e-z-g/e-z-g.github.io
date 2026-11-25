@@ -353,6 +353,9 @@ function demux(ab) {                                     // an mp4's one video t
     ab.fileStart = 0; f.appendBuffer(ab); f.flush();
   });
 }
+// where the videos are fetched from: beside the page (the artifact), or another host when the page is served elsewhere
+// (the site's copy, with the videos on Cloudflare R2: set once the bucket's public address is known)
+const MEDIA = '';
 const WALKIDS = [...new Set(WALKVIDS.map(v => v[0])), 't0102mm'];
 const SRC = new Map(), CU = new Map();                   // id -> { config, samples } or { blob }; close-up id -> [ImageBitmap]
 const waiters = new Map();
@@ -401,7 +404,8 @@ async function decodeAll(src) {                          // every frame of a sho
   return frames;
 }
 async function loadOne(item) {
-  const r = await fetch(item.path || (item.walk ? `walks/${item.id}_key.mp4` : `closeups/${item.id}.mp4`));
+  const path = item.path || (item.walk ? `walks/${item.id}_key.mp4` : `closeups/${item.id}.mp4`);
+  const r = await fetch((/\.mp4$/.test(path) ? MEDIA : '') + path);
   if (!r.ok) throw new Error(item.id + ': ' + r.status);
   const ab = await r.arrayBuffer(); bytes += ab.byteLength;
   if (item.audio) { const c = audioCtx(); if (c) SOUNDS.set(item.id.slice(4), await c.decodeAudioData(ab)); return; }
