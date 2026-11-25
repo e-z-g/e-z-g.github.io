@@ -346,6 +346,7 @@ let queue = [...WALKIDS.map(id => ({ id, walk: true })), ...Object.values(CLOSEU
   ...Object.values(DOORS).map(d => ({ id: d.id, walk: false, path: `doors/${d.id}.mp4` })),
   ...['0004', '0005'].flatMap(a => ['free', 'guided'].map(v => ({ id: `door_${a}_${v}`, walk: true, path: `doors/door_${a}_${v}.mp4` }))),
   { id: 'sphere_7_107', walk: true, path: 'doors/sphere_7_107.mp4' },
+  { id: 'sphere_8_108', walk: true, path: 'doors/sphere_8_108.mp4' },
   ...['door11004', 'door10005', 'door_close'].map(id => ({ id: 'snd:' + id, audio: true, path: `doors/${id}.mp3` }))], total = queue.length, done = 0, bytes = 0;
 function prioritise(n) {                                 // the walks out of node n to the front of what is still to load
   if (!n || n.slice(0, 4) !== 'TOHO') return;
@@ -521,7 +522,7 @@ let TRACK = {}, COL = {}, TRACK1 = {}, COL1 = {}, cuFirst = false, cuSphere = tr
 // cuSphere: the close-ups rendered as a whole 360-degree move (closeup_sphere.ps1; the photograph so far): the room's
 // whole view at the start, the close-up ahead with black all round at the end; played on the sphere as a walk, the eye
 // turned onto it and the picture closed in to its box over the same time
-const SPHERE = { toho7_107: 'sphere_7_107' };
+const SPHERE = { toho7_107: 'sphere_7_107', toho8_108: 'sphere_8_108' };
 // H3 brightens the picture to the close-up's own exposure (about 6 times, in linear light) mostly in its last five frames;
 // doors/sphere_gain.json evens that out: each frame's exposure against the one before (median brightness ratio at the
 // same points, motion followed by DIS flow, inside the close-up's final area), and a gain per frame that makes the rise
