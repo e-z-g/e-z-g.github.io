@@ -83,12 +83,14 @@ const V = { 401: 0, 399: 1 };                           // the game's variables 
 const holds = c => { if (c === 1 || c === -1) return c === 1; const a = Math.abs(c), v = a & 2047, val = (a >> 11) - 1;
   const t = val === -1 ? (V[v] || 0) !== 0 : (V[v] || 0) === val; return c < 0 ? !t : t; };   // GameState::evaluate
 const woman = 2;                                         // always there (the maintainer, 25 November 2026; it was a switch): the game's frames of her drawn into TOHO 1 and 2's faces and H3's walk, her loops playing
-const shown = n => (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401] ? 'TOHO-0' + (100 + +n.slice(5)) : (n === 'TOHO-0002' || n === 'TOHO-0001') && woman === 2 ? n + 'm' : n;   // the door open
+// the door open (104, 105), and the woman drawn in where she is seen (1, 2, 3, 4 and 104: the first frame of her loops)
+const WOMANFACES = ['TOHO-0001', 'TOHO-0002', 'TOHO-0003', 'TOHO-0004', 'TOHO-0104'];
+const shown = n => { const f = (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401] ? 'TOHO-0' + (100 + +n.slice(5)) : n; return WOMANFACES.includes(f) ? f + 'm' : f; };
 // each rendered walk: its video, the game heading it walks along (the mean of the hotspot bearings A to B and back),
 // its ends, and the door's state at its ends where it matters ("open" walks leave the open door: 104 or 105 is one end)
 const WALKVIDS = [
-  ['t0102mm', 1, 2, 183], ['t0203', 2, 3, 269.5], ['t0204', 2, 4, 175, 0], ['t02104', 2, 4, 175, 1], ['t0304', 3, 4, 138.5, 0],
-  ['t03104', 3, 4, 138.5, 1], ['t104105', 4, 5, 184.5, 1], ['t0506', 5, 6, 130, 0], ['t10506', 5, 6, 130, 1],
+  ['t0102mm', 1, 2, 183], ['t0203m', 2, 3, 269.5], ['t0204m', 2, 4, 175, 0], ['t02104m', 2, 4, 175, 1], ['t0304m', 3, 4, 138.5, 0],
+  ['t03104m', 3, 4, 138.5, 1], ['t104105m', 4, 5, 184.5, 1], ['t0506', 5, 6, 130, 0], ['t10506', 5, 6, 130, 1],
   ['t0507', 5, 7, 233, 0], ['t10507', 5, 7, 233, 1], ['t0508', 5, 8, 181.5, 0], ['t10508', 5, 8, 181.5, 1], ['t0608', 6, 8, 255]];
 // the walk for a move from node a to b (TOHO numbers) with the door as it is now: [video, heading, played backwards]
 function walkFor(a, b) {
@@ -114,7 +116,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.01, 100);
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (typeof fov === 'number') fov = Math.min(fov, fovMax()); });
 
 // the node frame: x right, y up, -z face 1; face k's pixel (s, t) looks along DIRS[k] (moge_depth.py's)
 const DIRS = { 1: (s, t) => [2 * s - 1, 1 - 2 * t, -1], 2: (s, t) => [1 - 2 * s, -1, 1 - 2 * t], 3: (s, t) => [1 - 2 * s, 1 - 2 * t, 1],
@@ -242,7 +244,12 @@ document.getElementById('facebtn').onclick = toggleSeams;
 
 // looking round: yaw about the node's up, pitch; the game's heading 0 looks along +z (face 3)
 let yaw = 0, pitch = 0, fov = 65, forceFish = false;
-const FOV_MIN = 20, FOV_MAX = 360;
+const FOV_MIN = 20;
+// the widest zoom: the fisheye's whole circle (theta = 180 degrees, the view straight behind) inside the screen's
+// shorter side with a small border (the maintainer: zoom fully out to the whole circle, phone and desktop). Past 240
+// both fisheye lenses have s = fov / 120, so the circle's radius in half-heights is tan(120 pi / fov) / tan(60); at
+// 360 it touches the top and bottom, and an upright screen, narrower than tall, needs more (about 560 at 9:19.5)
+const fovMax = () => 120 * 180 / (Math.atan(Math.sqrt(3) * 0.96 * Math.min(1, innerWidth / innerHeight)) * 180 / Math.PI);
 const fish = () => !(inClose || (closing && !closing.fishPhase)) && (forceFish || fov > lensFrom());   // a close-up's box is a plain perspective; the 360 close-up starts in the fisheye
 // the lens: theta = s atan(r tan(fov / 2s)), s = 1 a plain view, s = 2 stereographic. Plain: s = 1 up to 120 degrees,
 // then fov / 120. Stereographic (the maintainer: less distortion at about 120): s eases from 1 at 60 to 2 at 120, then
@@ -949,7 +956,7 @@ addEventListener('keydown', e => {
   if (e.key === 'l' || e.key === 'L') toggleLayout();
   if (e.key === 'f' || e.key === 'F') toggleSeams();
   if (e.key === '+' || e.key === '=') fov = Math.max(FOV_MIN, fov / 1.25);
-  if (e.key === '-' || e.key === '_') fov = Math.min(FOV_MAX, fov * 1.25);
+  if (e.key === '-' || e.key === '_') fov = Math.min(fovMax(), fov * 1.25);
   if (e.key === 'Backspace' && hist.length && !busy) { e.preventDefault(); go(hist.pop(), false); }
   if (e.key === 'w' || e.key === 'W') document.getElementById('walkbtn').click();
   if (e.key === 'r' || e.key === 'R') document.getElementById('fpsbtn').click();
@@ -963,7 +970,7 @@ el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); ptr
   if (ptr.size === 2) { const [a, b] = [...ptr.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), fov }; } });
 el.addEventListener('pointermove', e => {
   if (ptr.has(e.pointerId)) ptr.set(e.pointerId, [e.clientX, e.clientY]);
-  if (pinch && ptr.size === 2) { const [a, b] = [...ptr.values()]; fov = Math.min(FOV_MAX, Math.max(FOV_MIN, pinch.fov * pinch.d / Math.hypot(a[0] - b[0], a[1] - b[1]))); down && (down.moved = true); return; }
+  if (pinch && ptr.size === 2) { const [a, b] = [...ptr.values()]; fov = Math.min(fovMax(), Math.max(FOV_MIN, pinch.fov * pinch.d / Math.hypot(a[0] - b[0], a[1] - b[1]))); down && (down.moved = true); return; }
   if (down && ptr.size === 1) {
     const dx = e.clientX - down.x, dy = e.clientY - down.y;
     if (Math.hypot(dx, dy) > 6) down.moved = true;
@@ -985,7 +992,7 @@ const up = e => {
   if (ptr.size === 0) down = null;
 };
 el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
-el.addEventListener('wheel', e => { if (closing || inClose) return; fov = Math.min(FOV_MAX, Math.max(FOV_MIN, fov * Math.exp(e.deltaY * 0.001))); e.preventDefault(); }, { passive: false });
+el.addEventListener('wheel', e => { if (closing || inClose) return; fov = Math.min(fovMax(), Math.max(FOV_MIN, fov * Math.exp(e.deltaY * 0.001))); e.preventDefault(); }, { passive: false });
 
 // the map: every node the layout places, seen from above with heading 0 up (the game's headings run clockwise),
 // the game's moves between them, the eye's node and the way it looks; proposed places (not built) as rings,
