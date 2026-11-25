@@ -7,15 +7,21 @@
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 14px/1.4 system-ui, sans-serif; color: #eee; }
   canvas { display: block; touch-action: none; }
-  #bar { position: fixed; top: 8px; left: 8px; right: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; pointer-events: none; }
-  #bar > * { pointer-events: auto; }
-  #here { background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; }
-  select, button { font: inherit; background: rgba(0,0,0,.6); color: #eee; border: 1px solid #666; border-radius: 4px; padding: 3px 6px; }
+  #bar { position: fixed; top: 8px; left: 8px; display: flex; background: rgba(0,0,0,.55); border-radius: 6px; }
+  #bar button, #bar select, #menubtn { font: inherit; background: none; color: #eee; border: 0; padding: 6px 10px; }
+  #bar select { -webkit-appearance: none; appearance: none; cursor: pointer; padding-left: 4px; }
+  #bar button:disabled { opacity: .35; }
+  #menubtn { position: fixed; top: 8px; right: 8px; background: rgba(0,0,0,.55); border-radius: 6px; font-size: 18px; line-height: 1; padding: 6px 11px; cursor: pointer; }
+  #menu { position: fixed; top: 46px; right: 8px; width: 250px; max-height: calc(100% - 60px); overflow-y: auto; background: rgba(12,12,12,.9); border-radius: 6px; padding: 6px 0; display: none; font-size: 13px; }
+  #menu.open { display: block; }
+  #menu h4 { margin: 8px 12px 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #888; }
+  #menu button { display: block; width: 100%; text-align: left; font: inherit; background: none; color: #eee; border: 0; padding: 6px 12px; cursor: pointer; }
+  #menu button:hover { background: rgba(255,255,255,.08); }
+  #menu .info { margin: 4px 12px; font-size: 11px; color: #999; overflow-wrap: anywhere; }
+  #status { position: fixed; left: 8px; bottom: 8px; background: rgba(0,0,0,.55); padding: 4px 8px; border-radius: 6px; font-size: 12px; pointer-events: none; transition: opacity .4s; }
   #tip { position: fixed; pointer-events: none; background: rgba(0,0,0,.75); padding: 2px 6px; border-radius: 4px; font-size: 13px; display: none; }
-  #moves { position: fixed; bottom: 8px; left: 8px; right: 8px; background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
-  #map { position: fixed; right: 8px; bottom: 48px; width: 260px; height: 260px; background: rgba(0,0,0,.72); border: 1px solid #555; border-radius: 6px; touch-action: none; }
+  #map { position: fixed; right: 8px; bottom: 8px; width: 260px; height: 260px; background: rgba(0,0,0,.72); border: 1px solid #555; border-radius: 6px; touch-action: none; }
   #map.big { width: min(560px, 90vw); height: min(560px, 70vh); }
-  #fovtxt { background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 4px; font-size: 12px; }
   #busy { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,.7); padding: 6px 12px; border-radius: 4px; display: none; pointer-events: none; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
@@ -25,24 +31,29 @@
 </head>
 <body>
 <div id="bar">
-  <span id="here"></span>
-  <select id="sel"></select>
-  <button id="back" title="Back (Backspace)">Back</button>
-  <button id="show" title="Hotspots: off, areas, centres, both (H)">Hotspots: off</button>
-  <button id="facebtn" title="The cube's faces and seams (F)">Faces</button>
-  <button id="mapbtn" title="Map of the node layout (M); double-click it to enlarge">Map</button>
-  <button id="laybtn" title="The map's layout: the proposed places where there are any, or the model's (L)">Layout: proposed</button>
-  <button id="womanbtn" title="The woman seated on the bench: the game's own frames drawn into TOHO 1 and 2, and the walk between them">Woman: off</button>
-  <button id="fpsbtn" title="Draw the view at the walks' 24 frames a second, or as fast as the screen goes (R)">24 fps</button>
-  <span id="load" style="background:rgba(0,0,0,.6);padding:4px 8px;border-radius:4px;font-size:12px">loading…</span>
-  <button id="sndbtn" title="The game's sounds: the door opening and closing (S)">Sound: on</button>
-  <button id="doorbtn" title="The door opening: the game's movie (the rest of the door fading open round it), or H3's whole-door renders">Door: game movie</button>
-  <button id="walkbtn" title="Play the rendered walks and close-ups, or jump as the node traveler does (W)">Walks: on</button>
-  <button id="lensbtn" title="Plain: a flat view up to 120 degrees, stretched toward the edges as it widens. Panini: from 60 degrees verticals and lines through the middle stay straight while the sides stop stretching (full at 120). Stereographic: from 60 degrees the view eases into a stereographic lens (full at 120), which keeps shapes near true out to the edges; past 120 the fisheye as before">Lens: plain</button>
-  <span id="fovtxt"></span>
+  <button id="back" title="Back" disabled>&#8249;</button>
+  <select id="sel" title="Go to a node"></select>
 </div>
+<button id="menubtn" title="Settings">&#8943;</button>
+<div id="menu">
+  <h4>View</h4>
+  <button id="lensbtn" title="Plain: a flat view up to 120 degrees, stretched toward the edges as it widens. Panini: from 60 degrees verticals and lines through the middle stay straight while the sides stop stretching (full at 120). Stereographic: from 60 degrees the view eases into a stereographic lens (full at 120), which keeps shapes near true out to the edges; past 120 the fisheye as before">Lens: plain</button>
+  <button id="mapbtn" title="Map of the node layout; double-click it to enlarge">Map: off</button>
+  <button id="show" title="Hotspots: off, areas, centres, both">Hotspots: off</button>
+  <h4>Play</h4>
+  <button id="walkbtn" title="Play the rendered walks and close-ups, or jump as the node traveler does">Walks: on</button>
+  <button id="doorbtn" title="The door opening: the game's movie (the rest of the door fading open round it), or H3's whole-door renders">Door: game movie</button>
+  <button id="sndbtn" title="The game's sounds: the door opening and closing">Sound: on</button>
+  <h4>Checking</h4>
+  <button id="facebtn" title="The cube's faces and seams">Faces: off</button>
+  <button id="laybtn" title="The map's layout: the proposed places where there are any, or the model's">Layout: proposed</button>
+  <button id="fpsbtn" title="Draw the view at the walks' 24 frames a second, or as fast as the screen goes">Frame rate: 24 fps</button>
+  <div class="info" id="fovtxt"></div>
+  <div class="info" id="load">loading…</div>
+  <div class="info" id="moves"></div>
+</div>
+<div id="status">loading…</div>
 <canvas id="map"></canvas>
-<div id="moves"></div>
 <div id="tip"></div>
 <div id="busy"></div>
 <script type="module">
@@ -71,12 +82,12 @@ const NODES = W.nodes;
 const V = { 401: 0, 399: 1 };                           // the game's variables these hotspots read (399: always set by now)
 const holds = c => { if (c === 1 || c === -1) return c === 1; const a = Math.abs(c), v = a & 2047, val = (a >> 11) - 1;
   const t = val === -1 ? (V[v] || 0) !== 0 : (V[v] || 0) === val; return c < 0 ? !t : t; };   // GameState::evaluate
-let woman = 0;                                           // 0 off; 2 on (the game's frames of her drawn into TOHO 1 and 2's faces and H3's walk, her loops playing)
+const woman = 2;                                         // always there (the maintainer, 25 November 2026; it was a switch): the game's frames of her drawn into TOHO 1 and 2's faces and H3's walk, her loops playing
 const shown = n => (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401] ? 'TOHO-0' + (100 + +n.slice(5)) : (n === 'TOHO-0002' || n === 'TOHO-0001') && woman === 2 ? n + 'm' : n;   // the door open
 // each rendered walk: its video, the game heading it walks along (the mean of the hotspot bearings A to B and back),
 // its ends, and the door's state at its ends where it matters ("open" walks leave the open door: 104 or 105 is one end)
 const WALKVIDS = [
-  ['t0102', 1, 2, 183], ['t0203', 2, 3, 269.5], ['t0204', 2, 4, 175, 0], ['t02104', 2, 4, 175, 1], ['t0304', 3, 4, 138.5, 0],
+  ['t0102mm', 1, 2, 183], ['t0203', 2, 3, 269.5], ['t0204', 2, 4, 175, 0], ['t02104', 2, 4, 175, 1], ['t0304', 3, 4, 138.5, 0],
   ['t03104', 3, 4, 138.5, 1], ['t104105', 4, 5, 184.5, 1], ['t0506', 5, 6, 130, 0], ['t10506', 5, 6, 130, 1],
   ['t0507', 5, 7, 233, 0], ['t10507', 5, 7, 233, 1], ['t0508', 5, 8, 181.5, 0], ['t10508', 5, 8, 181.5, 1], ['t0608', 6, 8, 255]];
 // the walk for a move from node a to b (TOHO numbers) with the door as it is now: [video, heading, played backwards]
@@ -85,7 +96,7 @@ function walkFor(a, b) {
     if (door !== undefined) {                          // the door matters at 4 (with 2, 3) and 5 (with 6, 7, 8); 4-5 only when open
       if (door !== V[401]) continue;
     }
-    const v = woman === 2 && id === 't0102' ? 't0102mm' : id;
+    const v = id;
     if (x === a && y === b) return [v, h, false, x, y];
     if (x === b && y === a) return [v, h, true, x, y];
   }
@@ -212,6 +223,7 @@ function sizeLabels() {                         // the labels' size kept about t
 let seams = null;
 const FACE = { 1: 'front', 2: 'bottom', 3: 'back', 4: 'right', 5: 'left', 6: 'top' };
 function toggleSeams() {
+  document.getElementById('facebtn').textContent = 'Faces: ' + (seams ? 'off' : 'on');
   if (seams) { scene.remove(seams); seams.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); seams = null; }
   else {
     seams = new THREE.Group();
@@ -247,8 +259,17 @@ function look() {
   camera.aspect = innerWidth / innerHeight;
   const d = new THREE.Vector3(...dirOf(pitch, yaw).toArray()); d.x = -d.x;
   camera.lookAt(d); camera.fov = (closing || inClose) ? Math.min(fov, 170) : Math.min(fov, 120); camera.updateProjectionMatrix();
-  document.getElementById('fovtxt').textContent = `${Math.round(fov)}°` + (fish() ? (lens === 'panini' ? ' Panini' : fov > 120 ? ' fisheye' : ' stereographic') : '');
+  const ft = `${Math.round(fov)}°` + (fish() ? (lens === 'panini' ? ' Panini' : fov > 120 ? ' fisheye' : ' stereographic') : '');
+  if (ft !== fovShown) { if (fovShown !== null) status(ft, 1500); fovShown = ft; document.getElementById('fovtxt').textContent = 'view ' + ft; }
 }
+// the one line at the bottom left: the loading while it lasts, the view's width for a moment as it changes
+let fovShown = null, statusUntil = 0, statusTimer = 0;
+function status(text, ms) {
+  const e = document.getElementById('status'); e.textContent = text; e.style.opacity = 1;
+  clearTimeout(statusTimer); statusUntil = ms ? performance.now() + ms : 0;
+  if (ms) statusTimer = setTimeout(() => { e.style.opacity = 0; if (loadingText) setTimeout(() => status(loadingText), 400); }, ms);
+}
+let loadingText = 'loading…';
 // a window point's direction, as either view draws it (null outside the fisheye's circle)
 function rayAt(x, y) {
   const X = (x / innerWidth * 2 - 1) * innerWidth / innerHeight, Y = 1 - y / innerHeight * 2, r = Math.hypot(X, Y);
@@ -356,7 +377,7 @@ function demux(ab) {                                     // an mp4's one video t
 // where the videos are fetched from: beside the page (the artifact), or another host when the page is served elsewhere
 // (the site's copy, with the videos on Cloudflare R2: set once the bucket's public address is known)
 const MEDIA = window.TOHO_MEDIA !== undefined ? window.TOHO_MEDIA : location.hostname === 'e-z-g.github.io' ? 'https://zb-files.zbf.workers.dev/myst3/tomahna/' : '';   // the bucket ezg through the zb-files Worker (HTTP/2)
-const WALKIDS = [...new Set(WALKVIDS.map(v => v[0])), 't0102mm'];
+const WALKIDS = [...new Set(WALKVIDS.map(v => v[0]))];
 const SRC = new Map(), CU = new Map();                   // id -> { config, samples } or { blob }; close-up id -> [ImageBitmap]
 const waiters = new Map();
 const whenLoaded = id => SRC.has(id) || CU.has(id) ? Promise.resolve() : new Promise(r => { if (!waiters.has(id)) waiters.set(id, []); waiters.get(id).push(r); });
@@ -431,7 +452,9 @@ async function loadOne(item) {
 }
 async function loadAll() {                               // three at a time
   const worker = async () => { while (queue.length) { const it = queue.shift(); try { await loadOne(it); } catch (e) { console.error(e); } done++;
-    loadEl.textContent = done < total ? `loading ${done} of ${total} (${Math.round(bytes / 1048576)} MB)` : `all ${total} loaded (${Math.round(bytes / 1048576)} MB)`; } };
+    loadEl.textContent = done < total ? `loading ${done} of ${total} (${Math.round(bytes / 1048576)} MB)` : `all ${total} loaded (${Math.round(bytes / 1048576)} MB)`;
+    loadingText = done < total ? `loading walks ${done} of ${total}` : '';
+    if (performance.now() >= statusUntil) { if (loadingText) status(loadingText); else document.getElementById('status').style.opacity = 0; } } };
   await Promise.all([worker(), worker(), worker()]);
 }
 // the old way, where WebCodecs is missing: a video element sought to each frame in turn
@@ -755,8 +778,24 @@ addEventListener('keydown', e => { if (e.key === 'Escape' && inClose) cuLeave();
 // 289-349 loop. Here only the baby-bouncing loop plays, 289 to 349 (the maintainer: skip the part where she turns to talk,
 // frames 74 to 288, where the speech is), starting at frame 300, the bounce frame nearest the walk's end (frame 160; 9.6
 // levels apart, a neighbouring step 3.1), until the faces and walk are made with frame 300. Counted from 0 below.
+// Her videos come from the bucket (MEDIA) like the other videos; asked for beside the page, where they are not, they
+// failed on the site and the panels drew black. A panel is shown only once its video has put up a frame at the start
+// asked for (showLoop), so a slow load shows the faces underneath, not a black square.
+function mediaVideo(path, loop) {
+  const v = document.createElement('video'); v.crossOrigin = 'anonymous'; v.muted = true; v.loop = loop; v.playsInline = true; v.preload = 'auto';
+  v.src = MEDIA + path; v.frames = 0;
+  if ('requestVideoFrameCallback' in v) { const cb = () => { v.frames++; v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
+  else v.addEventListener('timeupdate', () => v.frames++);
+  return v;
+}
+function showLoop(o, want, t) {                          // o: { m, vid, shown, at }
+  if (want !== o.shown) { o.shown = want; o.m.visible = false; if (want) { o.at = o.vid.frames; o.vid.currentTime = t; o.vid.play().catch(() => {}); } else o.vid.pause(); }
+  else if (want && !o.m.visible && o.vid.frames > o.at && !o.vid.seeking && o.vid.readyState >= 2) o.m.visible = true;
+}
+// she stays in view while a door render plays (the camera still, the panel where she sits); she leaves with a walk or close-up
+const loopsWanted = node => here === node && (!walking || /^door_/.test(walking.vid)) && !closing && !inClose;
 const panelWoman = makePanel(19);
-const womanVid = document.createElement('video'); womanVid.src = 'doors/woman10002.mp4'; womanVid.muted = true; womanVid.loop = false; womanVid.playsInline = true; womanVid.preload = 'auto';
+const womanVid = mediaVideo('doors/woman10002.mp4', false);
 {
   const t = new THREE.VideoTexture(womanVid); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
   panelWoman.material.uniforms.map.value = t; panelWoman.material.uniforms.feather.value = 0.02;
@@ -771,7 +810,7 @@ const womanVid = document.createElement('video'); womanVid.src = 'doors/woman100
 // round her and the bench (x 0 to 220, y 40 to 288 of the 576x288 movie) with soft edges, on the movie's plane (v1
 // -0.120018, -0.173648, -0.977467; rect 8 248 576 288, so the cut part 8 288 220 248)
 const panelWoman1 = makePanel(19);
-const womanVid1 = document.createElement('video'); womanVid1.src = 'doors/woman11001.mp4'; womanVid1.muted = true; womanVid1.loop = true; womanVid1.playsInline = true; womanVid1.preload = 'auto';
+const womanVid1 = mediaVideo('doors/woman11001.mp4', true);
 {
   const t = new THREE.VideoTexture(womanVid1); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
   panelWoman1.material.uniforms.map.value = t; panelWoman1.material.uniforms.feather.value = 0.12;
@@ -786,7 +825,7 @@ const womanVid1 = document.createElement('video'); womanVid1.src = 'doors/woman1
 // archive, m3_movie_place.py; frame 1 is the spot without her; last frame against frame 2: 1.5 and 1.4 levels, a
 // neighbouring step 1.7 and 2.5). TOHO 3's dialog movie 11003 is left out, as her talking is at TOHO 2.
 function loopPanel(src, v1, rect) {
-  const m = makePanel(19), vid = document.createElement('video'); vid.src = src; vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'auto';
+  const m = makePanel(19), vid = mediaVideo(src, true);
   const t = new THREE.VideoTexture(vid); t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
   m.material.uniforms.map.value = t; m.material.uniforms.feather.value = 0.03;
   const n = new THREE.Vector3(...v1).normalize(), ua = new THREE.Vector3(n.z, 0, -n.x).normalize(), va = new THREE.Vector3().crossVectors(n, ua).normalize();
@@ -796,23 +835,14 @@ function loopPanel(src, v1, rect) {
 }
 const LOOPS = { 'TOHO-0003': loopPanel('doors/woman10003.mp4', [1, 0, 0], [272, 328, 120, 168]), 'TOHO-0004': loopPanel('doors/woman10004.mp4', [0, -0.139173, 0.990268], [400, 288, 184, 248]) };
 function stepLoops() {
-  for (const [node, l] of Object.entries(LOOPS)) {
-    const want = woman === 2 && here === node && !walking && !closing && !inClose;
-    if (want === l.shown) continue;
-    l.shown = want; l.m.visible = want; if (want) { l.vid.currentTime = 0; l.vid.play().catch(() => {}); } else l.vid.pause();
-  }
+  for (const [node, l] of Object.entries(LOOPS)) showLoop(l, loopsWanted(node), 0);
 }
-let womanShown1 = false;
-let womanShown = false;
+const W1 = { m: panelWoman1, vid: womanVid1, shown: false }, W2 = { m: panelWoman, vid: womanVid, shown: false };
 function stepWoman() {
-  const want1 = woman === 2 && here === 'TOHO-0001' && !walking && !closing && !inClose;
-  if (want1 !== womanShown1) { womanShown1 = want1; panelWoman1.visible = want1; if (want1) { womanVid1.currentTime = 0; womanVid1.play().catch(() => {}); } else womanVid1.pause(); }
-  const want = woman === 2 && here === 'TOHO-0002' && !walking && !closing && !inClose;
-  if (womanShown && Math.floor(womanVid.currentTime * 15) >= 348) womanVid.currentTime = (288 + 0.5) / 15;   // the 289-349 loop
-  if (womanShown && womanVid.ended) { womanVid.currentTime = (288 + 0.5) / 15; womanVid.play().catch(() => {}); }
-  if (want === womanShown) return;
-  womanShown = want; panelWoman.visible = want;
-  if (want) { womanVid.currentTime = (299 + 0.5) / 15; womanVid.play().catch(() => {}); } else womanVid.pause();
+  showLoop(W1, loopsWanted('TOHO-0001'), 0);
+  if (W2.shown && Math.floor(womanVid.currentTime * 15) >= 348) womanVid.currentTime = (288 + 0.5) / 15;   // the 289-349 loop
+  if (W2.shown && womanVid.ended) { womanVid.currentTime = (288 + 0.5) / 15; womanVid.play().catch(() => {}); }
+  showLoop(W2, loopsWanted('TOHO-0002'), (299 + 0.5) / 15);
 }
 // the door: its hotspot plays the game's movie of the door opening, with its sound, on a panel in the room where the
 // movie's view lies (found by matching its first frame to the node's faces: a level camera, 80 degrees across, at
@@ -891,9 +921,7 @@ function stepDoor(now) {
   opening = null; V[401] = o.back ? 0 : 1; here = null;
   go(o.node, false, false).then(() => { panelDoor.visible = false; if (openCube) { scene.remove(openCube); openCube.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); openCube = null; } drawSpots(here); if (o.res) o.res(); else busy = false; });
 }
-document.getElementById('womanbtn').onclick = async () => { if (busy) return; woman = woman ? 0 : 2; document.getElementById('womanbtn').textContent = 'Woman: ' + (woman ? 'on' : 'off');
-  if (here === 'TOHO-0002' || here === 'TOHO-0001') { const n = here; here = null; await go(n, false, true); } prioritise(here); };
-document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = cap ? '24 fps' : 'full rate'; };
+document.getElementById('fpsbtn').onclick = () => { cap = !cap; lastSlot = -1; document.getElementById('fpsbtn').textContent = 'Frame rate: ' + (cap ? '24 fps' : 'full'); };
 document.getElementById('sndbtn').onclick = () => { soundOn = !soundOn; document.getElementById('sndbtn').textContent = 'Sound: ' + (soundOn ? 'on' : 'off'); };
 document.getElementById('doorbtn').onclick = () => { doorMode = DOORMODES[(DOORMODES.indexOf(doorMode) + 1) % 3]; document.getElementById('doorbtn').textContent = 'Door: ' + DOORLABEL[doorMode]; };
 document.getElementById('lensbtn').onclick = () => { lens = { plain: 'panini', panini: 'stereo', stereo: 'plain' }[lens]; document.getElementById('lensbtn').textContent = 'Lens: ' + { plain: 'plain', panini: 'Panini', stereo: 'stereographic' }[lens]; look(); };
@@ -914,13 +942,16 @@ async function go(n, push = true, fade = true) {
   if (now && fade) { const old = now; fading = { old, next, t0: performance.now() }; next.children.forEach(m => m.material.opacity = 0); }
   else if (now) { scene.remove(now); now.children.forEach(m => { m.geometry.dispose(); m.material.dispose(); }); }
   now = next; here = n; sel.value = n; location.hash = num(n);
-  document.getElementById('here').textContent = label(n);
+  document.getElementById('back').disabled = !hist.length;
   document.getElementById('moves').textContent = (NODES[n] || []).map(s => `${what(s)} at heading ${s.rects[0][1]}°, pitch ${s.rects[0][0]}°`).join(' · ') || 'no moves';
   drawSpots(n);
   for (const s of NODES[n] || []) if (s.to) loadNode(shown(s.to));   // the next nodes' faces ready
   prioritise(n);
 }
-document.getElementById('back').onclick = () => { if (hist.length) go(hist.pop(), false); };
+document.getElementById('back').onclick = () => { if (hist.length && !busy) go(hist.pop(), false); };
+const menu = document.getElementById('menu');
+document.getElementById('menubtn').onclick = () => menu.classList.toggle('open');
+renderer.domElement.addEventListener('pointerdown', () => menu.classList.remove('open'));   // a touch on the view closes it
 document.getElementById('show').onclick = () => { spotMode = (spotMode + 1) % 4; drawSpots(here); };
 addEventListener('keydown', e => {
   if (e.key === 'h' || e.key === 'H') { spotMode = (spotMode + 1) % 4; drawSpots(here); }
@@ -971,7 +1002,7 @@ el.addEventListener('wheel', e => { if (closing || inClose) return; fov = Math.m
 // dashed from where the model has the node. Wheel over it to zoom, click a node to go there, double-click to enlarge.
 const MC = document.getElementById('map'), mcx = MC.getContext('2d');
 const ROOMCOL = ['#e8b04a', '#5ec4e8', '#b58cf0', '#7fd46a', '#f07a7a', '#e8e06a'];
-let mapOn = innerWidth > 600, mapScale = 30, mapHover = null;
+let mapOn = false, mapScale = 30, mapHover = null;
 const P = LAY.nodes, PROP = LAY.proposed, SEA = LAY.sea || 0;
 if (!Object.keys(PROP || {}).length) document.getElementById('laybtn').hidden = true;   // nothing to switch to   // heights shown over SEA (node_walk.py --sea)
 // close-ups on the map: each set out from the node it is seen from, along its hotspot's heading, nearer the bigger the
@@ -1002,7 +1033,7 @@ const posOf = n => (useProp && PROP[n]) || (P[n] && P[n].pos) || null;
 const other = n => useProp ? (PROP[n] && P[n] ? P[n].pos : null) : (PROP[n] || null);   // shown dashed
 function toggleLayout() { useProp = !useProp; document.getElementById('laybtn').textContent = 'Layout: ' + (useProp ? 'proposed' : 'model'); }
 document.getElementById('laybtn').onclick = toggleLayout;
-function toggleMap() { mapOn = !mapOn; MC.style.display = mapOn ? 'block' : 'none'; }
+function toggleMap() { mapOn = !mapOn; MC.style.display = mapOn ? 'block' : 'none'; document.getElementById('mapbtn').textContent = 'Map: ' + (mapOn ? 'on' : 'off'); }
 MC.style.display = mapOn ? 'block' : 'none';
 document.getElementById('mapbtn').onclick = toggleMap;
 MC.addEventListener('wheel', e => { mapScale = Math.min(400, Math.max(4, mapScale * Math.exp(-e.deltaY * 0.0015))); e.preventDefault(); }, { passive: false });
@@ -1120,7 +1151,7 @@ renderer.setAnimationLoop(() => {
   }
   render(); drawMap();
 });
-window.nodeWalk = { go, move: to => { const s = (NODES[here] || []).find(s => s.to === to && holds(s.cond)); if (s) move(s); return !!s; },
+window.nodeWalk = { go, get woman() { return { W1, W2, ...LOOPS }; }, move: to => { const s = (NODES[here] || []).find(s => s.to === to && holds(s.cond)); if (s) move(s); return !!s; },
   previewWalk: async (id, h, k) => { await whenLoaded(id); const src = SRC.get(id); const bms = src.blob ? await seekFrames(src.blob, wn(id), { imageOrientation: 'flipY' }) : null;
     let t; if (bms) { t = newTex(); t.image = bms[k]; t.needsUpdate = true; } else { const p = player(src, false, wn(id)); p.feed(k); p.dec.flush(); while (!p.got[k] && !p.err) await new Promise(r => setTimeout(r, 20)); t = p.got[k]; }
     wsphere.rotation.set(0, Math.PI - h * Math.PI / 180, 0); wmat.uniforms.map.value = t; wsphere.visible = true; if (now) now.visible = false; },
