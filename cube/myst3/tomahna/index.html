@@ -89,8 +89,8 @@ const shown = n => { const f = (n === 'TOHO-0004' || n === 'TOHO-0005') && V[401
 // each rendered walk: its video, the game heading it walks along (the mean of the hotspot bearings A to B and back),
 // its ends, and the door's state at its ends where it matters ("open" walks leave the open door: 104 or 105 is one end)
 const WALKVIDS = [
-  ['t0102m5', 1, 2, 183], ['t0203v3', 2, 3, 269.5], ['t0204m5', 2, 4, 175, 0], ['t02104m', 2, 4, 175, 1], ['t0304m7', 3, 4, 138.5, 0],
-  ['t03104m', 3, 4, 138.5, 1], ['t104105m', 4, 5, 184.5, 1], ['t0506v3', 5, 6, 130, 0], ['t10506v3', 5, 6, 130, 1],
+  ['t0102m5', 1, 2, 183], ['t0203v3', 2, 3, 269.5], ['t0204m5', 2, 4, 175, 0], ['t02104m5', 2, 4, 175, 1], ['t0304m7', 3, 4, 138.5, 0],
+  ['t03104m7', 3, 4, 138.5, 1], ['t104105m', 4, 5, 184.5, 1], ['t0506v3', 5, 6, 130, 0], ['t10506v3', 5, 6, 130, 1],
   ['t0507v3', 5, 7, 233, 0], ['t10507v3', 5, 7, 233, 1], ['t0508v3', 5, 8, 181.5, 0], ['t10508v3', 5, 8, 181.5, 1], ['t0608v3', 6, 8, 255]];
 // the walk for a move from node a to b (TOHO numbers) with the door as it is now: [video, heading, played backwards]
 function walkFor(a, b) {
