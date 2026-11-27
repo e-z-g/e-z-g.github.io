@@ -45,10 +45,15 @@ def main():
     ap.add_argument('--init', help='a video to start from (a rendered walk, --frames frames at --size), sampled at --denoise')
     ap.add_argument('--denoise', type=float, default=1.0)
     ap.add_argument('--tiled', action='store_true', help='encode and decode with the tiled VAE nodes')
+    ap.add_argument('--model21', help='one Wan 2.1 model (GGUF) for every step instead of 2.2\'s two experts, e.g. '
+                    'wan2.1-flf2v-14b-720p-Q4_K_M.gguf (its first and last frames also through CLIP vision, clip_vision_h)')
+    ap.add_argument('--extra-lora', nargs=2, action='append', default=[], metavar=('NAME', 'STRENGTH'),
+                    help='a LoRA on every model used, after the Lightning one (e.g. pano_video_gen_720p_comfy.safetensors 0.98)')
+    ap.add_argument('--scheduler', default='simple')
     ap.add_argument('--prompt', required=True); ap.add_argument('--neg', default=NEG)
     ap.add_argument('--server', default=os.environ.get('COMFY_SERVER', 'http://127.0.0.1:8189'))
     ap.add_argument('--comfy-input', default=r'C:\ComfyUI\input'); ap.add_argument('--comfy-output', default=r'C:\ComfyUI\output')
-    ap.add_argument('--timeout', type=int, default=7200)
+    ap.add_argument('--timeout', type=int, default=36000)
     a = ap.parse_args()
     W, H = (int(x) for x in a.size.split('x'))
     if (a.frames - 1) % 4: raise SystemExit('--frames must be 4n+1')
@@ -100,6 +105,27 @@ def main():
             'model': ['4', 0], 'add_noise': 'disable', 'noise_seed': a.seed, 'steps': a.steps, 'cfg': a.cfg,
             'sampler_name': 'euler', 'scheduler': 'simple', 'positive': ['11', 0], 'negative': ['11', 1],
             'latent_image': ['12', 0], 'start_at_step': half, 'end_at_step': 10000, 'return_with_leftover_noise': 'disable'}}
+    if a.model21:
+        # one Wan 2.1 model in place of both experts: every sampler takes it; FLF2V also sees both ends through CLIP vision
+        g['2']['inputs']['unet_name'] = a.model21
+        for k in ('1', '3', '21'): g.pop(k, None)
+        if '12' in g:      # from noise: one KSampler over all the steps
+            g.pop('12')
+            g['13'] = {'class_type': 'KSampler', 'inputs': {
+                'model': ['4', 0], 'seed': a.seed, 'steps': a.steps, 'cfg': a.cfg, 'sampler_name': 'euler', 'scheduler': a.scheduler,
+                'positive': ['11', 0], 'negative': ['11', 1], 'latent_image': ['11', 2], 'denoise': 1.0}}
+        g['30'] = {'class_type': 'CLIPVisionLoader', 'inputs': {'clip_name': 'clip_vision_h.safetensors'}}
+        g['31'] = {'class_type': 'CLIPVisionEncode', 'inputs': {'clip_vision': ['30', 0], 'image': ['9', 0], 'crop': 'none'}}
+        g['32'] = {'class_type': 'CLIPVisionEncode', 'inputs': {'clip_vision': ['30', 0], 'image': ['10', 0], 'crop': 'none'}}
+        g['11']['inputs']['clip_vision_start_image'] = ['31', 0]; g['11']['inputs']['clip_vision_end_image'] = ['32', 0]
+    for n in g.values():
+        if n['class_type'] in ('KSampler', 'KSamplerAdvanced'): n['inputs']['scheduler'] = a.scheduler
+    for k, (name, st) in enumerate(a.extra_lora):
+        # each ModelSamplingSD3 (one per model) takes the model through the extra LoRAs first
+        for ms in [key for key in g if g[key]['class_type'] == 'ModelSamplingSD3']:
+            nid = f'{ms}{50 + k}'
+            g[nid] = {'class_type': 'LoraLoaderModelOnly', 'inputs': {'model': g[ms]['inputs']['model'], 'lora_name': name, 'strength_model': float(st)}}
+            g[ms]['inputs']['model'] = [nid, 0]
     r = api(a.server, '/prompt', {'prompt': g, 'client_id': uuid.uuid4().hex})
     if r.get('node_errors'): raise SystemExit('node errors: ' + json.dumps(r['node_errors'])[:3000])
     pid = r['prompt_id']; t0 = time.time()
