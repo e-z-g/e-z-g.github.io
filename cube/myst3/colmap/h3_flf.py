@@ -43,6 +43,8 @@ def main():
     ap.add_argument('--seeds', type=int, nargs='+', help='several walks, one for each seed, queued together')
     ap.add_argument('--turbo', default='h3\\minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors')
     ap.add_argument('--turbo-strength', type=float, default=1.0)
+    ap.add_argument('--lora', nargs=2, action='append', default=[], metavar=('NAME', 'STRENGTH'),
+                    help='another LoRA on the model after the turbo one (models/loras), e.g. h3\\h3-360-equirect-lora-v1.safetensors 0.75; repeat for more')
     ap.add_argument('--unet', default='minimax_h3_fl2va_pruned_int8_convrot.safetensors',
                     help='the H3 model file (minimax_h3_fl2va_pruned_w6a8.safetensors is the smaller, 16 GB)')
     ap.add_argument('--control', help="a control video (depth_walk.py's depth, near white) for H3's Fun ControlNet-Union")
@@ -104,6 +106,16 @@ def main():
           # every decoded frame as a PNG too: the lossless master (the MP4 is H.264, for a quick look and the sound)
           '18': {'class_type': 'SaveImage', 'inputs': {'images': ['14', 0], 'filename_prefix': f'h3_frames/{uuid.uuid4().hex[:8]}_s{seed}'}},
       }
+      base = ['2', 0]
+      if a.lora:
+          # more LoRAs after the turbo one: every use of the turbo-LoRA'd model moved to the last of them
+          prev = ['2', 0]
+          for k, (name, st) in enumerate(a.lora):
+              g[str(90 + k)] = {'class_type': 'LoraLoaderModelOnly', 'inputs': {'model': prev, 'lora_name': name, 'strength_model': float(st)}}
+              prev = [str(90 + k), 0]
+          for key in ('9', '12'):
+              g[key]['inputs']['model'] = prev
+          base = prev
       cond = ['8', 0]
       for k, (_, fr) in enumerate(a.guide):
           g[str(80 + 2 * k)] = {'class_type': 'LoadImage', 'inputs': {'image': f'h3_guide{k}.png'}}
@@ -116,7 +128,7 @@ def main():
           g['30'] = {'class_type': 'ModelPatchLoader', 'inputs': {'name': a.control_patch}}
           g['31'] = {'class_type': 'LoadVideo', 'inputs': {'file': 'h3_control.mp4'}}
           g['32'] = {'class_type': 'GetVideoComponents', 'inputs': {'video': ['31', 0]}}
-          g['33'] = {'class_type': 'MiniMaxH3FunControlNetApply', 'inputs': {'model': ['2', 0], 'model_patch': ['30', 0], 'vae': ['4', 0],
+          g['33'] = {'class_type': 'MiniMaxH3FunControlNetApply', 'inputs': {'model': g['9']['inputs']['model'], 'model_patch': ['30', 0], 'vae': ['4', 0],
                                                                              'strength': a.control_strength, 'start_percent': 0.0,
                                                                              'end_percent': a.control_end, 'control_video': ['32', 0]}}
           g['9']['inputs']['model'] = ['33', 0]
@@ -140,8 +152,8 @@ def main():
               if a.pass2_denoise:
                   d = a.pass2_denoise[min(u, len(a.pass2_denoise) - 1)]
                   g[str(b + 1)] = dict(g['8']); g[str(b + 1)]['inputs'] = dict(g['8']['inputs'], width=UW, height=UH)
-                  g[str(b + 2)] = {'class_type': 'BasicGuider', 'inputs': {'model': ['2', 0], 'conditioning': [str(b + 1), 0]}}
-                  g[str(b + 3)] = {'class_type': 'BasicScheduler', 'inputs': {'model': ['2', 0], 'scheduler': 'simple', 'steps': a.pass2_steps, 'denoise': d}}
+                  g[str(b + 2)] = {'class_type': 'BasicGuider', 'inputs': {'model': base, 'conditioning': [str(b + 1), 0]}}
+                  g[str(b + 3)] = {'class_type': 'BasicScheduler', 'inputs': {'model': base, 'scheduler': 'simple', 'steps': a.pass2_steps, 'denoise': d}}
                   g[str(b + 4)] = {'class_type': 'SamplerCustomAdvanced', 'inputs': {'noise': ['10', 0], 'guider': [str(b + 2), 0], 'sampler': ['11', 0],
                                                                                    'sigmas': [str(b + 3), 0], 'latent_image': last}}
                   last = [str(b + 4), 0]
